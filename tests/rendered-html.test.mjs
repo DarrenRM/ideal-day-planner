@@ -26,6 +26,7 @@ test("server-renders the idealized day planner", async () => {
   assert.match(html, /Stretch \/ yoga/);
   assert.match(html, /Energy drink \/ shake/);
   assert.match(html, /Drag to rearrange/);
+  assert.match(html, /tap duration to edit/);
   assert.match(html, /aria-label="Idealized day schedule"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|SkeletonPreview/i);
 });
@@ -39,7 +40,13 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /localStorage/);
   assert.match(page, /draggable/);
   assert.match(page, /onDrop/);
+  assert.match(page, /DropTarget/);
+  assert.match(page, /updateDuration/);
+  assert.match(page, /Duration for .* in minutes/);
+  assert.match(page, /resetOrder/);
   assert.match(page, /setCompleted/);
   assert.match(css, /--background: #0c0e12/);
   assert.match(css, /@media \(max-width: 760px\)/);
+  assert.match(css, /\.drop-indicator/);
+  assert.match(css, /\.duration-editor/);
 });

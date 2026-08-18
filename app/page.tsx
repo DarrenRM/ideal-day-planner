@@ -15,6 +15,11 @@ type RoutineItem = {
   color: string;
 };
 
+type DropTarget = {
+  id: string;
+  position: "before" | "after";
+};
+
 const START_MINUTES = 8 * 60;
 
 const INITIAL_ITEMS: RoutineItem[] = [
@@ -57,6 +62,8 @@ export default function Home() {
   const [items, setItems] = useState<RoutineItem[]>(INITIAL_ITEMS);
   const [completed, setCompleted] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [editingDurationId, setEditingDurationId] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
@@ -100,15 +107,38 @@ export default function Home() {
     );
   }
 
-  function moveItem(sourceId: string, targetId: string) {
+  function updateDuration(id: string, value: string) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    const duration = Math.min(480, Math.max(1, Math.round(parsed)));
+    setItems((current) =>
+      current.map((item) => (item.id === id ? { ...item, duration } : item)),
+    );
+  }
+
+  function resetOrder() {
+    setItems((current) => {
+      const durations = new Map(current.map((item) => [item.id, item.duration]));
+      return INITIAL_ITEMS.map((item) => ({
+        ...item,
+        duration: durations.get(item.id) ?? item.duration,
+      }));
+    });
+  }
+
+  function moveItem(
+    sourceId: string,
+    targetId: string,
+    position: "before" | "after" = "before",
+  ) {
     if (sourceId === targetId) return;
     setItems((current) => {
       const next = [...current];
       const sourceIndex = next.findIndex((item) => item.id === sourceId);
-      const targetIndex = next.findIndex((item) => item.id === targetId);
-      if (sourceIndex < 0 || targetIndex < 0) return current;
+      if (sourceIndex < 0 || !next.some((item) => item.id === targetId)) return current;
       const [moved] = next.splice(sourceIndex, 1);
-      next.splice(targetIndex, 0, moved);
+      const targetIndex = next.findIndex((item) => item.id === targetId);
+      next.splice(position === "after" ? targetIndex + 1 : targetIndex, 0, moved);
       return next;
     });
   }
@@ -126,8 +156,29 @@ export default function Home() {
 
   function handleDrop(event: DragEvent<HTMLDivElement>, targetId: string) {
     event.preventDefault();
-    if (draggingId) moveItem(draggingId, targetId);
+    if (draggingId && dropTarget?.id === targetId) {
+      moveItem(draggingId, targetId, dropTarget.position);
+    }
     setDraggingId(null);
+    setDropTarget(null);
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>, targetId: string) {
+    event.preventDefault();
+    if (!draggingId || draggingId === targetId) {
+      setDropTarget(null);
+      return;
+    }
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const position = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+    setDropTarget({ id: targetId, position });
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    const relatedTarget = event.relatedTarget as Node | null;
+    if (!relatedTarget || !event.currentTarget.contains(relatedTarget)) {
+      setDropTarget(null);
+    }
   }
 
   let runningMinutes = START_MINUTES;
@@ -163,7 +214,7 @@ export default function Home() {
 
             <div className="schedule-toolbar">
               <div className="view-switcher" role="group" aria-label="View selector"><button className="view-button active" type="button">Day</button><button className="view-button" type="button" disabled>Week</button></div>
-              <div className="toolbar-actions"><button className="text-button" type="button" onClick={() => setItems(INITIAL_ITEMS)}>Reset order</button><span className="toolbar-hint">Drag to rearrange</span></div>
+              <div className="toolbar-actions"><button className="text-button" type="button" onClick={resetOrder}>Reset order</button><span className="toolbar-hint">Drag to rearrange · tap duration to edit</span></div>
             </div>
 
             <div className="schedule" aria-label="Idealized day schedule">
@@ -174,16 +225,22 @@ export default function Home() {
                 runningMinutes = end;
                 const isComplete = completed.includes(item.id);
                 const isDragging = draggingId === item.id;
+                const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
+                const isDropAfter = dropTarget?.id === item.id && dropTarget.position === "after";
                 const itemStyle = { "--accent": item.color } as CSSProperties;
                 return (
-                  <div className={`routine-row ${isDragging ? "is-dragging" : ""} ${isComplete ? "is-complete" : ""}`} key={item.id} draggable onDragStart={() => setDraggingId(item.id)} onDragEnd={() => setDraggingId(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleDrop(event, item.id)} style={itemStyle}>
+                  <div className={`routine-row ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""} ${isComplete ? "is-complete" : ""}`} key={item.id} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", item.id); setDraggingId(item.id); setDropTarget(null); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} onDragOver={(event) => handleDragOver(event, item.id)} onDragLeave={handleDragLeave} onDrop={(event) => handleDrop(event, item.id)} style={itemStyle}>
+                    {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Drop here</span></div> : null}
                     <div className="time-column"><strong>{formatTime(start)}</strong><span>{formatTime(end)}</span></div>
                     <div className="timeline-track" aria-hidden="true"><span className="track-line" /><span className="timeline-node" /></div>
                     <article className="routine-card">
                       <button className={`complete-button ${isComplete ? "checked" : ""}`} type="button" aria-label={`${isComplete ? "Mark" : "Complete"} ${item.title}`} onClick={() => toggleComplete(item.id)}>{isComplete ? "✓" : ""}</button>
                       <div className="routine-icon" aria-hidden="true">{item.icon}</div>
                       <div className="routine-copy"><div className="routine-title-line"><h2>{item.title}</h2><span className="category-pill">{item.category}</span></div><p>{item.detail}</p></div>
-                      <div className="card-actions"><span className="duration">{formatDuration(item.duration)}</span><button className="move-button" type="button" aria-label={`Move ${item.title} up`} onClick={() => moveByKeyboard(item.id, -1)}>↑</button><button className="move-button" type="button" aria-label={`Move ${item.title} down`} onClick={() => moveByKeyboard(item.id, 1)}>↓</button><span className="drag-handle" aria-hidden="true">⠿</span></div>
+                      <div className="card-actions">
+                        {editingDurationId === item.id ? <div className="duration-editor"><label><span>Duration</span><input aria-label={`Duration for ${item.title} in minutes`} type="number" min="1" max="480" step="5" value={item.duration} onChange={(event) => updateDuration(item.id, event.target.value)} /></label><span className="duration-unit">min</span><button className="duration-done" type="button" onClick={() => setEditingDurationId(null)}>Done</button></div> : <button className="duration-button" type="button" aria-label={`Edit duration for ${item.title}`} onClick={() => setEditingDurationId(item.id)}>{formatDuration(item.duration)} <span>↗</span></button>}
+                        <button className="move-button" type="button" aria-label={`Move ${item.title} up`} onClick={() => moveByKeyboard(item.id, -1)}>↑</button><button className="move-button" type="button" aria-label={`Move ${item.title} down`} onClick={() => moveByKeyboard(item.id, 1)}>↓</button><span className="drag-handle" aria-hidden="true">⠿</span>
+                      </div>
                     </article>
                     {index === items.length - 1 ? <div className="timeline-end"><span className="timeline-dot" /> {formatTime(end)} finish</div> : null}
                   </div>
