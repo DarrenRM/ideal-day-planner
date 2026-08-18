@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, DragEvent } from "react";
+import type { CSSProperties, DragEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care";
@@ -21,7 +21,6 @@ type DropTarget = { id: string; position: "before" | "after" };
 const START_MINUTES = 8 * 60;
 const DURATION_STEP = 5;
 const STORAGE_KEY = "idealized-day-items-v1";
-const COMPLETE_KEY = "idealized-day-complete-v1";
 
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
@@ -33,7 +32,7 @@ const INITIAL_ITEMS: RoutineItem[] = [
   { id: "kettlebells", title: "Kettlebells", detail: "Strength · short focused circuit", duration: 20, category: "Training", icon: "◆", color: "#c99a67" },
   { id: "cardio", title: "Cardio", detail: "Conditioning · steady effort", duration: 25, category: "Training", icon: "≈", color: "#64b89a" },
   { id: "lift", title: "Lift", detail: "Strength · main session", duration: 45, category: "Training", icon: "▰", color: "#8eb36d" },
-  { id: "breakfast", title: "Breakfast", detail: "Energy drink / shake · sit down and eat", duration: 30, category: "Fuel", icon: "◒", color: "#d59662" },
+  { id: "breakfast", title: "Breakfast + shake", detail: "Sit down and eat", duration: 30, category: "Fuel", icon: "◒", color: "#d59662" },
   { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Reset", icon: "∿", color: "#73a6c8" },
   { id: "skin-routine", title: "Skin routine", detail: "Care · cleanse and moisturize", duration: 15, category: "Care", icon: "✧", color: "#ce8fb7" },
   { id: "lunch", title: "Lunch", detail: "Fuel · simple, intentional meal", duration: 30, category: "Fuel", icon: "◍", color: "#cf9e62" },
@@ -66,7 +65,6 @@ function formatDuration(duration: number) {
 
 export default function Home() {
   const [items, setItems] = useState<RoutineItem[]>(INITIAL_ITEMS);
-  const [completed, setCompleted] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -74,9 +72,22 @@ export default function Home() {
   useEffect(() => {
     try {
       const savedItems = window.localStorage.getItem(STORAGE_KEY);
-      const savedCompleted = window.localStorage.getItem(COMPLETE_KEY);
-      if (savedItems) setItems(JSON.parse(savedItems) as RoutineItem[]);
-      if (savedCompleted) setCompleted(JSON.parse(savedCompleted) as string[]);
+      if (savedItems) {
+        const saved = JSON.parse(savedItems) as RoutineItem[];
+        if (Array.isArray(saved)) {
+          const defaults = new Map(INITIAL_ITEMS.map((item) => [item.id, item]));
+          const restored = saved.flatMap((savedItem) => {
+            const currentItem = defaults.get(savedItem.id);
+            if (!currentItem) return [];
+            return [{
+              ...currentItem,
+              duration: Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration,
+            }];
+          });
+          const restoredIds = new Set(restored.map((item) => item.id));
+          setItems([...restored, ...INITIAL_ITEMS.filter((item) => !restoredIds.has(item.id))]);
+        }
+      }
     } catch {
       // Keep the defaults when local state is unavailable or malformed.
     } finally {
@@ -87,10 +98,6 @@ export default function Home() {
   useEffect(() => {
     if (hasLoaded) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [hasLoaded, items]);
-
-  useEffect(() => {
-    if (hasLoaded) window.localStorage.setItem(COMPLETE_KEY, JSON.stringify(completed));
-  }, [completed, hasLoaded]);
 
   const scheduledItems = useMemo(() => {
     let cursor = START_MINUTES;
@@ -106,9 +113,6 @@ export default function Home() {
     [items],
   );
   const finishMinutes = START_MINUTES + totalMinutes;
-  const completedCount = completed.filter((id) => items.some((item) => item.id === id)).length;
-  const progress = items.length ? (completedCount / items.length) * 100 : 0;
-  const nextUp = scheduledItems.find((item) => !completed.includes(item.id));
   const categoryTotals = useMemo(
     () => CATEGORY_ORDER.map((category) => ({
       category,
@@ -117,12 +121,6 @@ export default function Home() {
     })),
     [items],
   );
-
-  function toggleComplete(id: string) {
-    setCompleted((current) =>
-      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id],
-    );
-  }
 
   function setDuration(id: string, value: number) {
     if (!Number.isFinite(value)) return;
@@ -164,6 +162,12 @@ export default function Home() {
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
+  }
+
+  function handleDragKeyDown(event: KeyboardEvent<HTMLButtonElement>, id: string) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    moveByKeyboard(id, event.key === "ArrowUp" ? -1 : 1);
   }
 
   function handleDragStart(event: DragEvent<HTMLButtonElement>, id: string) {
@@ -231,12 +235,11 @@ export default function Home() {
               <button className="quiet-button" type="button" onClick={resetOrder}>Reset order</button>
             </header>
 
-            <div className="planner-help"><span className="help-grip">⠿</span> Drag from the grip to reorder <i /> Adjust minutes directly on each block</div>
+            <div className="planner-help"><span className="help-grip">⠿</span> Drag a handle to reorder <span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</div>
 
             <div className="schedule" aria-label="Idealized day schedule">
-              {scheduledItems.map((item, index) => {
+              {scheduledItems.map((item) => {
                 const start = timeParts(item.start);
-                const isComplete = completed.includes(item.id);
                 const isDragging = draggingId === item.id;
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
                 const isDropAfter = dropTarget?.id === item.id && dropTarget.position === "after";
@@ -244,7 +247,7 @@ export default function Home() {
 
                 return (
                   <div
-                    className={`routine-row ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""} ${isComplete ? "is-complete" : ""}`}
+                    className={`routine-row ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""}`}
                     key={item.id}
                     onDragOver={(event) => handleDragOver(event, item.id)}
                     onDragLeave={handleDragLeave}
@@ -254,7 +257,6 @@ export default function Home() {
                     {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Move here</span></div> : null}
 
                     <div className="time-label"><strong>{start.time}</strong><span>{start.suffix}</span></div>
-                    <div className="time-rail" aria-hidden="true"><span className="rail-line" /><span className="rail-node" /></div>
 
                     <article className="routine-card">
                       <button
@@ -264,41 +266,32 @@ export default function Home() {
                         aria-label={`Drag ${item.title} to reorder`}
                         onDragStart={(event) => handleDragStart(event, item.id)}
                         onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                        onKeyDown={(event) => handleDragKeyDown(event, item.id)}
                       >⠿</button>
-
-                      <button
-                        className={`check-button ${isComplete ? "checked" : ""}`}
-                        type="button"
-                        aria-label={`${isComplete ? "Mark incomplete" : "Complete"} ${item.title}`}
-                        onClick={() => toggleComplete(item.id)}
-                      >{isComplete ? "✓" : ""}</button>
 
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
                       <div className="item-copy">
-                        <div className="item-title"><h3>{item.title}</h3><span>{item.category}</span></div>
-                        <p>{item.detail}</p>
+                        <div className="item-title"><h3>{item.title}</h3><span className="category-chip">{item.category}</span></div>
                       </div>
 
                       <div className="duration-control" aria-label={`Duration for ${item.title}`}>
                         <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
-                        <input
-                          aria-label={`Duration for ${item.title} in minutes`}
-                          inputMode="numeric"
-                          max="480"
-                          min="1"
-                          onChange={(event) => setDuration(item.id, event.target.valueAsNumber)}
-                          step="5"
-                          type="number"
-                          value={item.duration}
-                        />
-                        <span className="duration-unit">min</span>
+                        <div className="duration-value">
+                          <input
+                            aria-label={`Duration for ${item.title} in minutes`}
+                            inputMode="numeric"
+                            max="480"
+                            min="1"
+                            onChange={(event) => setDuration(item.id, event.target.valueAsNumber)}
+                            step="5"
+                            type="number"
+                            value={item.duration}
+                          />
+                          <span className="duration-unit">min</span>
+                        </div>
                         <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
                       </div>
 
-                      <div className="reorder-buttons" aria-label={`Move ${item.title}`}>
-                        <button type="button" disabled={index === 0} aria-label={`Move ${item.title} up`} onClick={() => moveByKeyboard(item.id, -1)}>↑</button>
-                        <button type="button" disabled={index === items.length - 1} aria-label={`Move ${item.title} down`} onClick={() => moveByKeyboard(item.id, 1)}>↓</button>
-                      </div>
                     </article>
                   </div>
                 );
@@ -306,26 +299,12 @@ export default function Home() {
 
               <div className="finish-row">
                 <div className="time-label"><strong>{timeParts(finishMinutes).time}</strong><span>{timeParts(finishMinutes).suffix}</span></div>
-                <div className="time-rail" aria-hidden="true"><span className="finish-node">✓</span></div>
                 <p>Protocol complete</p>
               </div>
             </div>
           </section>
 
           <aside className="summary-rail" aria-label="Plan summary">
-            <section className="summary-card progress-card">
-              <p className="eyebrow">Progress</p>
-              <div className="progress-heading"><strong>{completedCount}</strong><span>of {items.length} complete</span></div>
-              <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
-
-              <div className="next-section">
-                <span>Next up</span>
-                {nextUp ? <div className="next-item"><div className="next-icon" style={{ "--item-color": nextUp.color } as CSSProperties}>{nextUp.icon}</div><div><strong>{nextUp.title}</strong><p>{formatTime(nextUp.start)} · {nextUp.duration} min</p></div></div> : <div className="next-item"><div className="next-icon complete">✓</div><div><strong>All done</strong><p>Protocol complete</p></div></div>}
-              </div>
-
-              <button className="clear-button" type="button" onClick={() => setCompleted([])}>Clear completion</button>
-            </section>
-
             <section className="summary-card shape-card">
               <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{formatDuration(totalMinutes)} total</h2></div><span>{formatTime(START_MINUTES)}–{formatTime(finishMinutes)}</span></div>
               <div className="shape-list">
@@ -338,7 +317,7 @@ export default function Home() {
               </div>
             </section>
 
-            <p className="local-note"><span>●</span> Order, durations, and completion are saved locally.</p>
+            <p className="local-note"><span>●</span> Order and durations are saved locally.</p>
           </aside>
         </div>
       </div>
