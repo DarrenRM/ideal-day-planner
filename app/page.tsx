@@ -15,44 +15,50 @@ type RoutineItem = {
   color: string;
 };
 
-type DropTarget = {
-  id: string;
-  position: "before" | "after";
-};
+type ScheduledItem = RoutineItem & { start: number; end: number };
+type DropTarget = { id: string; position: "before" | "after" };
 
 const START_MINUTES = 8 * 60;
-
-const INITIAL_ITEMS: RoutineItem[] = [
-  { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#f2b55b" },
-  { id: "shower", title: "Shower", detail: "Reset · get ready for the day", duration: 15, category: "Reset", icon: "◌", color: "#73b9d4" },
-  { id: "stretch", title: "Stretch / yoga", detail: "Mobility · breathe and open up", duration: 20, category: "Reset", icon: "⌁", color: "#9d9ae8" },
-  { id: "hair-serum", title: "Hair serum", detail: "Care · apply and let it settle", duration: 5, category: "Care", icon: "✦", color: "#d58bb1" },
-  { id: "red-light", title: "Red light", detail: "Care · device session", duration: 15, category: "Care", icon: "◉", color: "#dc766a" },
-  { id: "hang", title: "Hang from chin-up bar", detail: "Grip · decompression", duration: 5, category: "Training", icon: "↑", color: "#b3cf67" },
-  { id: "kettlebells", title: "Kettlebells", detail: "Strength · short focused circuit", duration: 20, category: "Training", icon: "◆", color: "#cb9a67" },
-  { id: "cardio", title: "Cardio", detail: "Conditioning · steady effort", duration: 25, category: "Training", icon: "≈", color: "#68b89c" },
-  { id: "lift", title: "Lift", detail: "Strength · main session", duration: 45, category: "Training", icon: "▰", color: "#8fb66e" },
-  { id: "breakfast", title: "Breakfast", detail: "Energy drink / shake · sit down and eat", duration: 30, category: "Fuel", icon: "◒", color: "#d49561" },
-  { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Reset", icon: "∿", color: "#78a6c8" },
-  { id: "skin-routine", title: "Skin routine", detail: "Care · cleanse and moisturize", duration: 15, category: "Care", icon: "✧", color: "#d08fb6" },
-  { id: "lunch", title: "Lunch", detail: "Fuel · simple, intentional meal", duration: 30, category: "Fuel", icon: "◍", color: "#d29e61" },
-  { id: "sun-tan", title: "Sun tan", detail: "Outdoor time · finish the protocol", duration: 20, category: "Light", icon: "☀", color: "#efb65c" },
-];
-
+const DURATION_STEP = 5;
 const STORAGE_KEY = "idealized-day-items-v1";
 const COMPLETE_KEY = "idealized-day-complete-v1";
 
-function formatTime(totalMinutes: number) {
+const INITIAL_ITEMS: RoutineItem[] = [
+  { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
+  { id: "shower", title: "Shower", detail: "Reset · get ready for the day", duration: 15, category: "Reset", icon: "◌", color: "#67b7ce" },
+  { id: "stretch", title: "Stretch / yoga", detail: "Mobility · breathe and open up", duration: 20, category: "Reset", icon: "⌁", color: "#928ce0" },
+  { id: "hair-serum", title: "Hair serum", detail: "Care · apply and let it settle", duration: 5, category: "Care", icon: "✦", color: "#d58db5" },
+  { id: "red-light", title: "Red light", detail: "Care · device session", duration: 15, category: "Care", icon: "◉", color: "#dc766a" },
+  { id: "hang", title: "Hang from chin-up bar", detail: "Grip · decompression", duration: 5, category: "Training", icon: "↑", color: "#a8c96d" },
+  { id: "kettlebells", title: "Kettlebells", detail: "Strength · short focused circuit", duration: 20, category: "Training", icon: "◆", color: "#c99a67" },
+  { id: "cardio", title: "Cardio", detail: "Conditioning · steady effort", duration: 25, category: "Training", icon: "≈", color: "#64b89a" },
+  { id: "lift", title: "Lift", detail: "Strength · main session", duration: 45, category: "Training", icon: "▰", color: "#8eb36d" },
+  { id: "breakfast", title: "Breakfast", detail: "Energy drink / shake · sit down and eat", duration: 30, category: "Fuel", icon: "◒", color: "#d59662" },
+  { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Reset", icon: "∿", color: "#73a6c8" },
+  { id: "skin-routine", title: "Skin routine", detail: "Care · cleanse and moisturize", duration: 15, category: "Care", icon: "✧", color: "#ce8fb7" },
+  { id: "lunch", title: "Lunch", detail: "Fuel · simple, intentional meal", duration: 30, category: "Fuel", icon: "◍", color: "#cf9e62" },
+  { id: "sun-tan", title: "Sun tan", detail: "Outdoor time · finish the protocol", duration: 20, category: "Light", icon: "☀", color: "#edb65b" },
+];
+
+const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Reset", "Care"];
+
+function timeParts(totalMinutes: number) {
   const normalized = totalMinutes % (24 * 60);
   const hour = Math.floor(normalized / 60);
   const minutes = normalized % 60;
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const twelveHour = hour % 12 || 12;
-  return `${twelveHour}:${String(minutes).padStart(2, "0")} ${suffix}`;
+  return {
+    time: `${hour % 12 || 12}:${String(minutes).padStart(2, "0")}`,
+    suffix: hour >= 12 ? "PM" : "AM",
+  };
+}
+
+function formatTime(totalMinutes: number) {
+  const { time, suffix } = timeParts(totalMinutes);
+  return `${time} ${suffix}`;
 }
 
 function formatDuration(duration: number) {
-  if (duration < 60) return `${duration} min`;
+  if (duration < 60) return `${duration}m`;
   const hours = Math.floor(duration / 60);
   const minutes = duration % 60;
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
@@ -63,7 +69,6 @@ export default function Home() {
   const [completed, setCompleted] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-  const [editingDurationId, setEditingDurationId] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
@@ -73,64 +78,71 @@ export default function Home() {
       if (savedItems) setItems(JSON.parse(savedItems) as RoutineItem[]);
       if (savedCompleted) setCompleted(JSON.parse(savedCompleted) as string[]);
     } catch {
-      // The default routine remains usable if storage is unavailable or corrupt.
+      // Keep the defaults when local state is unavailable or malformed.
     } finally {
       setHasLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    if (!hasLoaded) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    if (hasLoaded) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [hasLoaded, items]);
 
   useEffect(() => {
-    if (!hasLoaded) return;
-    window.localStorage.setItem(COMPLETE_KEY, JSON.stringify(completed));
+    if (hasLoaded) window.localStorage.setItem(COMPLETE_KEY, JSON.stringify(completed));
   }, [completed, hasLoaded]);
+
+  const scheduledItems = useMemo(() => {
+    let cursor = START_MINUTES;
+    return items.map<ScheduledItem>((item) => {
+      const scheduled = { ...item, start: cursor, end: cursor + item.duration };
+      cursor = scheduled.end;
+      return scheduled;
+    });
+  }, [items]);
 
   const totalMinutes = useMemo(
     () => items.reduce((total, item) => total + item.duration, 0),
     [items],
   );
-  const completedCount = completed.filter((id) =>
-    items.some((item) => item.id === id),
-  ).length;
+  const finishMinutes = START_MINUTES + totalMinutes;
+  const completedCount = completed.filter((id) => items.some((item) => item.id === id)).length;
   const progress = items.length ? (completedCount / items.length) * 100 : 0;
-  const nextUp = items.find((item) => !completed.includes(item.id));
+  const nextUp = scheduledItems.find((item) => !completed.includes(item.id));
+  const categoryTotals = useMemo(
+    () => CATEGORY_ORDER.map((category) => ({
+      category,
+      minutes: items.filter((item) => item.category === category).reduce((sum, item) => sum + item.duration, 0),
+      color: items.find((item) => item.category === category)?.color ?? "#8f9995",
+    })),
+    [items],
+  );
 
   function toggleComplete(id: string) {
     setCompleted((current) =>
-      current.includes(id)
-        ? current.filter((itemId) => itemId !== id)
-        : [...current, id],
+      current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id],
     );
   }
 
-  function updateDuration(id: string, value: string) {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return;
-    const duration = Math.min(480, Math.max(1, Math.round(parsed)));
-    setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, duration } : item)),
-    );
+  function setDuration(id: string, value: number) {
+    if (!Number.isFinite(value)) return;
+    const duration = Math.min(480, Math.max(1, Math.round(value)));
+    setItems((current) => current.map((item) => item.id === id ? { ...item, duration } : item));
+  }
+
+  function adjustDuration(id: string, delta: number) {
+    const item = items.find((candidate) => candidate.id === id);
+    if (item) setDuration(id, item.duration + delta);
   }
 
   function resetOrder() {
     setItems((current) => {
       const durations = new Map(current.map((item) => [item.id, item.duration]));
-      return INITIAL_ITEMS.map((item) => ({
-        ...item,
-        duration: durations.get(item.id) ?? item.duration,
-      }));
+      return INITIAL_ITEMS.map((item) => ({ ...item, duration: durations.get(item.id) ?? item.duration }));
     });
   }
 
-  function moveItem(
-    sourceId: string,
-    targetId: string,
-    position: "before" | "after" = "before",
-  ) {
+  function moveItem(sourceId: string, targetId: string, position: "before" | "after") {
     if (sourceId === targetId) return;
     setItems((current) => {
       const next = [...current];
@@ -154,12 +166,10 @@ export default function Home() {
     });
   }
 
-  function handleDrop(event: DragEvent<HTMLDivElement>, targetId: string) {
-    event.preventDefault();
-    if (draggingId && dropTarget?.id === targetId) {
-      moveItem(draggingId, targetId, dropTarget.position);
-    }
-    setDraggingId(null);
+  function handleDragStart(event: DragEvent<HTMLButtonElement>, id: string) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", id);
+    setDraggingId(id);
     setDropTarget(null);
   }
 
@@ -170,98 +180,168 @@ export default function Home() {
       return;
     }
     const bounds = event.currentTarget.getBoundingClientRect();
-    const position = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
-    setDropTarget({ id: targetId, position });
+    setDropTarget({
+      id: targetId,
+      position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after",
+    });
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, targetId: string) {
+    event.preventDefault();
+    if (draggingId && dropTarget?.id === targetId) {
+      moveItem(draggingId, targetId, dropTarget.position);
+    }
+    setDraggingId(null);
+    setDropTarget(null);
   }
 
   function handleDragLeave(event: DragEvent<HTMLDivElement>) {
     const relatedTarget = event.relatedTarget as Node | null;
-    if (!relatedTarget || !event.currentTarget.contains(relatedTarget)) {
-      setDropTarget(null);
-    }
+    if (!relatedTarget || !event.currentTarget.contains(relatedTarget)) setDropTarget(null);
   }
-
-  let runningMinutes = START_MINUTES;
 
   return (
     <main className="app-shell">
-      <aside className="side-rail" aria-label="Primary navigation">
-        <div className="mark" aria-label="Idealized day home">id</div>
-        <nav className="rail-nav">
-          <button className="rail-button active" aria-label="Daily protocol" type="button"><span className="rail-icon">▦</span></button>
-          <button className="rail-button" aria-label="Insights" type="button"><span className="rail-icon">◒</span></button>
-          <button className="rail-button" aria-label="Settings" type="button"><span className="rail-icon">⌘</span></button>
-        </nav>
-        <div className="rail-bottom"><span className="status-dot" /><span>v1</span></div>
-      </aside>
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark">id</span>
+          <div><strong>Ideal Day</strong><span>Personal protocol</span></div>
+        </div>
+        <div className="save-state"><span /> Saved on this device</div>
+      </header>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div className="breadcrumb"><span>Daily protocol</span><span className="crumb-divider">/</span><strong>Idealized day</strong></div>
-          <div className="topbar-right"><span className="saved-state"><span className="status-dot" /> Local plan</span><button className="avatar" type="button" aria-label="Profile">D</button></div>
-        </header>
+      <div className="page-shell">
+        <section className="hero" aria-labelledby="page-title">
+          <div className="hero-copy">
+            <p className="eyebrow">Daily protocol</p>
+            <h1 id="page-title">Your ideal morning.</h1>
+            <p>One repeatable sequence from wake-up to done. Reorder the flow and tune the timing until it feels natural.</p>
+          </div>
+          <div className="day-overview" aria-label="Day overview">
+            <div><span>Start</span><strong>{formatTime(START_MINUTES)}</strong></div>
+            <div><span>Finish</span><strong>{formatTime(finishMinutes)}</strong></div>
+            <div><span>Length</span><strong>{formatDuration(totalMinutes)}</strong></div>
+          </div>
+        </section>
 
-        <div className="content-grid">
-          <section className="schedule-column" aria-labelledby="page-title">
-            <div className="page-heading">
-              <div>
-                <p className="eyebrow">A repeatable morning</p>
-                <h1 id="page-title">Start with sunlight.</h1>
-                <p className="lede">Your idealized day, arranged from wake-up through the last block.</p>
-              </div>
-              <div className="date-card"><span className="date-label">Wake</span><strong>8:00 <small>AM</small></strong><span className="date-label">{items.length} blocks · {formatDuration(totalMinutes)}</span></div>
-            </div>
+        <div className="main-grid">
+          <section className="planner" aria-labelledby="schedule-title">
+            <header className="planner-header">
+              <div><h2 id="schedule-title">Schedule</h2><p>{items.length} blocks · times update automatically</p></div>
+              <button className="quiet-button" type="button" onClick={resetOrder}>Reset order</button>
+            </header>
 
-            <div className="schedule-toolbar">
-              <div className="view-switcher" role="group" aria-label="View selector"><button className="view-button active" type="button">Day</button><button className="view-button" type="button" disabled>Week</button></div>
-              <div className="toolbar-actions"><button className="text-button" type="button" onClick={resetOrder}>Reset order</button><span className="toolbar-hint">Drag to rearrange · tap duration to edit</span></div>
-            </div>
+            <div className="planner-help"><span className="help-grip">⠿</span> Drag from the grip to reorder <i /> Adjust minutes directly on each block</div>
 
             <div className="schedule" aria-label="Idealized day schedule">
-              <div className="timeline-start"><span className="timeline-dot" /> 8:00 AM start</div>
-              {items.map((item, index) => {
-                const start = runningMinutes;
-                const end = start + item.duration;
-                runningMinutes = end;
+              {scheduledItems.map((item, index) => {
+                const start = timeParts(item.start);
                 const isComplete = completed.includes(item.id);
                 const isDragging = draggingId === item.id;
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
                 const isDropAfter = dropTarget?.id === item.id && dropTarget.position === "after";
-                const itemStyle = { "--accent": item.color } as CSSProperties;
+                const itemStyle = { "--item-color": item.color } as CSSProperties;
+
                 return (
-                  <div className={`routine-row ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""} ${isComplete ? "is-complete" : ""}`} key={item.id} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", item.id); setDraggingId(item.id); setDropTarget(null); }} onDragEnd={() => { setDraggingId(null); setDropTarget(null); }} onDragOver={(event) => handleDragOver(event, item.id)} onDragLeave={handleDragLeave} onDrop={(event) => handleDrop(event, item.id)} style={itemStyle}>
-                    {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Drop here</span></div> : null}
-                    <div className="time-column"><strong>{formatTime(start)}</strong><span>{formatTime(end)}</span></div>
-                    <div className="timeline-track" aria-hidden="true"><span className="track-line" /><span className="timeline-node" /></div>
+                  <div
+                    className={`routine-row ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""} ${isComplete ? "is-complete" : ""}`}
+                    key={item.id}
+                    onDragOver={(event) => handleDragOver(event, item.id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(event) => handleDrop(event, item.id)}
+                    style={itemStyle}
+                  >
+                    {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Move here</span></div> : null}
+
+                    <div className="time-label"><strong>{start.time}</strong><span>{start.suffix}</span></div>
+                    <div className="time-rail" aria-hidden="true"><span className="rail-line" /><span className="rail-node" /></div>
+
                     <article className="routine-card">
-                      <button className={`complete-button ${isComplete ? "checked" : ""}`} type="button" aria-label={`${isComplete ? "Mark" : "Complete"} ${item.title}`} onClick={() => toggleComplete(item.id)}>{isComplete ? "✓" : ""}</button>
-                      <div className="routine-icon" aria-hidden="true">{item.icon}</div>
-                      <div className="routine-copy"><div className="routine-title-line"><h2>{item.title}</h2><span className="category-pill">{item.category}</span></div><p>{item.detail}</p></div>
-                      <div className="card-actions">
-                        {editingDurationId === item.id ? <div className="duration-editor"><label><span>Duration</span><input aria-label={`Duration for ${item.title} in minutes`} type="number" min="1" max="480" step="5" value={item.duration} onChange={(event) => updateDuration(item.id, event.target.value)} /></label><span className="duration-unit">min</span><button className="duration-done" type="button" onClick={() => setEditingDurationId(null)}>Done</button></div> : <button className="duration-button" type="button" aria-label={`Edit duration for ${item.title}`} onClick={() => setEditingDurationId(item.id)}>{formatDuration(item.duration)} <span>↗</span></button>}
-                        <button className="move-button" type="button" aria-label={`Move ${item.title} up`} onClick={() => moveByKeyboard(item.id, -1)}>↑</button><button className="move-button" type="button" aria-label={`Move ${item.title} down`} onClick={() => moveByKeyboard(item.id, 1)}>↓</button><span className="drag-handle" aria-hidden="true">⠿</span>
+                      <button
+                        className="drag-button"
+                        draggable
+                        type="button"
+                        aria-label={`Drag ${item.title} to reorder`}
+                        onDragStart={(event) => handleDragStart(event, item.id)}
+                        onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                      >⠿</button>
+
+                      <button
+                        className={`check-button ${isComplete ? "checked" : ""}`}
+                        type="button"
+                        aria-label={`${isComplete ? "Mark incomplete" : "Complete"} ${item.title}`}
+                        onClick={() => toggleComplete(item.id)}
+                      >{isComplete ? "✓" : ""}</button>
+
+                      <div className="item-icon" aria-hidden="true">{item.icon}</div>
+                      <div className="item-copy">
+                        <div className="item-title"><h3>{item.title}</h3><span>{item.category}</span></div>
+                        <p>{item.detail}</p>
+                      </div>
+
+                      <div className="duration-control" aria-label={`Duration for ${item.title}`}>
+                        <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
+                        <input
+                          aria-label={`Duration for ${item.title} in minutes`}
+                          inputMode="numeric"
+                          max="480"
+                          min="1"
+                          onChange={(event) => setDuration(item.id, event.target.valueAsNumber)}
+                          step="5"
+                          type="number"
+                          value={item.duration}
+                        />
+                        <span className="duration-unit">min</span>
+                        <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
+                      </div>
+
+                      <div className="reorder-buttons" aria-label={`Move ${item.title}`}>
+                        <button type="button" disabled={index === 0} aria-label={`Move ${item.title} up`} onClick={() => moveByKeyboard(item.id, -1)}>↑</button>
+                        <button type="button" disabled={index === items.length - 1} aria-label={`Move ${item.title} down`} onClick={() => moveByKeyboard(item.id, 1)}>↓</button>
                       </div>
                     </article>
-                    {index === items.length - 1 ? <div className="timeline-end"><span className="timeline-dot" /> {formatTime(end)} finish</div> : null}
                   </div>
                 );
               })}
+
+              <div className="finish-row">
+                <div className="time-label"><strong>{timeParts(finishMinutes).time}</strong><span>{timeParts(finishMinutes).suffix}</span></div>
+                <div className="time-rail" aria-hidden="true"><span className="finish-node">✓</span></div>
+                <p>Protocol complete</p>
+              </div>
             </div>
           </section>
 
-          <aside className="insight-column" aria-label="Day summary">
-            <div className="summary-card card-surface">
-              <div className="summary-card-top"><div><p className="eyebrow">Today&apos;s flow</p><h2>{completedCount} <span>/ {items.length}</span></h2></div><div className="progress-ring" style={{ "--progress": `${progress}%` } as CSSProperties}><span>{Math.round(progress)}%</span></div></div>
-              <div className="progress-bar"><span style={{ width: `${progress}%` }} /></div><p className="summary-caption">{completedCount === items.length ? "Protocol complete." : "Small actions, stacked consistently."}</p><button className="secondary-button" type="button" onClick={() => setCompleted([])}>Reset today</button>
-            </div>
+          <aside className="summary-rail" aria-label="Plan summary">
+            <section className="summary-card progress-card">
+              <p className="eyebrow">Progress</p>
+              <div className="progress-heading"><strong>{completedCount}</strong><span>of {items.length} complete</span></div>
+              <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
 
-            <div className="next-card card-surface"><div className="section-label"><span className="pulse" /> Next up</div>{nextUp ? <div className="next-up-content"><div className="next-icon" style={{ "--accent": nextUp.color } as CSSProperties}>{nextUp.icon}</div><div><h3>{nextUp.title}</h3><p>{formatDuration(nextUp.duration)} · keep it simple</p></div></div> : <div className="next-up-content"><div className="next-icon">✓</div><div><h3>All done</h3><p>You made it through the plan.</p></div></div>}</div>
+              <div className="next-section">
+                <span>Next up</span>
+                {nextUp ? <div className="next-item"><div className="next-icon" style={{ "--item-color": nextUp.color } as CSSProperties}>{nextUp.icon}</div><div><strong>{nextUp.title}</strong><p>{formatTime(nextUp.start)} · {nextUp.duration} min</p></div></div> : <div className="next-item"><div className="next-icon complete">✓</div><div><strong>All done</strong><p>Protocol complete</p></div></div>}
+              </div>
 
-            <div className="principles-card"><div className="section-label">How to use this</div><div className="principle"><span>01</span><p>Drag a block to change the order.</p></div><div className="principle"><span>02</span><p>Tap the circle when a block is complete.</p></div><div className="principle"><span>03</span><p>Your changes stay on this device.</p></div></div>
-            <div className="quote-card"><span className="quote-mark">“</span><p>The day becomes easier when the first decision is already made.</p></div>
+              <button className="clear-button" type="button" onClick={() => setCompleted([])}>Clear completion</button>
+            </section>
+
+            <section className="summary-card shape-card">
+              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{formatDuration(totalMinutes)} total</h2></div><span>{formatTime(START_MINUTES)}–{formatTime(finishMinutes)}</span></div>
+              <div className="shape-list">
+                {categoryTotals.map((entry) => (
+                  <div className="shape-row" key={entry.category}>
+                    <div><span className="shape-dot" style={{ background: entry.color }} /><strong>{entry.category}</strong><span>{entry.minutes} min</span></div>
+                    <div className="shape-track"><span style={{ background: entry.color, width: `${(entry.minutes / totalMinutes) * 100}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <p className="local-note"><span>●</span> Order, durations, and completion are saved locally.</p>
           </aside>
         </div>
-      </section>
+      </div>
     </main>
   );
 }
