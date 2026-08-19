@@ -97,6 +97,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.hero, \.summary-rail \{ display: none; \}/);
   assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/s);
   assert.match(css, /\.drag-button \{[^}]*grid-row: 1 \/ 3;[^}]*justify-self: center/s);
+  assert.match(css, /\.delete-item-button \{[^}]*grid-column: 6;[^}]*justify-content: flex-end/s);
   assert.match(css, /\.duration-control \{[^}]*grid-column: 2 \/ 4;[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
