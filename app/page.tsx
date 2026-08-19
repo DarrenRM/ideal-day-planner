@@ -471,6 +471,7 @@ export default function Home() {
                       ><GripVertical aria-hidden="true" size={15} strokeWidth={1.8} /></button>
 
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
+                      <div className="mobile-time-label" aria-hidden="true"><strong>{start.time}</strong><span>{start.suffix}</span></div>
                       {isEditing ? (
                         <form className="inline-edit-form" onSubmit={saveEdit}>
                           <input
