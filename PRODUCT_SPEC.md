@@ -48,10 +48,12 @@ Completion has two affordances:
 Completion changes today’s execution view:
 
 - An activity completed early moves into the passed/completed section above the Now line.
+- By default, later activities keep their existing planned times; completing early does not pull the remaining schedule forward.
 - Marking it incomplete again leaves it above the Now line as unfinished/overdue rather than automatically reinserting it into the future schedule.
 - The user can drag that unfinished activity back into a later position when desired.
+- Activities above the Now line preserve their original schedule order rather than sorting by completion time.
 
-Deleting from a daily plan must confirm the scope. The confirmation explains: “This removes the activity from today only. Your template will not change.” Template deletion is a separate explicit action while editing the template.
+Deleting from a daily plan must confirm the scope. The confirmation explains: “This removes the activity from today only. Your template will not change.” Its only actions are `Cancel` and `Remove from today`. Template deletion is a separate explicit action while editing the template.
 
 ### 2.2 Expanded activity
 
@@ -108,6 +110,14 @@ When an activity expands:
 - The footer contains edit, delete, and the compact duration control.
 - The footer also contains the primary `Complete` action.
 - The expansion should feel like part of the card rather than an unrelated modal.
+
+### 2.4 Settings
+
+Settings begins with one behavior option:
+
+- `Pull remaining schedule forward after early completion` — default off.
+
+When enabled, completing an upcoming activity removes its planned time and shifts the remaining activities earlier. When disabled, completing early leaves the remaining planned times unchanged.
 
 ## 3. Core conceptual model
 
@@ -376,7 +386,9 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Clock changes update time state without moving the UI. Completing the active Now card is the one automatic handoff that may open the next clock-current card.
 - Completion is available through both an expanded `Complete` button and a small collapsed-row circle for batch catch-up.
 - Completing early moves an activity above the Now line. Reversing completion leaves it there as overdue until the user reschedules it.
-- Removing an activity from today requires a scope-confirmation modal and never changes the template.
+- Completing early preserves later planned times by default. Settings can opt into pulling the remaining schedule forward.
+- The passed section preserves original schedule order.
+- Removing an activity from today requires a two-action scope-confirmation modal and never changes the template.
 - Missed activities can be dragged into a later part of today.
 - Moving a missed activity later reschedules all following activities.
 - Activities expand in their existing row/card on desktop and mobile.
@@ -401,32 +413,26 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ## 13. Open questions
 
-### Today and the Now line
-
-1. When an activity is completed early and removed from the upcoming sequence, should the following activities pull earlier immediately or keep their existing planned times until manually adjusted?
-2. Should the passed section sort strictly by completion time, or preserve the original schedule order?
-3. Should the daily-plan delete confirmation offer only `Cancel` and `Remove from today`, with template deletion available only from a separate template-editing mode?
-
 ### Expanded cards and chat
 
-4. Should the global conversation be one chronological feed with activity filters, or a traditional assistant thread that can reference the activity logs?
-5. After a note is automatically filed, what subtle feedback is useful: “Processed,” a list of records changed, an undo toast, or only an error when something failed?
-6. Should pressing Enter send and Shift+Enter create a newline, or should the multiline field always require a Send button?
+1. Should the global conversation be one chronological feed with activity filters, or a traditional assistant thread that can reference the activity logs?
+2. After a note is automatically filed, what subtle feedback is useful: “Processed,” a list of records changed, an undo toast, or only an error when something failed?
+3. Should pressing Enter send and Shift+Enter create a newline, or should the multiline field always require a Send button?
 
 ### Questions and prepared UI
 
-7. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
-8. Should questions be answered inside their originating activity, from a global inbox, or either place?
-9. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
-10. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
+4. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
+5. Should questions be answered inside their originating activity, from a global inbox, or either place?
+6. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
+7. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
 
 ### Agent and data policy
 
-11. Should raw user messages be preserved permanently even after facts and metrics are extracted?
-12. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
-13. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
-14. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-15. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+8. Should raw user messages be preserved permanently even after facts and metrics are extracted?
+9. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
+10. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
+11. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
+12. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
 
 ## 14. Research sources
 
