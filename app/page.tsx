@@ -4,7 +4,7 @@ import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
-type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity";
+type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
 type RoutineItem = {
   id: string;
@@ -27,8 +27,8 @@ const MIGRATION_KEY = "idealized-day-d1-imported-v1";
 
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
-  { id: "shower", title: "Shower", detail: "Reset · get ready for the day", duration: 15, category: "Reset", icon: "◌", color: "#67b7ce" },
-  { id: "stretch", title: "Stretch / yoga", detail: "Mobility · breathe and open up", duration: 20, category: "Reset", icon: "⌁", color: "#928ce0" },
+  { id: "shower", title: "Shower", detail: "Recharge · get ready for the day", duration: 15, category: "Recharge", icon: "◌", color: "#67b7ce" },
+  { id: "stretch", title: "Stretch / yoga", detail: "Mobility · breathe and open up", duration: 20, category: "Recharge", icon: "⌁", color: "#928ce0" },
   { id: "hair-serum", title: "Hair serum", detail: "Care · apply and let it settle", duration: 5, category: "Care", icon: "✦", color: "#d58db5" },
   { id: "red-light", title: "Red light", detail: "Care · device session", duration: 15, category: "Care", icon: "◉", color: "#dc766a" },
   { id: "shake", title: "Shake", detail: "Quick fuel before training", duration: 5, category: "Fuel", icon: "◒", color: "#d59662" },
@@ -37,27 +37,33 @@ const INITIAL_ITEMS: RoutineItem[] = [
   { id: "cardio", title: "Cardio", detail: "Conditioning · steady effort", duration: 25, category: "Training", icon: "≈", color: "#64b89a" },
   { id: "lift", title: "Lift", detail: "Strength · main session", duration: 45, category: "Training", icon: "▰", color: "#8eb36d" },
   { id: "breakfast", title: "Breakfast", detail: "Sit down and eat", duration: 25, category: "Fuel", icon: "◒", color: "#d59662" },
-  { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Reset", icon: "∿", color: "#73a6c8" },
+  { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Recharge", icon: "∿", color: "#73a6c8" },
   { id: "skin-routine", title: "Skin routine", detail: "Care · cleanse and moisturize", duration: 15, category: "Care", icon: "✧", color: "#ce8fb7" },
   { id: "lunch", title: "Lunch", detail: "Fuel · simple, intentional meal", duration: 30, category: "Fuel", icon: "◍", color: "#cf9e62" },
   { id: "sun-tan", title: "Sun tan", detail: "Outdoor time · finish the protocol", duration: 20, category: "Light", icon: "☀", color: "#edb65b" },
 ];
 
-const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Reset", "Care", "Logistics", "Creativity"];
-const CATEGORY_OPTIONS: Category[] = ["Care", "Training", "Fuel", "Reset", "Light", "Logistics", "Creativity"];
+const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Recharge", "Care", "Logistics", "Creativity", "Spirit"];
+const CATEGORY_OPTIONS: Category[] = ["Care", "Training", "Fuel", "Recharge", "Light", "Logistics", "Creativity", "Spirit"];
 const CATEGORY_META: Record<Category, Pick<RoutineItem, "icon" | "color">> = {
   Care: { icon: "✦", color: "#d58db5" },
   Training: { icon: "◆", color: "#a8c96d" },
   Fuel: { icon: "◒", color: "#d59662" },
-  Reset: { icon: "◌", color: "#67b7ce" },
+  Recharge: { icon: "◌", color: "#67b7ce" },
   Light: { icon: "☼", color: "#e8b75f" },
   Logistics: { icon: "↗", color: "#7ba6c9" },
   Creativity: { icon: "✺", color: "#b58ad6" },
+  Spirit: { icon: "✧", color: "#9a8ed8" },
 };
 const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
 
 function isCategory(value: unknown): value is Category {
   return CATEGORY_OPTIONS.includes(value as Category);
+}
+
+function normalizeCategory(value: unknown): Category | null {
+  if (value === "Reset") return "Recharge";
+  return isCategory(value) ? value : null;
 }
 
 function timeParts(totalMinutes: number) {
@@ -121,15 +127,17 @@ function readLegacyRoutine() {
           !savedItem.id.startsWith("custom-") ||
           typeof savedItem.title !== "string" ||
           !savedItem.title.trim() ||
-          !isCategory(savedItem.category)
+          !normalizeCategory(savedItem.category)
         ) return [];
-        const meta = CATEGORY_META[savedItem.category];
+        const category = normalizeCategory(savedItem.category);
+        if (!category) return [];
+        const meta = CATEGORY_META[category];
         return [{
           id: savedItem.id,
           title: savedItem.title.trim().slice(0, 60),
           detail: "Custom block",
           duration: normalizeActivityDuration(savedItem.duration),
-          category: savedItem.category,
+          category,
           ...meta,
         }];
       }
@@ -142,7 +150,7 @@ function readLegacyRoutine() {
       const title = typeof savedItem.title === "string" && savedItem.title.trim()
         ? savedItem.title.trim().slice(0, 60)
         : currentItem.title;
-      const category = isCategory(savedItem.category) ? savedItem.category : currentItem.category;
+      const category = normalizeCategory(savedItem.category) ?? currentItem.category;
       return [{
         ...currentItem,
         title,
@@ -172,15 +180,16 @@ function hydrateStoredItems(value: unknown): RoutineItem[] {
   return value.map((candidate) => {
     if (!candidate || typeof candidate !== "object") throw new Error("The saved day contains an invalid item.");
     const item = candidate as Partial<RoutineItem>;
+    const category = normalizeCategory(item.category);
     if (
       typeof item.id !== "string" ||
       typeof item.title !== "string" ||
       typeof item.duration !== "number" ||
-      !isCategory(item.category) ||
+      !category ||
       typeof item.icon !== "string" ||
       typeof item.color !== "string"
     ) throw new Error("The saved day contains an invalid item.");
-    return { ...item, detail: "Saved activity" } as RoutineItem;
+    return { ...item, category, detail: "Saved activity" } as RoutineItem;
   });
 }
 
@@ -353,7 +362,7 @@ export default function Home() {
       category,
       minutes: items.filter((item) => item.category === category).reduce((sum, item) => sum + item.duration, 0),
       color: items.find((item) => item.category === category)?.color ?? "#8f9995",
-    })),
+    })).filter((entry) => entry.minutes > 0),
     [items],
   );
 

@@ -1,6 +1,6 @@
 import { getD1 } from "../../../db";
 
-const CATEGORIES = new Set(["Light", "Reset", "Training", "Fuel", "Care", "Logistics", "Creativity"]);
+const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 const LEGACY_MIGRATION = "local-routine-v1";
 
 type StoredItem = {
@@ -30,6 +30,11 @@ function safeSegment(value: string) {
   return encodeURIComponent(value).replaceAll("%", "_");
 }
 
+function normalizeCategory(value: unknown) {
+  if (value === "Reset") return "Recharge";
+  return typeof value === "string" && CATEGORIES.has(value) ? value : null;
+}
+
 function normalizeItems(value: unknown): StoredItem[] | null {
   if (!Array.isArray(value) || value.length > 200) return null;
   const seen = new Set<string>();
@@ -40,13 +45,13 @@ function normalizeItems(value: unknown): StoredItem[] | null {
     const raw = candidate as Record<string, unknown>;
     const id = typeof raw.id === "string" ? raw.id.trim().slice(0, 160) : "";
     const title = typeof raw.title === "string" ? raw.title.trim().slice(0, 60) : "";
-    const category = typeof raw.category === "string" ? raw.category : "";
+    const category = normalizeCategory(raw.category);
     const icon = typeof raw.icon === "string" ? raw.icon.slice(0, 8) : "";
     const color = typeof raw.color === "string" && /^#[0-9a-f]{6}$/i.test(raw.color) ? raw.color : "";
     const rawDuration = typeof raw.duration === "number" ? raw.duration : Number.NaN;
     const duration = Math.min(480, Math.max(5, Math.round(rawDuration / 5) * 5));
 
-    if (!id || seen.has(id) || !title || !CATEGORIES.has(category) || !icon || !color || !Number.isFinite(duration)) return null;
+    if (!id || seen.has(id) || !title || !category || !icon || !color || !Number.isFinite(duration)) return null;
     seen.add(id);
     items.push({ id, title, category, icon, color, duration });
   }
@@ -75,6 +80,8 @@ async function ensureAccount(userId: string, date: string) {
     db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)").bind(userId),
     db.prepare("INSERT OR IGNORE INTO routine_templates (id, user_id, name, start_minutes) VALUES (?, ?, 'Ideal Day', 480)").bind(templateId, userId),
     db.prepare("INSERT OR IGNORE INTO settings (user_id, pull_forward_after_early_completion) VALUES (?, 0)").bind(userId),
+    db.prepare("UPDATE activities SET category = 'Recharge', updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND category = 'Reset'").bind(userId),
+    db.prepare("UPDATE daily_plan_items SET category = 'Recharge', updated_at = CURRENT_TIMESTAMP WHERE category = 'Reset' AND daily_plan_id IN (SELECT id FROM daily_plans WHERE user_id = ?)").bind(userId),
   ]);
   return templateId;
 }

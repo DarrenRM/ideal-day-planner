@@ -69,7 +69,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Math\.round\(duration \/ 5\) \* 5/);
   assert.match(page, /id="block-duration"[\s\S]*?min="5"[\s\S]*?step="5"/);
   assert.match(page, /custom-/);
-  assert.match(page, /CATEGORY_OPTIONS: Category\[\].*Logistics.*Creativity/s);
+  assert.match(page, /CATEGORY_OPTIONS: Category\[\].*Recharge.*Logistics.*Creativity.*Spirit/s);
+  assert.match(page, /type Category = .*Recharge.*Spirit/);
+  assert.match(page, /normalizeCategory/);
   assert.match(page, /Logistics: \{ icon:/);
   assert.match(page, /Creativity: \{ icon:/);
   assert.match(page, /Remove \$\{item\.title\}/);
