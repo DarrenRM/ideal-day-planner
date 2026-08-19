@@ -361,19 +361,21 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ### Phase 1 — database foundation
 
-- Enable D1 and authenticated user ownership.
-- Migrate the existing routine from local storage.
-- Add routines, activities, routine items, and export/restore.
-- Create an independently editable daily plan from the template.
+- [x] Enable D1 and authenticated user ownership.
+- [x] Migrate the existing routine from local storage with a one-time migration marker.
+- [x] Add routines, activities, and routine items.
+- [x] Create an independently editable daily plan from the template.
+- [ ] Add user-facing export/restore.
 
 ### Phase 2 — expanded activities without AI
 
-- Add a polished mobile and desktop expander.
-- Add the universal expanded-card shell and deterministic details renderer to every activity.
-- Add activity-scoped notes and history.
-- Add activity runs and basic typed logs.
-- Add the Now line, completion, overdue state, and rescheduling within today.
-- Implement the mobile schedule contract recorded above.
+- [ ] Add a polished mobile and desktop expander.
+- [ ] Add the universal expanded-card shell and deterministic details renderer to every activity.
+- [ ] Add activity-scoped notes and history.
+- [ ] Add activity runs and basic typed logs.
+- [ ] Add the Now line, completion, overdue state, and rescheduling within today.
+- [x] Implement the collapsed mobile schedule contract: begin at Schedule, omit the desktop hero and summary, keep title/time/tag on one line, truncate long titles, use compact duration controls, align edit/delete separately, and center the drag handle.
+- [ ] Implement the expanded mobile schedule contract, including the details/chat middle and completion footer.
 
 ### Phase 3 — universal scoped agent
 
