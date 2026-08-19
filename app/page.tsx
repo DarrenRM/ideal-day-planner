@@ -2,7 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { GripVertical, Pencil } from "lucide-react";
+import { GripVertical, Pencil, Trash2 } from "lucide-react";
 
 type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care";
 
@@ -22,6 +22,7 @@ type DropTarget = { id: string; position: "before" | "after" };
 const START_MINUTES = 8 * 60;
 const DURATION_STEP = 5;
 const STORAGE_KEY = "idealized-day-items-v1";
+const DELETED_KEY = "idealized-day-deleted-v1";
 
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
@@ -50,6 +51,8 @@ const CATEGORY_META: Record<Category, Pick<RoutineItem, "icon" | "color">> = {
   Reset: { icon: "◌", color: "#67b7ce" },
   Light: { icon: "☼", color: "#e8b75f" },
 };
+const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
+
 function isCategory(value: unknown): value is Category {
   return CATEGORY_OPTIONS.includes(value as Category);
 }
@@ -88,15 +91,29 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
+  const [deletedDefaultIds, setDeletedDefaultIds] = useState<string[]>([]);
 
   useEffect(() => {
     try {
+      const savedDeletedIds = window.localStorage.getItem(DELETED_KEY);
+      const deletedIds = new Set<string>();
+      if (savedDeletedIds) {
+        const parsedDeletedIds = JSON.parse(savedDeletedIds) as unknown;
+        if (Array.isArray(parsedDeletedIds)) {
+          parsedDeletedIds.forEach((id) => {
+            if (typeof id === "string" && INITIAL_IDS.has(id)) deletedIds.add(id);
+          });
+        }
+      }
+      setDeletedDefaultIds([...deletedIds]);
+
       const savedItems = window.localStorage.getItem(STORAGE_KEY);
       if (savedItems) {
         const saved = JSON.parse(savedItems) as RoutineItem[];
         if (Array.isArray(saved)) {
           const defaults = new Map(INITIAL_ITEMS.map((item) => [item.id, item]));
           const restored = saved.flatMap((savedItem) => {
+            if (deletedIds.has(savedItem.id)) return [];
             const currentItem = defaults.get(savedItem.id);
             if (!currentItem) {
               if (
@@ -135,14 +152,16 @@ export default function Home() {
           const restoredIds = new Set(restored.map((item) => item.id));
           const merged = [...restored];
           INITIAL_ITEMS.forEach((item, index) => {
-            if (restoredIds.has(item.id)) return;
-            const nextKnownItem = INITIAL_ITEMS.slice(index + 1).find((candidate) => restoredIds.has(candidate.id));
+            if (deletedIds.has(item.id) || restoredIds.has(item.id)) return;
+            const nextKnownItem = INITIAL_ITEMS.slice(index + 1).find((candidate) => !deletedIds.has(candidate.id) && restoredIds.has(candidate.id));
             const insertAt = nextKnownItem ? merged.findIndex((candidate) => candidate.id === nextKnownItem.id) : merged.length;
             merged.splice(insertAt, 0, item);
             restoredIds.add(item.id);
           });
           setItems(merged);
         }
+      } else if (deletedIds.size) {
+        setItems(INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id)));
       }
     } catch {
       // Keep the defaults when local state is unavailable or malformed.
@@ -152,8 +171,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (hasLoaded) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [hasLoaded, items]);
+    if (!hasLoaded) return;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    window.localStorage.setItem(DELETED_KEY, JSON.stringify(deletedDefaultIds));
+  }, [deletedDefaultIds, hasLoaded, items]);
 
   useEffect(() => {
     if (!editingId) return;
@@ -230,6 +251,10 @@ export default function Home() {
   }
 
   function removeItem(id: string) {
+    if (INITIAL_IDS.has(id)) {
+      setDeletedDefaultIds((current) => current.includes(id) ? current : [...current, id]);
+    }
+    if (editingId === id) cancelEditing();
     setItems((current) => current.filter((item) => item.id !== id));
   }
 
@@ -467,9 +492,6 @@ export default function Home() {
                           <div className="item-title">
                             <h3>{item.title}</h3>
                             <span className="category-chip">{item.category}</span>
-                            {item.id.startsWith("custom-") ? (
-                              <button className="remove-item-button" type="button" aria-label={`Remove ${item.title}`} onClick={() => removeItem(item.id)}>×</button>
-                            ) : null}
                           </div>
                         </div>
                       )}
@@ -480,6 +502,13 @@ export default function Home() {
                         aria-label={`Edit ${item.title}`}
                         onClick={() => startEditing(item)}
                       ><Pencil aria-hidden="true" size={14} strokeWidth={1.8} /></button>
+
+                      <button
+                        className="delete-item-button"
+                        type="button"
+                        aria-label={`Remove ${item.title}`}
+                        onClick={() => removeItem(item.id)}
+                      ><Trash2 aria-hidden="true" size={14} strokeWidth={1.8} /></button>
 
                       <div className="duration-control" aria-label={`Duration for ${item.title}`}>
                         <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>

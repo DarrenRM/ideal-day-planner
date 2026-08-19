@@ -31,6 +31,7 @@ test("server-renders the idealized day planner", async () => {
   assert.match(html, /Add Activity/);
   assert.doesNotMatch(html, /Reset order/);
   assert.match(html, /aria-label="Edit Walk in sun"/);
+  assert.match(html, /aria-label="Remove Walk in sun"/);
   assert.match(html, /aria-label="Idealized day schedule"/);
   assert.doesNotMatch(html, /Mobility · breathe and open up/);
   assert.doesNotMatch(html, /Move Stretch \/ yoga up/);
@@ -56,6 +57,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /addItem/);
   assert.match(page, /custom-/);
   assert.match(page, /Remove \$\{item\.title\}/);
+  assert.match(page, /DELETED_KEY/);
+  assert.match(page, /setDeletedDefaultIds/);
   assert.match(page, /startEditing/);
   assert.match(page, /saveEdit/);
   assert.match(page, /handleOutsidePointerDown/);
@@ -70,5 +73,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.edit-item-button/);
   assert.match(page, /GripVertical/);
   assert.match(page, /Pencil/);
+  assert.match(page, /Trash2/);
+  assert.match(css, /\.delete-item-button/);
   assert.match(css, /\.inline-edit-form/);
 });
