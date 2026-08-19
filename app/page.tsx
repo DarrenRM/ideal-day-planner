@@ -156,6 +156,27 @@ export default function Home() {
     if (hasLoaded) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [hasLoaded, items]);
 
+  useEffect(() => {
+    if (!editingId) return;
+    const item = items.find((candidate) => candidate.id === editingId);
+    if (!item) {
+      setEditingId(null);
+      return;
+    }
+    const hasChanges = editTitle !== item.title || editCategory !== item.category;
+    if (hasChanges) return;
+
+    function handleOutsidePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".inline-edit-form")) return;
+      setEditingId(null);
+      setEditTitle("");
+    }
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
+  }, [editCategory, editTitle, editingId, items]);
+
   const scheduledItems = useMemo(() => {
     let cursor = START_MINUTES;
     return items.map<ScheduledItem>((item) => {

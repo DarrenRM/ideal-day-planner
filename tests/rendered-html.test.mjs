@@ -57,6 +57,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Remove \$\{item\.title\}/);
   assert.match(page, /startEditing/);
   assert.match(page, /saveEdit/);
+  assert.match(page, /handleOutsidePointerDown/);
+  assert.match(page, /closest\("\.inline-edit-form"\)/);
   assert.match(page, /Tag for \$\{item\.title\}/);
   assert.doesNotMatch(page, /check-button|setCompleted|COMPLETE_KEY/);
   assert.match(css, /--bg: #0a0c0f/);
