@@ -28,11 +28,12 @@ const INITIAL_ITEMS: RoutineItem[] = [
   { id: "stretch", title: "Stretch / yoga", detail: "Mobility · breathe and open up", duration: 20, category: "Reset", icon: "⌁", color: "#928ce0" },
   { id: "hair-serum", title: "Hair serum", detail: "Care · apply and let it settle", duration: 5, category: "Care", icon: "✦", color: "#d58db5" },
   { id: "red-light", title: "Red light", detail: "Care · device session", duration: 15, category: "Care", icon: "◉", color: "#dc766a" },
+  { id: "shake", title: "Shake", detail: "Quick fuel before training", duration: 5, category: "Fuel", icon: "◒", color: "#d59662" },
   { id: "hang", title: "Hang from chin-up bar", detail: "Grip · decompression", duration: 5, category: "Training", icon: "↑", color: "#a8c96d" },
   { id: "kettlebells", title: "Kettlebells", detail: "Strength · short focused circuit", duration: 20, category: "Training", icon: "◆", color: "#c99a67" },
   { id: "cardio", title: "Cardio", detail: "Conditioning · steady effort", duration: 25, category: "Training", icon: "≈", color: "#64b89a" },
   { id: "lift", title: "Lift", detail: "Strength · main session", duration: 45, category: "Training", icon: "▰", color: "#8eb36d" },
-  { id: "breakfast", title: "Breakfast + shake", detail: "Sit down and eat", duration: 30, category: "Fuel", icon: "◒", color: "#d59662" },
+  { id: "breakfast", title: "Breakfast", detail: "Sit down and eat", duration: 25, category: "Fuel", icon: "◒", color: "#d59662" },
   { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Reset", icon: "∿", color: "#73a6c8" },
   { id: "skin-routine", title: "Skin routine", detail: "Care · cleanse and moisturize", duration: 15, category: "Care", icon: "✧", color: "#ce8fb7" },
   { id: "lunch", title: "Lunch", detail: "Fuel · simple, intentional meal", duration: 30, category: "Fuel", icon: "◍", color: "#cf9e62" },
@@ -79,13 +80,25 @@ export default function Home() {
           const restored = saved.flatMap((savedItem) => {
             const currentItem = defaults.get(savedItem.id);
             if (!currentItem) return [];
+            const savedDuration = Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration;
+            const duration = savedItem.id === "breakfast" && savedItem.title.includes("shake")
+              ? Math.max(1, savedDuration - 5)
+              : savedDuration;
             return [{
               ...currentItem,
-              duration: Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration,
+              duration,
             }];
           });
           const restoredIds = new Set(restored.map((item) => item.id));
-          setItems([...restored, ...INITIAL_ITEMS.filter((item) => !restoredIds.has(item.id))]);
+          const merged = [...restored];
+          INITIAL_ITEMS.forEach((item, index) => {
+            if (restoredIds.has(item.id)) return;
+            const nextKnownItem = INITIAL_ITEMS.slice(index + 1).find((candidate) => restoredIds.has(candidate.id));
+            const insertAt = nextKnownItem ? merged.findIndex((candidate) => candidate.id === nextKnownItem.id) : merged.length;
+            merged.splice(insertAt, 0, item);
+            restoredIds.add(item.id);
+          });
+          setItems(merged);
         }
       }
     } catch {

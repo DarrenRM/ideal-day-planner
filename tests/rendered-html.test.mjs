@@ -24,7 +24,8 @@ test("server-renders the idealized day planner", async () => {
   assert.match(html, /Your ideal morning\./);
   assert.match(html, /Walk in sun/);
   assert.match(html, /Stretch \/ yoga/);
-  assert.match(html, /Breakfast \+ shake/);
+  assert.match(html, />Shake</);
+  assert.match(html, />Breakfast</);
   assert.match(html, /Drag a handle to reorder/);
   assert.match(html, /Adjust minutes on any block/);
   assert.match(html, /aria-label="Idealized day schedule"/);
