@@ -77,7 +77,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .add-block-button:disabled { background: #232a27; border-color: #303835; color: #727b77; cursor: wait; transform: none; }
 .add-block-form { align-items: end; background: #111518; border-bottom: 1px solid var(--border); display: grid; gap: 10px; grid-template-columns: minmax(180px, 1fr) 88px 122px auto; padding: 14px 20px 15px; }
 .add-field { min-width: 0; }
-.add-field label { color: #68716d; display: block; font: 400 16px/1.5 var(--type-sans); letter-spacing: .1em; margin: 0 0 6px; text-transform: uppercase; }
+.add-field label { color: #68716d; display: block; font: 700 9px/1.2 var(--type-sans); letter-spacing: .12em; margin: 0 0 6px; text-transform: uppercase; }
 .add-field input, .add-field select { background: #0c0f12; border: 1px solid #30373a; border-radius: 7px; color: #dfe4df; height: 36px; outline: 0; padding: 0 10px; width: 100%; }
 .add-field input { font-size: 11px; }
 .add-field input::placeholder { color: #505957; }
