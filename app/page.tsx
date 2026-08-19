@@ -79,6 +79,11 @@ function formatDuration(duration: number) {
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
+function normalizeActivityDuration(duration: number) {
+  if (!Number.isFinite(duration)) return 15;
+  return Math.min(480, Math.max(5, Math.round(duration / 5) * 5));
+}
+
 export default function Home() {
   const [items, setItems] = useState<RoutineItem[]>(INITIAL_ITEMS);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -240,7 +245,7 @@ export default function Home() {
       id: `custom-${window.crypto.randomUUID()}`,
       title: title.slice(0, 60),
       detail: "Custom block",
-      duration: Math.min(480, Math.max(1, Math.round(draftDuration))),
+      duration: normalizeActivityDuration(draftDuration),
       category: draftCategory,
       ...meta,
     };
@@ -391,7 +396,7 @@ export default function Home() {
             </header>
 
             {isAdding ? (
-              <form className="add-block-form" id="add-block-form" onSubmit={addItem}>
+              <form className="add-block-form" id="add-block-form" noValidate onSubmit={addItem}>
                 <div className="add-field add-name-field">
                   <label htmlFor="block-name">Name</label>
                   <input
@@ -409,8 +414,9 @@ export default function Home() {
                     id="block-duration"
                     inputMode="numeric"
                     max="480"
-                    min="1"
-                    onChange={(event) => setDraftDuration(event.target.valueAsNumber || 1)}
+                    min="5"
+                    onBlur={() => setDraftDuration((current) => normalizeActivityDuration(current))}
+                    onChange={(event) => setDraftDuration(event.target.valueAsNumber || 5)}
                     step="5"
                     type="number"
                     value={draftDuration}

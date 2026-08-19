@@ -55,6 +55,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Duration for .* in minutes/);
   assert.doesNotMatch(page, /resetOrder/);
   assert.match(page, /addItem/);
+  assert.match(page, /normalizeActivityDuration/);
+  assert.match(page, /Math\.round\(duration \/ 5\) \* 5/);
+  assert.match(page, /id="block-duration"[\s\S]*?min="5"[\s\S]*?step="5"/);
   assert.match(page, /custom-/);
   assert.match(page, /Remove \$\{item\.title\}/);
   assert.match(page, /DELETED_KEY/);
