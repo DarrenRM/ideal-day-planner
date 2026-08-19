@@ -24,12 +24,13 @@ The calendar is the home screen. Activities are the primary context boundary. A 
 ### 2.1 Home screen
 
 - Show the idealized daily sequence.
-- Create a dated “today” plan from the idealized template each day.
-- Allow the user or agent to modify either today’s plan or the underlying template explicitly.
+- Create a dated “today” plan from the idealized template on the first app open each day.
+- Treat today as the default edit target. The user or agent updates the underlying template only when that target is explicitly requested.
 - Allow activities to be added, edited, deleted, reordered, and resized in five-minute increments.
 - Recalculate downstream times automatically.
 - Allow activities to be marked complete. Detailed actual-time tracking is out of scope for now.
 - Show a live “Now” line that advances through the schedule.
+- Render the activity selected by the current clock in the full expanded-card layout. This expanded layout is the activity’s Now state, with the previously defined header, middle details/chat area, and footer.
 - Leave passed activities above the Now line so they can still be completed or dragged into a later part of today.
 - Update today’s remaining schedule dynamically when an activity is moved or resized.
 - Clicking or tapping an activity expands it.
@@ -67,7 +68,8 @@ The interaction is closer to a quiet chat room than a formal prompt box:
 - Notes are sent into the conversation and processed by the agent.
 - The agent does not need to post a conversational reply unless the user asked a question or a response is otherwise necessary.
 - Successful filing can be communicated through lightweight status UI rather than a chat message.
-- The main-page conversation includes all activity-scoped messages; an expanded activity shows only messages sent from that activity.
+- Each activity has one permanent conversation with date separators rather than separate daily threads.
+- The main-page conversation aggregates all activity-scoped messages; an expanded activity shows only its permanent activity conversation.
 
 ### 2.3 Mobile schedule contract
 
@@ -351,12 +353,14 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Each day gets an editable daily plan derived from an editable template.
 - Scheduling and completion are in scope; detailed actual-time tracking is deferred.
 - A live Now line separates passed and upcoming schedule content without removing missed activities.
+- The clock-selected activity automatically uses the expanded card as its Now state.
 - Missed activities can be dragged into a later part of today.
 - Activities expand in their existing row/card on desktop and mobile.
 - Mobile begins at Schedule and omits the desktop hero and summary sections.
 - Mobile uses compact content-width duration controls and a single-line title/time/tag header.
 - Expanded activities contain contextual details and an activity-scoped conversation.
 - The main page can show the full cross-activity conversation log.
+- Each activity has one permanent dated conversation, and the main log aggregates those conversations.
 - Activity conversations behave as quiet chat rooms: notes are processed without requiring an assistant reply.
 - The agent can understand information across the app.
 - Activity details are prepared in advance and updated immediately when relevant information changes elsewhere.
@@ -375,35 +379,32 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ### Today and the Now line
 
-1. At what point is today’s plan created: midnight, first app open, or a configurable wake-up time?
-2. Once today exists, should template edits leave today unchanged unless the user explicitly chooses “apply to today”?
-3. When the current time falls inside an activity, should the Now line pass through that card or sit immediately above it with a “Now” state on the card?
-4. Can an upcoming activity be marked complete early, or only activities at/above the Now line?
-5. What completion control should replace the checkmark circle that was deliberately removed from the earlier row design?
-6. When an overdue activity is dragged later, should it be inserted into the sequence and push everything after it, as durations do now?
+1. If the user manually expands another activity while the current activity is in its automatic Now state, should the Now activity remain expanded too or temporarily collapse?
+2. When the clock moves into the next activity, should the new Now card expand automatically even if the user is typing or reading in another expanded card?
+3. Can an upcoming activity be marked complete early, or only activities at/above the Now line?
+4. What completion control should replace the checkmark circle that was deliberately removed from the earlier row design?
+5. When an overdue activity is dragged later, should it be inserted into the sequence and push everything after it, as durations do now?
 
 ### Expanded cards and chat
 
-7. Should only one activity be expanded at a time?
-8. Is there one permanent activity conversation, or one dated thread per daily occurrence with a combined activity-history view?
-9. Should the global conversation be one chronological feed with activity filters, or a traditional assistant thread that can reference the activity logs?
-10. After a note is automatically filed, what subtle feedback is useful: “Processed,” a list of records changed, an undo toast, or only an error when something failed?
-11. Should pressing Enter send and Shift+Enter create a newline, or should the multiline field always require a Send button?
+6. Should the global conversation be one chronological feed with activity filters, or a traditional assistant thread that can reference the activity logs?
+7. After a note is automatically filed, what subtle feedback is useful: “Processed,” a list of records changed, an undo toast, or only an error when something failed?
+8. Should pressing Enter send and Shift+Enter create a newline, or should the multiline field always require a Send button?
 
 ### Questions and prepared UI
 
-12. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
-13. Should questions be answered inside their originating activity, from a global inbox, or either place?
-14. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
-15. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
+9. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
+10. Should questions be answered inside their originating activity, from a global inbox, or either place?
+11. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
+12. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
 
 ### Agent and data policy
 
-16. Should raw user messages be preserved permanently even after facts and metrics are extracted?
-17. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
-18. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
-19. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-20. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+13. Should raw user messages be preserved permanently even after facts and metrics are extracted?
+14. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
+15. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
+16. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
+17. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
 
 ## 14. Research sources
 
