@@ -2,6 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { GripVertical, Pencil } from "lucide-react";
 
 type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care";
 
@@ -403,7 +404,7 @@ export default function Home() {
               </form>
             ) : null}
 
-            <div className="planner-help"><span className="help-grip">⠿</span> Drag a handle to reorder <span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</div>
+            <div className="planner-help"><span className="help-grip"><GripVertical aria-hidden="true" size={14} strokeWidth={1.8} /></span> Drag a handle to reorder <span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</div>
 
             <div className="schedule" aria-label="Idealized day schedule">
               {scheduledItems.map((item) => {
@@ -436,7 +437,7 @@ export default function Home() {
                         onDragStart={(event) => handleDragStart(event, item.id)}
                         onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
                         onKeyDown={(event) => handleDragKeyDown(event, item.id)}
-                      >⠿</button>
+                      ><GripVertical aria-hidden="true" size={15} strokeWidth={1.8} /></button>
 
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
                       {isEditing ? (
@@ -478,7 +479,7 @@ export default function Home() {
                         type="button"
                         aria-label={`Edit ${item.title}`}
                         onClick={() => startEditing(item)}
-                      ><span aria-hidden="true" /></button>
+                      ><Pencil aria-hidden="true" size={14} strokeWidth={1.8} /></button>
 
                       <div className="duration-control" aria-label={`Duration for ${item.title}`}>
                         <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
