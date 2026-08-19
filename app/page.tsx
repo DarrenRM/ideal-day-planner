@@ -2,7 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronDown, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
@@ -64,6 +64,141 @@ function isCategory(value: unknown): value is Category {
 function normalizeCategory(value: unknown): Category | null {
   if (value === "Reset") return "Recharge";
   return isCategory(value) ? value : null;
+}
+
+type CategoryPickerProps = {
+  id: string;
+  ariaLabel: string;
+  value: Category;
+  onChange: (value: Category) => void;
+};
+
+function CategoryPicker({ id, ariaLabel, value, onChange }: CategoryPickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(() => CATEGORY_OPTIONS.indexOf(value));
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const selectedIndex = Math.max(0, CATEGORY_OPTIONS.indexOf(value));
+  const optionsId = `${id}-options`;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleOutsidePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && pickerRef.current?.contains(event.target)) return;
+      setIsOpen(false);
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsidePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  function focusOption(index: number) {
+    const nextIndex = (index + CATEGORY_OPTIONS.length) % CATEGORY_OPTIONS.length;
+    setActiveIndex(nextIndex);
+    window.setTimeout(() => optionRefs.current[nextIndex]?.focus(), 0);
+  }
+
+  function openPicker(index = selectedIndex) {
+    setActiveIndex(index);
+    setIsOpen(true);
+    window.setTimeout(() => optionRefs.current[index]?.focus(), 0);
+  }
+
+  function choose(category: Category) {
+    onChange(category);
+    setIsOpen(false);
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  }
+
+  function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!isOpen) {
+        openPicker(event.key === "ArrowUp" ? CATEGORY_OPTIONS.length - 1 : selectedIndex);
+      } else {
+        focusOption(event.key === "ArrowUp" ? activeIndex - 1 : activeIndex + 1);
+      }
+    }
+  }
+
+  function handleOptionKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(index + 1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(index - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusOption(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      focusOption(CATEGORY_OPTIONS.length - 1);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      choose(CATEGORY_OPTIONS[index]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    } else if (event.key === "Tab") {
+      setIsOpen(false);
+    }
+  }
+
+  return (
+    <div className="category-picker" ref={pickerRef}>
+      <button
+        aria-controls={optionsId}
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        aria-label={ariaLabel}
+        className="category-picker-trigger"
+        id={id}
+        ref={triggerRef}
+        type="button"
+        onClick={() => isOpen ? setIsOpen(false) : openPicker()}
+        onKeyDown={handleTriggerKeyDown}
+      >
+        <span>{value}</span>
+        <ChevronDown aria-hidden="true" size={16} strokeWidth={1.8} />
+      </button>
+      {isOpen ? (
+        <div className="category-picker-options" id={optionsId} role="listbox" aria-label={ariaLabel}>
+          {CATEGORY_OPTIONS.map((category, index) => (
+            <button
+              aria-selected={category === value}
+              className="category-picker-option"
+              key={category}
+              ref={(element) => { optionRefs.current[index] = element; }}
+              role="option"
+              style={{ "--category-color": CATEGORY_META[category].color } as CSSProperties}
+              type="button"
+              onClick={() => choose(category)}
+              onKeyDown={(event) => handleOptionKeyDown(event, index)}
+            >
+              <span className="category-option-dot" aria-hidden="true" />
+              <span>{category}</span>
+              {category === value ? <Check aria-hidden="true" size={14} strokeWidth={2} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function timeParts(totalMinutes: number) {
@@ -614,9 +749,12 @@ export default function Home() {
                 </div>
                 <div className="add-field">
                   <label htmlFor="block-category">Category</label>
-                  <select id="block-category" onChange={(event) => setDraftCategory(event.target.value as Category)} value={draftCategory}>
-                    {CATEGORY_OPTIONS.map((category) => <option key={category}>{category}</option>)}
-                  </select>
+                  <CategoryPicker
+                    id="block-category"
+                    ariaLabel="Category"
+                    onChange={setDraftCategory}
+                    value={draftCategory}
+                  />
                 </div>
                 <div className="add-form-actions">
                   <button className="cancel-add-button" type="button" onClick={() => setIsAdding(false)}>Cancel</button>
@@ -672,13 +810,12 @@ export default function Home() {
                               onKeyDown={(event) => { if (event.key === "Escape") cancelEditing(); }}
                               value={editTitle}
                             />
-                            <select
-                              aria-label={`Tag for ${item.title}`}
-                              onChange={(event) => setEditCategory(event.target.value as Category)}
+                            <CategoryPicker
+                              id={`tag-${item.id}`}
+                              ariaLabel={`Tag for ${item.title}`}
+                              onChange={setEditCategory}
                               value={editCategory}
-                            >
-                              {CATEGORY_OPTIONS.map((category) => <option key={category}>{category}</option>)}
-                            </select>
+                            />
                             <div className="inline-edit-actions">
                               <button type="button" aria-label="Cancel editing" onClick={cancelEditing}>×</button>
                               <button className="save-edit-button" disabled={!editTitle.trim()} type="submit" aria-label="Save changes">✓</button>

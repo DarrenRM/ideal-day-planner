@@ -72,6 +72,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /CATEGORY_OPTIONS: Category\[\].*Recharge.*Logistics.*Creativity.*Spirit/s);
   assert.match(page, /type Category = .*Recharge.*Spirit/);
   assert.match(page, /normalizeCategory/);
+  assert.match(page, /CategoryPicker/);
+  assert.match(page, /ChevronDown/);
   assert.match(page, /Logistics: \{ icon:/);
   assert.match(page, /Creativity: \{ icon:/);
   assert.match(page, /Remove \$\{item\.title\}/);
@@ -92,6 +94,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);
+  assert.match(css, /\.category-picker-options/);
+  assert.match(css, /\.category-picker-trigger svg/);
   assert.match(css, /\.edit-item-button/);
   assert.match(page, /GripVertical/);
   assert.match(page, /Pencil/);
