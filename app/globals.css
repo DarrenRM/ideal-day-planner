@@ -131,7 +131,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .drop-before .drop-indicator { top: 0; }
 .drop-after .drop-indicator { bottom: 0; }
 .drop-indicator::before { background: var(--accent); border-radius: 99px; box-shadow: 0 0 18px rgba(181, 215, 125, .54); content: ""; height: 2px; width: 100%; }
-.drop-indicator span { background: var(--accent); border-radius: 5px; color: var(--accent-ink); font: 700 5px/1 var(--type-sans); letter-spacing: .08em; padding: 4px 7px; position: absolute; right: 8px; text-transform: uppercase; }
+.drop-indicator span { background: var(--accent); border-radius: 5px; color: var(--accent-ink); font: 700 8px/1 var(--type-sans); letter-spacing: .08em; padding: 4px 7px; position: absolute; right: 8px; text-transform: uppercase; }
 
 .finish-row { display: grid; grid-template-columns: 74px 1fr; min-height: 44px; }
 .finish-row .time-label { align-items: center; }
