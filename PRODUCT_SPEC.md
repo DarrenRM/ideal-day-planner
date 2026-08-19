@@ -83,12 +83,17 @@ The user should not have to decide where every piece of information belongs. The
 
 The interaction is closer to a quiet chat room than a formal prompt box:
 
-- Use a somewhat larger multiline input.
+- Use familiar iOS Messages/Telegram conventions: readable bubbles, message grouping, restrained timestamps, conventional spacing, and standard delivery states.
+- Use a somewhat larger multiline input with a visible Send button.
+- `Enter` sends and `Shift+Enter` inserts a newline on keyboard devices.
 - Notes are sent into the conversation and processed by the agent.
 - The agent does not need to post a conversational reply unless the user asked a question or a response is otherwise necessary.
-- Successful filing can be communicated through lightweight status UI rather than a chat message.
+- Successful filing is communicated with messaging-style checkmarks rather than an extra assistant response. Double checkmarks mean Luna has read/processed the message.
 - Each activity has one permanent conversation with date separators rather than separate daily threads.
-- The main-page conversation aggregates all activity-scoped messages; an expanded activity shows only its permanent activity conversation.
+- The main page contains one unfiltered, chronological running conversation with the global assistant.
+- An expanded activity shows only its permanent activity conversation.
+- When a global message causes activity-specific work, the relevant output or linked reference must also appear in that activity’s conversation. Example: toothpaste mentioned globally produces a visible Resupply entry so the information can be found from either context.
+- Cross-posted activity output retains a link to its originating global message without duplicating the entire global conversation.
 
 ### 2.3 Mobile schedule contract
 
@@ -396,8 +401,11 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Mobile uses compact content-width duration controls and a single-line title/time/tag header.
 - Expanded activities contain contextual details and an activity-scoped conversation.
 - The main page can show the full cross-activity conversation log.
-- Each activity has one permanent dated conversation, and the main log aggregates those conversations.
+- The main page has one unfiltered chronological conversation with a global assistant.
+- Each activity has one permanent dated conversation.
+- Global actions that affect an activity produce a linked output/reference in that activity conversation.
 - Activity conversations behave as quiet chat rooms: notes are processed without requiring an assistant reply.
+- Chat follows standard iOS/Telegram visual and interaction conventions, including bubbles, a touch-friendly Send button, and processing checkmarks.
 - The agent can understand information across the app.
 - Activity details are prepared in advance and updated immediately when relevant information changes elsewhere.
 - Unanswered agent questions will be exposed through a “Questions for you” count or queue.
@@ -413,26 +421,21 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ## 13. Open questions
 
-### Expanded cards and chat
-
-1. Should the global conversation be one chronological feed with activity filters, or a traditional assistant thread that can reference the activity logs?
-2. After a note is automatically filed, what subtle feedback is useful: “Processed,” a list of records changed, an undo toast, or only an error when something failed?
-3. Should pressing Enter send and Shift+Enter create a newline, or should the multiline field always require a Send button?
-
 ### Questions and prepared UI
 
-4. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
-5. Should questions be answered inside their originating activity, from a global inbox, or either place?
-6. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
-7. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
+1. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
+2. Should questions be answered inside their originating activity, from a global inbox, or either place?
+3. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
+4. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
 
 ### Agent and data policy
 
-8. Should raw user messages be preserved permanently even after facts and metrics are extracted?
-9. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
-10. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
-11. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-12. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+5. How should undo be exposed without cluttering every message: tapping the processing checkmarks, a message action menu, or a temporary toast?
+6. Should raw user messages be preserved permanently even after facts and metrics are extracted?
+7. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
+8. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
+9. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
+10. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
 
 ## 14. Research sources
 
