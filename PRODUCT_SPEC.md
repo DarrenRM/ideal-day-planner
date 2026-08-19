@@ -216,7 +216,9 @@ Candidate components:
 
 The application remains responsible for spacing, typography, responsive behavior, accessibility, and interaction quality.
 
-The details area should expose a compact “Questions for you” affordance with an unanswered count when the agent needs information. The exact placement and answering flow remain open.
+Every activity receives the complete expanded experience from the first release: contextual details, permanent activity conversation, live agent processing, questions, and activity-appropriate actions. There is no limited pilot set or second-class generic card.
+
+When an activity has little or no known context, its details area uses a useful empty state and Luna can ask a normal conversational question. Missing data must not make the expansion unavailable.
 
 ### OpenUI position
 
@@ -363,7 +365,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 ### Phase 2 — expanded activities without AI
 
 - Add a polished mobile and desktop expander.
-- Add deterministic details cards.
+- Add the universal expanded-card shell and deterministic details renderer to every activity.
 - Add activity-scoped notes and history.
 - Add activity runs and basic typed logs.
 - Add the Now line, completion, overdue state, and rescheduling within today.
@@ -372,7 +374,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 ### Phase 3 — scoped agent prototype
 
 - Connect one agent runtime.
-- Add one conversation per activity.
+- Add one permanent conversation and full agent behavior to every activity.
 - Add read-only contextual retrieval.
 - Add proposed writes and explicit confirmation.
 
@@ -409,6 +411,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Mobile begins at Schedule and omits the desktop hero and summary sections.
 - Mobile uses compact content-width duration controls and a single-line title/time/tag header.
 - Expanded activities contain contextual details and an activity-scoped conversation.
+- Every activity receives the complete details/chat/agent experience at launch; none are held back as prototypes.
 - The main page can show the full cross-activity conversation log.
 - The main page has one unfiltered chronological conversation with a global assistant.
 - Each activity has one permanent dated conversation.
@@ -430,21 +433,19 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Hermes is a candidate runtime to validate, not yet a committed dependency.
 - The first agent runtime will run on the owner’s PC.
 - The initial product scope is wellness. Attachments and wearable integrations are not immediate requirements.
+- Original chat messages are retained indefinitely unless the user explicitly deletes them.
+- Structured records retain provenance links to their originating messages.
+- Undo will not be placed in the message action menu; the correction interaction remains to be defined.
 
 ## 13. Open questions
 
-### Questions and prepared UI
-
-1. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
-
 ### Agent and data policy
 
-2. How should undo be exposed without cluttering every message: tapping the processing checkmarks, a message action menu, or a temporary toast?
-3. Should raw user messages be preserved permanently even after facts and metrics are extracted?
-4. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
-5. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
-6. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-7. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+1. If Luna files something incorrectly, should correction happen by telling Luna in chat, by directly editing the affected record, or both?
+2. Should the app expose a visible history of changes to each agent-managed record even without a one-tap message undo?
+3. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
+4. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
+5. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
 
 ## 14. Research sources
 
