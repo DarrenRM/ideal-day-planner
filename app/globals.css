@@ -177,8 +177,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .app-header { height: 60px; }
   .page-shell { padding-left: 14px; padding-right: 14px; }
   .brand div span { display: none; }
-  .save-state { font-size: 0; }
-  .save-state::after { content: "Saved locally"; font-size: 10px; }
+  .save-state { font-size: 10px; }
   .hero { margin-bottom: 24px; }
   h1 { font-size: 42px; }
   .hero-copy > p:last-child { font-size: 13px; }

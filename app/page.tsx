@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical, Pencil, Trash2 } from "lucide-react";
 
 type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity";
@@ -23,6 +23,7 @@ const START_MINUTES = 8 * 60;
 const DURATION_STEP = 5;
 const STORAGE_KEY = "idealized-day-items-v1";
 const DELETED_KEY = "idealized-day-deleted-v1";
+const MIGRATION_KEY = "idealized-day-d1-imported-v1";
 
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
@@ -86,11 +87,111 @@ function normalizeActivityDuration(duration: number) {
   return Math.min(480, Math.max(5, Math.round(duration / 5) * 5));
 }
 
+function localDateKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function readLegacyRoutine() {
+  let nextItems = INITIAL_ITEMS;
+  try {
+    const savedDeletedIds = window.localStorage.getItem(DELETED_KEY);
+    const deletedIds = new Set<string>();
+    if (savedDeletedIds) {
+      const parsedDeletedIds = JSON.parse(savedDeletedIds) as unknown;
+      if (Array.isArray(parsedDeletedIds)) {
+        parsedDeletedIds.forEach((id) => {
+          if (typeof id === "string" && INITIAL_IDS.has(id)) deletedIds.add(id);
+        });
+      }
+    }
+
+    const savedItems = window.localStorage.getItem(STORAGE_KEY);
+    if (!savedItems) return INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id));
+    const saved = JSON.parse(savedItems) as unknown;
+    if (!Array.isArray(saved)) return INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id));
+
+    const defaults = new Map(INITIAL_ITEMS.map((item) => [item.id, item]));
+    const restored = (saved as RoutineItem[]).flatMap((savedItem) => {
+      if (deletedIds.has(savedItem.id)) return [];
+      const currentItem = defaults.get(savedItem.id);
+      if (!currentItem) {
+        if (
+          typeof savedItem.id !== "string" ||
+          !savedItem.id.startsWith("custom-") ||
+          typeof savedItem.title !== "string" ||
+          !savedItem.title.trim() ||
+          !isCategory(savedItem.category)
+        ) return [];
+        const meta = CATEGORY_META[savedItem.category];
+        return [{
+          id: savedItem.id,
+          title: savedItem.title.trim().slice(0, 60),
+          detail: "Custom block",
+          duration: normalizeActivityDuration(savedItem.duration),
+          category: savedItem.category,
+          ...meta,
+        }];
+      }
+      const savedDuration = normalizeActivityDuration(
+        Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration,
+      );
+      const duration = savedItem.id === "breakfast" && savedItem.title?.includes("shake")
+        ? normalizeActivityDuration(savedDuration - 5)
+        : savedDuration;
+      const title = typeof savedItem.title === "string" && savedItem.title.trim()
+        ? savedItem.title.trim().slice(0, 60)
+        : currentItem.title;
+      const category = isCategory(savedItem.category) ? savedItem.category : currentItem.category;
+      return [{
+        ...currentItem,
+        title,
+        category,
+        color: category === currentItem.category ? currentItem.color : CATEGORY_META[category].color,
+        duration,
+      }];
+    });
+    const restoredIds = new Set(restored.map((item) => item.id));
+    const merged = [...restored];
+    INITIAL_ITEMS.forEach((item, index) => {
+      if (deletedIds.has(item.id) || restoredIds.has(item.id)) return;
+      const nextKnownItem = INITIAL_ITEMS.slice(index + 1).find((candidate) => !deletedIds.has(candidate.id) && restoredIds.has(candidate.id));
+      const insertAt = nextKnownItem ? merged.findIndex((candidate) => candidate.id === nextKnownItem.id) : merged.length;
+      merged.splice(insertAt, 0, item);
+      restoredIds.add(item.id);
+    });
+    nextItems = merged;
+  } catch {
+    nextItems = INITIAL_ITEMS;
+  }
+  return nextItems;
+}
+
+function hydrateStoredItems(value: unknown): RoutineItem[] {
+  if (!Array.isArray(value)) throw new Error("The saved day has an invalid item list.");
+  return value.map((candidate) => {
+    if (!candidate || typeof candidate !== "object") throw new Error("The saved day contains an invalid item.");
+    const item = candidate as Partial<RoutineItem>;
+    if (
+      typeof item.id !== "string" ||
+      typeof item.title !== "string" ||
+      typeof item.duration !== "number" ||
+      !isCategory(item.category) ||
+      typeof item.icon !== "string" ||
+      typeof item.color !== "string"
+    ) throw new Error("The saved day contains an invalid item.");
+    return { ...item, detail: "Saved activity" } as RoutineItem;
+  });
+}
+
 export default function Home() {
   const [items, setItems] = useState<RoutineItem[]>([]);
+  const [startMinutes, setStartMinutes] = useState(START_MINUTES);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [databaseReady, setDatabaseReady] = useState(false);
+  const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "retrying">("loading");
   const [isAdding, setIsAdding] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDuration, setDraftDuration] = useState(15);
@@ -98,106 +199,97 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
-  const [deletedDefaultIds, setDeletedDefaultIds] = useState<string[]>([]);
+  const skipNextSave = useRef(true);
 
   useEffect(() => {
-    let nextItems = INITIAL_ITEMS;
-    let nextDeletedDefaultIds: string[] = [];
-    try {
-      const savedDeletedIds = window.localStorage.getItem(DELETED_KEY);
-      const deletedIds = new Set<string>();
-      if (savedDeletedIds) {
-        const parsedDeletedIds = JSON.parse(savedDeletedIds) as unknown;
-        if (Array.isArray(parsedDeletedIds)) {
-          parsedDeletedIds.forEach((id) => {
-            if (typeof id === "string" && INITIAL_IDS.has(id)) deletedIds.add(id);
-          });
-        }
-      }
-      nextDeletedDefaultIds = [...deletedIds];
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const date = localDateKey();
+    const endpoint = `/api/day?date=${date}`;
 
-      const savedItems = window.localStorage.getItem(STORAGE_KEY);
-      if (savedItems) {
-        const saved = JSON.parse(savedItems) as unknown;
-        if (Array.isArray(saved)) {
-          const defaults = new Map(INITIAL_ITEMS.map((item) => [item.id, item]));
-          const restored = (saved as RoutineItem[]).flatMap((savedItem) => {
-            if (deletedIds.has(savedItem.id)) return [];
-            const currentItem = defaults.get(savedItem.id);
-            if (!currentItem) {
-              if (
-                typeof savedItem.id !== "string" ||
-                !savedItem.id.startsWith("custom-") ||
-                typeof savedItem.title !== "string" ||
-                !savedItem.title.trim() ||
-                !isCategory(savedItem.category)
-              ) return [];
-              const meta = CATEGORY_META[savedItem.category];
-              return [{
-                id: savedItem.id,
-                title: savedItem.title.trim().slice(0, 60),
-                detail: "Custom block",
-                duration: normalizeActivityDuration(savedItem.duration),
-                category: savedItem.category,
-                ...meta,
-              }];
-            }
-            const savedDuration = normalizeActivityDuration(
-              Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration,
-            );
-            const duration = savedItem.id === "breakfast" && savedItem.title?.includes("shake")
-              ? normalizeActivityDuration(savedDuration - 5)
-              : savedDuration;
-            const title = typeof savedItem.title === "string" && savedItem.title.trim()
-              ? savedItem.title.trim().slice(0, 60)
-              : currentItem.title;
-            const category = isCategory(savedItem.category) ? savedItem.category : currentItem.category;
-            return [{
-              ...currentItem,
-              title,
-              category,
-              color: category === currentItem.category ? currentItem.color : CATEGORY_META[category].color,
-              duration,
-            }];
-          });
-          const restoredIds = new Set(restored.map((item) => item.id));
-          const merged = [...restored];
-          INITIAL_ITEMS.forEach((item, index) => {
-            if (deletedIds.has(item.id) || restoredIds.has(item.id)) return;
-            const nextKnownItem = INITIAL_ITEMS.slice(index + 1).find((candidate) => !deletedIds.has(candidate.id) && restoredIds.has(candidate.id));
-            const insertAt = nextKnownItem ? merged.findIndex((candidate) => candidate.id === nextKnownItem.id) : merged.length;
-            merged.splice(insertAt, 0, item);
-            restoredIds.add(item.id);
-          });
-          nextItems = merged;
-        } else {
-          nextItems = INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id));
+    async function load() {
+      try {
+        setSaveState("loading");
+        let response = await fetch(endpoint, { cache: "no-store" });
+        if (response.status === 401) {
+          window.location.assign(`/signin-with-chatgpt?return_to=${encodeURIComponent(window.location.pathname)}`);
+          return;
         }
-      } else {
-        nextItems = INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id));
+        if (!response.ok) throw new Error(`Could not load the saved day (${response.status}).`);
+        let day = await response.json() as { items: unknown; startMinutes: number; needsImport: boolean };
+
+        if (day.needsImport) {
+          const legacyItems = readLegacyRoutine();
+          response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ items: legacyItems, startMinutes: START_MINUTES }),
+          });
+          if (!response.ok) throw new Error(`Could not import the existing routine (${response.status}).`);
+          day = await response.json() as typeof day;
+          window.localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
+        }
+
+        if (cancelled) return;
+        skipNextSave.current = true;
+        setItems(hydrateStoredItems(day.items));
+        setStartMinutes(day.startMinutes);
+        setDatabaseReady(true);
+        setHasLoaded(true);
+        setSaveState("saved");
+      } catch {
+        if (cancelled) return;
+        setSaveState("retrying");
+        retryTimer = setTimeout(load, 3000);
       }
-    } catch {
-      nextItems = INITIAL_ITEMS;
-      nextDeletedDefaultIds = [];
     }
-    setDeletedDefaultIds(nextDeletedDefaultIds);
-    setItems(nextItems);
-    setHasLoaded(true);
+
+    void load();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, []);
 
   useEffect(() => {
-    if (!hasLoaded) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    window.localStorage.setItem(DELETED_KEY, JSON.stringify(deletedDefaultIds));
-  }, [deletedDefaultIds, hasLoaded, items]);
+    if (!databaseReady) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const endpoint = `/api/day?date=${localDateKey()}`;
+    async function save() {
+      try {
+        setSaveState("saving");
+        const response = await fetch(endpoint, {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ items, startMinutes }),
+        });
+        if (!response.ok) throw new Error(`Could not save the day (${response.status}).`);
+        if (!cancelled) setSaveState("saved");
+      } catch {
+        if (cancelled) return;
+        setSaveState("retrying");
+        retryTimer = setTimeout(save, 3000);
+      }
+    }
+
+    const saveTimer = setTimeout(() => void save(), 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(saveTimer);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [databaseReady, items, startMinutes]);
 
   useEffect(() => {
     if (!editingId) return;
     const item = items.find((candidate) => candidate.id === editingId);
-    if (!item) {
-      setEditingId(null);
-      return;
-    }
+    if (!item) return;
     const hasChanges = editTitle !== item.title || editCategory !== item.category;
     if (hasChanges) return;
 
@@ -213,19 +305,19 @@ export default function Home() {
   }, [editCategory, editTitle, editingId, items]);
 
   const scheduledItems = useMemo(() => {
-    let cursor = START_MINUTES;
+    let cursor = startMinutes;
     return items.map<ScheduledItem>((item) => {
       const scheduled = { ...item, start: cursor, end: cursor + item.duration };
       cursor = scheduled.end;
       return scheduled;
     });
-  }, [items]);
+  }, [items, startMinutes]);
 
   const totalMinutes = useMemo(
     () => items.reduce((total, item) => total + item.duration, 0),
     [items],
   );
-  const finishMinutes = START_MINUTES + totalMinutes;
+  const finishMinutes = startMinutes + totalMinutes;
   const categoryTotals = useMemo(
     () => CATEGORY_ORDER.map((category) => ({
       category,
@@ -270,9 +362,6 @@ export default function Home() {
   }
 
   function removeItem(id: string) {
-    if (INITIAL_IDS.has(id)) {
-      setDeletedDefaultIds((current) => current.includes(id) ? current : [...current, id]);
-    }
     if (editingId === id) cancelEditing();
     setItems((current) => current.filter((item) => item.id !== id));
   }
@@ -377,7 +466,7 @@ export default function Home() {
           <span className="brand-mark">id</span>
           <div><strong>Ideal Day</strong><span>Personal protocol</span></div>
         </div>
-        <div className="save-state"><span /> {hasLoaded ? "Saved on this device" : "Loading this device"}</div>
+        <div className={`save-state save-state-${saveState}`}><span /> {{ loading: "Loading your day", saving: "Saving", saved: "Saved to your day", retrying: "Offline · retrying" }[saveState]}</div>
       </header>
 
       <div className="page-shell">
@@ -388,7 +477,7 @@ export default function Home() {
             <p>One repeatable sequence from wake-up to done. Reorder the flow and tune the timing until it feels natural.</p>
           </div>
           <div className="day-overview" aria-label="Day overview">
-            <div><span>Start</span><strong>{formatTime(START_MINUTES)}</strong></div>
+            <div><span>Start</span><strong>{formatTime(startMinutes)}</strong></div>
             <div><span>Finish</span><strong>{hasLoaded ? formatTime(finishMinutes) : "—"}</strong></div>
             <div><span>Length</span><strong>{hasLoaded ? formatDuration(totalMinutes) : "—"}</strong></div>
           </div>
@@ -415,7 +504,6 @@ export default function Home() {
                 <div className="add-field add-name-field">
                   <label htmlFor="block-name">Name</label>
                   <input
-                    autoFocus
                     id="block-name"
                     maxLength={60}
                     onChange={(event) => setDraftTitle(event.target.value)}
@@ -492,7 +580,6 @@ export default function Home() {
                           <form className="inline-edit-form" onSubmit={saveEdit}>
                             <input
                               aria-label={`Title for ${item.title}`}
-                              autoFocus
                               maxLength={60}
                               onChange={(event) => setEditTitle(event.target.value)}
                               onKeyDown={(event) => { if (event.key === "Escape") cancelEditing(); }}
@@ -574,7 +661,7 @@ export default function Home() {
 
           <aside className="summary-rail" aria-label="Plan summary">
             <section className="summary-card shape-card">
-              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{hasLoaded ? `${formatDuration(totalMinutes)} total` : "Loading…"}</h2></div><span>{hasLoaded ? `${formatTime(START_MINUTES)}–${formatTime(finishMinutes)}` : "—"}</span></div>
+              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{hasLoaded ? `${formatDuration(totalMinutes)} total` : "Loading…"}</h2></div><span>{hasLoaded ? `${formatTime(startMinutes)}–${formatTime(finishMinutes)}` : "—"}</span></div>
               <div className="shape-list">
                 {hasLoaded ? categoryTotals.map((entry) => (
                   <div className="shape-row" key={entry.category}>
@@ -585,7 +672,7 @@ export default function Home() {
               </div>
             </section>
 
-            <p className="local-note"><span>●</span> {hasLoaded ? "Order and durations are saved locally." : "Loading saved settings…"}</p>
+            <p className="local-note"><span>●</span> {hasLoaded ? "Today is saved to your account." : "Loading your saved day…"}</p>
           </aside>
         </div>
       </div>

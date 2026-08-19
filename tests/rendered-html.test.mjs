@@ -44,6 +44,10 @@ test("keeps the routine data and interactions in the page", async () => {
   ]);
 
   assert.match(page, /localStorage/);
+  assert.match(page, /\/api\/day\?date=/);
+  assert.match(page, /needsImport/);
+  assert.match(page, /method: "PUT"/);
+  assert.match(page, /MIGRATION_KEY/);
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
   assert.match(page, /hasLoaded \? <>\{scheduledItems\.map/);
   assert.match(page, /draggable/);
@@ -66,7 +70,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Creativity: \{ icon:/);
   assert.match(page, /Remove \$\{item\.title\}/);
   assert.match(page, /DELETED_KEY/);
-  assert.match(page, /setDeletedDefaultIds/);
+  assert.doesNotMatch(page, /setDeletedDefaultIds/);
   assert.match(page, /startEditing/);
   assert.match(page, /saveEdit/);
   assert.match(page, /handleOutsidePointerDown/);
