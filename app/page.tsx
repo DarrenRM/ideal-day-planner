@@ -49,8 +49,6 @@ const CATEGORY_META: Record<Category, Pick<RoutineItem, "icon" | "color">> = {
   Reset: { icon: "◌", color: "#67b7ce" },
   Light: { icon: "☼", color: "#e8b75f" },
 };
-const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
-
 function isCategory(value: unknown): value is Category {
   return CATEGORY_OPTIONS.includes(value as Category);
 }
@@ -211,17 +209,6 @@ export default function Home() {
     if (item) setDuration(id, item.duration + delta);
   }
 
-  function resetOrder() {
-    setItems((current) => {
-      const currentItems = new Map(current.map((item) => [item.id, item]));
-      const customItems = current.filter((item) => !INITIAL_IDS.has(item.id));
-      return [
-        ...INITIAL_ITEMS.map((item) => currentItems.get(item.id) ?? item),
-        ...customItems,
-      ];
-    });
-  }
-
   function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = draftTitle.trim();
@@ -373,8 +360,7 @@ export default function Home() {
                   className="add-block-button"
                   type="button"
                   onClick={() => setIsAdding((current) => !current)}
-                ><span aria-hidden="true">+</span> Add block</button>
-                <button className="quiet-button" type="button" onClick={resetOrder}>Reset order</button>
+                ><span aria-hidden="true">+</span> Add Activity</button>
               </div>
             </header>
 

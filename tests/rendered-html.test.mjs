@@ -28,7 +28,8 @@ test("server-renders the idealized day planner", async () => {
   assert.match(html, />Breakfast</);
   assert.match(html, /Drag a handle to reorder/);
   assert.match(html, /Adjust minutes on any block/);
-  assert.match(html, /Add block/);
+  assert.match(html, /Add Activity/);
+  assert.doesNotMatch(html, /Reset order/);
   assert.match(html, /aria-label="Edit Walk in sun"/);
   assert.match(html, /aria-label="Idealized day schedule"/);
   assert.doesNotMatch(html, /Mobility · breathe and open up/);
@@ -51,7 +52,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /adjustDuration/);
   assert.match(page, /setDuration/);
   assert.match(page, /Duration for .* in minutes/);
-  assert.match(page, /resetOrder/);
+  assert.doesNotMatch(page, /resetOrder/);
   assert.match(page, /addItem/);
   assert.match(page, /custom-/);
   assert.match(page, /Remove \$\{item\.title\}/);
