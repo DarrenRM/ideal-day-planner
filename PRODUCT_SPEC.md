@@ -255,6 +255,7 @@ Move durable product state from `localStorage` to the project’s D1 database be
 - `agent_questions`
 - `agent_runs`
 - `agent_actions`
+- `record_revisions`
 - `detail_view_snapshots` (optional cache, not authoritative data)
 - `attachments` (metadata in D1; bytes in R2 when needed)
 
@@ -342,7 +343,8 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Encryption in transit.
 - No subscription tokens in the browser or database.
 - An audit log of agent mutations.
-- Undo or correction for agent writes.
+- Conversational correction of agent writes with append-only database revision history.
+- No general-purpose record editor, visible change-history screen, or message-level undo in the initial UI.
 - Clear distinction between user-entered facts, agent inference, and external research.
 - No autonomous high-impact health decisions.
 - Export and deletion paths.
@@ -381,7 +383,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 ### Phase 4 — trusted agent writes
 
 - Add low-risk automatic filing.
-- Add audit, undo, conflict handling, and idempotency.
+- Add audit history, conversational correction, conflict handling, and idempotency.
 - Add proactive questions and details preparation.
 - Add event-driven cross-activity updates.
 
@@ -426,7 +428,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Questions can be answered globally or in their originating activity.
 - The app database, not chat history, is the source of truth.
 - Durable state should move to D1 before agent features are layered on.
-- Agent writes happen automatically through typed tools and preserve provenance and undoability.
+- Agent writes happen automatically through typed tools and preserve provenance and correctability.
 - The agent may change the schedule when requested, but should not optimize or rearrange it unsolicited.
 - Cross-activity sources should be tracked internally; whether to expose them routinely in the UI is unresolved.
 - OpenUI is a presentation option, not a database or agent runtime.
@@ -435,17 +437,18 @@ This app will contain health-adjacent personal data. The initial product needs:
 - The initial product scope is wellness. Attachments and wearable integrations are not immediate requirements.
 - Original chat messages are retained indefinitely unless the user explicitly deletes them.
 - Structured records retain provenance links to their originating messages.
-- Undo will not be placed in the message action menu; the correction interaction remains to be defined.
+- Incorrect records are corrected by telling Luna in chat. Luna writes a revision and preserves the superseded value in database history.
+- Most structured records are not directly editable by the user.
+- Database audit/revision history is retained but has no dedicated UI in the initial product.
+- There is no message-level Undo action in the initial product.
+- Proactive wellness recommendations are deferred to a later stage. Initially Luna organizes, retrieves, compares, files information, and asks for missing context; it may still answer wellness questions when explicitly asked.
 
 ## 13. Open questions
 
 ### Agent and data policy
 
-1. If Luna files something incorrectly, should correction happen by telling Luna in chat, by directly editing the affected record, or both?
-2. Should the app expose a visible history of changes to each agent-managed record even without a one-tap message undo?
-3. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
-4. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-5. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+1. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
+2. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
 
 ## 14. Research sources
 
