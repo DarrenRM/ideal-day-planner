@@ -477,33 +477,38 @@ export default function Home() {
                       ><GripVertical aria-hidden="true" size={15} strokeWidth={1.8} /></button>
 
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
-                      <div className="mobile-time-label" aria-hidden="true"><strong>{start.time}</strong><span>{start.suffix}</span></div>
                       {isEditing ? (
-                        <form className="inline-edit-form" onSubmit={saveEdit}>
-                          <input
-                            aria-label={`Title for ${item.title}`}
-                            autoFocus
-                            maxLength={60}
-                            onChange={(event) => setEditTitle(event.target.value)}
-                            onKeyDown={(event) => { if (event.key === "Escape") cancelEditing(); }}
-                            value={editTitle}
-                          />
-                          <select
-                            aria-label={`Tag for ${item.title}`}
-                            onChange={(event) => setEditCategory(event.target.value as Category)}
-                            value={editCategory}
-                          >
-                            {CATEGORY_OPTIONS.map((category) => <option key={category}>{category}</option>)}
-                          </select>
-                          <div className="inline-edit-actions">
-                            <button type="button" aria-label="Cancel editing" onClick={cancelEditing}>×</button>
-                            <button className="save-edit-button" disabled={!editTitle.trim()} type="submit" aria-label="Save changes">✓</button>
-                          </div>
-                        </form>
+                        <>
+                          <div className="mobile-time-label mobile-edit-time" aria-hidden="true"><strong>{start.time}</strong><span>{start.suffix}</span></div>
+                          <form className="inline-edit-form" onSubmit={saveEdit}>
+                            <input
+                              aria-label={`Title for ${item.title}`}
+                              autoFocus
+                              maxLength={60}
+                              onChange={(event) => setEditTitle(event.target.value)}
+                              onKeyDown={(event) => { if (event.key === "Escape") cancelEditing(); }}
+                              value={editTitle}
+                            />
+                            <select
+                              aria-label={`Tag for ${item.title}`}
+                              onChange={(event) => setEditCategory(event.target.value as Category)}
+                              value={editCategory}
+                            >
+                              {CATEGORY_OPTIONS.map((category) => <option key={category}>{category}</option>)}
+                            </select>
+                            <div className="inline-edit-actions">
+                              <button type="button" aria-label="Cancel editing" onClick={cancelEditing}>×</button>
+                              <button className="save-edit-button" disabled={!editTitle.trim()} type="submit" aria-label="Save changes">✓</button>
+                            </div>
+                          </form>
+                        </>
                       ) : (
                         <div className="item-copy">
                           <div className="item-title">
                             <h3>{item.title}</h3>
+                          </div>
+                          <div className="item-meta">
+                            <div className="mobile-time-label" aria-hidden="true"><strong>{start.time}</strong><span>{start.suffix}</span></div>
                             <span className="category-chip">{item.category}</span>
                           </div>
                         </div>

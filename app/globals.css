@@ -95,9 +95,10 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .item-icon { align-items: center; background: color-mix(in srgb, var(--item-color) 11%, transparent); border: 1px solid color-mix(in srgb, var(--item-color) 25%, transparent); border-radius: 8px; color: var(--item-color); display: flex; justify-content: center; }
 .item-icon { font-size: 17px; height: 34px; width: 34px; }
 .mobile-time-label { display: none; }
-.item-copy { align-items: center; display: flex; min-width: 0; }
+.item-copy { align-items: center; display: flex; gap: 9px; min-width: 0; }
 .item-title { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; }
 .item-title h3 { font-size: 13px; font-weight: 570; letter-spacing: -.015em; margin: 0; }
+.item-meta { align-items: center; display: flex; gap: 8px; }
 .category-chip { align-items: center; background: color-mix(in srgb, var(--item-color) 9%, transparent); border: 1px solid color-mix(in srgb, var(--item-color) 24%, transparent); border-radius: 999px; color: color-mix(in srgb, var(--item-color) 82%, white); display: inline-flex; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: 7.5px; font-weight: 650; height: 18px; justify-content: center; letter-spacing: .1em; line-height: 1; padding: 0 7px; text-transform: uppercase; }
 .edit-item-button, .delete-item-button { align-items: center; background: transparent; border: 0; color: #5c6562; cursor: pointer; display: flex; height: 24px; justify-content: center; opacity: 0; padding: 0; transition: color .16s, opacity .16s; width: 24px; }
 .drag-button svg, .edit-item-button svg, .delete-item-button svg { display: block; pointer-events: none; }
@@ -178,36 +179,51 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .day-overview strong { font-size: 11px; }
   .planner-header { min-height: 78px; padding: 15px 16px; }
   .planner-header > div:first-child { min-width: 0; }
-  .planner-header h2 { margin-bottom: 5px; }
+  .planner-header h2 { font-size: 18px; margin-bottom: 5px; }
   .planner-actions { flex: 0 0 auto; }
   .add-block-form { grid-template-columns: 1fr 1fr; padding: 14px 16px 15px; }
   .add-name-field, .add-form-actions { grid-column: 1 / -1; }
   .add-form-actions { justify-content: flex-end; }
-  .planner-help { font-size: 9px; justify-content: center; line-height: 1.45; padding: 9px 12px; }
+  .add-field label { font-size: 9px; }
+  .add-field input, .add-field select { font-size: 12px; height: 42px; }
+  .cancel-add-button, .confirm-add-button { font-size: 11px; height: 40px; }
+  .add-block-button { font-size: 11px; min-height: 40px; padding: 8px 12px; }
+  .planner-help { font-size: 10px; justify-content: center; line-height: 1.45; padding: 11px 12px; }
   .planner-help .help-grip { display: none; }
-  .schedule { padding: 10px 12px 17px; }
-  .routine-row { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 4px 0; }
+  .schedule { padding: 12px 12px 18px; }
+  .routine-row { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 6px 0; }
   .time-label { gap: 2px; padding-right: 9px; }
   .routine-row > .time-label { display: none; }
   .time-label strong { font-size: 10px; }
   .time-label span { font-size: 7px; }
-  .routine-card { gap: 8px; grid-column: 1; grid-template-columns: 20px 34px minmax(0, 1fr) 24px 24px; margin: 0; min-height: 94px; padding: 10px 10px 9px 8px; }
-  .drag-button { height: 32px; width: 20px; }
-  .item-icon { height: 32px; width: 32px; }
-  .mobile-time-label { align-items: baseline; align-self: start; color: #66706c; display: flex; gap: 4px; grid-column: 3; grid-row: 1; margin-top: 2px; min-width: 0; }
-  .mobile-time-label strong { color: #929b96; font: 600 7px/1 var(--font-geist-mono), monospace; letter-spacing: -.01em; }
-  .mobile-time-label span { color: #58615e; font: 650 6px var(--font-geist-mono), monospace; }
-  .item-copy { align-self: end; grid-column: 3; grid-row: 1; min-width: 0; padding-top: 18px; }
-  .item-title { gap: 7px; min-width: 0; row-gap: 5px; }
-  .item-title h3 { font-size: 12px; }
-  .edit-item-button { grid-column: 4; grid-row: 1; opacity: .62; }
-  .delete-item-button { grid-column: 5; grid-row: 1; opacity: .62; }
-  .inline-edit-form { grid-column: 2 / -1; grid-row: 2; grid-template-columns: minmax(70px, 1fr) 82px auto; }
-  .inline-edit-actions { gap: 3px; }
-  .inline-edit-actions button { height: 25px; width: 25px; }
-  .is-editing { min-height: 142px; }
+  .routine-card { align-items: start; border-radius: 12px; gap: 12px 10px; grid-column: 1; grid-template-columns: 20px 44px minmax(0, 1fr) 32px 32px; margin: 0; min-height: 0; padding: 15px 14px 13px 10px; }
+  .drag-button { height: 44px; width: 20px; }
+  .drag-button svg { height: 17px; width: 17px; }
+  .item-icon { font-size: 20px; height: 44px; width: 44px; }
+  .item-copy { align-items: flex-start; align-self: center; flex-direction: column; gap: 7px; grid-column: 3; grid-row: 1; min-width: 0; padding: 0; }
+  .item-title { display: block; min-width: 0; }
+  .item-title h3 { font-size: 15px; font-weight: 610; line-height: 1.25; }
+  .item-meta { gap: 9px; min-height: 21px; }
+  .mobile-time-label { align-items: baseline; color: #87918c; display: inline-flex; gap: 4px; min-width: 0; }
+  .mobile-time-label strong { color: #a0aaa5; font: 600 12px/1 var(--font-geist-mono), monospace; letter-spacing: -.02em; }
+  .mobile-time-label span { color: #66706c; font: 650 8px var(--font-geist-mono), monospace; }
+  .category-chip { font-size: 8.5px; height: 21px; padding: 0 8px; }
+  .edit-item-button, .delete-item-button { height: 32px; opacity: .7; width: 32px; }
+  .edit-item-button { grid-column: 4; grid-row: 1; }
+  .delete-item-button { grid-column: 5; grid-row: 1; }
+  .edit-item-button svg, .delete-item-button svg { height: 17px; width: 17px; }
+  .mobile-edit-time { align-self: center; grid-column: 3; grid-row: 1; }
+  .inline-edit-form { grid-column: 2 / -1; grid-row: 2; grid-template-columns: minmax(0, 1fr) 94px; gap: 8px; }
+  .inline-edit-form input, .inline-edit-form select { font-size: 12px; height: 40px; }
+  .inline-edit-actions { grid-column: 1 / -1; gap: 6px; justify-content: flex-end; }
+  .inline-edit-actions button { height: 32px; width: 32px; }
+  .is-editing { min-height: 0; }
   .is-editing .duration-control { grid-row: 3; }
-  .duration-control { grid-column: 3 / -1; grid-row: 2; justify-self: end; }
+  .duration-control { grid-column: 2 / -1; grid-row: 2; grid-template-columns: 42px minmax(0, 1fr) 42px; height: 44px; justify-self: stretch; width: 100%; }
+  .duration-control button { font-size: 17px; height: 42px; width: 42px; }
+  .duration-value { height: 42px; }
+  .duration-control input { font-size: 16px; height: 42px; max-width: 4ch; }
+  .duration-unit { font-size: 11px; line-height: 42px; }
   .drop-indicator { left: 0; }
   .finish-row { grid-template-columns: 52px 1fr; }
   .summary-rail { grid-template-columns: 1fr; }
@@ -220,15 +236,25 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .day-overview span { font-size: 8px; }
   .day-overview strong { font-size: 10px; }
   .planner-actions { gap: 6px; }
-  .add-block-button { padding: 7px 8px; }
+  .add-block-button { padding: 8px 10px; }
   .planner-header p { font-size: 10px; }
   .planner-help { gap: 6px; }
-  .category-chip { font-size: 7.25px; height: 17px; padding: 0 6px; }
-  .inline-edit-form { grid-template-columns: minmax(64px, 1fr) 76px auto; }
+  .routine-card { gap: 11px 8px; grid-template-columns: 18px 42px minmax(0, 1fr) 30px 30px; padding: 14px 11px 12px 9px; }
+  .drag-button { width: 18px; }
+  .item-icon { height: 42px; width: 42px; }
+  .item-title h3 { font-size: 14.5px; }
+  .category-chip { font-size: 8.25px; height: 20px; padding: 0 7px; }
+  .edit-item-button, .delete-item-button { height: 30px; width: 30px; }
+  .inline-edit-form { grid-template-columns: minmax(0, 1fr) 84px; }
   .inline-edit-form input { padding-left: 7px; padding-right: 7px; }
   .inline-edit-form select { padding-left: 5px; padding-right: 5px; }
-  .duration-control { grid-template-columns: 29px 72px 29px; }
-  .duration-control button { width: 29px; }
+  .duration-control { grid-template-columns: 38px minmax(0, 1fr) 38px; }
+  .duration-control button { width: 38px; }
+}
+
+@media (max-width: 360px) {
+  .inline-edit-form { grid-template-columns: 1fr; }
+  .inline-edit-actions { grid-column: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

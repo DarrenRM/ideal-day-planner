@@ -81,8 +81,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Pencil/);
   assert.match(page, /Trash2/);
   assert.match(page, /mobile-time-label/);
+  assert.match(page, /item-meta/);
   assert.match(css, /\.delete-item-button/);
   assert.match(css, /\.routine-row > \.time-label \{ display: none; \}/);
   assert.match(css, /\.mobile-time-label/);
+  assert.match(css, /grid-template-columns: 42px minmax\(0, 1fr\) 42px/);
   assert.match(css, /\.inline-edit-form/);
 });
