@@ -29,6 +29,8 @@ test("server-renders the idealized day planner", async () => {
   assert.match(html, /Drag a handle to reorder/);
   assert.match(html, /Adjust minutes on any block/);
   assert.match(html, /Add Activity/);
+  assert.match(html, /Logistics/);
+  assert.match(html, /Creativity/);
   assert.doesNotMatch(html, /Reset order/);
   assert.match(html, /aria-label="Edit Walk in sun"/);
   assert.match(html, /aria-label="Remove Walk in sun"/);
@@ -62,6 +64,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Math\.round\(duration \/ 5\) \* 5/);
   assert.match(page, /id="block-duration"[\s\S]*?min="5"[\s\S]*?step="5"/);
   assert.match(page, /custom-/);
+  assert.match(page, /CATEGORY_OPTIONS: Category\[\].*Logistics.*Creativity/s);
+  assert.match(page, /Logistics: \{ icon:/);
+  assert.match(page, /Creativity: \{ icon:/);
   assert.match(page, /Remove \$\{item\.title\}/);
   assert.match(page, /DELETED_KEY/);
   assert.match(page, /setDeletedDefaultIds/);

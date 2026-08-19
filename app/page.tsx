@@ -4,7 +4,7 @@ import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { GripVertical, Pencil, Trash2 } from "lucide-react";
 
-type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care";
+type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity";
 
 type RoutineItem = {
   id: string;
@@ -42,14 +42,16 @@ const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-tan", title: "Sun tan", detail: "Outdoor time · finish the protocol", duration: 20, category: "Light", icon: "☀", color: "#edb65b" },
 ];
 
-const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Reset", "Care"];
-const CATEGORY_OPTIONS: Category[] = ["Care", "Training", "Fuel", "Reset", "Light"];
+const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Reset", "Care", "Logistics", "Creativity"];
+const CATEGORY_OPTIONS: Category[] = ["Care", "Training", "Fuel", "Reset", "Light", "Logistics", "Creativity"];
 const CATEGORY_META: Record<Category, Pick<RoutineItem, "icon" | "color">> = {
   Care: { icon: "✦", color: "#d58db5" },
   Training: { icon: "◆", color: "#a8c96d" },
   Fuel: { icon: "◒", color: "#d59662" },
   Reset: { icon: "◌", color: "#67b7ce" },
   Light: { icon: "☼", color: "#e8b75f" },
+  Logistics: { icon: "↗", color: "#7ba6c9" },
+  Creativity: { icon: "✺", color: "#b58ad6" },
 };
 const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
 
