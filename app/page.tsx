@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, DragEvent, KeyboardEvent } from "react";
+import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care";
@@ -41,6 +41,19 @@ const INITIAL_ITEMS: RoutineItem[] = [
 ];
 
 const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Reset", "Care"];
+const CATEGORY_OPTIONS: Category[] = ["Care", "Training", "Fuel", "Reset", "Light"];
+const CATEGORY_META: Record<Category, Pick<RoutineItem, "icon" | "color">> = {
+  Care: { icon: "✦", color: "#d58db5" },
+  Training: { icon: "◆", color: "#a8c96d" },
+  Fuel: { icon: "◒", color: "#d59662" },
+  Reset: { icon: "◌", color: "#67b7ce" },
+  Light: { icon: "☼", color: "#e8b75f" },
+};
+const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
+
+function isCategory(value: unknown): value is Category {
+  return CATEGORY_OPTIONS.includes(value as Category);
+}
 
 function timeParts(totalMinutes: number) {
   const normalized = totalMinutes % (24 * 60);
@@ -69,6 +82,10 @@ export default function Home() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftDuration, setDraftDuration] = useState(15);
+  const [draftCategory, setDraftCategory] = useState<Category>("Care");
 
   useEffect(() => {
     try {
@@ -79,9 +96,26 @@ export default function Home() {
           const defaults = new Map(INITIAL_ITEMS.map((item) => [item.id, item]));
           const restored = saved.flatMap((savedItem) => {
             const currentItem = defaults.get(savedItem.id);
-            if (!currentItem) return [];
+            if (!currentItem) {
+              if (
+                typeof savedItem.id !== "string" ||
+                !savedItem.id.startsWith("custom-") ||
+                typeof savedItem.title !== "string" ||
+                !savedItem.title.trim() ||
+                !isCategory(savedItem.category)
+              ) return [];
+              const meta = CATEGORY_META[savedItem.category];
+              return [{
+                id: savedItem.id,
+                title: savedItem.title.trim().slice(0, 60),
+                detail: "Custom block",
+                duration: Number.isFinite(savedItem.duration) ? Math.min(480, Math.max(1, savedItem.duration)) : 15,
+                category: savedItem.category,
+                ...meta,
+              }];
+            }
             const savedDuration = Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration;
-            const duration = savedItem.id === "breakfast" && savedItem.title.includes("shake")
+            const duration = savedItem.id === "breakfast" && savedItem.title?.includes("shake")
               ? Math.max(1, savedDuration - 5)
               : savedDuration;
             return [{
@@ -149,8 +183,35 @@ export default function Home() {
   function resetOrder() {
     setItems((current) => {
       const durations = new Map(current.map((item) => [item.id, item.duration]));
-      return INITIAL_ITEMS.map((item) => ({ ...item, duration: durations.get(item.id) ?? item.duration }));
+      const customItems = current.filter((item) => !INITIAL_IDS.has(item.id));
+      return [
+        ...INITIAL_ITEMS.map((item) => ({ ...item, duration: durations.get(item.id) ?? item.duration })),
+        ...customItems,
+      ];
     });
+  }
+
+  function addItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = draftTitle.trim();
+    if (!title) return;
+    const meta = CATEGORY_META[draftCategory];
+    const item: RoutineItem = {
+      id: `custom-${window.crypto.randomUUID()}`,
+      title: title.slice(0, 60),
+      detail: "Custom block",
+      duration: Math.min(480, Math.max(1, Math.round(draftDuration))),
+      category: draftCategory,
+      ...meta,
+    };
+    setItems((current) => [...current, item]);
+    setDraftTitle("");
+    setDraftDuration(15);
+    setIsAdding(false);
+  }
+
+  function removeItem(id: string) {
+    setItems((current) => current.filter((item) => item.id !== id));
   }
 
   function moveItem(sourceId: string, targetId: string, position: "before" | "after") {
@@ -245,8 +306,56 @@ export default function Home() {
           <section className="planner" aria-labelledby="schedule-title">
             <header className="planner-header">
               <div><h2 id="schedule-title">Schedule</h2><p>{items.length} blocks · times update automatically</p></div>
-              <button className="quiet-button" type="button" onClick={resetOrder}>Reset order</button>
+              <div className="planner-actions">
+                <button
+                  aria-controls="add-block-form"
+                  aria-expanded={isAdding}
+                  className="add-block-button"
+                  type="button"
+                  onClick={() => setIsAdding((current) => !current)}
+                ><span aria-hidden="true">+</span> Add block</button>
+                <button className="quiet-button" type="button" onClick={resetOrder}>Reset order</button>
+              </div>
             </header>
+
+            {isAdding ? (
+              <form className="add-block-form" id="add-block-form" onSubmit={addItem}>
+                <div className="add-field add-name-field">
+                  <label htmlFor="block-name">Name</label>
+                  <input
+                    autoFocus
+                    id="block-name"
+                    maxLength={60}
+                    onChange={(event) => setDraftTitle(event.target.value)}
+                    placeholder="e.g. Sauna"
+                    value={draftTitle}
+                  />
+                </div>
+                <div className="add-field">
+                  <label htmlFor="block-duration">Minutes</label>
+                  <input
+                    id="block-duration"
+                    inputMode="numeric"
+                    max="480"
+                    min="1"
+                    onChange={(event) => setDraftDuration(event.target.valueAsNumber || 1)}
+                    step="5"
+                    type="number"
+                    value={draftDuration}
+                  />
+                </div>
+                <div className="add-field">
+                  <label htmlFor="block-category">Category</label>
+                  <select id="block-category" onChange={(event) => setDraftCategory(event.target.value as Category)} value={draftCategory}>
+                    {CATEGORY_OPTIONS.map((category) => <option key={category}>{category}</option>)}
+                  </select>
+                </div>
+                <div className="add-form-actions">
+                  <button className="cancel-add-button" type="button" onClick={() => setIsAdding(false)}>Cancel</button>
+                  <button className="confirm-add-button" disabled={!draftTitle.trim()} type="submit">Add</button>
+                </div>
+              </form>
+            ) : null}
 
             <div className="planner-help"><span className="help-grip">⠿</span> Drag a handle to reorder <span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</div>
 
@@ -284,7 +393,13 @@ export default function Home() {
 
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
                       <div className="item-copy">
-                        <div className="item-title"><h3>{item.title}</h3><span className="category-chip">{item.category}</span></div>
+                        <div className="item-title">
+                          <h3>{item.title}</h3>
+                          <span className="category-chip">{item.category}</span>
+                          {item.id.startsWith("custom-") ? (
+                            <button className="remove-item-button" type="button" aria-label={`Remove ${item.title}`} onClick={() => removeItem(item.id)}>×</button>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="duration-control" aria-label={`Duration for ${item.title}`}>
