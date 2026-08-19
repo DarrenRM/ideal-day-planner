@@ -36,6 +36,7 @@ The calendar is the home screen. Activities are the primary context boundary. A 
 - Completing the expanded Now activity closes it. If the clock has already moved into the next activity, that clock-current activity may then open as the new Now card.
 - Leave passed activities above the Now line so they can still be completed or dragged into a later part of today.
 - Update today’s remaining schedule dynamically when an activity is moved or resized.
+- Inserting an overdue activity into a later position pushes and reschedules every subsequent activity.
 - Clicking or tapping an activity expands it.
 - Provide a main-page view of the full conversation log across activities.
 
@@ -43,6 +44,14 @@ Completion has two affordances:
 
 - A clear `Complete` action in the expanded card footer.
 - A small completion circle on collapsed rows for quickly marking several activities, especially unfinished activities left above the Now position.
+
+Completion changes today’s execution view:
+
+- An activity completed early moves into the passed/completed section above the Now line.
+- Marking it incomplete again leaves it above the Now line as unfinished/overdue rather than automatically reinserting it into the future schedule.
+- The user can drag that unfinished activity back into a later position when desired.
+
+Deleting from a daily plan must confirm the scope. The confirmation explains: “This removes the activity from today only. Your template will not change.” Template deletion is a separate explicit action while editing the template.
 
 ### 2.2 Expanded activity
 
@@ -366,7 +375,10 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Only one card is expanded at a time, and user navigation always takes precedence over automatic Now presentation.
 - Clock changes update time state without moving the UI. Completing the active Now card is the one automatic handoff that may open the next clock-current card.
 - Completion is available through both an expanded `Complete` button and a small collapsed-row circle for batch catch-up.
+- Completing early moves an activity above the Now line. Reversing completion leaves it there as overdue until the user reschedules it.
+- Removing an activity from today requires a scope-confirmation modal and never changes the template.
 - Missed activities can be dragged into a later part of today.
+- Moving a missed activity later reschedules all following activities.
 - Activities expand in their existing row/card on desktop and mobile.
 - Mobile begins at Schedule and omits the desktop hero and summary sections.
 - Mobile uses compact content-width duration controls and a single-line title/time/tag header.
@@ -391,9 +403,9 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ### Today and the Now line
 
-1. Can an upcoming activity be marked complete early, or only activities at/above the Now line?
-2. When an overdue activity is dragged later, should it be inserted into the sequence and push everything after it, as durations do now?
-3. When a completed activity is reopened, should the button become `Mark incomplete` so completion is directly reversible?
+1. When an activity is completed early and removed from the upcoming sequence, should the following activities pull earlier immediately or keep their existing planned times until manually adjusted?
+2. Should the passed section sort strictly by completion time, or preserve the original schedule order?
+3. Should the daily-plan delete confirmation offer only `Cancel` and `Remove from today`, with template deletion available only from a separate template-editing mode?
 
 ### Expanded cards and chat
 
