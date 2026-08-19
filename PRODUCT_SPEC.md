@@ -63,7 +63,7 @@ An expanded activity has two major areas.
 
 The top area presents information that is useful for the activity right now. Examples:
 
-- Hair Serum: current product, start date, day number, instructions, recent adherence, unresolved questions.
+- Hair Serum: current product, start date, day number, instructions, and recent adherence.
 - Lifting: last workout, recent sets/reps/weights, current targets, useful trend or comparison.
 - Resupply: active shopping list, urgency, source activity, and when an item was added.
 
@@ -88,7 +88,7 @@ The interaction is closer to a quiet chat room than a formal prompt box:
 - `Enter` sends and `Shift+Enter` inserts a newline on keyboard devices.
 - Notes are sent into the conversation and processed by the agent.
 - The agent does not need to post a conversational reply unless the user asked a question or a response is otherwise necessary.
-- Successful filing is communicated with messaging-style checkmarks rather than an extra assistant response. Double checkmarks mean Luna has read/processed the message.
+- Successful filing is communicated with messaging-style checkmarks rather than an extra assistant response. One gray check means the message is durably saved and waiting for Luna; double checkmarks mean Luna has read and processed it.
 - Each activity has one permanent conversation with date separators rather than separate daily threads.
 - The main page contains one unfiltered, chronological running conversation with the global assistant.
 - An expanded activity shows only its permanent activity conversation.
@@ -210,7 +210,6 @@ Candidate components:
 - Metric trend
 - Workout comparison
 - Checklist or shopping list
-- Open-question card
 - Warning or attention card
 - Small data-entry form
 
@@ -255,6 +254,7 @@ Move durable product state from `localStorage` to the project’s D1 database be
 - `agent_questions`
 - `agent_runs`
 - `agent_actions`
+- `agent_jobs`
 - `record_revisions`
 - `detail_view_snapshots` (optional cache, not authoritative data)
 - `attachments` (metadata in D1; bytes in R2 when needed)
@@ -296,7 +296,9 @@ The first agent host will be the owner’s PC. A later host may be:
 - A private VPS.
 - A later managed service if subscription authentication and security permit it.
 
-The web app must save notes and remain usable while the PC agent is offline. Agent work should queue and resume when the local bridge reconnects.
+The web app must save notes and remain usable while the PC agent is offline. Agent work queues durably and retries after the local bridge reconnects. Retries must be idempotent so reconnects cannot file the same message twice.
+
+There is no paid API fallback. If GPT-5.6 Luna cannot be reached through the ChatGPT subscription bridge, processing waits and retries later.
 
 ## 8. Hermes evaluation
 
@@ -354,7 +356,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ### Phase 0 — product specification
 
-- Resolve the open product and infrastructure questions.
+- Maintain the confirmed product and infrastructure decisions in this living specification.
 - Define acceptance criteria for the first complete activity flow.
 
 ### Phase 1 — database foundation
@@ -373,7 +375,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Add the Now line, completion, overdue state, and rescheduling within today.
 - Implement the mobile schedule contract recorded above.
 
-### Phase 3 — scoped agent prototype
+### Phase 3 — universal scoped agent
 
 - Connect one agent runtime.
 - Add one permanent conversation and full agent behavior to every activity.
@@ -420,6 +422,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Global actions that affect an activity produce a linked output/reference in that activity conversation.
 - Activity conversations behave as quiet chat rooms: notes are processed without requiring an assistant reply.
 - Chat follows standard iOS/Telegram visual and interaction conventions, including bubbles, a touch-friendly Send button, and processing checkmarks.
+- One gray check means saved/queued; double checkmarks mean processed by Luna.
 - The agent can understand information across the app.
 - Activity details are prepared in advance and updated immediately when relevant information changes elsewhere.
 - Activity context is maintained continuously through live event processing; there is no blanket start-of-day Luna pass.
@@ -434,6 +437,8 @@ This app will contain health-adjacent personal data. The initial product needs:
 - OpenUI is a presentation option, not a database or agent runtime.
 - Hermes is a candidate runtime to validate, not yet a committed dependency.
 - The first agent runtime will run on the owner’s PC.
+- Offline agent work waits in a durable, duplicate-safe queue and retries after the PC bridge reconnects.
+- The product does not fall back to paid API usage when the ChatGPT subscription bridge is unavailable.
 - The initial product scope is wellness. Attachments and wearable integrations are not immediate requirements.
 - Original chat messages are retained indefinitely unless the user explicitly deletes them.
 - Structured records retain provenance links to their originating messages.
@@ -445,10 +450,7 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ## 13. Open questions
 
-### Agent and data policy
-
-1. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-2. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+There are no unresolved discovery blockers for the initial product architecture. Implementation may surface narrower interaction or infrastructure decisions, which should be added here before assumptions are committed to code.
 
 ## 14. Research sources
 
