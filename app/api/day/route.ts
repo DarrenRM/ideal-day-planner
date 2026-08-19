@@ -187,6 +187,46 @@ async function replaceToday(userId: string, date: string, items: StoredItem[], s
   await db.batch(statements);
 }
 
+async function saveTodayAsTemplate(userId: string, date: string) {
+  const db = getD1();
+  const { templateId, planId } = ids(userId, date);
+  const user = safeSegment(userId);
+  const plan = await db.prepare("SELECT start_minutes AS startMinutes FROM daily_plans WHERE id = ? AND user_id = ?")
+    .bind(planId, userId)
+    .first<{ startMinutes: number }>();
+  if (!plan) throw new Error("Today has not loaded yet.");
+
+  const dayItems = await db.prepare(`
+    SELECT client_key AS clientKey, title, category, icon, color, position, duration
+    FROM daily_plan_items
+    WHERE daily_plan_id = ? AND removed_at IS NULL
+    ORDER BY position ASC
+  `).bind(planId).all<{ clientKey: string; title: string; category: string; icon: string; color: string; position: number; duration: number }>();
+
+  const statements = [
+    db.prepare("DELETE FROM routine_items WHERE routine_id = ?").bind(templateId),
+    db.prepare("UPDATE routine_templates SET start_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?")
+      .bind(plan.startMinutes, templateId, userId),
+  ];
+
+  dayItems.results.forEach((item, position) => {
+    const activityId = `activity:${user}:${safeSegment(item.clientKey)}`;
+    statements.push(
+      db.prepare(`
+        INSERT INTO activities (id, user_id, client_key, title, category, icon, color)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, client_key) DO UPDATE SET
+          title = excluded.title, category = excluded.category, icon = excluded.icon, color = excluded.color, updated_at = CURRENT_TIMESTAMP
+      `).bind(activityId, userId, item.clientKey, item.title, item.category, item.icon, item.color),
+      db.prepare("INSERT INTO routine_items (id, routine_id, activity_id, position, duration) VALUES (?, ?, ?, ?, ?)")
+        .bind(`template-item:${user}:${safeSegment(item.clientKey)}`, templateId, activityId, position, item.duration),
+    );
+  });
+
+  await db.batch(statements);
+  return { count: dayItems.results.length, startMinutes: plan.startMinutes };
+}
+
 async function restoreTemplateAndToday(userId: string, date: string, items: StoredItem[], startMinutes: number) {
   const db = getD1();
   const { templateId, planId, migrationId } = ids(userId, date);
@@ -262,10 +302,14 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json() as { mode?: unknown; items?: unknown; startMinutes?: unknown };
+    const templateId = await ensureAccount(userId, date);
+    if (payload.mode === "save-template") {
+      const result = await saveTodayAsTemplate(userId, date);
+      return Response.json({ date, ...result, savedAsTemplate: true });
+    }
     const items = normalizeItems(payload.items);
     if (!items) return Response.json({ error: "Invalid routine items." }, { status: 400 });
     const startMinutes = normalizeStartMinutes(payload.startMinutes);
-    const templateId = await ensureAccount(userId, date);
     if (payload.mode === "restore-template") {
       await createTodayFromTemplate(userId, date, templateId);
       await restoreTemplateAndToday(userId, date, items, startMinutes);

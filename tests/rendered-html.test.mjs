@@ -47,6 +47,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /\/api\/day\?date=/);
   assert.match(page, /needsImport/);
   assert.match(page, /method: "PUT"/);
+  assert.match(page, /saveTodayAsTemplate/);
+  assert.match(page, /Save today as default template/);
+  assert.match(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /save-template/);
   assert.match(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /restore-template/);
   assert.match(page, /MIGRATION_KEY/);
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
@@ -85,6 +88,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.drop-indicator/);
   assert.match(css, /\.duration-control/);
   assert.match(css, /\.add-block-form/);
+  assert.match(css, /\.planner-menu-popover/);
+  assert.match(css, /\.planner-menu-trigger/);
   assert.match(css, /\.edit-item-button/);
   assert.match(page, /GripVertical/);
   assert.match(page, /Pencil/);

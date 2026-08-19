@@ -2,7 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GripVertical, Pencil, Trash2 } from "lucide-react";
+import { Check, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 type Category = "Light" | "Reset" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity";
 
@@ -199,6 +199,10 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const menuRef = useRef<HTMLDivElement>(null);
+  const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const skipNextSave = useRef(true);
 
   useEffect(() => {
@@ -304,6 +308,32 @@ export default function Home() {
     return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
   }, [editCategory, editTitle, editingId, items]);
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    function handleMenuPointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      setIsMenuOpen(false);
+    }
+
+    function handleMenuKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleMenuPointerDown);
+    document.addEventListener("keydown", handleMenuKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleMenuPointerDown);
+      document.removeEventListener("keydown", handleMenuKeyDown);
+    };
+  }, [isMenuOpen]);
+
+  useEffect(() => () => {
+    if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
+  }, []);
+
   const scheduledItems = useMemo(() => {
     let cursor = startMinutes;
     return items.map<ScheduledItem>((item) => {
@@ -359,6 +389,27 @@ export default function Home() {
     setDraftTitle("");
     setDraftDuration(15);
     setIsAdding(false);
+  }
+
+  async function saveTodayAsTemplate() {
+    if (templateSaveState === "saving") return;
+    if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
+    setTemplateSaveState("saving");
+    try {
+      const response = await fetch(`/api/day?date=${localDateKey()}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "save-template" }),
+      });
+      if (!response.ok) throw new Error(`Could not save the default template (${response.status}).`);
+      setTemplateSaveState("saved");
+      templateSaveResetTimer.current = setTimeout(() => {
+        setIsMenuOpen(false);
+        setTemplateSaveState("idle");
+      }, 1400);
+    } catch {
+      setTemplateSaveState("error");
+    }
   }
 
   function removeItem(id: string) {
@@ -488,6 +539,33 @@ export default function Home() {
             <header className="planner-header">
               <div><h2 id="schedule-title">Schedule</h2><p>{hasLoaded ? `${items.length} blocks · times update automatically` : "Loading your saved day…"}</p></div>
               <div className="planner-actions">
+                <div className="planner-menu" ref={menuRef}>
+                  <button
+                    aria-expanded={isMenuOpen}
+                    aria-haspopup="menu"
+                    aria-label="More schedule options"
+                    className="planner-menu-trigger"
+                    disabled={!hasLoaded}
+                    type="button"
+                    onClick={() => setIsMenuOpen((current) => !current)}
+                  ><MoreHorizontal aria-hidden="true" size={16} strokeWidth={1.8} /></button>
+                  {isMenuOpen ? (
+                    <div className="planner-menu-popover" role="menu">
+                      <p className="planner-menu-label">Template</p>
+                      <button
+                        className="planner-menu-item"
+                        disabled={templateSaveState === "saving" || templateSaveState === "saved"}
+                        role="menuitem"
+                        type="button"
+                        onClick={() => void saveTodayAsTemplate()}
+                      >
+                        {templateSaveState === "saved" ? <Check aria-hidden="true" size={15} strokeWidth={2} /> : null}
+                        <span>{templateSaveState === "saving" ? "Saving template…" : templateSaveState === "saved" ? "Default template saved" : templateSaveState === "error" ? "Try saving again" : "Save today as default template"}</span>
+                      </button>
+                      {templateSaveState === "error" ? <p className="planner-menu-error" role="status">Couldn’t save. Try again.</p> : null}
+                    </div>
+                  ) : null}
+                </div>
                 <button
                   aria-controls="add-block-form"
                   aria-expanded={isAdding}
