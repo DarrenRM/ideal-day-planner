@@ -68,5 +68,6 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.duration-control/);
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.edit-item-button/);
+  assert.match(css, /font-variant-emoji: text/);
   assert.match(css, /\.inline-edit-form/);
 });
