@@ -86,6 +86,9 @@ export default function Home() {
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDuration, setDraftDuration] = useState(15);
   const [draftCategory, setDraftCategory] = useState<Category>("Care");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editCategory, setEditCategory] = useState<Category>("Care");
 
   useEffect(() => {
     try {
@@ -118,8 +121,15 @@ export default function Home() {
             const duration = savedItem.id === "breakfast" && savedItem.title?.includes("shake")
               ? Math.max(1, savedDuration - 5)
               : savedDuration;
+            const title = typeof savedItem.title === "string" && savedItem.title.trim()
+              ? savedItem.title.trim().slice(0, 60)
+              : currentItem.title;
+            const category = isCategory(savedItem.category) ? savedItem.category : currentItem.category;
             return [{
               ...currentItem,
+              title,
+              category,
+              color: category === currentItem.category ? currentItem.color : CATEGORY_META[category].color,
               duration,
             }];
           });
@@ -182,10 +192,10 @@ export default function Home() {
 
   function resetOrder() {
     setItems((current) => {
-      const durations = new Map(current.map((item) => [item.id, item.duration]));
+      const currentItems = new Map(current.map((item) => [item.id, item]));
       const customItems = current.filter((item) => !INITIAL_IDS.has(item.id));
       return [
-        ...INITIAL_ITEMS.map((item) => ({ ...item, duration: durations.get(item.id) ?? item.duration })),
+        ...INITIAL_ITEMS.map((item) => currentItems.get(item.id) ?? item),
         ...customItems,
       ];
     });
@@ -212,6 +222,35 @@ export default function Home() {
 
   function removeItem(id: string) {
     setItems((current) => current.filter((item) => item.id !== id));
+  }
+
+  function startEditing(item: RoutineItem) {
+    setEditingId(item.id);
+    setEditTitle(item.title);
+    setEditCategory(item.category);
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setEditTitle("");
+  }
+
+  function saveEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = editTitle.trim();
+    if (!editingId || !title) return;
+    setItems((current) => current.map((item) => {
+      if (item.id !== editingId) return item;
+      const categoryChanged = item.category !== editCategory;
+      return {
+        ...item,
+        title: title.slice(0, 60),
+        category: editCategory,
+        color: categoryChanged ? CATEGORY_META[editCategory].color : item.color,
+        icon: categoryChanged && item.id.startsWith("custom-") ? CATEGORY_META[editCategory].icon : item.icon,
+      };
+    }));
+    cancelEditing();
   }
 
   function moveItem(sourceId: string, targetId: string, position: "before" | "after") {
@@ -365,6 +404,7 @@ export default function Home() {
                 const isDragging = draggingId === item.id;
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
                 const isDropAfter = dropTarget?.id === item.id && dropTarget.position === "after";
+                const isEditing = editingId === item.id;
                 const itemStyle = { "--item-color": item.color } as CSSProperties;
 
                 return (
@@ -380,7 +420,7 @@ export default function Home() {
 
                     <div className="time-label"><strong>{start.time}</strong><span>{start.suffix}</span></div>
 
-                    <article className="routine-card">
+                    <article className={`routine-card ${isEditing ? "is-editing" : ""}`}>
                       <button
                         className="drag-button"
                         draggable
@@ -392,15 +432,46 @@ export default function Home() {
                       >⠿</button>
 
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
-                      <div className="item-copy">
-                        <div className="item-title">
-                          <h3>{item.title}</h3>
-                          <span className="category-chip">{item.category}</span>
-                          {item.id.startsWith("custom-") ? (
-                            <button className="remove-item-button" type="button" aria-label={`Remove ${item.title}`} onClick={() => removeItem(item.id)}>×</button>
-                          ) : null}
+                      {isEditing ? (
+                        <form className="inline-edit-form" onSubmit={saveEdit}>
+                          <input
+                            aria-label={`Title for ${item.title}`}
+                            autoFocus
+                            maxLength={60}
+                            onChange={(event) => setEditTitle(event.target.value)}
+                            onKeyDown={(event) => { if (event.key === "Escape") cancelEditing(); }}
+                            value={editTitle}
+                          />
+                          <select
+                            aria-label={`Tag for ${item.title}`}
+                            onChange={(event) => setEditCategory(event.target.value as Category)}
+                            value={editCategory}
+                          >
+                            {CATEGORY_OPTIONS.map((category) => <option key={category}>{category}</option>)}
+                          </select>
+                          <div className="inline-edit-actions">
+                            <button type="button" aria-label="Cancel editing" onClick={cancelEditing}>×</button>
+                            <button className="save-edit-button" disabled={!editTitle.trim()} type="submit" aria-label="Save changes">✓</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="item-copy">
+                          <div className="item-title">
+                            <h3>{item.title}</h3>
+                            <span className="category-chip">{item.category}</span>
+                            {item.id.startsWith("custom-") ? (
+                              <button className="remove-item-button" type="button" aria-label={`Remove ${item.title}`} onClick={() => removeItem(item.id)}>×</button>
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      <button
+                        className="edit-item-button"
+                        type="button"
+                        aria-label={`Edit ${item.title}`}
+                        onClick={() => startEditing(item)}
+                      ><span aria-hidden="true">✎</span></button>
 
                       <div className="duration-control" aria-label={`Duration for ${item.title}`}>
                         <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
