@@ -155,11 +155,20 @@ For each turn, the system should assemble a context packet containing only what 
 - Cross-activity information retrieved because it appears useful.
 - Open agent questions.
 
-Context preparation should not wait for the user to open an activity. At minimum:
+Context preparation is live and event-driven rather than a blanket start-of-day model pass:
 
-- Prepare each activity’s details and likely questions before it becomes relevant that day.
-- Reprocess affected activities immediately when new information elsewhere changes their context.
-- Example: “I need toothpaste” entered during Bed Prep should update Resupply without waiting for Resupply to open.
+- Persist each activity’s current details so they are already ready whenever the activity opens.
+- Reprocess affected activities immediately when a message or data change alters their context.
+- Invoke Luna for user messages, relevant record changes, explicit requests, or scheduled events that genuinely require judgment.
+- Do not invoke Luna merely because a new date started.
+- At first open on a new date, deterministic application code creates today’s plan and updates date-derived values such as product day counts. This work does not require a model call.
+- Example: “I need toothpaste” entered during Bed Prep should update Resupply immediately without waiting for Resupply to open.
+
+Agent questions follow normal messaging behavior:
+
+- A question is a normal Luna message in the relevant conversation, not a separate questionnaire UI.
+- The main interface may show a simple notification icon or unread indicator at most.
+- A question can be answered from the global conversation or from its activity conversation; linked context keeps both views synchronized.
 
 The agent can then return:
 
@@ -408,7 +417,10 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Chat follows standard iOS/Telegram visual and interaction conventions, including bubbles, a touch-friendly Send button, and processing checkmarks.
 - The agent can understand information across the app.
 - Activity details are prepared in advance and updated immediately when relevant information changes elsewhere.
-- Unanswered agent questions will be exposed through a “Questions for you” count or queue.
+- Activity context is maintained continuously through live event processing; there is no blanket start-of-day Luna pass.
+- Day rollover performs deterministic plan/date housekeeping without invoking the model.
+- Agent questions appear as normal messages and use only a lightweight notification/unread indicator.
+- Questions can be answered globally or in their originating activity.
 - The app database, not chat history, is the source of truth.
 - Durable state should move to D1 before agent features are layered on.
 - Agent writes happen automatically through typed tools and preserve provenance and undoability.
@@ -423,19 +435,16 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ### Questions and prepared UI
 
-1. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
-2. Should questions be answered inside their originating activity, from a global inbox, or either place?
-3. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
-4. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
+1. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
 
 ### Agent and data policy
 
-5. How should undo be exposed without cluttering every message: tapping the processing checkmarks, a message action menu, or a temporary toast?
-6. Should raw user messages be preserved permanently even after facts and metrics are extracted?
-7. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
-8. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
-9. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-10. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+2. How should undo be exposed without cluttering every message: tapping the processing checkmarks, a message action menu, or a temporary toast?
+3. Should raw user messages be preserved permanently even after facts and metrics are extracted?
+4. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
+5. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
+6. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
+7. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
 
 ## 14. Research sources
 
