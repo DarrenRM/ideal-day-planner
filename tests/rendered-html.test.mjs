@@ -93,7 +93,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.delete-item-button/);
   assert.match(css, /\.routine-row > \.time-label \{ display: none; \}/);
   assert.match(css, /\.mobile-time-label/);
-  assert.match(css, /grid-template-columns: 42px minmax\(0, 1fr\) 42px/);
+  assert.match(css, /grid-template-columns: 38px 68px 38px/);
+  assert.match(css, /\.hero, \.summary-rail \{ display: none; \}/);
+  assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/s);
+  assert.match(css, /\.duration-control \{[^}]*justify-self: end;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
 });
