@@ -133,14 +133,16 @@ export default function Home() {
                 id: savedItem.id,
                 title: savedItem.title.trim().slice(0, 60),
                 detail: "Custom block",
-                duration: Number.isFinite(savedItem.duration) ? Math.min(480, Math.max(1, savedItem.duration)) : 15,
+                duration: normalizeActivityDuration(savedItem.duration),
                 category: savedItem.category,
                 ...meta,
               }];
             }
-            const savedDuration = Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration;
+            const savedDuration = normalizeActivityDuration(
+              Number.isFinite(savedItem.duration) ? savedItem.duration : currentItem.duration,
+            );
             const duration = savedItem.id === "breakfast" && savedItem.title?.includes("shake")
-              ? Math.max(1, savedDuration - 5)
+              ? normalizeActivityDuration(savedDuration - 5)
               : savedDuration;
             const title = typeof savedItem.title === "string" && savedItem.title.trim()
               ? savedItem.title.trim().slice(0, 60)
@@ -233,7 +235,11 @@ export default function Home() {
 
   function adjustDuration(id: string, delta: number) {
     const item = items.find((candidate) => candidate.id === id);
-    if (item) setDuration(id, item.duration + delta);
+    if (!item) return;
+    const duration = delta > 0
+      ? Math.floor(item.duration / DURATION_STEP) * DURATION_STEP + DURATION_STEP
+      : Math.ceil(item.duration / DURATION_STEP) * DURATION_STEP - DURATION_STEP;
+    setDuration(id, Math.max(5, duration));
   }
 
   function addItem(event: FormEvent<HTMLFormElement>) {
@@ -524,7 +530,8 @@ export default function Home() {
                             aria-label={`Duration for ${item.title} in minutes`}
                             inputMode="numeric"
                             max="480"
-                            min="1"
+                            min="5"
+                            onBlur={() => setDuration(item.id, normalizeActivityDuration(item.duration))}
                             onChange={(event) => setDuration(item.id, event.target.valueAsNumber)}
                             step="5"
                             type="number"

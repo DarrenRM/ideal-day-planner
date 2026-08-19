@@ -51,7 +51,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /onDrop/);
   assert.match(page, /DropTarget/);
   assert.match(page, /adjustDuration/);
+  assert.match(page, /Math\.floor\(item\.duration \/ DURATION_STEP\)/);
+  assert.match(page, /Math\.ceil\(item\.duration \/ DURATION_STEP\)/);
   assert.match(page, /setDuration/);
+  assert.match(page, /onBlur=\{\(\) => setDuration\(item\.id, normalizeActivityDuration\(item\.duration\)\)\}/);
   assert.match(page, /Duration for .* in minutes/);
   assert.doesNotMatch(page, /resetOrder/);
   assert.match(page, /addItem/);
