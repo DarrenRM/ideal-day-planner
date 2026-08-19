@@ -269,3 +269,17 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
   .schedule-loading-row, .shape-loading-row { animation: none; }
 }
+
+.restore-page { align-items: center; background: var(--bg); display: flex; justify-content: center; min-height: 100vh; padding: 24px; }
+.restore-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; max-width: 680px; padding: 28px; width: 100%; }
+.restore-card h1 { font-size: 32px; margin: 0 0 12px; }
+.restore-card > p:not(.eyebrow, .restore-status) { color: var(--muted); line-height: 1.6; }
+.restore-card form { display: grid; gap: 10px; margin-top: 24px; }
+.restore-card label { color: #9aa39f; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.restore-card textarea { background: #0d1013; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text); font: 12px/1.5 ui-monospace, monospace; padding: 14px; resize: vertical; }
+.restore-card button { background: var(--accent); border: 0; border-radius: 9px; color: var(--accent-ink); cursor: pointer; font-weight: 700; justify-self: start; min-height: 42px; padding: 0 16px; }
+.restore-card button:disabled { cursor: default; opacity: .45; }
+.restore-status { color: #9da6a2; margin-top: 18px; }
+.restore-status-done { color: var(--accent); }
+.restore-status-error { color: #e58b83; }
+.restore-card a { color: var(--accent); display: inline-block; margin-top: 4px; }

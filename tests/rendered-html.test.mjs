@@ -47,6 +47,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /\/api\/day\?date=/);
   assert.match(page, /needsImport/);
   assert.match(page, /method: "PUT"/);
+  assert.match(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /restore-template/);
   assert.match(page, /MIGRATION_KEY/);
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
   assert.match(page, /hasLoaded \? <>\{scheduledItems\.map/);

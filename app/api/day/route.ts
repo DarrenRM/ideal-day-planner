@@ -187,6 +187,48 @@ async function replaceToday(userId: string, date: string, items: StoredItem[], s
   await db.batch(statements);
 }
 
+async function restoreTemplateAndToday(userId: string, date: string, items: StoredItem[], startMinutes: number) {
+  const db = getD1();
+  const { templateId, planId, migrationId } = ids(userId, date);
+  const user = safeSegment(userId);
+  const statements = [
+    db.prepare("DELETE FROM routine_items WHERE routine_id = ?").bind(templateId),
+    db.prepare("DELETE FROM daily_plan_items WHERE daily_plan_id = ?").bind(planId),
+    db.prepare("UPDATE routine_templates SET start_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").bind(startMinutes, templateId, userId),
+    db.prepare("UPDATE daily_plans SET start_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").bind(startMinutes, planId, userId),
+  ];
+
+  items.forEach((item, position) => {
+    const activityId = `activity:${user}:${safeSegment(item.id)}`;
+    statements.push(
+      db.prepare(`
+        INSERT INTO activities (id, user_id, client_key, title, category, icon, color)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, client_key) DO UPDATE SET
+          title = excluded.title, category = excluded.category, icon = excluded.icon, color = excluded.color, updated_at = CURRENT_TIMESTAMP
+      `).bind(activityId, userId, item.id, item.title, item.category, item.icon, item.color),
+      db.prepare("INSERT INTO routine_items (id, routine_id, activity_id, position, duration) VALUES (?, ?, ?, ?, ?)")
+        .bind(`template-item:${user}:${safeSegment(item.id)}`, templateId, activityId, position, item.duration),
+      db.prepare(`
+        INSERT INTO daily_plan_items
+          (id, daily_plan_id, activity_id, client_key, title, category, icon, color, position, duration)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(`day-item:${user}:${date}:${safeSegment(item.id)}`, planId, activityId, item.id, item.title, item.category, item.icon, item.color, position, item.duration),
+    );
+  });
+
+  statements.push(
+    db.prepare("UPDATE user_migrations SET completed_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").bind(migrationId, userId),
+    db.prepare(`
+      DELETE FROM activities
+      WHERE user_id = ?
+        AND id NOT IN (SELECT activity_id FROM routine_items)
+        AND id NOT IN (SELECT activity_id FROM daily_plan_items)
+    `).bind(userId),
+  );
+  await db.batch(statements);
+}
+
 function unauthorized() {
   return Response.json({ error: "Sign in with ChatGPT to load your day." }, { status: 401 });
 }
@@ -219,11 +261,16 @@ export async function POST(request: Request) {
   if (!date) return Response.json({ error: "A valid local date is required." }, { status: 400 });
 
   try {
-    const payload = await request.json() as { items?: unknown; startMinutes?: unknown };
+    const payload = await request.json() as { mode?: unknown; items?: unknown; startMinutes?: unknown };
     const items = normalizeItems(payload.items);
     if (!items) return Response.json({ error: "Invalid routine items." }, { status: 400 });
     const startMinutes = normalizeStartMinutes(payload.startMinutes);
     const templateId = await ensureAccount(userId, date);
+    if (payload.mode === "restore-template") {
+      await createTodayFromTemplate(userId, date, templateId);
+      await restoreTemplateAndToday(userId, date, items, startMinutes);
+      return Response.json({ date, ...await readDay(userId, date), needsImport: false, restored: true });
+    }
     if (!await hasTemplateItems(templateId)) await importLegacy(userId, date, items, startMinutes);
     await createTodayFromTemplate(userId, date, templateId);
     return Response.json({ date, ...await readDay(userId, date), needsImport: false });
