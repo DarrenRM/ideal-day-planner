@@ -22,18 +22,12 @@ test("server-renders the idealized day planner", async () => {
   const html = await response.text();
   assert.match(html, /<title>Idealized day<\/title>/i);
   assert.match(html, /Your ideal morning\./);
-  assert.match(html, /Walk in sun/);
-  assert.match(html, /Stretch \/ yoga/);
-  assert.match(html, />Shake</);
-  assert.match(html, />Breakfast</);
+  assert.match(html, /Loading your saved day/);
+  assert.doesNotMatch(html, /Walk in sun|Stretch \/ yoga|>Shake<|>Breakfast</);
   assert.match(html, /Drag a handle to reorder/);
   assert.match(html, /Adjust minutes on any block/);
   assert.match(html, /Add Activity/);
-  assert.match(html, /Logistics/);
-  assert.match(html, /Creativity/);
   assert.doesNotMatch(html, /Reset order/);
-  assert.match(html, /aria-label="Edit Walk in sun"/);
-  assert.match(html, /aria-label="Remove Walk in sun"/);
   assert.match(html, /aria-label="Idealized day schedule"/);
   assert.doesNotMatch(html, /Mobility · breathe and open up/);
   assert.doesNotMatch(html, /Move Stretch \/ yoga up/);
@@ -50,6 +44,8 @@ test("keeps the routine data and interactions in the page", async () => {
   ]);
 
   assert.match(page, /localStorage/);
+  assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
+  assert.match(page, /hasLoaded \? <>\{scheduledItems\.map/);
   assert.match(page, /draggable/);
   assert.match(page, /onDrop/);
   assert.match(page, /DropTarget/);
@@ -95,4 +91,5 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.mobile-time-label/);
   assert.match(css, /grid-template-columns: 42px minmax\(0, 1fr\) 42px/);
   assert.match(css, /\.inline-edit-form/);
+  assert.match(css, /\.schedule-loading-row/);
 });

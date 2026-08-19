@@ -87,7 +87,7 @@ function normalizeActivityDuration(duration: number) {
 }
 
 export default function Home() {
-  const [items, setItems] = useState<RoutineItem[]>(INITIAL_ITEMS);
+  const [items, setItems] = useState<RoutineItem[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -101,6 +101,8 @@ export default function Home() {
   const [deletedDefaultIds, setDeletedDefaultIds] = useState<string[]>([]);
 
   useEffect(() => {
+    let nextItems = INITIAL_ITEMS;
+    let nextDeletedDefaultIds: string[] = [];
     try {
       const savedDeletedIds = window.localStorage.getItem(DELETED_KEY);
       const deletedIds = new Set<string>();
@@ -112,14 +114,14 @@ export default function Home() {
           });
         }
       }
-      setDeletedDefaultIds([...deletedIds]);
+      nextDeletedDefaultIds = [...deletedIds];
 
       const savedItems = window.localStorage.getItem(STORAGE_KEY);
       if (savedItems) {
-        const saved = JSON.parse(savedItems) as RoutineItem[];
+        const saved = JSON.parse(savedItems) as unknown;
         if (Array.isArray(saved)) {
           const defaults = new Map(INITIAL_ITEMS.map((item) => [item.id, item]));
-          const restored = saved.flatMap((savedItem) => {
+          const restored = (saved as RoutineItem[]).flatMap((savedItem) => {
             if (deletedIds.has(savedItem.id)) return [];
             const currentItem = defaults.get(savedItem.id);
             if (!currentItem) {
@@ -167,16 +169,20 @@ export default function Home() {
             merged.splice(insertAt, 0, item);
             restoredIds.add(item.id);
           });
-          setItems(merged);
+          nextItems = merged;
+        } else {
+          nextItems = INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id));
         }
-      } else if (deletedIds.size) {
-        setItems(INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id)));
+      } else {
+        nextItems = INITIAL_ITEMS.filter((item) => !deletedIds.has(item.id));
       }
     } catch {
-      // Keep the defaults when local state is unavailable or malformed.
-    } finally {
-      setHasLoaded(true);
+      nextItems = INITIAL_ITEMS;
+      nextDeletedDefaultIds = [];
     }
+    setDeletedDefaultIds(nextDeletedDefaultIds);
+    setItems(nextItems);
+    setHasLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -371,7 +377,7 @@ export default function Home() {
           <span className="brand-mark">id</span>
           <div><strong>Ideal Day</strong><span>Personal protocol</span></div>
         </div>
-        <div className="save-state"><span /> Saved on this device</div>
+        <div className="save-state"><span /> {hasLoaded ? "Saved on this device" : "Loading this device"}</div>
       </header>
 
       <div className="page-shell">
@@ -383,20 +389,21 @@ export default function Home() {
           </div>
           <div className="day-overview" aria-label="Day overview">
             <div><span>Start</span><strong>{formatTime(START_MINUTES)}</strong></div>
-            <div><span>Finish</span><strong>{formatTime(finishMinutes)}</strong></div>
-            <div><span>Length</span><strong>{formatDuration(totalMinutes)}</strong></div>
+            <div><span>Finish</span><strong>{hasLoaded ? formatTime(finishMinutes) : "—"}</strong></div>
+            <div><span>Length</span><strong>{hasLoaded ? formatDuration(totalMinutes) : "—"}</strong></div>
           </div>
         </section>
 
         <div className="main-grid">
           <section className="planner" aria-labelledby="schedule-title">
             <header className="planner-header">
-              <div><h2 id="schedule-title">Schedule</h2><p>{items.length} blocks · times update automatically</p></div>
+              <div><h2 id="schedule-title">Schedule</h2><p>{hasLoaded ? `${items.length} blocks · times update automatically` : "Loading your saved day…"}</p></div>
               <div className="planner-actions">
                 <button
                   aria-controls="add-block-form"
                   aria-expanded={isAdding}
                   className="add-block-button"
+                  disabled={!hasLoaded}
                   type="button"
                   onClick={() => setIsAdding((current) => !current)}
                 ><span aria-hidden="true">+</span> Add Activity</button>
@@ -446,7 +453,7 @@ export default function Home() {
             <div className="planner-help"><span className="help-grip"><GripVertical aria-hidden="true" size={14} strokeWidth={1.8} /></span> Drag a handle to reorder <span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</div>
 
             <div className="schedule" aria-label="Idealized day schedule">
-              {scheduledItems.map((item) => {
+              {hasLoaded ? <>{scheduledItems.map((item) => {
                 const start = timeParts(item.start);
                 const isDragging = draggingId === item.id;
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
@@ -557,24 +564,28 @@ export default function Home() {
               <div className="finish-row">
                 <div className="time-label"><strong>{timeParts(finishMinutes).time}</strong><span>{timeParts(finishMinutes).suffix}</span></div>
                 <p>Protocol complete</p>
-              </div>
+              </div></> : (
+                <div className="schedule-loading" role="status" aria-label="Loading your saved day">
+                  {[0, 1, 2, 3].map((row) => <div className="schedule-loading-row" aria-hidden="true" key={row} />)}
+                </div>
+              )}
             </div>
           </section>
 
           <aside className="summary-rail" aria-label="Plan summary">
             <section className="summary-card shape-card">
-              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{formatDuration(totalMinutes)} total</h2></div><span>{formatTime(START_MINUTES)}–{formatTime(finishMinutes)}</span></div>
+              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{hasLoaded ? `${formatDuration(totalMinutes)} total` : "Loading…"}</h2></div><span>{hasLoaded ? `${formatTime(START_MINUTES)}–${formatTime(finishMinutes)}` : "—"}</span></div>
               <div className="shape-list">
-                {categoryTotals.map((entry) => (
+                {hasLoaded ? categoryTotals.map((entry) => (
                   <div className="shape-row" key={entry.category}>
                     <div><span className="shape-dot" style={{ background: entry.color }} /><strong>{entry.category}</strong><span>{entry.minutes} min</span></div>
-                    <div className="shape-track"><span style={{ background: entry.color, width: `${(entry.minutes / totalMinutes) * 100}%` }} /></div>
+                    <div className="shape-track"><span style={{ background: entry.color, width: totalMinutes ? `${(entry.minutes / totalMinutes) * 100}%` : "0%" }} /></div>
                   </div>
-                ))}
+                )) : [0, 1, 2, 3, 4].map((row) => <div className="shape-loading-row" aria-hidden="true" key={row} />)}
               </div>
             </section>
 
-            <p className="local-note"><span>●</span> Order and durations are saved locally.</p>
+            <p className="local-note"><span>●</span> {hasLoaded ? "Order and durations are saved locally." : "Loading saved settings…"}</p>
           </aside>
         </div>
       </div>
