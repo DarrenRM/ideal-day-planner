@@ -40,6 +40,7 @@ test("server-renders the idealized day planner", async () => {
   assert.doesNotMatch(html, />Week</);
   assert.doesNotMatch(html, /Primary navigation/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|SkeletonPreview/i);
+  assert.doesNotMatch(html, /__variable_geist|_vinext_fonts/i);
 });
 
 test("keeps the routine data and interactions in the page", async () => {
@@ -77,6 +78,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Tag for \$\{item\.title\}/);
   assert.doesNotMatch(page, /check-button|setCompleted|COMPLETE_KEY/);
   assert.match(css, /--bg: #0a0c0f/);
+  assert.match(css, /--type-sans: ui-sans-serif, system-ui/);
+  assert.doesNotMatch(css, /--font-geist-/);
   assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /\.drop-indicator/);
   assert.match(css, /\.duration-control/);
