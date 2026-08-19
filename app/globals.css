@@ -59,11 +59,11 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .planner-header p { color: var(--subtle); font-size: 11px; margin: 0; }
 .quiet-button { background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: #aab1ad; cursor: pointer; font-size: 10px; padding: 7px 10px; transition: border-color .18s, color .18s, background .18s; }
 .quiet-button:hover { background: rgba(181, 215, 125, .06); border-color: rgba(181, 215, 125, .34); color: var(--accent-bright); }
-.planner-help { align-items: center; background: var(--surface-soft); border-bottom: 1px solid var(--border); color: #6f7874; display: flex; font-size: 10px; gap: 8px; min-height: 35px; padding: 0 20px 0 94px; }
+.planner-help { align-items: center; background: var(--surface-soft); border-bottom: 1px solid var(--border); color: #6f7874; display: flex; font-size: 10px; gap: 8px; min-height: 35px; padding: 0 20px; }
 .help-divider { color: #41494a; margin: 0 3px; }
-.help-grip { color: #7e8782; font-size: 14px; letter-spacing: -3px; transform: rotate(90deg); }
+.help-grip { color: #7e8782; display: grid; flex: 0 0 14px; font-size: 14px; height: 14px; letter-spacing: -2px; place-items: center; transform: rotate(90deg); }
 
-.schedule { padding: 12px 20px 17px; }
+.schedule { padding: 12px 16px 17px; }
 .routine-row { display: grid; grid-template-columns: 74px minmax(0, 1fr); min-height: 72px; position: relative; }
 .time-label { align-items: baseline; align-self: stretch; display: flex; gap: 4px; justify-content: flex-end; padding-right: 14px; place-self: stretch; }
 .routine-row > .time-label { padding-top: 27px; }
