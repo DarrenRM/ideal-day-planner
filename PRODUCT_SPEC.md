@@ -30,11 +30,19 @@ The calendar is the home screen. Activities are the primary context boundary. A 
 - Recalculate downstream times automatically.
 - Allow activities to be marked complete. Detailed actual-time tracking is out of scope for now.
 - Show a live “Now” line that advances through the schedule.
-- Render the activity selected by the current clock in the full expanded-card layout. This expanded layout is the activity’s Now state, with the previously defined header, middle details/chat area, and footer.
+- Render the activity selected by the current clock in the full expanded-card layout when no other activity has been selected. This expanded layout is the activity’s Now state, with the previously defined header, middle details/chat area, and footer.
+- Keep at most one activity expanded. The user can move freely among activities without the clock forcing the interface to jump.
+- A clock transition updates which activity is current but never interrupts or replaces the card the user is viewing.
+- Completing the expanded Now activity closes it. If the clock has already moved into the next activity, that clock-current activity may then open as the new Now card.
 - Leave passed activities above the Now line so they can still be completed or dragged into a later part of today.
 - Update today’s remaining schedule dynamically when an activity is moved or resized.
 - Clicking or tapping an activity expands it.
 - Provide a main-page view of the full conversation log across activities.
+
+Completion has two affordances:
+
+- A clear `Complete` action in the expanded card footer.
+- A small completion circle on collapsed rows for quickly marking several activities, especially unfinished activities left above the Now position.
 
 ### 2.2 Expanded activity
 
@@ -89,6 +97,7 @@ When an activity expands:
 - The header contains icon, title, time, and tag.
 - The middle contains the contextual details UI and activity-scoped conversation.
 - The footer contains edit, delete, and the compact duration control.
+- The footer also contains the primary `Complete` action.
 - The expansion should feel like part of the card rather than an unrelated modal.
 
 ## 3. Core conceptual model
@@ -354,6 +363,9 @@ This app will contain health-adjacent personal data. The initial product needs:
 - Scheduling and completion are in scope; detailed actual-time tracking is deferred.
 - A live Now line separates passed and upcoming schedule content without removing missed activities.
 - The clock-selected activity automatically uses the expanded card as its Now state.
+- Only one card is expanded at a time, and user navigation always takes precedence over automatic Now presentation.
+- Clock changes update time state without moving the UI. Completing the active Now card is the one automatic handoff that may open the next clock-current card.
+- Completion is available through both an expanded `Complete` button and a small collapsed-row circle for batch catch-up.
 - Missed activities can be dragged into a later part of today.
 - Activities expand in their existing row/card on desktop and mobile.
 - Mobile begins at Schedule and omits the desktop hero and summary sections.
@@ -379,32 +391,30 @@ This app will contain health-adjacent personal data. The initial product needs:
 
 ### Today and the Now line
 
-1. If the user manually expands another activity while the current activity is in its automatic Now state, should the Now activity remain expanded too or temporarily collapse?
-2. When the clock moves into the next activity, should the new Now card expand automatically even if the user is typing or reading in another expanded card?
-3. Can an upcoming activity be marked complete early, or only activities at/above the Now line?
-4. What completion control should replace the checkmark circle that was deliberately removed from the earlier row design?
-5. When an overdue activity is dragged later, should it be inserted into the sequence and push everything after it, as durations do now?
+1. Can an upcoming activity be marked complete early, or only activities at/above the Now line?
+2. When an overdue activity is dragged later, should it be inserted into the sequence and push everything after it, as durations do now?
+3. When a completed activity is reopened, should the button become `Mark incomplete` so completion is directly reversible?
 
 ### Expanded cards and chat
 
-6. Should the global conversation be one chronological feed with activity filters, or a traditional assistant thread that can reference the activity logs?
-7. After a note is automatically filed, what subtle feedback is useful: “Processed,” a list of records changed, an undo toast, or only an error when something failed?
-8. Should pressing Enter send and Shift+Enter create a newline, or should the multiline field always require a Send button?
+4. Should the global conversation be one chronological feed with activity filters, or a traditional assistant thread that can reference the activity logs?
+5. After a note is automatically filed, what subtle feedback is useful: “Processed,” a list of records changed, an undo toast, or only an error when something failed?
+6. Should pressing Enter send and Shift+Enter create a newline, or should the multiline field always require a Send button?
 
 ### Questions and prepared UI
 
-9. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
-10. Should questions be answered inside their originating activity, from a global inbox, or either place?
-11. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
-12. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
+7. Where should the “Questions for you” count live: global Schedule header, individual activity cards, or both?
+8. Should questions be answered inside their originating activity, from a global inbox, or either place?
+9. How early should activity details be prepared: at the start of the day, a fixed time before each activity, or both?
+10. Which three activities should be the first end-to-end details-card prototypes? Hair Serum, Lifting, and Resupply are the current recommendation.
 
 ### Agent and data policy
 
-13. Should raw user messages be preserved permanently even after facts and metrics are extracted?
-14. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
-15. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
-16. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
-17. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
+11. Should raw user messages be preserved permanently even after facts and metrics are extracted?
+12. Is automatic undo enough for incorrect filing, or should the app also expose a visible edit/history screen for every agent-created record?
+13. Should the assistant provide wellness recommendations, or initially limit itself to organizing, retrieving, comparing, and asking questions?
+14. While the PC agent is offline, should queued notes visibly show “Waiting for Luna” until processed?
+15. Is GPT-5.6 Luna through the ChatGPT subscription a hard requirement, or may the system fall back to API billing if the subscription bridge is unavailable?
 
 ## 14. Research sources
 
