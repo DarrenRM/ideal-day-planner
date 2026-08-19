@@ -478,7 +478,7 @@ export default function Home() {
                         type="button"
                         aria-label={`Edit ${item.title}`}
                         onClick={() => startEditing(item)}
-                      ><span aria-hidden="true">✎︎</span></button>
+                      ><span aria-hidden="true" /></button>
 
                       <div className="duration-control" aria-label={`Duration for ${item.title}`}>
                         <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
