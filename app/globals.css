@@ -61,6 +61,19 @@ button { color: inherit; }
 .dev-time-presets button span { color: #68726d; font-size: 7px; }
 .follow-clock-button { background: transparent; border: 1px solid #343c3e; border-radius: 8px; color: #bdc5bf; cursor: pointer; font-size: 9px; margin-top: 10px; min-height: 31px; width: 100%; }
 .follow-clock-button:hover { border-color: rgba(181, 215, 125, .4); color: var(--accent-bright); }
+.dev-reset-section { border-top: 1px solid #293033; margin-top: 12px; padding-top: 12px; }
+.reset-today-button { align-items: center; background: rgba(207, 129, 121, .04); border: 1px solid rgba(207, 129, 121, .25); border-radius: 8px; color: #c9958f; cursor: pointer; display: flex; font-size: 9px; gap: 6px; justify-content: center; min-height: 34px; width: 100%; }
+.reset-today-button:hover { background: rgba(207, 129, 121, .09); border-color: rgba(207, 129, 121, .48); color: #e0aaa4; }
+.reset-today-button:disabled { cursor: wait; opacity: .45; }
+.dev-reset-confirm { background: #101416; border: 1px solid rgba(207, 129, 121, .28); border-radius: 9px; padding: 10px; }
+.dev-reset-confirm > div:first-child { display: flex; flex-direction: column; gap: 4px; }
+.dev-reset-confirm strong { color: #e8d5d2; font-size: 10px; font-weight: 660; }
+.dev-reset-confirm span { color: #7f8984; font-size: 8px; line-height: 1.45; }
+.dev-reset-actions { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; margin-top: 9px; }
+.dev-reset-actions button { background: transparent; border: 1px solid #323a3c; border-radius: 7px; color: #9fa8a3; cursor: pointer; font-size: 8px; min-height: 30px; }
+.dev-reset-actions button:hover { border-color: #4b5551; color: #d4dbd5; }
+.dev-reset-actions .confirm-reset-today { background: rgba(207, 129, 121, .1); border-color: rgba(207, 129, 121, .38); color: #dfa7a1; }
+.dev-reset-actions .confirm-reset-today:hover { background: rgba(207, 129, 121, .16); border-color: rgba(207, 129, 121, .6); }
 .dev-clock-popover > p { color: #626c68; font-size: 8px; line-height: 1.5; margin: 10px 2px 0; }
 
 .page-shell { margin: 0 auto; max-width: 1180px; padding: 50px 24px 84px; }

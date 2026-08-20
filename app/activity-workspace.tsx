@@ -52,6 +52,19 @@ function writeStoredState(key: string, value: unknown) {
   try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* device-only timer state is optional */ }
 }
 
+export function resetActivityTimingState(activityIds: string[]) {
+  try {
+    const prefixes = activityIds.flatMap((activityId) => [
+      `ideal-day-timer:${activityId}:`,
+      `ideal-day-countdown:${activityId}:`,
+    ]);
+    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index);
+      if (key && prefixes.some((prefix) => key.startsWith(prefix))) window.localStorage.removeItem(key);
+    }
+  } catch { /* device-only timer state is optional */ }
+}
+
 function TimerComponent({ activity, component }: { activity: WorkspaceActivity; component: TimerWorkspaceComponent }) {
   const storageKey = `ideal-day-timer:${activity.id}:${component.id}`;
   const [timer, setTimer] = useState(() => readStoredState<TimerState>(storageKey, { running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: activity.duration * 60 }));

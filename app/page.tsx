@@ -3,7 +3,7 @@
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, Pencil, RotateCcw, Send, SkipForward, Trash2 } from "lucide-react";
-import { ActivityWorkspace, captureActivityTimingSnapshot } from "./activity-workspace";
+import { ActivityWorkspace, captureActivityTimingSnapshot, resetActivityTimingState } from "./activity-workspace";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
@@ -710,6 +710,7 @@ export default function Home() {
   const [editCategory, setEditCategory] = useState<Category>("Care");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
+  const [resetTodayState, setResetTodayState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [realMinutes, setRealMinutes] = useState(minutesNow);
   const [fakeMinutes, setFakeMinutes] = useState<number | null>(null);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
@@ -862,10 +863,14 @@ export default function Home() {
     function handleDevMenuPointerDown(event: PointerEvent) {
       if (event.target instanceof Node && devMenuRef.current?.contains(event.target)) return;
       setIsDevMenuOpen(false);
+      setResetTodayState("idle");
     }
 
     function handleDevMenuKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setIsDevMenuOpen(false);
+      if (event.key === "Escape") {
+        setIsDevMenuOpen(false);
+        setResetTodayState("idle");
+      }
     }
 
     document.addEventListener("pointerdown", handleDevMenuPointerDown);
@@ -950,6 +955,37 @@ export default function Home() {
       setSaveState("retrying");
     } finally {
       setIsStartingDay(false);
+    }
+  }
+
+  async function resetToday() {
+    if (resetTodayState === "resetting") return;
+    setResetTodayState("resetting");
+    try {
+      const response = await fetch(`/api/day?date=${localDateKey()}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "reset-today" }),
+      });
+      if (!response.ok) throw new Error("Today could not be reset.");
+      const day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null };
+      const resetItems = hydrateStoredItems(day.items);
+      resetActivityTimingState(resetItems.map((item) => item.id));
+      skipNextSave.current = true;
+      setItems(resetItems);
+      setCompletedIds(new Set());
+      setStartMinutes(day.startMinutes);
+      setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
+      setDayStartedAt(day.startedAt ?? null);
+      setSelectedActivityId(null);
+      setDismissedClockActivityId(null);
+      setPendingActivityIds(new Set());
+      setSaveState("saved");
+      setIsDevMenuOpen(false);
+      setResetTodayState("idle");
+    } catch {
+      setSaveState("retrying");
+      setResetTodayState("error");
     }
   }
 
@@ -1201,9 +1237,9 @@ export default function Home() {
               {fakeMinutes !== null ? <strong>{formatTime(fakeMinutes)}</strong> : null}
             </button>
             {isDevMenuOpen ? (
-              <div className="dev-clock-popover" role="dialog" aria-label="Development clock">
+              <div className="dev-clock-popover" role="dialog" aria-label="Development tools">
                 <div className="dev-clock-heading">
-                  <div><span>Development clock</span><strong>{formatTime(displayedMinutes)}</strong></div>
+                  <div><span>Development tools</span><strong>{formatTime(displayedMinutes)}</strong></div>
                   <button aria-label="Use actual time" disabled={fakeMinutes === null} type="button" onClick={() => setTestTime(null)}><RotateCcw aria-hidden="true" size={14} /> Actual time</button>
                 </div>
                 <label className="dev-time-field" htmlFor="dev-fake-time">
@@ -1232,7 +1268,25 @@ export default function Home() {
                 <button className="follow-clock-button" type="button" onClick={() => { setSelectedActivityId(null); setDismissedClockActivityId(null); }}>
                   Follow clock-selected activity
                 </button>
-                <p>Local preview only. This does not change the saved schedule.</p>
+                <div className="dev-reset-section">
+                  {resetTodayState === "confirming" || resetTodayState === "error" ? (
+                    <div className="dev-reset-confirm" role="group" aria-label="Confirm reset today">
+                      <div>
+                        <strong>{resetTodayState === "error" ? "Reset didn’t work" : "Reset today?"}</strong>
+                        <span>{resetTodayState === "error" ? "Nothing was changed. You can try again." : "This clears today’s start, completion, skip, and timing progress. Your routine and Luna history stay put."}</span>
+                      </div>
+                      <div className="dev-reset-actions">
+                        <button type="button" onClick={() => setResetTodayState("idle")}>Cancel</button>
+                        <button className="confirm-reset-today" type="button" onClick={() => void resetToday()}>{resetTodayState === "error" ? "Try Again" : "Reset Today"}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="reset-today-button" disabled={!hasLoaded || resetTodayState === "resetting"} type="button" onClick={() => setResetTodayState("confirming")}>
+                      <RotateCcw aria-hidden="true" size={14} /> {resetTodayState === "resetting" ? "Resetting…" : "Reset Today"}
+                    </button>
+                  )}
+                </div>
+                <p>Fake time is only a preview. Reset Today changes today’s saved progress.</p>
               </div>
             ) : null}
           </div>

@@ -114,6 +114,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Start My Day/);
   assert.match(page, /Start Early/);
   assert.match(page, /mode: "start-day"/);
+  assert.match(page, /mode: "reset-today"/);
+  assert.match(page, /Reset Today/);
+  assert.match(page, /Your routine and Luna history stay put/);
+  assert.match(page, /resetActivityTimingState/);
   assert.match(page, /currentMinutes: displayedMinutes/);
   assert.match(page, /function ControlTooltip/);
   assert.match(page, /role="tooltip"/);
@@ -136,6 +140,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(workspace, /component\.durationSeconds/);
   assert.match(workspace, /component\.durationSource === "activity"/);
   assert.match(workspace, /captureActivityTimingSnapshot/);
+  assert.match(workspace, /export function resetActivityTimingState/);
   assert.doesNotMatch(workspace, /RESUPPLY_WORKSPACE|LIFT_WORKSPACE|HAIR_SERUM_WORKSPACE|breakfastWorkspace|Toothpaste|Bench press|Multi-peptide|Oranges|Mock|Preview/);
   assert.doesNotMatch(workspace, /dangerouslySetInnerHTML|\beval\s*\(|new Function/);
   assert.match(css, /--bg: #0a0c0f/);
@@ -148,6 +153,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);
   assert.match(css, /\.dev-clock-popover/);
+  assert.match(css, /\.reset-today-button/);
+  assert.match(css, /\.dev-reset-confirm/);
   assert.match(css, /\.now-line/);
   assert.match(css, /\.activity-expansion/);
   assert.match(css, /\.activity-workbench-grid/);
@@ -234,6 +241,9 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(runRoute, /mode === "skip" \|\| mode === "unskip"/);
   assert.match(runRoute, /skipped_at/);
   assert.match(dayRoute, /mode === "start-day"/);
+  assert.match(dayRoute, /mode === "reset-today"/);
+  assert.match(dayRoute, /started_at = NULL/);
+  assert.match(dayRoute, /status = 'planned'/);
   assert.match(dayRoute, /started_at = CURRENT_TIMESTAMP/);
   assert.match(dayRoute, /preferredStartMinutes/);
   assert.match(dayRoute, /prepareActivitySetups/);

@@ -546,6 +546,7 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Today remains an untimed sequence until the user presses Start; the resulting five-minute launch anchor is daily state, while 8:00 AM remains the current preferred default.
 - Skip-for-today is available beside completion in collapsed and expanded states, removes the activity’s duration from today’s sequence, and never removes it from the template.
 - Collapsed skip and completion circles carry contextual hover and keyboard-focus tooltips so their icon-only actions remain understandable.
+- The development menu includes a confirmed Reset Today action for replaying the welcome and launch flow. It clears only today’s launch, completion, skip, and timing-run state while preserving the routine template, Luna conversations, and activity workspaces.
 - Completing early moves an activity above the Now line. Reversing completion leaves it there as overdue until the user reschedules it.
 - Completing early preserves later planned times by default. Settings can opt into pulling the remaining schedule forward.
 - The passed section preserves original schedule order.

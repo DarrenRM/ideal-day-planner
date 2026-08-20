@@ -139,6 +139,45 @@ async function startToday(userId: string, date: string, currentMinutes: unknown)
   return readDay(userId, date);
 }
 
+async function resetToday(userId: string, date: string) {
+  const db = getD1();
+  const { planId } = ids(userId, date);
+  const plan = await db.prepare("SELECT id FROM daily_plans WHERE id = ? AND user_id = ?")
+    .bind(planId, userId).first<{ id: string }>();
+  if (!plan) throw new Error("Today has not loaded yet.");
+
+  await db.batch([
+    db.prepare(`
+      UPDATE daily_plans
+      SET start_minutes = COALESCE(
+            (SELECT start_minutes FROM routine_templates WHERE id = daily_plans.template_id),
+            480
+          ),
+          started_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(planId, userId),
+    db.prepare(`
+      UPDATE daily_plan_items
+      SET completed_at = NULL, skipped_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE daily_plan_id = ?
+    `).bind(planId),
+    db.prepare(`
+      UPDATE activity_runs
+      SET status = 'planned',
+          actual_elapsed_seconds = NULL,
+          timer_mode = NULL,
+          timer_component_id = NULL,
+          started_at = NULL,
+          completed_at = NULL,
+          details_json = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND plan_date = ?
+    `).bind(userId, date),
+  ]);
+  return readDay(userId, date);
+}
+
 async function createTodayFromTemplate(userId: string, date: string, templateId: string) {
   const db = getD1();
   const { planId } = ids(userId, date);
@@ -366,6 +405,10 @@ export async function POST(request: Request) {
     if (payload.mode === "start-day") {
       await createTodayFromTemplate(userId, date, templateId);
       return Response.json({ date, ...await startToday(userId, date, payload.currentMinutes), needsImport: false });
+    }
+    if (payload.mode === "reset-today") {
+      await createTodayFromTemplate(userId, date, templateId);
+      return Response.json({ date, ...await resetToday(userId, date), needsImport: false, reset: true });
     }
     if (payload.mode === "save-template") {
       const result = await saveTodayAsTemplate(userId, date);
