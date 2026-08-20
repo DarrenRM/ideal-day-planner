@@ -670,7 +670,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-unit { font-size: var(--type-micro); line-height: 28px; }
   .routine-row.is-current .routine-card:not(.is-expanded) .item-state { margin-right: 108px; }
   .routine-row:has(.routine-card.is-expanded) { z-index: 100; }
-  .routine-card.is-expanded { background: #101416; border: 0; border-radius: 0; bottom: 0; box-shadow: none; display: grid; gap: 0; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; inset-inline: 0; margin: 0; max-width: none; position: fixed; top: 0; width: 100%; z-index: 100; }
+  .routine-card.is-expanded { background: #101416; border: 0; border-radius: 0; bottom: 0; box-shadow: none; display: grid; gap: 0; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; inset-inline: 0; margin: 0; max-width: none; padding: 0; position: fixed; top: 0; width: 100%; z-index: 100; }
   .routine-card.is-expanded .item-copy { background: #151a1d; border-bottom: 1px solid #293033; gap: 2px 8px; grid-column: 1 / -1; grid-row: 1; grid-template-rows: 26px 22px; min-height: 68px; padding: max(7px, env(safe-area-inset-top)) 12px 7px 16px; }
   .routine-card.is-expanded .item-title { padding-right: 40px; }
   .routine-card.is-expanded .collapse-activity-button { right: 8px; top: max(7px, env(safe-area-inset-top)); }
