@@ -111,7 +111,6 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Luna is setting this up/);
   assert.doesNotMatch(page, /Done — I added oranges to your breakfast list/);
   assert.doesNotMatch(page, /maps cleanly to an approved component/);
-  assert.match(page, /Live activity/);
   assert.match(page, /Mark Complete/);
   assert.match(page, /Skip for Today/);
   assert.match(page, /Start My Day/);
@@ -137,8 +136,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /completedIds/);
   assert.doesNotMatch(page, /COMPLETE_KEY/);
   assert.match(workspace, /Nothing to manage here yet/);
-  assert.match(workspace, /Plans, history, and useful controls/);
   assert.match(workspace, /hasConversation/);
+  assert.match(workspace, /workState \? null/);
   assert.match(workspace, /function TimerComponent/);
   assert.match(workspace, /function CountdownComponent/);
   assert.match(workspace, /function RoutineComponent/);
@@ -160,8 +159,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /--type-label: \.75rem/);
   assert.match(css, /--type-body: \.875rem/);
   assert.match(css, /--type-body-lg: 1rem/);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip \{[^}]*font-size: var\(--type-micro\);[^}]*height: 18px;[^}]*padding: 0 7px/s);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{ font-size: var\(--type-micro\); height: 20px; padding: 2px 7px 0; \}/);
+  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip \{[^}]*font-size: var\(--type-micro\);[^}]*font-weight: 590;[^}]*height: 18px;[^}]*letter-spacing: \.055em;[^}]*padding: 1px 6px 0/s);
+  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{ font-size: var\(--type-micro\); height: 18px; padding: 1px 6px 0; \}/);
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);
@@ -172,6 +171,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.now-line/);
   assert.match(css, /\.activity-expansion/);
   assert.match(css, /\.activity-workbench-grid/);
+  assert.doesNotMatch(page, /Activity context|Live activity/);
+  assert.doesNotMatch(workspace, /workspace-header|workspace-version|The useful parts of this activity/);
   assert.match(css, /\.activity-workspace/);
   assert.match(css, /\.shopping-list/);
   assert.match(css, /\.workout-plan/);

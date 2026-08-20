@@ -240,17 +240,6 @@ export function ActivityWorkspace({ activity, hasConversation = false, workspace
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   return (
     <section className={`activity-workspace ${workspace.components.length ? "workspace-live" : "workspace-new"}`} aria-label={`Workspace for ${activity.title}`}>
-      <header className="workspace-header">
-        <div>
-          <span>{activity.category}</span>
-          <strong>{activity.title}</strong>
-          <p>{workspace.components.length
-            ? "The useful parts of this activity, kept close and ready."
-            : "Plans, history, and useful controls can live here when there is something worth keeping close."}</p>
-        </div>
-        {workspace.components.length ? <span className="workspace-version">Live</span> : null}
-      </header>
-
       {workState ? (
         <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""}`} role="status">
           <span className="workspace-working-mark"><Sparkles size={15} /></span>
@@ -276,7 +265,7 @@ export function ActivityWorkspace({ activity, hasConversation = false, workspace
               : <section className="workspace-block record-binding-missing" key={component.id}><strong>{component.title}</strong><p>This information is being prepared.</p></section>;
           })}
         </div>
-      ) : (
+      ) : workState ? null : (
         <div className="blank-workspace">
           <span className="blank-workspace-mark"><Sparkles size={19} /></span>
           <strong>Nothing to manage here yet</strong>

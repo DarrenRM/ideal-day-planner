@@ -569,6 +569,7 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Mobile begins at Schedule and omits the desktop hero and summary sections.
 - Mobile uses compact content-width duration controls and a single-line title/time/tag header.
 - Expanded activities contain contextual details and an activity-scoped conversation.
+- Expanded activities move directly from the activity header into workspace components and conversation. They do not repeat the activity category/title or show a permanent “Activity context”/“Live activity” strip; a session-status strip appears only when it has meaningful run state such as started, elapsed, completed, skipped, or a real today-specific warning.
 - Every activity receives the complete details/chat/agent experience at launch; none are held back as prototypes.
 - The main page can show the full cross-activity conversation log.
 - The main page has one unfiltered chronological conversation with a global assistant.

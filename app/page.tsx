@@ -613,14 +613,6 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
 
   return (
     <div className="activity-expansion">
-      <div className="activity-workbench-heading">
-        <div>
-          <span className="workbench-kicker">Activity context</span>
-          <strong>{formatDuration(item.duration)} planned today</strong>
-        </div>
-        <span className="prototype-badge">Live activity</span>
-      </div>
-
       <div className="activity-workbench-grid">
         <ActivityWorkspace activity={item} hasConversation={messages.length > 0} onRecordMutation={mutateRecord} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 

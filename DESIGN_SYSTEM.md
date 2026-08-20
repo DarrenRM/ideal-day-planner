@@ -1,0 +1,114 @@
+# Ideal Day design system
+
+This is the visual and interaction source of truth for Ideal Day. Read it before changing UI. `PRODUCT_SPEC.md` owns product behavior; this file owns presentation rules; `app/globals.css` contains the implemented tokens and selectors. When they disagree, do not silently choose one—bring the code and this document back into alignment.
+
+## Character
+
+- Calm, dark, focused, and personal rather than dashboard-like.
+- Dense enough to support a full day, but never cramped or cryptic.
+- The schedule is primary. Expanded activities should feel like part of their schedule card, not a modal or a separate application.
+- Activity color identifies context and active state. Green remains the global action/success accent.
+- Prefer truthful empty, loading, error, and offline states over placeholder content or hollow domain components.
+
+## Typography
+
+Use rem-scaled semantic tokens. Mobile may promote a role for readability but must never make it smaller than desktop.
+
+| Role | Token | Size / line height | Use |
+| --- | --- | --- | --- |
+| Title | `--type-title` | 18px | Section and panel titles |
+| Prominent | `--type-body-lg` | 16px / 24px | Activity titles, prominent body text, all mobile form values |
+| Body | `--type-body` | 14px / 20px | Normal reading, Luna messages, descriptions |
+| Supporting | `--type-body-sm` | 13px / 18px | Compact explanations and secondary content |
+| Label | `--type-label` | 12px / 16px | Controls, field labels, secondary UI |
+| Micro | `--type-micro` | 11px / 16px | Timestamps, short statuses, terse uppercase overlines only |
+
+Rules:
+
+- Never use Micro for prose, messages, form values, or button labels.
+- Mobile inputs, selects, and textareas use at least Prominent to remain readable and avoid browser zoom behavior.
+- Prefer sentence case. Reserve uppercase plus letter spacing for short overlines, statuses, and categories.
+- Text must reflow without clipping at 200% browser text size and with user text-spacing overrides.
+- Truncate only genuinely single-line schedule labels. Never truncate conversation or explanatory content.
+
+## Color
+
+The canonical global tokens are:
+
+| Token | Value | Purpose |
+| --- | --- | --- |
+| `--bg` | `#0a0c0f` | Page background |
+| `--surface` | `#101316` | Primary surface |
+| `--surface-raised` | `#15191d` | Menus and raised controls |
+| `--surface-soft` | `#0d1013` | Subtle nested surface |
+| `--border` | `#242a2e` | Standard divider and border |
+| `--border-strong` | `#31383d` | Interactive and emphasized border |
+| `--text` | `#eef1ec` | Primary text |
+| `--muted` | `#8d9692` | Secondary text |
+| `--subtle` | `#626b68` | Terse metadata only |
+| `--accent` | `#b5d77d` | Primary action and completion |
+| `--accent-bright` | `#cef09a` | Active/high-emphasis accent |
+| `--accent-ink` | `#17210f` | Text on the accent |
+
+- Meet accessible contrast in every state; never communicate state through color alone.
+- Use the activity's `--item-color` locally for its category, expanded outline, and relevant component accents. Do not wash an entire workspace in the activity color.
+- Off-time activities remain fully legible when deliberately opened. Time state may change a badge or border, not disable the content visually.
+- Destructive actions use restrained warm red and always include text plus confirmation when data loss is meaningful.
+
+## Spacing and shape
+
+- Preferred spacing rhythm: 4, 8, 12, 16, 20, 24, and 32px. Use 6 or 10px only for optical alignment inside compact controls.
+- Keep at least 8px between separate controls and at least 12px between unrelated content groups.
+- Use 6–8px radii for compact controls, 9–12px for cards/popovers, 14–16px for major shells, and full pills only for tags/statuses.
+- Standard borders are 1px. One component should own each visible edge; avoid overlapping or clipped nested borders.
+- An expanded activity's active outline must continuously enclose its header, context, conversation, and footer at every viewport.
+- Shadows are quiet depth cues for menus and raised surfaces, never a substitute for hierarchy.
+
+## Controls and states
+
+- Primary mobile controls and form fields are at least 40px high; 44px is preferred when space allows.
+- Compact repeated icon controls may be 32px only when clearly separated and backed by an accessible name. Do not introduce new controls below 32px.
+- Icon-only controls require an `aria-label`; desktop hover/focus may add a tooltip. Menus use icon plus text.
+- Use Lucide icons already present in the app. Keep ordinary control icons between 14 and 18px and align them optically with their labels.
+- Every interactive element needs default, hover, keyboard-focus, active/pressed, disabled, loading, success, and error treatment where applicable.
+- Loading feedback appears where work will land. Luna typing belongs in conversation; workspace preparation belongs in the workspace. Do not leave either region apparently frozen.
+- A pending setup question may coexist with the truthful empty workspace. Do not render an empty workout, checklist, protocol, or other domain card merely to fill space.
+
+## Responsive layout
+
+Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430, 360px, plus a wide desktop.
+
+- Wide desktop: content is capped at 1180px; the summary rail is 294px; schedule and summary may sit side by side.
+- At 1040px: collapse the main layout to one column.
+- At 680px and below: begin directly at Schedule; hide desktop hero/summary content; remove the schedule's redundant outer card; use edge space carefully.
+- Mobile collapsed activity: title first; time/category/status beneath; overflow menu and completion at upper right; compact duration control beneath them. Long titles ellipsize instead of squeezing controls.
+- Mobile expanded activity: preserve one continuous outer card; stack context above conversation; put overflow/duration tools and Skip/Mark Complete in a balanced footer.
+- Move directly from the activity header into workspace components and conversation. Do not repeat the activity category/title or reserve a permanent context strip for duration/status already visible elsewhere.
+- Never solve a narrow layout by reducing text below its semantic role. Reflow, stack, shorten nonessential copy, or move actions into an overflow menu.
+- Test mobile layouts with long titles, active/complete/skipped states, open menus, a multiline Luna message, populated records, empty state, loading state, and the on-screen keyboard assumption.
+
+## Activity workspace components
+
+- Components use the shared workspace header, card, field, list, action, empty, loading, and error patterns.
+- Luna chooses and fills approved components; she does not choose fonts, spacing, colors, arbitrary HTML, or one-off visual systems.
+- Render a component only when it has enough supported information to be useful. Ask for missing information first when the component would otherwise be a hollow shell.
+- Preserve stable component anatomy across activities while allowing the data and combination of components to fit the activity.
+- Record/history information is scannable; current actions are visually stronger than historical details.
+
+## Conversation
+
+- Follow familiar messaging conventions: readable bubbles, restrained timestamps, clear sender distinction, delivery checkmarks, and a multiline composer with a visible Send action.
+- The conversation follows the latest message only when the user is already near the bottom or has just sent a message.
+- Interface guidance, loading indicators, and empty-state copy must not masquerade as messages from Luna.
+- Human-facing copy describes the person's activity and outcome, never internal component, record, job, or rendering machinery.
+
+## Change checklist
+
+Before finishing a UI change:
+
+1. Confirm the change follows the semantic type roles and does not introduce sub-11px text.
+2. Check wide desktop and the 680, 430, and 360px mobile layouts.
+3. Check default, active, complete, skipped, expanded, loading, empty, error, and menu-open states affected by the change.
+4. Check keyboard focus, accessible names, text enlargement, reduced motion, and touch sizing.
+5. Prefer shared tokens and component patterns; document a genuinely new pattern here before repeating it.
+6. Run `npm run lint` and `npm test` before committing.
