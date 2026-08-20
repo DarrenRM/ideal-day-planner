@@ -99,6 +99,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /conversation-unread-badge/);
   assert.match(page, /handleDrawerPointerDown/);
   assert.match(page, /handleDrawerPointerUp/);
+  assert.match(page, /if \(clockCurrentItem\) setDismissedClockActivityId\(clockCurrentItem\.id\)/);
   assert.match(page, /"Connected"/);
   assert.match(page, /conversationAnchorTopRef/);
   assert.match(page, /useLayoutEffect/);

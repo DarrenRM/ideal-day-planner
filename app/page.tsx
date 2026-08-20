@@ -1518,10 +1518,10 @@ export default function Home() {
     setDismissedClockActivityId(null);
   }
 
-  function collapseActivity(id: string) {
+  function collapseActivity() {
     setMobileActivityMenuId(null);
     setSelectedActivityId(null);
-    if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
+    if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
 
   function toggleComplete(id: string, completedAt: string | null) {
@@ -1533,7 +1533,7 @@ export default function Home() {
     });
     setItems((current) => current.map((item) => item.id === id ? { ...item, completedAt, skippedAt: completedAt ? null : item.skippedAt } : item));
     setSelectedActivityId(null);
-    if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
+    if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
 
   function toggleSkip(id: string, skippedAt: string | null) {
@@ -1544,7 +1544,7 @@ export default function Home() {
     });
     setItems((current) => current.map((item) => item.id === id ? { ...item, skippedAt, completedAt: skippedAt ? null : item.completedAt } : item));
     setSelectedActivityId(null);
-    if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
+    if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
 
   async function updateClosedActivity(item: ScheduledItem, mode: "complete" | "reopen" | "skip" | "unskip") {
@@ -1872,7 +1872,7 @@ export default function Home() {
                       )}
 
                       {isExpanded ? (
-                        <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={() => collapseActivity(item.id)}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /><ChevronDown className="mobile-collapse-icon" aria-hidden="true" size={18} /></button>
+                        <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /><ChevronDown className="mobile-collapse-icon" aria-hidden="true" size={18} /></button>
                       ) : (
                         <div className="item-controls">
                           <button
