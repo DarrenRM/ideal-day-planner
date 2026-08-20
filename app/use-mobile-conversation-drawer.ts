@@ -34,10 +34,12 @@ function savePreference(activityId: string, preference: DrawerPreference) {
 export function useMobileConversationDrawer({
   activityId,
   canCollapse,
+  openOnMount = false,
   messages,
 }: {
   activityId: string;
   canCollapse: boolean;
+  openOnMount?: boolean;
   messages: DrawerMessage[];
 }) {
   const [preferredOpen, setPreferredOpen] = useState(true);
@@ -53,16 +55,18 @@ export function useMobileConversationDrawer({
   useEffect(() => {
     preferenceReadyRef.current = false;
     const preference = readPreference(activityId);
-    preferredOpenRef.current = preference.open;
+    const restoredOpen = openOnMount || preference.open;
+    preferredOpenRef.current = restoredOpen;
     lastSeenLunaMessageIdRef.current = preference.lastSeenLunaMessageId;
     const frame = window.requestAnimationFrame(() => {
-      setPreferredOpen(preference.open);
+      setPreferredOpen(restoredOpen);
       const latestMessageId = latestLunaMessageIdRef.current;
-      setHasUnreadLuna(Boolean(canCollapse && !preference.open && latestMessageId && latestMessageId !== preference.lastSeenLunaMessageId));
+      setHasUnreadLuna(Boolean(canCollapse && !restoredOpen && latestMessageId && latestMessageId !== preference.lastSeenLunaMessageId));
+      if (openOnMount) savePreference(activityId, { open: true, lastSeenLunaMessageId: latestMessageId });
       preferenceReadyRef.current = true;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activityId, canCollapse]);
+  }, [activityId, canCollapse, openOnMount]);
 
   useEffect(() => {
     const latestMessageId = [...messages].reverse().find((message) => message.author === "luna")?.id ?? null;

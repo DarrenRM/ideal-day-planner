@@ -97,7 +97,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /workspace-ready-notice/);
   assert.match(page, /useMobileConversationDrawer/);
   assert.match(page, /conversation-unread-badge/);
+  assert.match(page, /openConversationOnMount/);
+  assert.match(page, /setStartConversationActivityId\(launchedItems\.find/);
   assert.match(drawer, /idealized-day-mobile-drawer-v1/);
+  assert.match(drawer, /openOnMount \|\| preference\.open/);
   assert.match(drawer, /function readPreference/);
   assert.match(drawer, /function savePreference/);
   assert.match(drawer, /function handlePointerDown/);
@@ -162,6 +165,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(workspace, /hasUsefulActivityRecordData/);
   assert.match(workspace, /function TimerComponent/);
   assert.match(workspace, /function CountdownComponent/);
+  assert.match(workspace, /Want something else here\?/);
+  assert.match(workspace, /onTalkWithLuna/);
   assert.match(workspace, /function RoutineComponent/);
   assert.match(workspace, /ideal-day-timer:/);
   assert.match(workspace, /ideal-day-countdown:/);
@@ -202,6 +207,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /Activity context|Live activity/);
   assert.doesNotMatch(workspace, /workspace-header|workspace-version|The useful parts of this activity/);
   assert.match(css, /\.activity-workspace/);
+  assert.match(css, /\.workspace-luna-invitation/);
+  assert.match(css, /grid-auto-rows: max-content/);
   assert.match(css, /\.shopping-list/);
   assert.match(css, /\.workout-plan/);
   assert.match(css, /\.protocol-steps/);

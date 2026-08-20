@@ -94,6 +94,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Render a component only when it has enough supported information to be useful. Ask for missing information first when the component would otherwise be a hollow shell.
 - Preserve stable component anatomy across activities while allowing the data and combination of components to fit the activity.
 - Record/history information is scannable; current actions are visually stronger than historical details.
+- On mobile, workspace cards keep their natural content height rather than stretching to fill the activity. When conversation is collapsed, a compact invitation directly below the workspace lets the person reopen Luna without speaking in internal component language.
 
 ## Conversation
 

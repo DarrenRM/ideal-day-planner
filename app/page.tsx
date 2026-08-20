@@ -321,6 +321,7 @@ type ActivityWorkbenchProps = {
   item: ScheduledItem;
   isComplete: boolean;
   isSkipped: boolean;
+  openConversationOnMount: boolean;
   onComplete: (completedAt: string | null) => void;
   onSkip: (skippedAt: string | null) => void;
   onEdit: () => void;
@@ -329,7 +330,7 @@ type ActivityWorkbenchProps = {
   onSetDuration: (value: number) => void;
 };
 
-function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -362,7 +363,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
     : null;
   const hasWorkspaceContent = hasVisibleActivityWorkspace(item, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
-  const conversationDrawer = useMobileConversationDrawer({ activityId: item.id, canCollapse: showWorkspace, messages });
+  const conversationDrawer = useMobileConversationDrawer({ activityId: item.id, canCollapse: showWorkspace, messages, openOnMount: openConversationOnMount });
 
   useEffect(() => {
     if (!isFooterMenuOpen) return;
@@ -662,7 +663,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   return (
     <div className="activity-expansion">
       <div className={`activity-workbench-grid ${showWorkspace ? "" : "is-conversation-only"}`}>
-        <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
+        <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 
         <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
@@ -915,6 +916,7 @@ export default function Home() {
   const [realMinutes, setRealMinutes] = useState(minutesNow);
   const [fakeMinutes, setFakeMinutes] = useState<number | null>(DEFAULT_DEV_MINUTES);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [startConversationActivityId, setStartConversationActivityId] = useState<string | null>(null);
   const [dismissedClockActivityId, setDismissedClockActivityId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
   const [pendingActivityIds, setPendingActivityIds] = useState<Set<string>>(() => new Set());
@@ -1225,6 +1227,7 @@ export default function Home() {
       setStartMinutes(day.startMinutes);
       setPreferredStartMinutes(day.preferredStartMinutes ?? preferredStartMinutes);
       setDayStartedAt(day.startedAt);
+      setStartConversationActivityId(launchedItems.find((item) => !item.completedAt && !item.skippedAt)?.id ?? null);
       setSelectedActivityId(null);
       setDismissedClockActivityId(null);
       setSaveState("saved");
@@ -1254,6 +1257,7 @@ export default function Home() {
       setStartMinutes(day.startMinutes);
       setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
       setDayStartedAt(day.startedAt ?? null);
+      setStartConversationActivityId(null);
       setSelectedActivityId(null);
       setDismissedClockActivityId(null);
       setPendingActivityIds(new Set());
@@ -1439,6 +1443,7 @@ export default function Home() {
 
   function openActivity(id: string) {
     setMobileActivityMenuId(null);
+    setStartConversationActivityId(null);
     setSelectedActivityId(id);
     setDismissedClockActivityId(null);
   }
@@ -1880,6 +1885,7 @@ export default function Home() {
                           isComplete={isComplete}
                           isSkipped={isSkipped}
                           item={item}
+                          openConversationOnMount={startConversationActivityId === item.id}
                           onAdjustDuration={(delta) => adjustDuration(item.id, delta)}
                           onComplete={(completedAt) => toggleComplete(item.id, completedAt)}
                           onSkip={(skippedAt) => toggleSkip(item.id, skippedAt)}

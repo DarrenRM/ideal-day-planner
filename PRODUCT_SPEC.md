@@ -551,6 +551,7 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - The clock-selected activity automatically uses the expanded card as its Now state.
 - Only one card is expanded at a time, and user navigation always takes precedence over automatic Now presentation.
 - Clock changes update time state without moving the UI. Completing the active Now card is the one automatic handoff that may open the next clock-current card.
+- Starting the day automatically opens the first active activity with its conversation visible, even if that activity’s drawer was previously left collapsed. Manual activity opens continue to restore the person’s last drawer state.
 - Completion is available through both an expanded `Mark Complete` button and a small collapsed-row circle for batch catch-up.
 - Today remains an untimed sequence until the user presses Start; the resulting five-minute launch anchor is daily state, while 8:00 AM remains the current preferred default.
 - Activities completed before Start appear in the passed section above the Now line, display their completion time, and do not consume time in the newly anchored remaining sequence. Activities completed after Start continue to preserve later planned times by default.

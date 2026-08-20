@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Hourglass, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon } from "lucide-react";
+import { Check, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
@@ -19,6 +19,7 @@ type ActivityWorkspaceProps = {
   workspace: WorkspaceDocument;
   records: ActivityRecord[];
   onRecordMutation: RecordMutation;
+  onTalkWithLuna: () => void;
   recordError?: string | null;
   workState?: "building" | "waiting" | null;
 };
@@ -248,7 +249,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, recordError = null, workState = null }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null }: ActivityWorkspaceProps) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const visibleComponents = workspace.components.filter((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
@@ -276,18 +277,24 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       {recordError ? <p className="record-action-error" role="alert">{recordError}</p> : null}
 
       {hasVisibleWorkspace ? (
-        <div className="workspace-stack">
-          {visibleComponents.map((component) => {
-            if (component.type === "timer") return <TimerComponent activity={activity} component={component} key={component.id} />;
-            if (component.type === "countdown") return <CountdownComponent activity={activity} component={component} key={component.id} />;
-            if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;
-            const dataComponent = component as DataWorkspaceComponent;
-            const record = recordsByKey.get(dataComponent.recordKey);
-            return record
-              ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} />
-              : null;
-          })}
-        </div>
+        <>
+          <div className="workspace-stack">
+            {visibleComponents.map((component) => {
+              if (component.type === "timer") return <TimerComponent activity={activity} component={component} key={component.id} />;
+              if (component.type === "countdown") return <CountdownComponent activity={activity} component={component} key={component.id} />;
+              if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;
+              const dataComponent = component as DataWorkspaceComponent;
+              const record = recordsByKey.get(dataComponent.recordKey);
+              return record
+                ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} />
+                : null;
+            })}
+          </div>
+          <button className="workspace-luna-invitation" type="button" onClick={onTalkWithLuna}>
+            <MessageCircle aria-hidden="true" size={16} />
+            <span><strong>Want something else here?</strong> Talk with Luna.</span>
+          </button>
+        </>
       ) : null}
     </section>
   );
