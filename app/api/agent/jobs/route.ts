@@ -71,6 +71,7 @@ export async function GET(request: Request) {
              kind, source_message_id AS sourceMessageId, attempts
       FROM agent_jobs
       WHERE status = 'queued'
+         OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
          OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
       ORDER BY created_at ASC, rowid ASC
       LIMIT 1
@@ -84,7 +85,9 @@ export async function GET(request: Request) {
           lease_expires_at = datetime('now', '+3 minutes'), attempts = attempts + 1,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND (
-        status = 'queued' OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
+        status = 'queued'
+        OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
+        OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
       )
     `).bind(leaseToken, workerId, candidate.id).run();
     if (!(leased.meta.changes ?? 0)) return new Response(null, { status: 204 });

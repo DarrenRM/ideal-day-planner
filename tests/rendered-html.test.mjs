@@ -218,6 +218,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(dayRoute, /prepareActivitySetups/);
   assert.match(dayRoute, /completed_at AS completedAt/);
   assert.match(jobRoute, /lease_expires_at/);
+  assert.match(jobRoute, /status = 'retryable_failure' AND updated_at < datetime\('now', '-1 minute'\)/);
   assert.match(jobRoute, /request\.headers\.get\("origin"\)/);
   assert.match(jobRoute, /IDEAL_DAY_BRIDGE_TOKEN/);
   assert.match(jobRoute, /INSERT INTO agent_workers/);
