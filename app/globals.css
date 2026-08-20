@@ -515,7 +515,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .start-day-button { width: 100%; }
   .schedule { padding: 8px 10px 16px; }
   .now-line { grid-template-columns: 54px minmax(20px, 1fr) auto; }
-  .now-line span { font-size: 7px; }
+  .now-line span { font-size: 7px; justify-self: start; }
   .now-line strong { padding-right: 5px; }
   .schedule-loading-row { height: 104px; margin-left: 0; }
   .routine-row { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 6px 0; }
@@ -526,6 +526,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card { align-items: center; border-radius: 12px; gap: 9px 10px; grid-column: 1; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; margin: 0; min-height: 82px; padding: 13px 12px; }
   .routine-card.has-open-mobile-menu { z-index: 12; }
   .routine-card.is-expanded { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 0; }
+  .routine-card.is-expanded::after { border: 1px solid color-mix(in srgb, var(--item-color) 43%, #343c3e); border-radius: inherit; content: ""; inset: -1px; pointer-events: none; position: absolute; z-index: 30; }
   .routine-card.is-expanded .item-copy { grid-column: 1 / -1; grid-row: 1; }
   .routine-card.is-expanded .collapse-activity-button { grid-column: auto; grid-row: auto; height: 34px; position: absolute; right: 10px; top: 10px; width: 34px; z-index: 2; }
   .drag-button, .item-icon { display: none; }
