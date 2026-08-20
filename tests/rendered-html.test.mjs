@@ -270,6 +270,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip .*line-height: 16px; padding: 0 6px/);
   assert.doesNotMatch(css, /\.now-chip[^\n]*padding: 1px 6px 0/);
   assert.match(css, /\.duration-value \{[^}]*min-width: 78px/s);
+  assert.match(css, /\.duration-control input \{[^}]*field-sizing: content;[^}]*min-width: 1ch;/s);
   assert.match(css, /\.hero, \.summary-rail \{ display: none; \}/);
   assert.match(css, /--summary-rail-width: 294px/);
   assert.match(css, /\.day-overview \{[^}]*width: var\(--summary-rail-width\)/s);
