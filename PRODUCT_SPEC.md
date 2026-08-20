@@ -390,7 +390,7 @@ The web app must save notes and remain usable while the PC agent is offline. Age
 
 There is no paid API fallback. If GPT-5.6 Luna cannot be reached through the ChatGPT subscription bridge, processing waits and retries later.
 
-The browser never connects directly to Hermes. The PC bridge leases durable jobs from the application, calls Hermes over localhost, relays bounded run progress, and commits only validated application mutations. A message is considered saved when D1 accepts it and processed only after its agent job reaches a terminal successful state; Hermes transport acknowledgements alone do not produce double checkmarks.
+The browser never connects directly to Hermes. Production Sites and its D1 database are the source of truth. The PC bridge makes authenticated outbound HTTPS requests to lease durable production jobs, calls Hermes over localhost, relays bounded run progress, and commits only validated application mutations. No inbound localhost tunnel is required. A message is considered saved when D1 accepts it and processed only after its agent job reaches a terminal successful state; Hermes transport acknowledgements alone do not produce double checkmarks.
 
 ## 8. Hermes evaluation
 
@@ -514,7 +514,7 @@ The Breakfast workspace does not repeat raw conversation turns in a “What Luna
 - [ ] Add app-owned read-only contextual retrieval beyond the bounded UI-spike snapshot.
 - [ ] Add proposed writes and explicit confirmation.
 
-Implementation note (2026-08-20): the universal-agent slice runs locally through the dedicated `ideal-day` Hermes profile. Activity creation, import, or material rename creates one idempotent setup blueprint job; ordinary opens only record visits and never invoke conversational judgment. Visible setup and user-message jobs show typing, while silent maintenance cannot post chat. User messages can return a normal reply and validated workspace actions in one structured result. Ideal Day validates and commits those actions as versioned D1 workspace revisions. The profile runs GPT-5.6 Luna with max reasoning and Fast mode, is authenticated only over loopback, and has no general toolset. The browser receives no Hermes credential. Cross-activity retrieval, broader typed records, production bridge authentication, and deployment of an always-on agent host remain incomplete.
+Implementation note (2026-08-20): the universal-agent slice runs through the dedicated local `ideal-day` Hermes profile while the private Sites deployment and D1 remain authoritative. Activity creation, import, or material rename creates one idempotent setup blueprint job; ordinary opens only record visits and never invoke conversational judgment. Visible setup and user-message jobs show typing only while the PC bridge heartbeat is current; queued work otherwise shows a friendly catch-up state. User messages can return a normal reply and validated workspace actions in one structured result. Ideal Day validates and commits those actions as versioned D1 workspace revisions. The Windows startup task supervises Hermes and an authenticated outbound production bridge. The profile runs GPT-5.6 Luna with max reasoning and Fast mode, is authenticated only over loopback, and has no general toolset. The browser receives no Hermes credential. Cross-activity retrieval and broader typed records remain incomplete.
 
 ### Phase 4 — trusted agent writes
 

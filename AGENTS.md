@@ -1,0 +1,8 @@
+# Ideal Day agent notes
+
+- Production source of truth: the private Sites app at `https://ideal-day-sites.example` and its bound D1 database. Local D1 is disposable development data.
+- Luna runs in the local Hermes `ideal-day` profile. The browser never connects to Hermes or receives credentials.
+- A Windows task named `Ideal Day Hermes Bridge` starts Hermes if needed, then runs `bridge/start-ideal-day.ps1`. The bridge makes authenticated outbound HTTPS requests to production; no inbound localhost tunnel is used.
+- Bridge secrets are user-bound DPAPI files in `%LOCALAPPDATA%\IdealDay`, never repository files. Rotate both the Sites bypass token and `IDEAL_DAY_BRIDGE_TOKEN` together with the local copies.
+- Agent work is durable in D1. The UI shows typing only while the bridge heartbeat is online; otherwise it says Luna will catch up.
+- Use `npm run dev` for UI work, `npm test` and `npm run lint` before committing, and the Sites build/hosting workflow for production changes.

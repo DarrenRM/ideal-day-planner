@@ -99,7 +99,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /mode: "open"/);
   assert.match(page, /mode: "message"/);
   assert.match(page, /visitId/);
-  assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob\)\)/);
+  assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob && state\.agentOnline\)\)/);
   assert.match(page, /hasActiveJob \? 700 : 8_000/);
   assert.match(page, /Permanent activity thread/);
   assert.doesNotMatch(page, /Luna is joining/);
@@ -177,7 +177,7 @@ test("keeps the routine data and interactions in the page", async () => {
 });
 
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
-  const [schema, activityRoute, runRoute, dayRoute, jobRoute, store, workspaceModel, bridge, productSpec, smartFlowGuide, packageJson] = await Promise.all([
+  const [schema, activityRoute, runRoute, dayRoute, jobRoute, store, workspaceModel, bridge, startup, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"),
@@ -186,6 +186,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
     readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/workspace-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../bridge/start-ideal-day.ps1", import.meta.url), "utf8"),
+    readFile(new URL("../AGENTS.md", import.meta.url), "utf8"),
     readFile(new URL("../PRODUCT_SPEC.md", import.meta.url), "utf8"),
     readFile(new URL("../SMART_FLOW_USER_TESTING.md", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -198,6 +200,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(schema, /export const agentJobs/);
   assert.match(schema, /idempotencyKey/);
   assert.match(schema, /export const agentSessionBindings/);
+  assert.match(schema, /export const agentWorkers/);
   assert.match(schema, /export const activityWorkspaces/);
   assert.match(schema, /export const workspaceRevisions/);
   assert.match(schema, /export const activityProfiles/);
@@ -216,6 +219,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(dayRoute, /completed_at AS completedAt/);
   assert.match(jobRoute, /lease_expires_at/);
   assert.match(jobRoute, /request\.headers\.get\("origin"\)/);
+  assert.match(jobRoute, /IDEAL_DAY_BRIDGE_TOKEN/);
+  assert.match(jobRoute, /INSERT INTO agent_workers/);
   assert.match(jobRoute, /activityContext/);
   assert.match(jobRoute, /INSERT OR IGNORE INTO conversation_messages/);
   assert.match(jobRoute, /validateWorkspaceActions/);
@@ -228,6 +233,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(store, /host === "localhost" \|\| host === "127\.0\.0\.1"/);
   assert.match(bridge, /profiles", "ideal-day"/);
   assert.match(bridge, /readHermesKey/);
+  assert.match(bridge, /IDEAL_DAY_SITES_BYPASS_TOKEN/);
+  assert.match(bridge, /OAI-Sites-Authorization/);
   assert.match(store, /persistWorkspaceActions/);
   assert.match(store, /queueActivitySetup/);
   assert.match(store, /setup_status = 'preparing'/);
@@ -249,6 +256,10 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /A pure note can be handled with actions and message:null/);
   assert.match(bridge, /No routine details, goals, or history are documented/);
   assert.doesNotMatch(bridge, /api[_-]?key\s*=\s*["'][A-Za-z0-9_-]{20,}/i);
+  assert.match(startup, /Start-Process[\s\S]*-WindowStyle Hidden/);
+  assert.match(startup, /Import-Clixml/);
+  assert.match(agents, /Production source of truth/);
+  assert.match(agents, /Ideal Day Hermes Bridge/);
   assert.match(productSpec, /Opening an activity is a deterministic UI event/);
   assert.match(productSpec, /ordinary opens enqueue no conversational agent job/);
   assert.match(productSpec, /Activity creation is the primary workspace-design moment/);

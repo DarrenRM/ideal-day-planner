@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { getD1 } from "../../../../db";
 import {
   apiFailure,
@@ -24,21 +25,46 @@ type LeasedJob = {
   attempts: number;
 };
 
-function bridgeOnly(request: Request) {
+async function tokensMatch(expected: string, supplied: string) {
+  const encoder = new TextEncoder();
+  const [expectedHash, suppliedHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
+    crypto.subtle.digest("SHA-256", encoder.encode(supplied)),
+  ]);
+  const left = new Uint8Array(expectedHash);
+  const right = new Uint8Array(suppliedHash);
+  let difference = left.length ^ right.length;
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) difference |= left[index] ^ right[index];
+  return difference === 0;
+}
+
+async function bridgeOnly(request: Request) {
   const browserOrigin = request.headers.get("origin");
-  return isLocalBridgeRequest(request) && !browserOrigin
+  if (browserOrigin) return Response.json({ error: "Agent bridge authentication failed." }, { status: 403 });
+  if (isLocalBridgeRequest(request)) return null;
+
+  const expected = ((env as typeof env & { IDEAL_DAY_BRIDGE_TOKEN?: string }).IDEAL_DAY_BRIDGE_TOKEN || "").trim();
+  const authorization = request.headers.get("authorization") || "";
+  const supplied = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  return expected && supplied && await tokensMatch(expected, supplied)
     ? null
-    : Response.json({ error: "The agent bridge is local-only." }, { status: 403 });
+    : Response.json({ error: "Agent bridge authentication failed." }, { status: 403 });
 }
 
 export async function GET(request: Request) {
-  const denied = bridgeOnly(request);
+  const denied = await bridgeOnly(request);
   if (denied) return denied;
   const workerId = new URL(request.url).searchParams.get("workerId")?.trim().slice(0, 120) || "ideal-day-local-bridge";
 
   try {
     await ensureAgentSchema();
     const db = getD1();
+    await db.prepare(`
+      INSERT INTO agent_workers (id, runtime, last_seen_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(id) DO UPDATE SET
+        runtime = excluded.runtime, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    `).bind(workerId, HERMES_RUNTIME).run();
     const candidate = await db.prepare(`
       SELECT id, user_id AS userId, activity_id AS activityId, conversation_id AS conversationId,
              kind, source_message_id AS sourceMessageId, attempts
@@ -116,7 +142,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = bridgeOnly(request);
+  const denied = await bridgeOnly(request);
   if (denied) return denied;
 
   try {

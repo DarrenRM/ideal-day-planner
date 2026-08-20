@@ -158,6 +158,16 @@ export const agentSessionBindings = sqliteTable("agent_session_bindings", {
   uniqueIndex("agent_session_bindings_conversation_runtime_unique").on(table.conversationId, table.runtime),
 ]);
 
+export const agentWorkers = sqliteTable("agent_workers", {
+  id: text("id").primaryKey(),
+  runtime: text("runtime").notNull(),
+  lastSeenAt: text("last_seen_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  index("agent_workers_last_seen_idx").on(table.lastSeenAt),
+]);
+
 export const activityWorkspaces = sqliteTable("activity_workspaces", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

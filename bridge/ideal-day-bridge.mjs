@@ -4,6 +4,8 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 
 const appUrl = (process.env.IDEAL_DAY_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+const bridgeToken = (process.env.IDEAL_DAY_BRIDGE_TOKEN || "").trim();
+const sitesBypassToken = (process.env.IDEAL_DAY_SITES_BYPASS_TOKEN || "").trim();
 const hermesUrl = (process.env.IDEAL_DAY_HERMES_URL || "http://127.0.0.1:8643").replace(/\/$/, "");
 const profileHome = process.env.IDEAL_DAY_HERMES_HOME
   || join(process.env.LOCALAPPDATA || "", "hermes", "profiles", "ideal-day");
@@ -67,6 +69,18 @@ async function requestJson(url, options = {}) {
   try { payload = text ? JSON.parse(text) : null; } catch { payload = { error: text }; }
   if (!response.ok) throw new Error(payload?.error?.message || payload?.error || `${response.status} ${response.statusText}`);
   return payload;
+}
+
+function appHeaders(headers = {}) {
+  return {
+    ...(bridgeToken ? { authorization: `Bearer ${bridgeToken}` } : {}),
+    ...(sitesBypassToken ? { "OAI-Sites-Authorization": `Bearer ${sitesBypassToken}` } : {}),
+    ...headers,
+  };
+}
+
+function requestAppJson(path, options = {}) {
+  return requestJson(`${appUrl}${path}`, { ...options, headers: appHeaders(options.headers) });
 }
 
 function runtimeSessionId(conversationId) {
@@ -150,7 +164,7 @@ async function runJob(key, leased) {
   const content = result?.message?.content;
   if (typeof content !== "string" || !content.trim()) throw new Error("Hermes returned an empty Luna result.");
   const agentResult = parseAgentResult(content);
-  await requestJson(`${appUrl}/api/agent/jobs`, {
+  await requestAppJson("/api/agent/jobs", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -166,7 +180,7 @@ async function runJob(key, leased) {
 
 async function reportFailure(leased, error) {
   try {
-    await requestJson(`${appUrl}/api/agent/jobs`, {
+    await requestAppJson("/api/agent/jobs", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -182,6 +196,10 @@ async function reportFailure(leased, error) {
 }
 
 async function main() {
+  const appHost = new URL(appUrl).hostname;
+  if (appHost !== "localhost" && appHost !== "127.0.0.1" && (!bridgeToken || !sitesBypassToken)) {
+    throw new Error("A production bridge requires IDEAL_DAY_BRIDGE_TOKEN and IDEAL_DAY_SITES_BYPASS_TOKEN.");
+  }
   const key = await readHermesKey();
   await requestJson(`${hermesUrl}/health`, { headers: { authorization: `Bearer ${key}` } });
   console.log(`Ideal Day bridge ready (${workerId}).`);
@@ -189,7 +207,7 @@ async function main() {
   while (true) {
     let leased = null;
     try {
-      leased = await requestJson(`${appUrl}/api/agent/jobs?workerId=${encodeURIComponent(workerId)}`);
+      leased = await requestAppJson(`/api/agent/jobs?workerId=${encodeURIComponent(workerId)}`);
       if (leased) await runJob(key, leased);
     } catch (error) {
       if (leased) await reportFailure(leased, error);

@@ -26,6 +26,7 @@ type ConversationJob = { status: "queued" | "leased" | "running"; kind: "activit
 type ConversationState = {
   messages: ConversationMessage[];
   activeJob: ConversationJob | null;
+  agentOnline: boolean;
   workspace: { revisionId: string | null; revisionNumber: number; document: WorkspaceDocument };
 };
 
@@ -285,6 +286,7 @@ type ActivityWorkbenchProps = {
 function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
+  const [agentOnline, setAgentOnline] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceDocument>(EMPTY_WORKSPACE);
   const [connectionState, setConnectionState] = useState<"joining" | "ready" | "error">("joining");
   const [draft, setDraft] = useState("");
@@ -294,7 +296,7 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
   const conversationShouldFollowRef = useRef(true);
-  const isLunaThinking = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
+  const isLunaThinking = agentOnline && (activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup");
 
   useEffect(() => {
     let cancelled = false;
@@ -314,6 +316,7 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
         return message.id === next.id && message.body === next.body && message.createdAt === next.createdAt;
       }) ? current : state.messages);
       setActiveJob((current) => current?.status === state.activeJob?.status && current?.kind === state.activeJob?.kind ? current : state.activeJob);
+      setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
       setConnectionState("ready");
     }
@@ -328,9 +331,12 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
         if (!response.ok) throw new Error("Luna could not join this activity yet.");
         const state = await response.json() as ConversationState;
         applyConversationState(state);
-        scheduleRefresh(Boolean(state.activeJob));
+        scheduleRefresh(Boolean(state.activeJob && state.agentOnline));
       } catch {
-        if (!cancelled) setConnectionState("error");
+        if (!cancelled) {
+          setAgentOnline(false);
+          setConnectionState("error");
+        }
         scheduleRefresh(false);
       }
     }
@@ -342,9 +348,12 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
         if (!response.ok) throw new Error("Conversation refresh failed.");
         const state = await response.json() as ConversationState;
         applyConversationState(state);
-        scheduleRefresh(Boolean(state.activeJob));
+        scheduleRefresh(Boolean(state.activeJob && state.agentOnline));
       } catch {
-        if (!cancelled) setConnectionState("error");
+        if (!cancelled) {
+          setAgentOnline(false);
+          setConnectionState("error");
+        }
         scheduleRefresh(false);
       }
     }
@@ -405,11 +414,13 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
       const state = await response.json() as ConversationState;
       setMessages(state.messages);
       setActiveJob(state.activeJob);
+      setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
       setConnectionState("ready");
     } catch {
       setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
       setDraft(body);
+      setAgentOnline(false);
       setConnectionState("error");
     } finally {
       setIsSending(false);
@@ -467,7 +478,7 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
         <section className="activity-conversation" aria-label={`${item.title} conversation`}>
           <header>
             <div><strong>Notes & conversation</strong><span>Permanent activity thread</span></div>
-            <span className={`conversation-status ${connectionState === "ready" ? "is-prototype" : ""}`}><span /> {connectionState === "error" ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : isLunaThinking ? "Luna is thinking…" : "Luna"}</span>
+            <span className={`conversation-status ${connectionState === "ready" && (!activeJob || agentOnline) ? "is-prototype" : ""}`}><span /> {connectionState === "error" || (activeJob && !agentOnline) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : isLunaThinking ? "Luna is thinking…" : "Luna"}</span>
           </header>
           <div className="conversation-log" aria-live="polite" ref={conversationLogRef} onScroll={handleConversationScroll}>
             {messages.length ? <div className="date-separator"><span>Recent</span></div> : null}

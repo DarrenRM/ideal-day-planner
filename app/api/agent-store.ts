@@ -92,6 +92,14 @@ export async function ensureAgentSchema() {
       db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS agent_jobs_user_idempotency_unique ON agent_jobs (user_id, idempotency_key)"),
       db.prepare("CREATE INDEX IF NOT EXISTS agent_jobs_status_created_idx ON agent_jobs (status, created_at)"),
       db.prepare("CREATE INDEX IF NOT EXISTS agent_jobs_conversation_idx ON agent_jobs (conversation_id)"),
+      db.prepare(`CREATE TABLE IF NOT EXISTS agent_workers (
+        id text PRIMARY KEY NOT NULL,
+        runtime text NOT NULL,
+        last_seen_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
+      )`),
+      db.prepare("CREATE INDEX IF NOT EXISTS agent_workers_last_seen_idx ON agent_workers (last_seen_at)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS agent_session_bindings (
         id text PRIMARY KEY NOT NULL,
         conversation_id text NOT NULL,
@@ -362,8 +370,13 @@ export async function readConversationState(conversationId: string) {
     ORDER BY created_at DESC
     LIMIT 1
   `).bind(conversationId).first<{ status: string; kind: string }>();
+  const onlineWorker = await db.prepare(`
+    SELECT id FROM agent_workers
+    WHERE last_seen_at >= datetime('now', '-20 seconds')
+    LIMIT 1
+  `).first<{ id: string }>();
   const workspace = conversation ? await readActivityWorkspace(conversation.activityId) : { revisionId: null, revisionNumber: 0, document: EMPTY_WORKSPACE };
-  return { messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null, workspace };
+  return { messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null, agentOnline: Boolean(onlineWorker), workspace };
 }
 
 export function apiFailure(error: unknown) {
