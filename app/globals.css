@@ -177,7 +177,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .drag-button { align-items: center; background: transparent; border: 0; color: #5c6562; cursor: grab; display: flex; height: 30px; justify-content: center; padding: 0; width: 24px; }
 .drag-button:hover { color: #89928e; }
 .drag-button:active { cursor: grabbing; }
-.drag-button:focus-visible, .duration-control button:focus-visible, .add-block-button:focus-visible, .cancel-add-button:focus-visible, .confirm-add-button:focus-visible, .edit-item-button:focus-visible, .delete-item-button:focus-visible, .closed-status-button:focus-visible, .inline-edit-actions button:focus-visible, .planner-menu-trigger:focus-visible, .planner-menu-item:focus-visible, .mobile-activity-menu-trigger:focus-visible, .mobile-activity-menu-panel button:focus-visible, .item-copy:focus-visible, .collapse-activity-button:focus-visible, .footer-tool-button:focus-visible, .skip-activity-button:focus-visible, .complete-activity-button:focus-visible, .conversation-composer button:focus-visible, .dev-clock-trigger:focus-visible, .dev-clock-popover button:focus-visible, .start-day-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drag-button:focus-visible, .duration-control button:focus-visible, .add-block-button:focus-visible, .cancel-add-button:focus-visible, .confirm-add-button:focus-visible, .edit-item-button:focus-visible, .delete-item-button:focus-visible, .closed-status-button:focus-visible, .inline-edit-actions button:focus-visible, .planner-menu-trigger:focus-visible, .planner-menu-item:focus-visible, .mobile-activity-menu-trigger:focus-visible, .mobile-activity-menu-panel button:focus-visible, .item-copy:focus-visible, .collapse-activity-button:focus-visible, .activity-footer-menu-trigger:focus-visible, .activity-footer-menu-panel button:focus-visible, .skip-activity-button:focus-visible, .complete-activity-button:focus-visible, .conversation-composer button:focus-visible, .dev-clock-trigger:focus-visible, .dev-clock-popover button:focus-visible, .start-day-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .item-icon { align-items: center; background: color-mix(in srgb, var(--item-color) 11%, transparent); border: 1px solid color-mix(in srgb, var(--item-color) 25%, transparent); border-radius: 8px; color: var(--item-color); display: flex; justify-content: center; }
 .item-icon { font-size: 17px; height: 34px; width: 34px; }
 .mobile-time-label { display: none; }
@@ -499,9 +499,22 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .conversation-composer button:disabled { background: #252c29; color: #626b67; cursor: default; }
 .activity-footer { align-items: center; background: #111518; border-top: 1px solid #293033; display: flex; gap: 12px; justify-content: space-between; min-height: 62px; padding: 11px 14px; }
 .activity-footer-tools { align-items: center; display: flex; flex-wrap: wrap; gap: 7px; }
-.footer-tool-button { align-items: center; background: transparent; border: 1px solid #30383a; border-radius: 7px; color: #8f9993; cursor: pointer; display: inline-flex; font-size: 9px; gap: 5px; height: 32px; padding: 0 9px; }
-.footer-tool-button:hover { border-color: #46504d; color: #d5ddd6; }
-.footer-remove-button:hover { border-color: rgba(207, 129, 121, .42); color: #cf8179; }
+.activity-footer-menu { position: relative; }
+.activity-footer-menu-trigger { align-items: center; background: transparent; border: 1px solid #30383a; border-radius: 7px; color: #8f9993; cursor: pointer; display: flex; height: 32px; justify-content: center; padding: 0; width: 32px; }
+.activity-footer-menu-trigger:hover, .activity-footer-menu-trigger[aria-expanded="true"] { background: #1a2022; border-color: #46504d; color: #d5ddd6; }
+.activity-footer-menu-panel { background: #171c1f; border: 1px solid #343c3e; border-radius: 10px; bottom: calc(100% + 7px); box-shadow: 0 16px 36px rgba(0, 0, 0, .42); display: grid; left: 0; min-width: 184px; overflow: hidden; padding: 5px; position: absolute; z-index: 30; }
+.activity-footer-menu-panel > button { align-items: center; background: transparent; border: 0; border-radius: 7px; color: #c3cbc5; cursor: pointer; display: flex; font-size: 10px; gap: 9px; min-height: 38px; padding: 0 10px; text-align: left; width: 100%; }
+.activity-footer-menu-panel > button:hover { background: rgba(181, 215, 125, .08); color: #eef3ec; }
+.activity-footer-menu-panel .activity-reset-menu-action { color: #c2a470; }
+.activity-footer-menu-panel .activity-remove-menu-action { color: #c98b84; }
+.activity-footer-menu-panel.is-confirming { min-width: 248px; padding: 12px; }
+.activity-reset-confirmation { display: grid; gap: 7px; }
+.activity-reset-confirmation strong { color: #e6ebe6; font-size: 11px; }
+.activity-reset-confirmation > span { color: #828c87; font-size: 9px; line-height: 1.45; max-width: 34ch; }
+.activity-reset-confirmation > div { display: flex; gap: 6px; justify-content: flex-end; margin-top: 3px; }
+.activity-reset-confirmation button { background: transparent; border: 1px solid #343c3e; border-radius: 7px; color: #aeb7b1; cursor: pointer; font-size: 9px; min-height: 30px; padding: 0 9px; }
+.activity-reset-confirmation button:hover { border-color: #4a5551; color: #eef3ec; }
+.activity-reset-confirmation .activity-reset-confirm-button { background: rgba(197, 158, 92, .12); border-color: rgba(197, 158, 92, .32); color: #d8bb89; }
 .activity-footer .duration-control { height: 32px; grid-template-columns: 28px 64px 28px; }
 .activity-footer .duration-control button { height: 30px; width: 28px; }
 .activity-footer .duration-value, .activity-footer .duration-control input { height: 30px; }
@@ -599,27 +612,28 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-row > .time-label { display: none; }
   .time-label strong { font-size: 10px; }
   .time-label span { font-size: 7px; }
-  .routine-card { align-items: center; border-radius: 12px; gap: 9px 10px; grid-column: 1; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; margin: 0; min-height: 82px; padding: 13px 12px; }
+  .routine-card { align-items: center; border-radius: 12px; gap: 9px 10px; grid-column: 1; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; margin: 0; min-height: 86px; padding: 8px 12px; }
   .routine-card.has-open-mobile-menu { z-index: 12; }
   .routine-card.is-expanded { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; overflow: hidden; padding-bottom: 0; padding-left: 0; padding-right: 0; }
   .routine-card.is-expanded .item-copy { grid-column: 1 / -1; grid-row: 1; padding-left: 12px; padding-right: 12px; }
   .routine-card.is-expanded .collapse-activity-button { grid-column: auto; grid-row: auto; height: 34px; position: absolute; right: 10px; top: 10px; width: 34px; z-index: 2; }
   .drag-button, .item-icon { display: none; }
-  .item-copy { align-items: center; align-self: stretch; display: grid; gap: 9px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 21px; min-width: 0; padding: 0; width: 100%; }
-  .item-title { display: block; grid-column: 1 / -1; grid-row: 1; min-width: 0; overflow: hidden; padding-right: 82px; }
+  .item-copy { align-items: center; align-self: stretch; display: grid; gap: 6px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 32px 30px; min-width: 0; padding: 0; width: 100%; }
+  .item-title { align-self: center; display: block; grid-column: 1 / -1; grid-row: 1; min-width: 0; overflow: hidden; padding-right: 108px; }
   .item-title h3 { display: block; font-size: 15px; font-weight: 610; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .item-meta { flex: 0 0 auto; gap: 7px; grid-column: 1; grid-row: 2; justify-content: flex-start; min-height: 21px; padding-right: 0; white-space: nowrap; }
+  .item-meta { align-self: center; flex: 0 0 auto; gap: 7px; grid-column: 1; grid-row: 2; justify-content: flex-start; min-height: 21px; padding-right: 0; white-space: nowrap; }
   .item-state { grid-column: 2; grid-row: 2; justify-self: end; }
   .mobile-time-label { align-items: baseline; color: #87918c; display: inline-flex; gap: 4px; min-width: 0; }
   .mobile-time-label strong { color: #aab3af; font: 500 13px/1.35 var(--type-sans); letter-spacing: -.015em; }
   .mobile-time-label span { color: #68716e; font: 500 9px/1.35 var(--type-sans); letter-spacing: .05em; }
   .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 8px; height: 20px; padding: 2px 7px 0; }
-  .item-controls { align-self: start; grid-column: 2; grid-row: 1; justify-content: flex-end; min-width: 0; position: relative; z-index: 3; }
+  .item-controls { align-self: stretch; display: grid; gap: 6px 2px; grid-column: 2; grid-row: 1 / 3; grid-template-columns: repeat(2, 1fr); grid-template-rows: 32px 30px; justify-content: end; min-width: 100px; position: relative; width: 100px; z-index: 3; }
   .item-controls > .desktop-row-action, .item-controls > .desktop-skip-control, .item-controls > .duration-control { display: none; }
   .control-tooltip-bubble { display: none; }
-  .item-controls > .control-tooltip .complete-status-button { height: 34px; width: 34px; }
-  .mobile-activity-menu { display: block; position: relative; }
-  .mobile-activity-menu-trigger { align-items: center; background: transparent; border: 0; border-radius: 7px; color: #7d8782; cursor: pointer; display: flex; height: 34px; justify-content: center; padding: 0; width: 34px; }
+  .item-controls > .control-tooltip { align-self: center; grid-column: 2; grid-row: 1; justify-self: end; }
+  .item-controls > .control-tooltip .complete-status-button { height: 32px; width: 32px; }
+  .mobile-activity-menu { align-self: center; display: block; grid-column: 1; grid-row: 1; justify-self: end; position: relative; }
+  .mobile-activity-menu-trigger { align-items: center; background: transparent; border: 0; border-radius: 7px; color: #7d8782; cursor: pointer; display: flex; height: 32px; justify-content: center; padding: 0; width: 32px; }
   .mobile-activity-menu-trigger:hover, .mobile-activity-menu-trigger[aria-expanded="true"] { background: #1b2023; color: #c5cdc7; }
   .mobile-activity-menu-panel { background: #171c1f; border: 1px solid #343c3e; border-radius: 10px; box-shadow: 0 16px 36px rgba(0, 0, 0, .42); display: grid; min-width: 164px; overflow: hidden; padding: 5px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
   .mobile-activity-menu-panel button { align-items: center; background: transparent; border: 0; border-radius: 7px; color: #c3cbc5; cursor: pointer; display: flex; font-size: 11px; gap: 9px; min-height: 38px; padding: 0 10px; text-align: left; width: 100%; }
@@ -639,7 +653,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .duration-value { height: 42px; }
   .duration-control input { font-size: 16px; height: 42px; max-width: 4ch; }
   .duration-unit { font-size: 11px; line-height: 42px; }
-  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control { display: grid; grid-template-columns: 26px 48px 26px; height: 30px; position: absolute; right: 0; top: 36px; width: 100px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control { align-self: center; display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: 26px 48px 26px; height: 30px; position: static; width: 100px; }
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control button { font-size: 14px; height: 28px; width: 26px; }
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-value { height: 28px; padding: 0 4px; }
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control input { font-size: 12px; height: 28px; max-width: 3ch; }
@@ -678,8 +692,9 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .message-bubble { font-size: 11px; }
   .conversation-composer textarea { font-size: 12px; min-height: 58px; }
   .activity-footer { align-items: stretch; flex-direction: column-reverse; }
-  .activity-footer-tools { align-items: center; display: grid; grid-template-columns: auto auto minmax(0, 1fr); }
-  .activity-footer .duration-control { grid-column: 3; grid-row: 1; justify-self: end; }
+  .activity-footer-tools { align-items: center; display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .activity-footer .duration-control { grid-column: 2; grid-row: 1; justify-self: end; }
+  .activity-footer-menu-panel { bottom: calc(100% + 7px); left: 0; }
   .activity-footer-status { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
   .skip-activity-button, .complete-activity-button { height: 42px; min-width: 0; width: 100%; }
   .drop-indicator { left: 0; }
@@ -694,7 +709,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .add-block-button { padding: 8px 10px; }
   .planner-header p { font-size: 10px; }
   .planner-help { gap: 6px; }
-  .routine-card { gap: 9px 7px; grid-template-columns: minmax(0, 1fr) auto; padding: 12px 10px; }
+  .routine-card { gap: 9px 7px; grid-template-columns: minmax(0, 1fr) auto; padding: 8px 10px; }
   .item-title h3 { font-size: 14.5px; }
   .item-copy { gap: 7px; }
   .mobile-time-label { gap: 3px; }

@@ -2,7 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, Pencil, RotateCcw, Send, SkipForward, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, SkipForward, Trash2 } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
@@ -333,10 +333,13 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const [isSending, setIsSending] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
+  const [isFooterMenuOpen, setIsFooterMenuOpen] = useState(false);
+  const [resetActivityState, setResetActivityState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const sendingRef = useRef(false);
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
   const conversationShouldFollowRef = useRef(true);
+  const footerMenuRef = useRef<HTMLDivElement>(null);
   const hasVisibleAgentJob = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
   const isLunaThinking = isSending || (agentOnline && hasVisibleAgentJob);
   const workspaceWorkState = isSending
@@ -348,6 +351,29 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
         : activeJob?.kind === "user_message"
           ? "message"
           : null;
+
+  useEffect(() => {
+    if (!isFooterMenuOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && footerMenuRef.current?.contains(event.target)) return;
+      setIsFooterMenuOpen(false);
+      setResetActivityState("idle");
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setIsFooterMenuOpen(false);
+      setResetActivityState("idle");
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFooterMenuOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -556,6 +582,35 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
     }
   }
 
+  async function resetActivityForTesting() {
+    if (resetActivityState === "resetting") return;
+    setResetActivityState("resetting");
+    try {
+      const response = await fetch("/api/activity/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ activityId: item.id, date: localDateKey() }),
+      });
+      const state = await response.json() as ConversationState & { error?: string };
+      if (!response.ok) throw new Error(state.error || "This activity could not be reset.");
+      resetActivityTimingState([item.id]);
+      onComplete(null);
+      onSkip(null);
+      setMessages(state.messages ?? []);
+      setActiveJob(state.activeJob ?? null);
+      setAgentOnline(Boolean(state.agentOnline));
+      setWorkspace(state.workspace?.document ?? EMPTY_WORKSPACE);
+      setRecords(state.records ?? []);
+      setRecordError(null);
+      setDraft("");
+      setConnectionState("ready");
+      setIsFooterMenuOpen(false);
+      setResetActivityState("idle");
+    } catch {
+      setResetActivityState("error");
+    }
+  }
+
   return (
     <div className="activity-expansion">
       <div className="activity-workbench-heading">
@@ -600,8 +655,43 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
 
       <footer className="activity-footer">
         <div className="activity-footer-tools">
-          <button className="footer-tool-button" type="button" onClick={onEdit}><Pencil aria-hidden="true" size={14} /> Edit</button>
-          <button className="footer-tool-button footer-remove-button" type="button" onClick={onRemove}><Trash2 aria-hidden="true" size={14} /> Remove</button>
+          <div className="activity-footer-menu" ref={footerMenuRef}>
+            <button
+              aria-expanded={isFooterMenuOpen}
+              aria-haspopup="menu"
+              aria-label={`More options for ${item.title}`}
+              className="activity-footer-menu-trigger"
+              type="button"
+              onClick={() => {
+                setIsFooterMenuOpen((current) => !current);
+                setResetActivityState("idle");
+              }}
+            ><MoreVertical aria-hidden="true" size={17} strokeWidth={2} /></button>
+            {isFooterMenuOpen ? (
+              <div
+                aria-label={resetActivityState === "confirming" || resetActivityState === "error" ? `Reset ${item.title}` : `Options for ${item.title}`}
+                className={`activity-footer-menu-panel ${resetActivityState !== "idle" ? "is-confirming" : ""}`}
+                role={resetActivityState === "confirming" || resetActivityState === "error" ? "dialog" : "menu"}
+              >
+                {resetActivityState === "confirming" || resetActivityState === "error" ? (
+                  <div className="activity-reset-confirmation">
+                    <strong>{resetActivityState === "error" ? "Reset didn’t work" : "Reset this activity?"}</strong>
+                    <span>{resetActivityState === "error" ? "Nothing was changed. You can try again." : "This clears Luna’s thread, workspace, saved activity details, and run history. The activity stays in your schedule."}</span>
+                    <div>
+                      <button type="button" onClick={() => setResetActivityState("idle")}>Cancel</button>
+                      <button className="activity-reset-confirm-button" type="button" onClick={() => void resetActivityForTesting()}>{resetActivityState === "error" ? "Try Again" : "Reset Activity"}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onEdit(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
+                    <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setResetActivityState("confirming")}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
+                    <button className="activity-remove-menu-action" role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onRemove(); }}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
+                  </>
+                )}
+              </div>
+            ) : null}
+          </div>
           <div className="duration-control" aria-label={`Duration for ${item.title}`}>
             <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjustDuration(-DURATION_STEP)}>−</button>
             <div className="duration-value">
@@ -1641,7 +1731,7 @@ export default function Home() {
                               className="mobile-activity-menu-trigger"
                               type="button"
                               onClick={() => setMobileActivityMenuId((current) => current === item.id ? null : item.id)}
-                            ><MoreHorizontal aria-hidden="true" size={18} strokeWidth={2} /></button>
+                            ><MoreVertical aria-hidden="true" size={18} strokeWidth={2} /></button>
                             {mobileActivityMenuId === item.id ? (
                               <div className="mobile-activity-menu-panel" role="menu">
                                 <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>

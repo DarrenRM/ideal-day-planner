@@ -557,6 +557,7 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Skip-for-today is available beside completion in collapsed and expanded states, removes the activity’s duration from today’s sequence, and never removes it from the template.
 - Collapsed skip and completion circles carry contextual hover and keyboard-focus tooltips so their icon-only actions remain understandable.
 - The development menu includes a confirmed Reset Today action for replaying the welcome and launch flow. It clears only today’s launch, completion, skip, and timing-run state while preserving the routine template, Luna conversations, and activity workspaces.
+- Each expanded activity’s overflow menu includes a separately confirmed Dev Reset Activity action. It preserves the scheduled activity definition but clears that activity’s Luna thread, workspace composition, durable activity records and revisions, setup profile, session binding, visits, and run history, then immediately queues a fresh setup assessment. This is intentionally destructive test tooling and must remain scoped to the signed-in user and selected activity.
 - Completing early moves an activity above the Now line. Reversing completion leaves it there as overdue until the user reschedules it.
 - Completing early preserves later planned times by default. Settings can opt into pulling the remaining schedule forward.
 - The passed section preserves original schedule order.

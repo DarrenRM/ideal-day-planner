@@ -206,15 +206,17 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.main-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--summary-rail-width\)/s);
   assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/s);
   assert.match(page, /mobile-activity-menu/);
+  assert.match(page, /Dev reset activity/);
+  assert.match(page, /fetch\("\/api\/activity\/reset"/);
   assert.match(page, /More options for/);
   assert.match(page, /Edit activity/);
   assert.match(page, /Skip for today/);
   assert.match(page, /mobile-schedule-summary/);
   assert.match(css, /\.drag-button, \.item-icon \{ display: none; \}/);
-  assert.match(css, /\.item-title \{[^}]*padding-right: 82px/s);
+  assert.match(css, /\.item-title \{[^}]*padding-right: 108px/s);
   assert.match(css, /\.item-meta \{[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*padding-right: 0/s);
   assert.match(css, /\.item-state \{[^}]*grid-column: 2;[^}]*grid-row: 2/s);
-  assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
+  assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
   assert.match(css, /\.now-line span \{ font-size: 7px; justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
@@ -224,16 +226,17 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
-  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*display: grid;[^}]*grid-template-columns: 26px 48px 26px;[^}]*top: 36px/s);
+  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*display: grid;[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 2;[^}]*grid-template-columns: 26px 48px 26px;[^}]*position: static/s);
   assert.match(css, /\.duration-control \{[^}]*grid-template-columns: 38px 68px 38px;[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
 });
 
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
-  const [schema, activityRoute, runRoute, dayRoute, jobRoute, store, workspaceModel, bridge, startup, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
+  const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, jobRoute, store, workspaceModel, bridge, startup, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity/reset/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
@@ -269,6 +272,11 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.doesNotMatch(activityRoute, /'activity_opened'/);
   assert.match(activityRoute, /queueActivitySetup/);
   assert.match(activityRoute, /safeActivityContext/);
+  assert.match(resetActivityRoute, /requestIdentity/);
+  assert.match(resetActivityRoute, /findActivity\(userId, activityKey\)/);
+  assert.match(resetActivityRoute, /DELETE FROM activity_records WHERE user_id = \? AND activity_id = \?/);
+  assert.match(resetActivityRoute, /DELETE FROM conversations WHERE user_id = \? AND activity_id = \?/);
+  assert.match(resetActivityRoute, /queueActivitySetup\(userId, activity\)/);
   assert.match(runRoute, /INSERT INTO activity_runs/);
   assert.match(runRoute, /actual_elapsed_seconds/);
   assert.match(runRoute, /allotted_duration_seconds/);
