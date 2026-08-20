@@ -89,6 +89,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /function formatTodayHeading/);
   assert.match(page, /formatDayOrdinal/);
   assert.match(page, /ActivityWorkspace/);
+  assert.match(page, /workspaceWorkState/);
+  assert.match(page, /isSending \|\| \(agentOnline && hasVisibleAgentJob\)/);
+  assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob\)\)/);
   assert.doesNotMatch(page, /breakfastDisplayContext|MOCK_ACTIVITY_CONTEXT|workspaceInputs/);
   assert.doesNotMatch(page, /breakfastPrototypeReply|Prototype Luna|Luna offline/);
   assert.match(page, /Talk with Luna about/);
@@ -99,7 +102,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /mode: "open"/);
   assert.match(page, /mode: "message"/);
   assert.match(page, /visitId/);
-  assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob && state\.agentOnline\)\)/);
+  assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob\)\)/);
   assert.match(page, /hasActiveJob \? 700 : 8_000/);
   assert.match(page, /Permanent activity thread/);
   assert.doesNotMatch(page, /Luna is joining/);
@@ -168,6 +171,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.time-component-display/);
   assert.match(css, /\.routine-component-summary/);
   assert.match(css, /\.prototype-typing/);
+  assert.match(css, /\.workspace-working/);
   assert.match(css, /\.activity-conversation/);
   assert.match(css, /\.complete-activity-button/);
   assert.match(css, /\.skip-activity-button/);
@@ -288,12 +292,16 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /parseAgentResult/);
   assert.match(bridge, /activity-blueprint-v2/);
   assert.match(bridge, /Do not produce greetings, encouragement, routine paraphrases/);
-  assert.match(bridge, /A pure note can be handled with actions and message:null/);
+  assert.match(bridge, /A pure factual note with no question can be handled with actions and message:null/);
+  assert.match(bridge, /Always answer a direct question or conversational request/);
+  assert.match(bridge, /You have a web research tool/);
+  assert.match(bridge, /Prefer official manufacturer documentation and other primary sources/);
   assert.match(bridge, /No routine details, goals, or history are documented/);
   assert.doesNotMatch(bridge, /api[_-]?key\s*=\s*["'][A-Za-z0-9_-]{20,}/i);
   assert.match(startup, /Start-Process[\s\S]*-WindowStyle Hidden/);
   assert.match(startup, /Import-Clixml/);
   assert.match(agents, /Production source of truth/);
+  assert.match(agents, /API-server sessions expose only Hermes web research/);
   assert.match(agents, /Ideal Day Hermes Bridge/);
   assert.match(productSpec, /Opening an activity is a deterministic UI event/);
   assert.match(productSpec, /ordinary opens enqueue no conversational agent job/);

@@ -16,6 +16,7 @@ type ActivityWorkspaceProps = {
   activity: WorkspaceActivity;
   hasConversation?: boolean;
   workspace: WorkspaceDocument;
+  workState?: "message" | "setup" | "waiting" | null;
 };
 
 export type ActivityTimingSnapshot = {
@@ -230,7 +231,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, hasConversation = false, workspace }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, hasConversation = false, workspace, workState = null }: ActivityWorkspaceProps) {
   return (
     <section className={`activity-workspace ${workspace.components.length ? "workspace-live" : "workspace-new"}`} aria-label={`Workspace for ${activity.title}`}>
       <header className="workspace-header">
@@ -243,6 +244,17 @@ export function ActivityWorkspace({ activity, hasConversation = false, workspace
         </div>
         {workspace.components.length ? <span className="workspace-version">Live</span> : null}
       </header>
+
+      {workState ? (
+        <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""}`} role="status">
+          <span className="workspace-working-mark"><Sparkles size={15} /></span>
+          <div>
+            <strong>{workState === "waiting" ? "Luna will pick this up shortly" : workState === "setup" ? "Luna is setting this activity up" : "Luna is looking into this"}</strong>
+            <p>{workState === "waiting" ? "Your message is saved, and nothing will be lost." : "She’ll keep the useful details with this activity when she’s done."}</p>
+          </div>
+          {workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
+        </div>
+      ) : null}
 
       {workspace.components.length ? (
         <div className="workspace-stack">

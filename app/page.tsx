@@ -317,7 +317,17 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
   const conversationShouldFollowRef = useRef(true);
-  const isLunaThinking = agentOnline && (activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup");
+  const hasVisibleAgentJob = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
+  const isLunaThinking = isSending || (agentOnline && hasVisibleAgentJob);
+  const workspaceWorkState = isSending
+    ? "message"
+    : activeJob && !agentOnline
+      ? "waiting"
+      : activeJob?.kind === "activity_setup"
+        ? "setup"
+        : activeJob?.kind === "user_message"
+          ? "message"
+          : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -352,7 +362,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
         if (!response.ok) throw new Error("Luna could not join this activity yet.");
         const state = await response.json() as ConversationState;
         applyConversationState(state);
-        scheduleRefresh(Boolean(state.activeJob && state.agentOnline));
+        scheduleRefresh(Boolean(state.activeJob));
       } catch {
         if (!cancelled) {
           setAgentOnline(false);
@@ -369,7 +379,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
         if (!response.ok) throw new Error("Conversation refresh failed.");
         const state = await response.json() as ConversationState;
         applyConversationState(state);
-        scheduleRefresh(Boolean(state.activeJob && state.agentOnline));
+        scheduleRefresh(Boolean(state.activeJob));
       } catch {
         if (!cancelled) {
           setAgentOnline(false);
@@ -419,6 +429,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       author: "user",
       body,
       createdAt: new Date().toISOString().replace("T", " ").replace("Z", ""),
+      pending: true,
     };
     conversationShouldFollowRef.current = true;
     setMessages((current) => [...current, optimisticMessage]);
@@ -518,12 +529,12 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       </div>
 
       <div className="activity-workbench-grid">
-        <ActivityWorkspace activity={item} hasConversation={messages.length > 0} workspace={workspace} />
+        <ActivityWorkspace activity={item} hasConversation={messages.length > 0} workspace={workspace} workState={workspaceWorkState} />
 
         <section className="activity-conversation" aria-label={`${item.title} conversation`}>
           <header>
             <div><strong>Notes & conversation</strong><span>Permanent activity thread</span></div>
-            <span className={`conversation-status ${connectionState === "ready" && (!activeJob || agentOnline) ? "is-prototype" : ""}`}><span /> {connectionState === "error" || (activeJob && !agentOnline) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : isLunaThinking ? "Luna is thinking…" : "Luna"}</span>
+            <span className={`conversation-status ${connectionState === "ready" && (!activeJob || agentOnline) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is working…" : connectionState === "error" || (activeJob && !agentOnline) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : isLunaThinking ? "Luna is thinking…" : "Luna"}</span>
           </header>
           <div className="conversation-log" aria-live="polite" ref={conversationLogRef} onScroll={handleConversationScroll}>
             {messages.length ? <div className="date-separator"><span>Recent</span></div> : null}

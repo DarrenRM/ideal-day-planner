@@ -246,6 +246,16 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .workspace-version { background: #171d20; border: 1px solid #2a3234; border-radius: 99px; color: #66706c; flex: 0 0 auto; font-size: 7px; letter-spacing: .04em; padding: 5px 7px; }
 .workspace-reset-button { align-items: center; background: #171d20; border: 1px solid #2a3234; border-radius: 99px; color: #78827d; cursor: pointer; display: inline-flex; flex: 0 0 auto; font-size: 7px; gap: 4px; padding: 5px 7px; }
 .workspace-reset-button:hover { border-color: #46504d; color: #bdc6bf; }
+.workspace-working { align-items: center; background: color-mix(in srgb, var(--item-color) 7%, #111719); border: 1px solid color-mix(in srgb, var(--item-color) 21%, #2a3234); border-radius: 9px; display: grid; gap: 10px; grid-template-columns: 30px minmax(0, 1fr) auto; margin-bottom: 10px; padding: 9px 10px; }
+.workspace-working.is-waiting { background: #121719; border-color: #293134; }
+.workspace-working-mark { align-items: center; background: color-mix(in srgb, var(--item-color) 11%, #171d20); border: 1px solid color-mix(in srgb, var(--item-color) 24%, #2a3234); border-radius: 8px; color: color-mix(in srgb, var(--item-color) 70%, #b3bdb7); display: flex; height: 30px; justify-content: center; width: 30px; }
+.workspace-working > div { min-width: 0; }
+.workspace-working strong { color: #d3dbd5; display: block; font-size: 9px; font-weight: 620; }
+.workspace-working p { color: #707b75; font-size: 7px; line-height: 1.45; margin: 3px 0 0; }
+.workspace-working-dots { align-items: center; display: flex; gap: 3px; padding: 0 2px; }
+.workspace-working-dots i { animation: typing-pulse 1s ease-in-out infinite; background: color-mix(in srgb, var(--item-color) 65%, #7d8782); border-radius: 50%; height: 4px; width: 4px; }
+.workspace-working-dots i:nth-child(2) { animation-delay: .14s; }
+.workspace-working-dots i:nth-child(3) { animation-delay: .28s; }
 .workspace-stack { display: flex; flex: 1; flex-direction: column; gap: 9px; }
 .workspace-block { background: #0d1214; border: 1px solid #252d30; border-radius: 9px; min-width: 0; overflow: hidden; padding: 11px; }
 .workspace-block-heading { align-items: flex-start; color: #7d8782; display: flex; gap: 10px; justify-content: space-between; margin-bottom: 9px; }
@@ -551,6 +561,9 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .activity-workspace { padding: 16px; }
   .workspace-header strong { font-size: 15px; }
   .workspace-header p { font-size: 9px; }
+  .workspace-working { grid-template-columns: 32px minmax(0, 1fr) auto; padding: 10px; }
+  .workspace-working strong { font-size: 11px; }
+  .workspace-working p { font-size: 9px; }
   .workspace-block { padding: 12px; }
   .workspace-block-heading strong, .shopping-item-copy strong, .exercise-row strong { font-size: 10px; }
   .shopping-item-copy small, .exercise-row small, .protocol-steps p, .timeline-entry p { font-size: 8px; }
