@@ -157,7 +157,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.drop-indicator/);
   assert.match(css, /\.duration-control/);
   assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip \{[^}]*font-size: 7\.5px;[^}]*height: 18px;[^}]*padding: 0 7px/s);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{ font-size: 8px; height: 20px; padding: 0 7px; \}/);
+  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{ font-size: 8px; height: 20px; padding: 2px 7px 0; \}/);
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);

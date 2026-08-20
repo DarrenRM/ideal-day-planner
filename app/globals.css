@@ -537,7 +537,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .mobile-time-label { align-items: baseline; color: #87918c; display: inline-flex; gap: 4px; min-width: 0; }
   .mobile-time-label strong { color: #aab3af; font: 500 13px/1.35 var(--type-sans); letter-spacing: -.015em; }
   .mobile-time-label span { color: #68716e; font: 500 9px/1.35 var(--type-sans); letter-spacing: .05em; }
-  .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 8px; height: 20px; padding: 0 7px; }
+  .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 8px; height: 20px; padding: 2px 7px 0; }
   .item-controls { align-self: start; grid-column: 2; grid-row: 1; justify-content: flex-end; min-width: 0; position: relative; z-index: 3; }
   .item-controls > .desktop-row-action, .item-controls > .desktop-skip-control, .item-controls > .duration-control { display: none; }
   .item-controls > .control-tooltip .complete-status-button { height: 34px; width: 34px; }
@@ -610,7 +610,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .item-copy { gap: 7px; }
   .mobile-time-label { gap: 3px; }
   .mobile-time-label strong { font-size: 12px; }
-  .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 7.75px; height: 19px; padding: 0 6px; }
+  .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 7.75px; height: 19px; padding: 2px 6px 0; }
   .edit-item-button, .delete-item-button { height: 30px; width: 30px; }
   .closed-status-button { height: 30px; width: 30px; }
   .inline-edit-form { grid-template-columns: minmax(0, 1fr) 84px; }
