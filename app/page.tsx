@@ -368,7 +368,14 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
   const workspaceActivity = { ...item, timelineEnabled };
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
-  const conversationDrawer = useMobileConversationDrawer({ activityId: item.id, canCollapse: showWorkspace, messages, openOnMount: openConversationOnMount });
+  const conversationDrawer = useMobileConversationDrawer({
+    activityId: item.id,
+    canCollapse: showWorkspace,
+    contentReady: connectionState !== "joining",
+    hasConversationJob,
+    messages,
+    openOnMount: openConversationOnMount,
+  });
   const isOpeningActivity = connectionState === "joining" || !conversationDrawer.isPreferenceReady;
 
   useEffect(() => {

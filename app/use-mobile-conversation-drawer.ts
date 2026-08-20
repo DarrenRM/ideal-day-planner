@@ -2,23 +2,24 @@
 
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import { resolveMobileDrawerInitialOpen } from "./mobile-conversation-drawer-state";
 
-const STORAGE_KEY = "idealized-day-mobile-drawer-v1";
+const STORAGE_KEY = "idealized-day-mobile-drawer-v2";
 
 type DrawerMessage = { id: string; author: "user" | "luna" };
-type DrawerPreference = { open: boolean; lastSeenLunaMessageId: string | null };
+type DrawerPreference = { open: boolean | null; lastSeenLunaMessageId: string | null };
 
 function readPreference(activityId: string): DrawerPreference {
   try {
     const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "{}") as Record<string, Partial<DrawerPreference>>;
     return {
-      open: saved[activityId]?.open !== false,
+      open: typeof saved[activityId]?.open === "boolean" ? saved[activityId].open : null,
       lastSeenLunaMessageId: typeof saved[activityId]?.lastSeenLunaMessageId === "string"
         ? saved[activityId].lastSeenLunaMessageId
         : null,
     };
   } catch {
-    return { open: true, lastSeenLunaMessageId: null };
+    return { open: null, lastSeenLunaMessageId: null };
   }
 }
 
@@ -34,19 +35,25 @@ function savePreference(activityId: string, preference: DrawerPreference) {
 export function useMobileConversationDrawer({
   activityId,
   canCollapse,
+  contentReady,
+  hasConversationJob,
   openOnMount = false,
   messages,
 }: {
   activityId: string;
   canCollapse: boolean;
+  contentReady: boolean;
+  hasConversationJob: boolean;
   openOnMount?: boolean;
   messages: DrawerMessage[];
 }) {
-  const [preferredOpen, setPreferredOpen] = useState(true);
+  const [preferredOpen, setPreferredOpen] = useState(false);
   const [hasUnreadLuna, setHasUnreadLuna] = useState(false);
   const [readyActivityId, setReadyActivityId] = useState<string | null>(null);
   const preferenceReadyRef = useRef(false);
-  const preferredOpenRef = useRef(true);
+  const preferredOpenRef = useRef(false);
+  const explicitOpenRef = useRef<boolean | null>(null);
+  const initializedActivityIdRef = useRef<string | null>(null);
   const latestLunaMessageIdRef = useRef<string | null>(null);
   const lastSeenLunaMessageIdRef = useRef<string | null>(null);
   const pointerStartRef = useRef<number | null>(null);
@@ -54,21 +61,34 @@ export function useMobileConversationDrawer({
   const isOpen = canCollapse ? preferredOpen : true;
 
   useEffect(() => {
+    if (!contentReady || initializedActivityIdRef.current === activityId) return;
     preferenceReadyRef.current = false;
     const preference = readPreference(activityId);
-    const restoredOpen = openOnMount || preference.open;
+    const latestLunaMessageId = [...messages].reverse().find((message) => message.author === "luna")?.id ?? null;
+    const restoredOpen = resolveMobileDrawerInitialOpen({
+      canCollapse,
+      hasConversation: messages.length > 0,
+      hasConversationJob,
+      openOnMount,
+      savedOpen: preference.open,
+    });
     preferredOpenRef.current = restoredOpen;
+    explicitOpenRef.current = preference.open;
+    latestLunaMessageIdRef.current = latestLunaMessageId;
     lastSeenLunaMessageIdRef.current = preference.lastSeenLunaMessageId;
     const frame = window.requestAnimationFrame(() => {
       setPreferredOpen(restoredOpen);
-      const latestMessageId = latestLunaMessageIdRef.current;
-      setHasUnreadLuna(Boolean(canCollapse && !restoredOpen && latestMessageId && latestMessageId !== preference.lastSeenLunaMessageId));
-      if (openOnMount) savePreference(activityId, { open: true, lastSeenLunaMessageId: latestMessageId });
+      setHasUnreadLuna(Boolean(canCollapse && !restoredOpen && latestLunaMessageId && latestLunaMessageId !== preference.lastSeenLunaMessageId));
+      if (restoredOpen && latestLunaMessageId) {
+        lastSeenLunaMessageIdRef.current = latestLunaMessageId;
+        savePreference(activityId, { open: preference.open, lastSeenLunaMessageId: latestLunaMessageId });
+      }
+      initializedActivityIdRef.current = activityId;
       preferenceReadyRef.current = true;
       setReadyActivityId(activityId);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activityId, canCollapse, openOnMount]);
+  }, [activityId, canCollapse, contentReady, hasConversationJob, messages, openOnMount]);
 
   useEffect(() => {
     const latestMessageId = [...messages].reverse().find((message) => message.author === "luna")?.id ?? null;
@@ -78,7 +98,7 @@ export function useMobileConversationDrawer({
       if (isOpen) {
         lastSeenLunaMessageIdRef.current = latestMessageId;
         setHasUnreadLuna(false);
-        savePreference(activityId, { open: preferredOpenRef.current, lastSeenLunaMessageId: latestMessageId });
+        savePreference(activityId, { open: explicitOpenRef.current, lastSeenLunaMessageId: latestMessageId });
       } else if (latestMessageId && latestMessageId !== lastSeenLunaMessageIdRef.current) {
         setHasUnreadLuna(true);
       }
@@ -90,6 +110,7 @@ export function useMobileConversationDrawer({
     if (!window.matchMedia("(max-width: 680px)").matches) return;
     if (!open && !canCollapse) return;
     preferredOpenRef.current = open;
+    explicitOpenRef.current = open;
     setPreferredOpen(open);
     if (open) {
       lastSeenLunaMessageIdRef.current = latestLunaMessageIdRef.current;

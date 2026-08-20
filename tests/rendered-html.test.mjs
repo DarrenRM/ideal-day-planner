@@ -104,8 +104,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Getting things ready…/);
   assert.match(page, /openConversationOnMount/);
   assert.match(page, /setStartConversationActivityId\(launchedItems\.find/);
-  assert.match(drawer, /idealized-day-mobile-drawer-v1/);
-  assert.match(drawer, /openOnMount \|\| preference\.open/);
+  assert.match(drawer, /idealized-day-mobile-drawer-v2/);
+  assert.match(drawer, /resolveMobileDrawerInitialOpen/);
+  assert.match(drawer, /contentReady/);
+  assert.match(drawer, /hasConversationJob/);
+  assert.match(drawer, /explicitOpenRef/);
   assert.match(drawer, /function readPreference/);
   assert.match(drawer, /function savePreference/);
   assert.match(drawer, /function handlePointerDown/);
