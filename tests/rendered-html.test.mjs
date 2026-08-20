@@ -296,7 +296,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-controls \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.item-controls \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px/s);
   assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*grid-column: 1 \/ -1;[^}]*justify-self: stretch;[^}]*width: 100%/s);
-  assert.match(css, /\.duration-adjustments \{ margin-left: auto; \}/);
+  assert.match(css, /\.duration-inline-meta \{[^}]*margin-left: auto;/);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{ display: none; \}/);
   assert.match(css, /\.routine-card\.is-expanded > \.item-controls \{ display: grid; \}/);
   assert.match(css, /\.activity-footer-tools \{ display: none; \}/);

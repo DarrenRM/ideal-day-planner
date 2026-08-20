@@ -292,7 +292,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .duration-control button:hover { background: rgba(181, 215, 125, .08); border-color: #3b4641; color: var(--accent-bright); }
 .duration-control button:disabled { background: #0d1012; border-color: #23292c; color: #454d49; cursor: default; }
 .duration-value { align-items: baseline; display: flex; gap: 4px; justify-content: flex-start; margin-right: 4px; min-width: 78px; }
-.duration-control input { appearance: textfield; background: transparent; border: 0; color: #dce4d7; field-sizing: content; font: 500 var(--type-body)/var(--leading-body) var(--type-sans); max-width: 3ch; min-width: 2ch; outline: 0; padding: 0; text-align: right; width: auto; }
+.duration-control input { appearance: textfield; background: transparent; border: 0; color: #dce4d7; field-sizing: content; font: 500 var(--type-body)/var(--leading-body) var(--type-sans); max-width: 3ch; min-width: 2ch; outline: 0; padding: 0; text-align: left; width: auto; }
 .duration-control input::-webkit-inner-spin-button, .duration-control input::-webkit-outer-spin-button { appearance: none; margin: 0; }
 .duration-unit { color: #78817d; font: 400 var(--type-body-sm)/var(--leading-body-sm) var(--type-sans); }
 .activity-expansion { border-top: 1px solid #293033; grid-column: 1 / -1; margin: 3px -12px 0 -10px; min-width: 0; }
@@ -737,8 +737,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card .item-controls > .duration-control .duration-value { margin-right: 0; min-width: 0; }
   .routine-card .item-controls > .duration-control input { font-size: var(--type-body-lg); max-width: 3ch; }
   .routine-card .item-controls > .duration-control .duration-unit { font-size: var(--type-body-sm); }
-  .routine-card .item-controls > .duration-control .duration-inline-meta { align-items: center; display: flex; gap: 7px; min-width: 0; }
-  .routine-card .item-controls > .duration-control .duration-adjustments { margin-left: auto; }
+  .routine-card .item-controls > .duration-control .duration-inline-meta { align-items: center; display: flex; gap: 7px; margin-left: auto; min-width: 0; }
   .routine-row.is-complete .routine-card .item-controls > .duration-control .duration-adjustments,
   .routine-row.is-skipped .routine-card .item-controls > .duration-control .duration-adjustments { display: none; }
   .routine-row:has(.routine-card.is-expanded) { z-index: 100; }
