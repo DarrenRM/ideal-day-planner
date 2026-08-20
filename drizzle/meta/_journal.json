@@ -64,6 +64,13 @@
       "when": 1787251321708,
       "tag": "0008_hollow_workspace_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1787251718743,
+      "tag": "0009_fresh_start",
+      "breakpoints": true
     }
   ]
 }
