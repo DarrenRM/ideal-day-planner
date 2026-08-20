@@ -149,6 +149,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /\/api\/activity\/run/);
   assert.match(page, /Fake time of day/);
   assert.match(page, /Follow clock-selected activity/);
+  assert.match(page, /const DEFAULT_DEV_MINUTES = 7 \* 60 \+ 30/);
+  assert.match(page, /useState<number \| null>\(DEFAULT_DEV_MINUTES\)/);
+  assert.match(page, /idealized-day-dev-time-v1/);
+  assert.match(page, /value === null \? "actual" : String\(value\)/);
   assert.match(page, /completedIds/);
   assert.doesNotMatch(page, /COMPLETE_KEY/);
   assert.doesNotMatch(workspace, /Nothing to manage here yet/);

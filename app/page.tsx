@@ -35,10 +35,12 @@ type ConversationState = {
 };
 
 const START_MINUTES = 8 * 60;
+const DEFAULT_DEV_MINUTES = 7 * 60 + 30;
 const DURATION_STEP = 5;
 const STORAGE_KEY = "idealized-day-items-v1";
 const DELETED_KEY = "idealized-day-deleted-v1";
 const MIGRATION_KEY = "idealized-day-d1-imported-v1";
+const DEV_TIME_KEY = "idealized-day-dev-time-v1";
 
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
@@ -911,7 +913,7 @@ export default function Home() {
   const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
   const [resetTodayState, setResetTodayState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [realMinutes, setRealMinutes] = useState(minutesNow);
-  const [fakeMinutes, setFakeMinutes] = useState<number | null>(null);
+  const [fakeMinutes, setFakeMinutes] = useState<number | null>(DEFAULT_DEV_MINUTES);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [dismissedClockActivityId, setDismissedClockActivityId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
@@ -925,6 +927,27 @@ export default function Home() {
   useEffect(() => {
     const timer = window.setInterval(() => setRealMinutes(minutesNow()), 30_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let storedMinutes: number | null | undefined;
+    try {
+      const savedDevTime = window.localStorage.getItem(DEV_TIME_KEY);
+      if (savedDevTime === "actual") {
+        storedMinutes = null;
+      } else if (savedDevTime !== null) {
+        const savedMinutes = Number(savedDevTime);
+        if (Number.isInteger(savedMinutes) && savedMinutes >= 0 && savedMinutes <= 1439) {
+          storedMinutes = savedMinutes;
+        }
+      }
+    } catch {
+      // Device-local developer preferences are optional; 7:30 AM remains the fallback.
+    }
+
+    if (storedMinutes === undefined) return;
+    const restoreTimer = window.setTimeout(() => setFakeMinutes(storedMinutes), 0);
+    return () => window.clearTimeout(restoreTimer);
   }, []);
 
   useEffect(() => {
@@ -1407,6 +1430,11 @@ export default function Home() {
   function setTestTime(value: number | null) {
     setFakeMinutes(value);
     setDismissedClockActivityId(null);
+    try {
+      window.localStorage.setItem(DEV_TIME_KEY, value === null ? "actual" : String(value));
+    } catch {
+      // The selected time still applies for this session when device storage is unavailable.
+    }
   }
 
   function openActivity(id: string) {
