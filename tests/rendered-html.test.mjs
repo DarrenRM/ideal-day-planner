@@ -156,8 +156,12 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /\.drop-indicator/);
   assert.match(css, /\.duration-control/);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip \{[^}]*font-size: 7\.5px;[^}]*height: 18px;[^}]*padding: 0 7px/s);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{ font-size: 8px; height: 20px; padding: 2px 7px 0; \}/);
+  assert.match(css, /--type-micro: \.6875rem/);
+  assert.match(css, /--type-label: \.75rem/);
+  assert.match(css, /--type-body: \.875rem/);
+  assert.match(css, /--type-body-lg: 1rem/);
+  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip \{[^}]*font-size: var\(--type-micro\);[^}]*height: 18px;[^}]*padding: 0 7px/s);
+  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{ font-size: var\(--type-micro\); height: 20px; padding: 2px 7px 0; \}/);
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);
@@ -218,7 +222,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-state \{[^}]*grid-column: 2;[^}]*grid-row: 2/s);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
-  assert.match(css, /\.now-line span \{ font-size: 7px; justify-self: start; \}/);
+  assert.match(css, /\.now-line span \{ font-size: var\(--type-micro\); justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
   assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*padding-left: 12px;[^}]*padding-right: 12px/s);
   assert.match(css, /\.activity-expansion \{[^}]*grid-row: 2;[^}]*margin: 1px 0 0/s);
@@ -230,6 +234,12 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.duration-control \{[^}]*grid-template-columns: 38px 68px 38px;[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
+  assert.match(css, /\.message-bubble,[\s\S]*?font-size: var\(--type-body\);[\s\S]*?line-height: var\(--leading-body\);/);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*?input,[\s\S]*?font-size: var\(--type-body-lg\);[\s\S]*?line-height: var\(--leading-body-lg\);/);
+  for (const declaration of css.matchAll(/(?:font-size|font)\s*:\s*([^;]+)/g)) {
+    const pixels = declaration[1].match(/(\d+(?:\.\d+)?)px/);
+    if (pixels) assert.ok(Number(pixels[1]) >= 11, `found sub-11px type: ${declaration[0]}`);
+  }
 });
 
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
