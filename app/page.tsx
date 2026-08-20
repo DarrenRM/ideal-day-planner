@@ -398,7 +398,6 @@ type ActivityWorkbenchProps = {
   isComplete: boolean;
   isSkipped: boolean;
   openConversationOnMount: boolean;
-  onCompletionIntent: () => void;
   onComplete: (completedAt: string | null) => void;
   onSkip: (skippedAt: string | null) => void;
   onEdit: () => void;
@@ -407,7 +406,7 @@ type ActivityWorkbenchProps = {
   onSetDuration: (value: number) => void;
 };
 
-function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onCompletionIntent, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -713,7 +712,6 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
     if (isCompleting) return;
     if (!isComplete) {
       setIsPreviewingCompletion(true);
-      onCompletionIntent();
     }
     setIsCompleting(true);
     try {
@@ -1068,12 +1066,15 @@ export default function Home() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
   const [pendingActivityIds, setPendingActivityIds] = useState<Set<string>>(() => new Set());
   const [celebratingActivityId, setCelebratingActivityId] = useState<string | null>(null);
+  const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
   const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuRef = useRef<HTMLDivElement>(null);
   const devMenuRef = useRef<HTMLDivElement>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionCelebrationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const completionHandoffTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const nextActivityCueTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const touchDragRef = useRef<TouchDrag | null>(null);
   const suppressActivityClickUntilRef = useRef(0);
   const skipNextSave = useRef(true);
@@ -1302,6 +1303,8 @@ export default function Home() {
   useEffect(() => () => {
     if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
     if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
+    if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
+    if (nextActivityCueTimer.current) clearTimeout(nextActivityCueTimer.current);
     if (touchDragRef.current) clearTimeout(touchDragRef.current.timer);
   }, []);
 
@@ -1778,7 +1781,68 @@ export default function Home() {
     setCelebratingActivityId(id);
     completionCelebrationTimer.current = setTimeout(() => {
       setCelebratingActivityId((current) => current === id ? null : current);
-    }, 720);
+    }, 1_150);
+  }
+
+  function nextIncompleteActivityId(completedId: string) {
+    const completedIndex = displayedScheduledItems.findIndex((item) => item.id === completedId);
+    if (completedIndex < 0) return null;
+    const remainingInDayOrder = [
+      ...displayedScheduledItems.slice(completedIndex + 1),
+      ...displayedScheduledItems.slice(0, completedIndex),
+    ];
+    return remainingInDayOrder
+      .find((item) => item.id !== completedId && !item.completedAt && !item.skippedAt && !completedIds.has(item.id))
+      ?.id ?? null;
+  }
+
+  function cueNextActivity(id: string) {
+    if (nextActivityCueTimer.current) clearTimeout(nextActivityCueTimer.current);
+    setNextActivityCueId(id);
+
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      const row = Array.from(document.querySelectorAll<HTMLElement>(".routine-row[data-activity-id]"))
+        .find((candidate) => candidate.dataset.activityId === id);
+      if (!row) return;
+
+      const bounds = row.getBoundingClientRect();
+      const targetTop = Math.max(72, window.innerHeight * 0.22);
+      const isComfortablyVisible = bounds.top >= targetTop - 24 && bounds.bottom <= window.innerHeight - 72;
+      if (!isComfortablyVisible) {
+        window.scrollBy({
+          top: bounds.top - targetTop,
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        });
+      }
+    }));
+
+    nextActivityCueTimer.current = setTimeout(() => {
+      setNextActivityCueId((current) => current === id ? null : current);
+    }, 1_600);
+  }
+
+  function handleCompletionSaved(id: string, completedAt: string | null, collapseAfterCelebration: boolean) {
+    if (!completedAt) {
+      toggleComplete(id, null);
+      return;
+    }
+
+    const nextId = nextIncompleteActivityId(id);
+    if (collapseAfterCelebration) setSelectedActivityId(id);
+    toggleComplete(id, completedAt);
+    celebrateCompletion(id);
+
+    if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const handoffDelay = prefersReducedMotion
+      ? collapseAfterCelebration ? 420 : 240
+      : collapseAfterCelebration ? 1_000 : 760;
+    completionHandoffTimer.current = setTimeout(() => {
+      if (collapseAfterCelebration) {
+        setSelectedActivityId((current) => current === id ? null : current);
+      }
+      if (nextId) cueNextActivity(nextId);
+    }, handoffDelay);
   }
 
   function toggleSkip(id: string, skippedAt: string | null) {
@@ -1794,7 +1858,6 @@ export default function Home() {
 
   async function updateClosedActivity(item: ScheduledItem, mode: "complete" | "reopen" | "skip" | "unskip") {
     if (pendingActivityIds.has(item.id)) return;
-    if (mode === "complete") celebrateCompletion(item.id);
     setPendingActivityIds((current) => new Set(current).add(item.id));
     try {
       const response = await fetch("/api/activity/run", {
@@ -1805,7 +1868,7 @@ export default function Home() {
       if (!response.ok) throw new Error("Activity status could not be saved.");
       if (mode === "complete" || mode === "reopen") {
         const result = await response.json() as { completed: boolean; completedAt?: string };
-        toggleComplete(item.id, result.completed ? result.completedAt ?? new Date().toISOString() : null);
+        handleCompletionSaved(item.id, result.completed ? result.completedAt ?? new Date().toISOString() : null, false);
       } else {
         const result = await response.json() as { skipped: boolean; skippedAt?: string | null };
         toggleSkip(item.id, result.skipped ? result.skippedAt ?? new Date().toISOString() : null);
@@ -2113,7 +2176,7 @@ export default function Home() {
                     ) : null}
                     <div
                       data-activity-id={item.id}
-                      className={`routine-row is-${activityState} ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""}`}
+                      className={`routine-row is-${activityState} ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""} ${nextActivityCueId === item.id ? "is-next-cue" : ""}`}
                       onDragOver={(event) => handleDragOver(event, item.id)}
                       onDragLeave={handleDragLeave}
                       onDrop={(event) => handleDrop(event, item.id)}
@@ -2298,8 +2361,7 @@ export default function Home() {
                           timelineEnabled={timelineEnabled}
                           openConversationOnMount={startConversationActivityId === item.id}
                           onAdjustDuration={(delta) => adjustDuration(item.id, delta)}
-                          onCompletionIntent={() => celebrateCompletion(item.id)}
-                          onComplete={(completedAt) => toggleComplete(item.id, completedAt)}
+                          onComplete={(completedAt) => handleCompletionSaved(item.id, completedAt, true)}
                           onSkip={(skippedAt) => toggleSkip(item.id, skippedAt)}
                           onEdit={() => startEditing(item)}
                           onRemove={() => removeItem(item.id)}

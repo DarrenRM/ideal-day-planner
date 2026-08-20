@@ -226,8 +226,18 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.settings-modal/);
   assert.match(css, /\.settings-toggle-row/);
   assert.match(page, /celebratingActivityId === item\.id \? <span className="completion-sweep"/);
+  assert.doesNotMatch(page, /onCompletionIntent/);
+  assert.match(page, /function handleCompletionSaved/);
+  assert.match(page, /if \(collapseAfterCelebration\) setSelectedActivityId\(id\);[\s\S]*?toggleComplete\(id, completedAt\);[\s\S]*?celebrateCompletion\(id\);/);
+  assert.match(page, /collapseAfterCelebration \? 1_000 : 760/);
+  assert.match(page, /function cueNextActivity/);
+  assert.match(page, /window\.scrollBy\(\{/);
+  assert.match(page, /nextActivityCueId === item\.id \? "is-next-cue"/);
   assert.match(css, /@keyframes completion-gradient-sweep/);
+  assert.match(css, /@keyframes next-activity-cue/);
+  assert.match(css, /\.routine-row\.is-next-cue \.routine-card:not\(\.is-expanded\)/);
   assert.match(css, /prefers-reduced-motion:[\s\S]*\.completion-sweep::before/);
+  assert.match(css, /prefers-reduced-motion:[\s\S]*\.routine-row\.is-next-cue/);
   assert.match(css, /\.reset-today-button/);
   assert.match(css, /\.dev-reset-confirm/);
   assert.match(css, /\.now-line/);

@@ -219,6 +219,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .routine-row.is-complete .routine-card:not(.is-expanded) { background: #101412; border-color: rgba(181, 215, 125, .16); opacity: .62; }
 .routine-row.is-skipped .routine-card:not(.is-expanded) { background: #111416; border-color: rgba(133, 143, 139, .16); opacity: .55; }
 .routine-row.is-current .routine-card { border-color: color-mix(in srgb, var(--item-color) 45%, #30383b); box-shadow: 0 0 0 1px color-mix(in srgb, var(--item-color) 10%, transparent), 0 16px 38px rgba(0, 0, 0, .2); }
+.routine-row.is-next-cue .routine-card:not(.is-expanded) { animation: next-activity-cue 1.5s cubic-bezier(.2, .78, .24, 1) both; z-index: 2; }
+.routine-row.is-next-cue .routine-card:not(.is-expanded)::before { animation: next-activity-marker 1.5s cubic-bezier(.2, .78, .24, 1) both; background: var(--item-color); border-radius: 999px; box-shadow: 0 0 12px color-mix(in srgb, var(--item-color) 38%, transparent); content: ""; height: 42%; left: -1px; position: absolute; top: 29%; transform-origin: center; width: 2px; }
 .routine-card.is-expanded { background: #151a1d; border-color: color-mix(in srgb, var(--item-color) 43%, #343c3e); grid-template-rows: auto auto; opacity: 1; padding-bottom: 0; }
 .completion-sweep { border-radius: inherit; inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 40; }
 .completion-sweep::before { animation: completion-gradient-sweep 620ms cubic-bezier(.2, .78, .24, 1) both; background: linear-gradient(108deg, transparent 18%, rgba(117, 205, 163, .1) 34%, rgba(202, 242, 124, .56) 47%, rgba(255, 204, 116, .42) 54%, rgba(181, 215, 125, .12) 66%, transparent 82%); content: ""; inset: -35% -70%; position: absolute; transform: translateX(-58%) skewX(-13deg); }
@@ -229,6 +231,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 @keyframes completion-gradient-sweep { 0% { opacity: 0; transform: translateX(-58%) skewX(-13deg); } 18% { opacity: 1; } 100% { opacity: 0; transform: translateX(58%) skewX(-13deg); } }
 @keyframes completion-border-glow { 0%, 100% { opacity: 0; } 24% { opacity: .9; } 62% { opacity: .42; } }
 @keyframes completion-check-pop { 0% { transform: scale(.72) rotate(-10deg); } 42% { transform: scale(1.35) rotate(4deg); } 72% { transform: scale(.94) rotate(0); } 100% { transform: scale(1); } }
+@keyframes next-activity-cue { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--item-color) 0%, transparent); transform: translateY(2px); } 28% { border-color: color-mix(in srgb, var(--item-color) 58%, #30383b); box-shadow: 0 0 0 1px color-mix(in srgb, var(--item-color) 24%, transparent), 0 12px 30px rgba(0, 0, 0, .22); transform: translateY(0); } 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--item-color) 0%, transparent); transform: translateY(0); } }
+@keyframes next-activity-marker { 0%, 100% { opacity: 0; transform: scaleY(.25); } 25%, 60% { opacity: .9; transform: scaleY(1); } }
 .is-dragging .routine-card { opacity: .32; transform: scale(.99); }
 .item-copy[draggable="true"] { cursor: grab; }
 .item-copy[draggable="true"]:active { cursor: grabbing; }
@@ -854,6 +858,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .completion-sweep::after { animation: completion-celebration-fade 360ms ease-out both; }
   .routine-card.is-celebrating .complete-status-button svg, .routine-card.is-celebrating .complete-activity-button svg { animation: none; }
   .streak-step.is-waiting .streak-dot, .streak-step.is-waiting small, .routine-card.is-celebrating .streak-step.is-latest .streak-dot, .routine-card.is-celebrating .streak-step.is-latest .streak-dot::after { animation: none; }
+  .routine-row.is-next-cue .routine-card:not(.is-expanded) { animation: none; border-color: color-mix(in srgb, var(--item-color) 58%, #30383b); box-shadow: 0 0 0 1px color-mix(in srgb, var(--item-color) 20%, transparent); }
+  .routine-row.is-next-cue .routine-card:not(.is-expanded)::before { animation: none; opacity: .9; transform: scaleY(1); }
   @keyframes completion-celebration-fade { 0%, 100% { opacity: 0; } 35% { opacity: .45; } }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
   .schedule-loading-row, .shape-loading-row, .activity-opening-progress::after { animation: none; }
