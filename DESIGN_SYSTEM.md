@@ -61,6 +61,7 @@ The canonical global tokens are:
 - Keep at least 8px between separate controls and at least 12px between unrelated content groups.
 - Use 6–8px radii for compact controls, 9–12px for cards/popovers, 14–16px for major shells, and full pills only for tags/statuses.
 - Standard borders are 1px. One component should own each visible edge; avoid overlapping or clipped nested borders.
+- Schedule tags and statuses share one 18px pill primitive with a 16px line box and symmetric horizontal padding. Do not use directional padding to position pill text; keep labels and icons optically centered through the shared flex alignment.
 - An expanded activity's active outline must continuously enclose its header, context, conversation, and footer at every viewport.
 - Shadows are quiet depth cues for menus and raised surfaces, never a substitute for hierarchy.
 

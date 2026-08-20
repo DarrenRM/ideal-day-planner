@@ -194,8 +194,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /--type-label: \.75rem/);
   assert.match(css, /--type-body: \.875rem/);
   assert.match(css, /--type-body-lg: 1rem/);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip \{[^}]*font-size: var\(--type-micro\);[^}]*font-weight: 590;[^}]*height: 18px;[^}]*letter-spacing: \.055em;[^}]*padding: 1px 6px 0/s);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{ font-size: var\(--type-micro\); height: 18px; padding: 1px 6px 0; \}/);
+  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{[^}]*font-size: var\(--type-micro\);[^}]*font-weight: 590;[^}]*height: 18px;[^}]*letter-spacing: \.055em;[^}]*line-height: 16px;[^}]*padding: 0 6px/s);
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);
@@ -241,6 +240,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.delete-item-button/);
   assert.match(css, /\.routine-row > \.time-label \{ display: none; \}/);
   assert.match(css, /\.mobile-time-label/);
+  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip .*line-height: 16px; padding: 0 6px/);
+  assert.doesNotMatch(css, /\.now-chip[^\n]*padding: 1px 6px 0/);
   assert.match(css, /grid-template-columns: 38px 68px 38px/);
   assert.match(css, /\.hero, \.summary-rail \{ display: none; \}/);
   assert.match(css, /--summary-rail-width: 294px/);
