@@ -389,7 +389,9 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /sendHeartbeat/);
   assert.match(bridge, /runJobWithHeartbeat/);
   assert.match(bridge, /heartbeatIntervalMs = 5_000/);
-  assert.match(bridge, /activity-blueprint-v2/);
+  assert.match(bridge, /activity-blueprint-v3/);
+  assert.match(bridge, /runtimeSessionId\(leased\.job\)/);
+  assert.doesNotMatch(bridge, /existingSessionId \|\|/);
   assert.match(bridge, /Do not produce greetings, encouragement, routine paraphrases/);
   assert.match(bridge, /This first pass is conversational/);
   assert.match(bridge, /Return recordActions:\[\] and workspaceActions:\[\]/);

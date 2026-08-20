@@ -104,13 +104,13 @@ function requestAppJson(path, options = {}) {
   return requestJson(`${appUrl}${path}`, { ...options, headers: appHeaders(options.headers) });
 }
 
-function runtimeSessionId(conversationId) {
-  const digest = createHash("sha256").update(`activity-blueprint-v2:${conversationId}`).digest("hex").slice(0, 24);
+function runtimeSessionId(job) {
+  const digest = createHash("sha256").update(`activity-blueprint-v3:${job.id}:${job.attempts}`).digest("hex").slice(0, 24);
   return `ideal-day-${digest}`;
 }
 
-async function ensureHermesSession(key, leased, existingSessionId) {
-  const sessionId = existingSessionId || runtimeSessionId(leased.job.conversationId);
+async function ensureHermesSession(key, leased) {
+  const sessionId = runtimeSessionId(leased.job);
   const response = await fetch(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}`, {
     headers: { authorization: `Bearer ${key}` },
   });
@@ -123,7 +123,7 @@ async function ensureHermesSession(key, leased, existingSessionId) {
     body: JSON.stringify({
       id: sessionId,
       source: "api_server",
-      title: `Ideal Day · ${leased.context.activity?.title || "Activity"} · activity-blueprint-v2`,
+      title: `Ideal Day · ${leased.context.activity?.title || "Activity"} · ${leased.job.kind} · ${sessionId.slice(-8)}`,
     }),
   });
   if (!created.ok && created.status !== 409) {
@@ -191,7 +191,7 @@ function sendHeartbeat() {
 }
 
 async function runJob(key, leased) {
-  const sessionId = await ensureHermesSession(key, leased, leased.runtimeSessionId);
+  const sessionId = await ensureHermesSession(key, leased);
   const result = await requestJson(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}/chat`, {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
