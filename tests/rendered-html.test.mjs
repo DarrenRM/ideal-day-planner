@@ -200,6 +200,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.mobile-time-label/);
   assert.match(css, /grid-template-columns: 38px 68px 38px/);
   assert.match(css, /\.hero, \.summary-rail \{ display: none; \}/);
+  assert.match(css, /--summary-rail-width: 294px/);
+  assert.match(css, /\.day-overview \{[^}]*width: var\(--summary-rail-width\)/s);
+  assert.match(css, /\.main-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--summary-rail-width\)/s);
   assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/s);
   assert.match(css, /\.drag-button \{[^}]*grid-row: 1 \/ 3;[^}]*justify-self: center/s);
   assert.match(css, /\.item-meta \{[^}]*padding-right: 15px/s);
