@@ -674,7 +674,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .desktop-collapse-icon { display: none; }
   .mobile-collapse-icon { display: block; }
   .activity-expansion { display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-rows: minmax(0, 1fr) auto; height: 100%; margin: 0; min-height: 0; overflow: hidden; }
-  .activity-workbench-grid, .activity-workbench-grid.is-conversation-only { background: #0e1214; display: block; grid-template-columns: 1fr; min-height: 0; overflow: hidden; position: relative; }
+  .activity-workbench-grid, .activity-workbench-grid.is-conversation-only { background: #0e1214; display: block; grid-template-columns: 1fr; height: 100%; min-height: 0; overflow: hidden; position: relative; }
   .activity-workspace { height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 16px 16px 82px; }
   .workspace-working { grid-template-columns: 32px minmax(0, 1fr) auto; padding: 10px; }
   .workspace-working strong { font-size: var(--type-body-sm); }
@@ -693,7 +693,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .record-history-list .timeline-entry > b { grid-column: 2; }
   .context-checklist li, .context-facts dd { font-size: var(--type-body-sm); }
   .context-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .activity-conversation { background: #101416; border-left: 0; border-top: 1px solid #293033; bottom: 0; height: 100%; left: 0; position: absolute; right: 0; top: 0; transform: translateY(0); transition: transform .28s cubic-bezier(.22, .75, .22, 1); z-index: 5; }
+  .activity-conversation { background: #101416; border-left: 0; border-top: 1px solid #293033; bottom: 0; height: auto; left: 0; position: absolute; right: 0; top: 0; transform: translateY(0); transition: transform .28s cubic-bezier(.22, .75, .22, 1); z-index: 5; }
   .activity-conversation.is-drawer-collapsed { transform: translateY(calc(100% - 58px)); }
   .activity-conversation > header { background: #13181a; min-height: 58px; padding: 0; }
   .conversation-drawer-toggle { cursor: pointer; min-height: 58px; padding: 0 16px; touch-action: none; }
