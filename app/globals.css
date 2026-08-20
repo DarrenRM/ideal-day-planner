@@ -527,9 +527,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .time-label span { font-size: 7px; }
   .routine-card { align-items: center; border-radius: 12px; gap: 9px 10px; grid-column: 1; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; margin: 0; min-height: 82px; padding: 13px 12px; }
   .routine-card.has-open-mobile-menu { z-index: 12; }
-  .routine-card.is-expanded { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 0; }
-  .routine-card.is-expanded::after { border: 1px solid color-mix(in srgb, var(--item-color) 43%, #343c3e); border-radius: inherit; content: ""; inset: -1px; pointer-events: none; position: absolute; z-index: 30; }
-  .routine-card.is-expanded .item-copy { grid-column: 1 / -1; grid-row: 1; }
+  .routine-card.is-expanded { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; overflow: hidden; padding-bottom: 0; padding-left: 0; padding-right: 0; }
+  .routine-card.is-expanded .item-copy { grid-column: 1 / -1; grid-row: 1; padding-left: 12px; padding-right: 12px; }
   .routine-card.is-expanded .collapse-activity-button { grid-column: auto; grid-row: auto; height: 34px; position: absolute; right: 10px; top: 10px; width: 34px; z-index: 2; }
   .drag-button, .item-icon { display: none; }
   .item-copy { align-items: center; align-self: stretch; display: grid; gap: 9px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 21px; min-width: 0; padding: 0; width: 100%; }
@@ -543,6 +542,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 8px; height: 20px; padding: 2px 7px 0; }
   .item-controls { align-self: start; grid-column: 2; grid-row: 1; justify-content: flex-end; min-width: 0; position: relative; z-index: 3; }
   .item-controls > .desktop-row-action, .item-controls > .desktop-skip-control, .item-controls > .duration-control { display: none; }
+  .control-tooltip-bubble { display: none; }
   .item-controls > .control-tooltip .complete-status-button { height: 34px; width: 34px; }
   .mobile-activity-menu { display: block; position: relative; }
   .mobile-activity-menu-trigger { align-items: center; background: transparent; border: 0; border-radius: 7px; color: #7d8782; cursor: pointer; display: flex; height: 34px; justify-content: center; padding: 0; width: 34px; }
@@ -571,7 +571,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control input { font-size: 12px; height: 28px; max-width: 3ch; }
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-unit { font-size: 8px; line-height: 28px; }
   .routine-row.is-current .routine-card:not(.is-expanded) .item-state { margin-right: 108px; }
-  .activity-expansion { grid-column: 1 / -1; grid-row: 2; margin: 1px -12px 0 -10px; }
+  .activity-expansion { grid-column: 1 / -1; grid-row: 2; margin: 1px 0 0; }
   .activity-workbench-heading { padding: 16px; }
   .activity-workbench-heading strong { font-size: 13px; }
   .activity-workbench-grid { grid-template-columns: 1fr; }

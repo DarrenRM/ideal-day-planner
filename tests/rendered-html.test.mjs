@@ -217,7 +217,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
   assert.match(css, /\.now-line span \{ font-size: 7px; justify-self: start; \}/);
-  assert.match(css, /\.routine-card\.is-expanded::after \{[^}]*inset: -1px;[^}]*pointer-events: none;[^}]*z-index: 30/s);
+  assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
+  assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*padding-left: 12px;[^}]*padding-right: 12px/s);
+  assert.match(css, /\.activity-expansion \{[^}]*grid-row: 2;[^}]*margin: 1px 0 0/s);
+  assert.match(css, /\.control-tooltip-bubble \{ display: none; \}/);
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
