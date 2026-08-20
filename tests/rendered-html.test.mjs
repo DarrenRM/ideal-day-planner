@@ -219,6 +219,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.settings-trigger/);
   assert.match(css, /\.settings-modal/);
   assert.match(css, /\.settings-toggle-row/);
+  assert.match(page, /celebratingActivityId === item\.id \? <span className="completion-sweep"/);
+  assert.match(css, /@keyframes completion-gradient-sweep/);
+  assert.match(css, /prefers-reduced-motion:[\s\S]*\.completion-sweep::before/);
   assert.match(css, /\.reset-today-button/);
   assert.match(css, /\.dev-reset-confirm/);
   assert.match(css, /\.now-line/);

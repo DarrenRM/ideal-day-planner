@@ -92,6 +92,11 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Never solve a narrow layout by reducing text below its semantic role. Reflow, stack, shorten nonessential copy, or move actions into an overflow menu.
 - Test mobile layouts with long titles, active/complete/skipped states, open menus, a multiline Luna message, populated records, empty state, loading state, and the on-screen keyboard assumption.
 
+## Completion motion
+
+- Completion feedback begins on press instead of waiting for persistence: sweep a restrained lime-to-gold highlight across a closed activity or the shared header of an expanded activity, briefly pop the checkmark, then settle into the normal Done state.
+- Keep the celebration under 720ms, non-blocking, and free of layout movement. Under reduced motion, replace travel and scaling with a short highlight fade.
+
 ## Activity workspace components
 
 - Components use the shared workspace header, card, field, list, action, empty, loading, and error patterns.

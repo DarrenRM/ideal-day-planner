@@ -324,6 +324,7 @@ type ActivityWorkbenchProps = {
   isComplete: boolean;
   isSkipped: boolean;
   openConversationOnMount: boolean;
+  onCompletionIntent: () => void;
   onComplete: (completedAt: string | null) => void;
   onSkip: (skippedAt: string | null) => void;
   onEdit: () => void;
@@ -332,7 +333,7 @@ type ActivityWorkbenchProps = {
   onSetDuration: (value: number) => void;
 };
 
-function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onCompletionIntent, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -584,6 +585,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
 
   async function toggleActivityComplete() {
     if (isCompleting) return;
+    if (!isComplete) onCompletionIntent();
     setIsCompleting(true);
     try {
       const timing = isComplete ? null : captureActivityTimingSnapshot(workspaceActivity, workspace);
@@ -938,11 +940,13 @@ export default function Home() {
   const [dismissedClockActivityId, setDismissedClockActivityId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
   const [pendingActivityIds, setPendingActivityIds] = useState<Set<string>>(() => new Set());
+  const [celebratingActivityId, setCelebratingActivityId] = useState<string | null>(null);
   const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuRef = useRef<HTMLDivElement>(null);
   const devMenuRef = useRef<HTMLDivElement>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const completionCelebrationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const skipNextSave = useRef(true);
 
   useEffect(() => {
@@ -1168,6 +1172,7 @@ export default function Home() {
 
   useEffect(() => () => {
     if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
+    if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
   }, []);
 
   const completedBeforeLaunchIds = useMemo(() => {
@@ -1561,6 +1566,14 @@ export default function Home() {
     if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
 
+  function celebrateCompletion(id: string) {
+    if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
+    setCelebratingActivityId(id);
+    completionCelebrationTimer.current = setTimeout(() => {
+      setCelebratingActivityId((current) => current === id ? null : current);
+    }, 720);
+  }
+
   function toggleSkip(id: string, skippedAt: string | null) {
     setCompletedIds((current) => {
       const next = new Set(current);
@@ -1574,6 +1587,7 @@ export default function Home() {
 
   async function updateClosedActivity(item: ScheduledItem, mode: "complete" | "reopen" | "skip" | "unskip") {
     if (pendingActivityIds.has(item.id)) return;
+    if (mode === "complete") celebrateCompletion(item.id);
     setPendingActivityIds((current) => new Set(current).add(item.id));
     try {
       const response = await fetch("/api/activity/run", {
@@ -1904,7 +1918,8 @@ export default function Home() {
                         ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                         : <strong className="sequence-label">Queued</strong>}</div> : null}
 
-                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""}`}>
+                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""}`}>
+                      {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
                       <button
                         className="drag-button"
                         draggable
@@ -2060,6 +2075,7 @@ export default function Home() {
                           timelineEnabled={timelineEnabled}
                           openConversationOnMount={startConversationActivityId === item.id}
                           onAdjustDuration={(delta) => adjustDuration(item.id, delta)}
+                          onCompletionIntent={() => celebrateCompletion(item.id)}
                           onComplete={(completedAt) => toggleComplete(item.id, completedAt)}
                           onSkip={(skippedAt) => toggleSkip(item.id, skippedAt)}
                           onEdit={() => startEditing(item)}
