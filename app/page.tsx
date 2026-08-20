@@ -1,8 +1,8 @@
 "use client";
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, SkipForward, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, SkipForward, Sparkles, Trash2 } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
@@ -309,6 +309,11 @@ function conversationTime(value: string) {
   return isToday ? `Today · ${time}` : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
+function conversationWorkspaceSignature(state: Pick<ConversationState, "workspace" | "records">) {
+  const recordVersions = state.records.map((record) => `${record.key}:${record.version}`).sort().join("|");
+  return `${state.workspace.revisionId ?? "none"}::${recordVersions}`;
+}
+
 type ActivityWorkbenchProps = {
   item: ScheduledItem;
   isComplete: boolean;
@@ -328,6 +333,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const [workspace, setWorkspace] = useState<WorkspaceDocument>(EMPTY_WORKSPACE);
   const [records, setRecords] = useState<ActivityRecord[]>([]);
   const [recordError, setRecordError] = useState<string | null>(null);
+  const [workspaceReadyLabel, setWorkspaceReadyLabel] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<"joining" | "ready" | "error">("joining");
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -338,17 +344,19 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const sendingRef = useRef(false);
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
+  const conversationSectionRef = useRef<HTMLElement>(null);
   const conversationShouldFollowRef = useRef(true);
+  const conversationAnchorTopRef = useRef<number | null>(null);
+  const hasAppliedConversationStateRef = useRef(false);
+  const workspaceSignatureRef = useRef<string | null>(null);
   const footerMenuRef = useRef<HTMLDivElement>(null);
-  const hasVisibleAgentJob = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
-  const isLunaThinking = isSending || (agentOnline && hasVisibleAgentJob);
-  const workspaceWorkState = isSending
-    ? "message"
-    : activeJob?.kind === "user_message" && !agentOnline
-      ? "waiting"
-      : activeJob?.kind === "user_message"
-        ? "message"
-        : null;
+  const hasConversationJob = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
+  const hasWorkspaceJob = activeJob?.kind === "workspace_refresh" || activeJob?.kind === "activity_setup";
+  const activeJobHasWorker = Boolean(activeJob && (agentOnline || activeJob.status === "leased" || activeJob.status === "running"));
+  const isLunaThinking = isSending || (activeJobHasWorker && hasConversationJob);
+  const workspaceWorkState = hasWorkspaceJob
+    ? activeJobHasWorker ? "building" : "waiting"
+    : null;
   const hasWorkspaceContent = hasVisibleActivityWorkspace(item, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
 
@@ -388,6 +396,16 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
 
     function applyConversationState(state: ConversationState) {
       if (cancelled) return;
+      const nextWorkspaceSignature = conversationWorkspaceSignature(state);
+      if (hasAppliedConversationStateRef.current && nextWorkspaceSignature !== workspaceSignatureRef.current) {
+        const conversationSection = conversationSectionRef.current;
+        const bounds = conversationSection?.getBoundingClientRect();
+        if (bounds && bounds.bottom > 0 && bounds.top < window.innerHeight) conversationAnchorTopRef.current = bounds.top;
+        const newestComponent = state.workspace.document.components.at(-1);
+        setWorkspaceReadyLabel(newestComponent?.title ?? "Your activity space");
+      }
+      workspaceSignatureRef.current = nextWorkspaceSignature;
+      hasAppliedConversationStateRef.current = true;
       setMessages((current) => current.length === state.messages.length && current.every((message, index) => {
         const next = state.messages[index];
         return message.id === next.id && message.body === next.body && message.createdAt === next.createdAt;
@@ -448,6 +466,14 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
     };
   }, [item.id]);
 
+  useLayoutEffect(() => {
+    const previousTop = conversationAnchorTopRef.current;
+    if (previousTop === null) return;
+    conversationAnchorTopRef.current = null;
+    const nextTop = conversationSectionRef.current?.getBoundingClientRect().top;
+    if (typeof nextTop === "number") window.scrollBy({ top: nextTop - previousTop, behavior: "auto" });
+  }, [records, workspace]);
+
   useEffect(() => {
     if (!conversationShouldFollowRef.current) return;
     const frame = window.requestAnimationFrame(() => {
@@ -459,7 +485,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [messages, isLunaThinking]);
+  }, [messages, isLunaThinking, workspaceReadyLabel]);
 
   function handleConversationScroll() {
     const log = conversationLogRef.current;
@@ -496,6 +522,9 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
       setRecords(state.records ?? []);
+      workspaceSignatureRef.current = conversationWorkspaceSignature(state);
+      hasAppliedConversationStateRef.current = true;
+      setWorkspaceReadyLabel(null);
       setConnectionState("ready");
     } catch {
       setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
@@ -507,6 +536,14 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       sendingRef.current = false;
       refreshConversationRef.current();
     }
+  }
+
+  function viewWorkspaceUpdate() {
+    setWorkspaceReadyLabel(null);
+    document.getElementById(`activity-workspace-${item.id}`)?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -601,6 +638,9 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       setAgentOnline(Boolean(state.agentOnline));
       setWorkspace(state.workspace?.document ?? EMPTY_WORKSPACE);
       setRecords(state.records ?? []);
+      workspaceSignatureRef.current = conversationWorkspaceSignature(state);
+      hasAppliedConversationStateRef.current = true;
+      setWorkspaceReadyLabel(null);
       setRecordError(null);
       setDraft("");
       setConnectionState("ready");
@@ -616,10 +656,10 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       <div className={`activity-workbench-grid ${showWorkspace ? "" : "is-conversation-only"}`}>
         <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 
-        <section className="activity-conversation" aria-label={`${item.title} conversation`}>
+        <section className="activity-conversation" aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
             <div><strong>Notes & conversation</strong><span>Permanent activity thread</span></div>
-            <span className={`conversation-status ${connectionState === "ready" && (!activeJob || agentOnline) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is working…" : connectionState === "error" || (activeJob && !agentOnline) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : isLunaThinking ? "Luna is thinking…" : "Luna"}</span>
+            <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is thinking…" : connectionState === "error" || (activeJob && !activeJobHasWorker) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : activeJob?.kind === "workspace_refresh" ? "Luna is organizing this…" : isLunaThinking ? "Luna is thinking…" : "Luna"}</span>
           </header>
           <div className="conversation-log" aria-live="polite" ref={conversationLogRef} onScroll={handleConversationScroll}>
             {messages.length ? <div className="date-separator"><span>Recent</span></div> : null}
@@ -629,6 +669,13 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
                 <div className="message-meta">{conversationTime(message.createdAt)}{message.author === "user" ? message.pending ? <span>Sending…</span> : <span aria-label="Saved message">✓</span> : null}</div>
               </div>
             ))}
+            {workspaceReadyLabel ? (
+              <button className="workspace-ready-notice" type="button" onClick={viewWorkspaceUpdate}>
+                <Sparkles aria-hidden="true" size={14} />
+                <span><strong>{workspaceReadyLabel}</strong> is ready</span>
+                <b>View</b>
+              </button>
+            ) : null}
             {isLunaThinking ? <div className="message-group message-luna"><div className="message-bubble prototype-typing" aria-label="Luna is typing"><span /><span /><span /></div></div> : null}
           </div>
           <div className="conversation-composer">

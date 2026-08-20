@@ -20,7 +20,7 @@ type ActivityWorkspaceProps = {
   records: ActivityRecord[];
   onRecordMutation: RecordMutation;
   recordError?: string | null;
-  workState?: "message" | "waiting" | null;
+  workState?: "building" | "waiting" | null;
 };
 
 export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspace: WorkspaceDocument, records: ActivityRecord[]) {
@@ -262,7 +262,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   const hasVisibleWorkspace = visibleComponents.length > 0;
   if (!hasVisibleWorkspace && !workState && !recordError) return null;
   return (
-    <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : "workspace-building"}`} aria-label={`Workspace for ${activity.title}`}>
+    <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
       {workState ? (
         <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""}`} role="status">
           <span className="workspace-working-mark"><Sparkles size={15} /></span>

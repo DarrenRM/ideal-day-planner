@@ -12,10 +12,11 @@ const profileHome = process.env.IDEAL_DAY_HERMES_HOME
   || join(process.env.LOCALAPPDATA || "", "hermes", "profiles", "ideal-day");
 const workerId = `ideal-day-bridge:${hostname()}`;
 const pollIntervalMs = 700;
+const heartbeatIntervalMs = 5_000;
 
 const lunaInstructions = `You are Luna inside Ideal Day, a personal activity companion.
 Return exactly one JSON object with this shape and no markdown or surrounding prose:
-{"message": string|null, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[]}
+{"message": string|null, "workspaceFollowup": boolean, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[]}
 
 Speak naturally to the person about their activity, intentions, progress, and today—not about software. Never mention events, context packets, databases, records, blank states, components, rendering, tools, or internal reasoning in message.
 
@@ -38,11 +39,10 @@ Ordinary activity-open behavior:
 
 User-message behavior:
 - Always answer a direct question or conversational request naturally and concisely. The message must not be null just because workspace actions also happen.
-- When the same message supplies useful lasting details, briefly acknowledge what you are keeping in ordinary language. Do not promise to save something later: include matching recordActions and workspaceActions in this result.
-- For a straightforward factual note, a successful workspace action may be the entire response; use message:null instead of adding a redundant acknowledgment.
-- When the user supplies clear durable information that would be useful at future visits, immediately emit recordActions and bind suitable workspace components in the same run. Do not merely repeat the information in chat.
-- Preserve existing useful workspace content. Upsert a stable component id when updating the same concept.
-- When a richer record-backed component clearly replaces a legacy inline routine, remove that legacy routine in the same result so the workspace does not show duplicate versions of the same information. Preserve it when it still provides distinct useful information.
+- This first pass is conversational. Return recordActions:[] and workspaceActions:[] so the person receives your answer before any workspace construction begins.
+- Set workspaceFollowup:true when the message contains useful lasting details, requests a component or activity design, or should update what is kept for future visits. Briefly and naturally say you are organizing or updating that part of the activity without discussing software internals.
+- Set workspaceFollowup:false for casual conversation or a question whose answer does not belong in the lasting activity space.
+- A straightforward factual note may use message:null only when workspaceFollowup is true and a conversational acknowledgment would add no value.
 
 Web research:
 - You have a web research tool. Use it when the user asks you to look something up or verify it, and when current manufacturer or primary-source facts would materially improve an activity answer or durable workspace.
@@ -159,10 +159,10 @@ function eventPrompt(job) {
     : "\nNo additional visit-specific context was supplied.";
   const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nPlanned duration: ${schedule?.duration ? `${schedule.duration} minutes` : "Unknown"}${knownContext}\n\nDurable activity records:\n${compactRecords(job.context.records)}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace:\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
   if (job.job.kind === "user_message") {
-    return `The user has just spoken in this activity conversation. Always answer a direct question or request. If the message also contains useful lasting information, acknowledge it naturally and capture it with recordActions and workspaceActions now. Use web research when the user asks for it or current primary-source facts would materially improve the answer. A pure factual note with no question can be handled with actions and message:null.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
+    return `The user has just spoken in this activity conversation. Respond first: answer any direct question or request naturally, and decide whether the lasting activity space needs a silent follow-up. Return recordActions:[] and workspaceActions:[] in this pass. Set workspaceFollowup:true only when useful durable information or a requested design should be organized after your reply. Use web research when the user asks for it or current primary-source facts would materially improve the answer.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "workspace_refresh") {
-    return `Silently bring the workspace up to date from the conversation. Use message:null. Emit only actions for useful, clearly supported information that is not already represented.\n\n${shared}`;
+    return `Silently bring the workspace up to date from the conversation. Use message:null and workspaceFollowup:false. Emit actions for useful, clearly supported information that is not already represented. Preserve existing useful workspace content and stable keys. When a richer record-backed component replaces a legacy inline routine, remove only that duplicate routine.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "activity_setup") {
     return `Prepare this activity for future use. Choose safe initial workspace components and ask at most one high-value setup question only when its answer will enable a named durable improvement. This is the setup decision; do not defer it to a later open.\n\n${shared}`;
@@ -175,9 +175,18 @@ function parseAgentResult(content) {
   const parsed = JSON.parse(cleaned);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Luna returned an invalid result envelope.");
   const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message.trim() : null;
+  const workspaceFollowup = parsed.workspaceFollowup === true;
   const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
   const workspaceActions = Array.isArray(parsed.workspaceActions) ? parsed.workspaceActions : [];
-  return { message, recordActions, workspaceActions };
+  return { message, workspaceFollowup, recordActions, workspaceActions };
+}
+
+function sendHeartbeat() {
+  return requestAppJson("/api/agent/jobs", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ mode: "heartbeat", workerId }),
+  });
 }
 
 async function runJob(key, leased) {
@@ -193,6 +202,7 @@ async function runJob(key, leased) {
   const content = result?.message?.content;
   if (typeof content !== "string" || !content.trim()) throw new Error("Hermes returned an empty Luna result.");
   const agentResult = parseAgentResult(content);
+  const replyFirst = leased.job.kind === "user_message";
   await requestAppJson("/api/agent/jobs", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -202,10 +212,27 @@ async function runJob(key, leased) {
       leaseToken: leased.job.leaseToken,
       runtimeSessionId: result.session_id || sessionId,
       response: agentResult.message,
-      recordActions: agentResult.recordActions,
-      workspaceActions: agentResult.workspaceActions,
+      workspaceFollowup: agentResult.workspaceFollowup,
+      recordActions: replyFirst ? [] : agentResult.recordActions,
+      workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
     }),
   });
+}
+
+async function runJobWithHeartbeat(key, leased) {
+  let heartbeatInFlight = false;
+  const heartbeatTimer = setInterval(() => {
+    if (heartbeatInFlight) return;
+    heartbeatInFlight = true;
+    void sendHeartbeat()
+      .catch((error) => console.error("Bridge heartbeat failed:", error instanceof Error ? error.message : String(error)))
+      .finally(() => { heartbeatInFlight = false; });
+  }, heartbeatIntervalMs);
+  try {
+    await runJob(key, leased);
+  } finally {
+    clearInterval(heartbeatTimer);
+  }
 }
 
 async function reportFailure(leased, error) {
@@ -238,7 +265,7 @@ async function main() {
     let leased = null;
     try {
       leased = await requestAppJson(`/api/agent/jobs?workerId=${encodeURIComponent(workerId)}`);
-      if (leased) await runJob(key, leased);
+      if (leased) await runJobWithHeartbeat(key, leased);
     } catch (error) {
       if (leased) await reportFailure(leased, error);
       else console.error("Bridge poll failed:", error instanceof Error ? error.message : error);

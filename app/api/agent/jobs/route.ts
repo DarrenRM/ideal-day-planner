@@ -76,7 +76,7 @@ export async function GET(request: Request) {
       WHERE status = 'queued'
          OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
          OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
-      ORDER BY created_at ASC, rowid ASC
+      ORDER BY CASE kind WHEN 'user_message' THEN 0 ELSE 1 END, created_at ASC, rowid ASC
       LIMIT 1
     `).first<LeasedJob>();
     if (!candidate) return new Response(null, { status: 204 });
@@ -180,10 +180,21 @@ export async function POST(request: Request) {
     await ensureAgentSchema();
     const payload = await request.json() as Record<string, unknown>;
     const mode = payload.mode;
+    const db = getD1();
+    if (mode === "heartbeat") {
+      const workerId = typeof payload.workerId === "string" ? payload.workerId.trim().slice(0, 120) : "";
+      if (!workerId) return Response.json({ error: "A worker is required." }, { status: 400 });
+      await db.prepare(`
+        INSERT INTO agent_workers (id, runtime, last_seen_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(id) DO UPDATE SET
+          runtime = excluded.runtime, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      `).bind(workerId, HERMES_RUNTIME).run();
+      return Response.json({ online: true });
+    }
     const jobId = typeof payload.jobId === "string" ? payload.jobId : "";
     const leaseToken = typeof payload.leaseToken === "string" ? payload.leaseToken : "";
     if (!jobId || !leaseToken) return Response.json({ error: "A job and lease token are required." }, { status: 400 });
-    const db = getD1();
     const job = await db.prepare(`
       SELECT id, user_id AS userId, activity_id AS activityId, conversation_id AS conversationId,
              kind, attempts, source_message_id AS sourceMessageId
@@ -200,7 +211,10 @@ export async function POST(request: Request) {
     if (!job) return Response.json({ error: "The job lease is no longer active." }, { status: 409 });
 
     if (mode === "complete") {
-      const response = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
+      const suppliedResponse = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
+      const response = job.kind === "workspace_refresh" ? "" : suppliedResponse;
+      const workspaceFollowup = job.kind === "user_message" && payload.workspaceFollowup === true;
+      const usesReplyFirstProtocol = job.kind === "user_message" && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
       const schedule = await db.prepare(`
@@ -212,8 +226,8 @@ export async function POST(request: Request) {
         ORDER BY dp.plan_date DESC
         LIMIT 1
       `).bind(job.activityId, job.userId).first<{ duration: number; planDate: string; activityTitle: string }>();
-      const workspaceActions = validateWorkspaceActions(payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
-      const recordActions = validateRecordActions(payload.recordActions, schedule?.planDate ?? null).filter((action) => (
+      const workspaceActions = validateWorkspaceActions(usesReplyFirstProtocol ? [] : payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
+      const recordActions = validateRecordActions(usesReplyFirstProtocol ? [] : payload.recordActions, schedule?.planDate ?? null).filter((action) => (
         action.op === "remove" || hasUsefulActivityRecordData(action.record, {
           activityTitle: schedule?.activityTitle,
           plannedDurationMinutes: schedule?.duration,
@@ -236,15 +250,15 @@ export async function POST(request: Request) {
           plannedDurationMinutes: schedule?.duration,
         });
       });
-      if (job.kind === "user_message" && !response && !safeWorkspaceActions.length && !recordActions.length) {
-        return Response.json({ error: "A user message requires either a Luna response or a workspace change." }, { status: 400 });
+      if (job.kind === "user_message" && !response && !workspaceFollowup && !safeWorkspaceActions.length && !recordActions.length) {
+        return Response.json({ error: "A user message requires a Luna response or a workspace follow-up." }, { status: 400 });
       }
       await persistRecordActions({
         userId: job.userId,
         activityId: job.activityId,
         actionId: jobId,
         actions: recordActions,
-        sourceMessageId: job.kind === "user_message" ? job.sourceMessageId : null,
+        sourceMessageId: job.kind === "user_message" || job.kind === "workspace_refresh" ? job.sourceMessageId : null,
         sourceAgentJobId: jobId,
       });
       const workspace = await persistWorkspaceActions({
@@ -272,6 +286,14 @@ export async function POST(request: Request) {
           VALUES (?, ?, 'luna', ?, 'agent', ?)
         `).bind(messageId, job.conversationId, response, jobId));
       }
+      if (workspaceFollowup) {
+        const followupJobId = `agent-job:${safeId(job.userId)}:workspace:${safeId(job.id)}`;
+        statements.push(db.prepare(`
+          INSERT OR IGNORE INTO agent_jobs
+            (id, user_id, activity_id, conversation_id, kind, idempotency_key, source_message_id)
+          VALUES (?, ?, ?, ?, 'workspace_refresh', ?, ?)
+        `).bind(followupJobId, job.userId, job.activityId, job.conversationId, `workspace-refresh:${job.id}`, job.sourceMessageId));
+      }
       statements.push(
         db.prepare(`
           INSERT INTO agent_session_bindings
@@ -295,10 +317,10 @@ export async function POST(request: Request) {
           messageId,
           hasUsefulWorkspaceContent,
         });
-      } else if (job.kind === "user_message" && hasUsefulWorkspaceContent) {
+      } else if ((job.kind === "user_message" || job.kind === "workspace_refresh") && hasUsefulWorkspaceContent) {
         await markActivitySetupAnswered(job.activityId);
       }
-      return Response.json({ completed: true, messageId, workspace, recordActionsApplied: recordActions.length });
+      return Response.json({ completed: true, messageId, workspaceFollowup, workspace, recordActionsApplied: recordActions.length });
     }
 
     if (mode === "failure") {
