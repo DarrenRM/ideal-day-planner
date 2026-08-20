@@ -71,6 +71,13 @@
       "when": 1787251718743,
       "tag": "0009_fresh_start",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1787260579982,
+      "tag": "0010_red_iceman",
+      "breakpoints": true
     }
   ]
 }

@@ -27,12 +27,13 @@ export async function POST(request: Request) {
     if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
     const db = getD1();
     const dayItem = await db.prepare(`
-      SELECT dpi.id, dpi.duration
+      SELECT dpi.id, dpi.duration, COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled
       FROM daily_plan_items dpi
       JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+      LEFT JOIN settings s ON s.user_id = dp.user_id
       WHERE dp.user_id = ? AND dp.plan_date = ? AND dpi.activity_id = ? AND dpi.removed_at IS NULL
       LIMIT 1
-    `).bind(userId, date, activity.id).first<{ id: string; duration: number }>();
+    `).bind(userId, date, activity.id).first<{ id: string; duration: number; dayTimelineEnabled: number }>();
     if (!dayItem) return Response.json({ error: "This activity is not scheduled for that day." }, { status: 404 });
 
     const runId = `activity-run:${safeId(userId)}:${safeId(activity.clientKey)}:${date}`;
@@ -59,7 +60,11 @@ export async function POST(request: Request) {
             completed_at = NULL,
             details_json = NULL,
             updated_at = CURRENT_TIMESTAMP
-        `).bind(runId, userId, activity.id, dayItem.id, date, skipped ? "skipped" : "planned", dayItem.duration * 60, dayItem.duration * 60),
+        `).bind(
+          runId, userId, activity.id, dayItem.id, date, skipped ? "skipped" : "planned",
+          dayItem.dayTimelineEnabled ? dayItem.duration * 60 : null,
+          dayItem.dayTimelineEnabled ? dayItem.duration * 60 : null,
+        ),
       ]);
       return Response.json({ skipped, skippedAt: skipped ? new Date().toISOString() : null, runId });
     }
@@ -75,7 +80,7 @@ export async function POST(request: Request) {
     if (mode !== "complete") return Response.json({ error: "Unsupported run operation." }, { status: 400 });
 
     const timing = payload.timing && typeof payload.timing === "object" ? payload.timing as Record<string, unknown> : null;
-    const allottedDurationSeconds = dayItem.duration * 60;
+    const allottedDurationSeconds = dayItem.dayTimelineEnabled ? dayItem.duration * 60 : null;
     const plannedDurationSeconds = boundedSeconds(timing?.plannedSeconds) ?? allottedDurationSeconds;
     const actualElapsedSeconds = boundedSeconds(timing?.elapsedSeconds, true);
     const timerMode = timing?.mode === "timer" || timing?.mode === "countdown" ? timing.mode : null;

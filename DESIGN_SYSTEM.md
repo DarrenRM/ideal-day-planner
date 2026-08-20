@@ -6,7 +6,7 @@ This is the visual and interaction source of truth for Ideal Day. Read it before
 
 - Calm, dark, focused, and personal rather than dashboard-like.
 - Dense enough to support a full day, but never cramped or cryptic.
-- The schedule is primary. Expanded activities should feel like part of their schedule card, not a modal or a separate application.
+- Today’s activity sequence is primary. Expanded activities should feel like the natural open state of their list card, not a separate application.
 - Activity color identifies context and active state. Green remains the global action/success accent.
 - Prefer truthful empty, loading, error, and offline states over placeholder content or hollow domain components.
 
@@ -83,11 +83,12 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Wide desktop: content is capped at 1180px; the summary rail is 294px; schedule and summary may sit side by side.
 - At 1040px: collapse the main layout to one column.
 - At 680px and below: begin directly at Schedule; hide desktop hero/summary content; remove the schedule's redundant outer card; use edge space carefully.
-- Mobile collapsed activity: title first; time/category/status beneath; overflow menu and completion at upper right; compact duration control beneath them. Long titles ellipsize instead of squeezing controls.
-- Mobile expanded activity: preserve one continuous outer card; stack context above conversation; put overflow/duration tools and Skip/Mark Complete in a balanced footer.
+- Mobile collapsed activity: title first; category/status beneath; overflow menu and completion at upper right. When Day Timeline is enabled, add clock time and a compact duration control without changing the header anatomy. Long titles ellipsize instead of squeezing controls.
+- Mobile expanded activity: reuse the same header structure and controls as the collapsed activity. Preserve one continuous full-screen shell; stack workspace above conversation; keep only the large Skip/Mark Complete actions in the footer.
 - In its header, treat the activity title and metadata as one group while preserving a 6px optical separation between their rows.
 - The full-screen mobile expanded shell is flush to every viewport edge and has no inherited outer padding; its header, workspace, conversation, and footer own their internal spacing.
 - Move directly from the activity header into workspace components and conversation. Do not repeat the activity category/title or reserve a permanent context strip for duration/status already visible elsewhere.
+- Checklist mode must not leave blank columns, labels, padding, or controls where Timeline information would have appeared. Timeline-on and Timeline-off are deliberate layouts, not visibility patches over one layout.
 - Never solve a narrow layout by reducing text below its semantic role. Reflow, stack, shorten nonessential copy, or move actions into an overflow menu.
 - Test mobile layouts with long titles, active/complete/skipped states, open menus, a multiline Luna message, populated records, empty state, loading state, and the on-screen keyboard assumption.
 

@@ -12,6 +12,7 @@ export type WorkspaceActivity = {
   duration: number;
   category: string;
   color: string;
+  timelineEnabled: boolean;
 };
 
 type ActivityWorkspaceProps = {
@@ -32,7 +33,7 @@ export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspa
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
     return Boolean(record && hasUsefulActivityRecordData(record, {
       activityTitle: activity.title,
-      plannedDurationMinutes: activity.duration,
+      plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
     }));
   });
 }
@@ -40,12 +41,12 @@ export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspa
 export type ActivityTimingSnapshot = {
   componentId: string;
   mode: "timer" | "countdown";
-  plannedSeconds: number;
+  plannedSeconds: number | null;
   elapsedSeconds: number;
   startedAt: string;
 };
 
-type TimerState = { running: boolean; baseSeconds: number; startedAt: number; firstStartedAt: number; plannedSeconds: number };
+type TimerState = { running: boolean; baseSeconds: number; startedAt: number; firstStartedAt: number; plannedSeconds: number | null };
 type CountdownState = { running: boolean; remainingSeconds: number; endsAt: number; startedAt: number; plannedSeconds: number };
 
 function clockDisplay(totalSeconds: number) {
@@ -86,7 +87,8 @@ export function resetActivityTimingState(activityIds: string[]) {
 
 function TimerComponent({ activity, component }: { activity: WorkspaceActivity; component: TimerWorkspaceComponent }) {
   const storageKey = `ideal-day-timer:${activity.id}:${component.id}`;
-  const [timer, setTimer] = useState(() => readStoredState<TimerState>(storageKey, { running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: activity.duration * 60 }));
+  const initialPlannedSeconds = activity.timelineEnabled ? activity.duration * 60 : null;
+  const [timer, setTimer] = useState(() => readStoredState<TimerState>(storageKey, { running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: initialPlannedSeconds }));
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -112,7 +114,7 @@ function TimerComponent({ activity, component }: { activity: WorkspaceActivity; 
         baseSeconds: timer.baseSeconds,
         startedAt: now,
         firstStartedAt: timer.firstStartedAt || now,
-        plannedSeconds: timer.firstStartedAt ? timer.plannedSeconds : activity.duration * 60,
+        plannedSeconds: timer.firstStartedAt ? timer.plannedSeconds : initialPlannedSeconds,
       });
     }
   }
@@ -123,7 +125,7 @@ function TimerComponent({ activity, component }: { activity: WorkspaceActivity; 
       <output className="time-component-display" aria-live="off">{clockDisplay(elapsed)}</output>
       <div className="time-component-actions">
         <button type="button" onClick={toggle}>{timer.running ? <Pause size={14} /> : <Play size={14} />}{timer.running ? "Pause" : elapsed ? "Resume" : "Start"}</button>
-        <button type="button" onClick={() => update({ running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: activity.duration * 60 })}><RotateCcw size={13} /> Reset</button>
+        <button type="button" onClick={() => update({ running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: initialPlannedSeconds })}><RotateCcw size={13} /> Reset</button>
       </div>
     </section>
   );
@@ -131,7 +133,8 @@ function TimerComponent({ activity, component }: { activity: WorkspaceActivity; 
 
 function CountdownComponent({ activity, component }: { activity: WorkspaceActivity; component: CountdownWorkspaceComponent }) {
   const storageKey = `ideal-day-countdown:${activity.id}:${component.id}`;
-  const configuredSeconds = component.durationSource === "activity" ? activity.duration * 60 : component.durationSeconds;
+  const usesTimelineDuration = component.durationSource === "timeline" && activity.timelineEnabled;
+  const configuredSeconds = usesTimelineDuration ? activity.duration * 60 : component.durationSeconds;
   const [countdown, setCountdown] = useState(() => readStoredState<CountdownState>(storageKey, {
     running: false,
     remainingSeconds: configuredSeconds,
@@ -183,13 +186,13 @@ function CountdownComponent({ activity, component }: { activity: WorkspaceActivi
     }
   }
 
-  const displayTitle = component.durationSource === "activity"
+  const displayTitle = component.durationSource === "timeline"
     ? component.title.replace(/\s*[—-]\s*\d+\s*minutes?$/i, "")
     : component.title;
 
   return (
     <section className={`workspace-block time-component ${remaining === 0 ? "is-finished" : ""}`} aria-label={displayTitle}>
-      <div className="workspace-block-heading"><div><span>{component.durationSource === "activity" ? "Today’s countdown" : "Countdown"}</span><strong>{displayTitle}</strong></div>{remaining === 0 ? <Check size={16} /> : <Hourglass size={16} />}</div>
+      <div className="workspace-block-heading"><div><span>{usesTimelineDuration ? "Today’s countdown" : "Countdown"}</span><strong>{displayTitle}</strong></div>{remaining === 0 ? <Check size={16} /> : <Hourglass size={16} />}</div>
       <output className="time-component-display" aria-live="off">{clockDisplay(remaining)}</output>
       <div className="time-component-actions">
         <button type="button" onClick={toggle}>{countdown.running ? <Pause size={14} /> : <Play size={14} />}{countdown.running ? "Pause" : countdown.startedAt && remaining ? "Resume" : "Start"}</button>
@@ -215,20 +218,20 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   const candidates = workspace.components.flatMap((component): ActivityTimingSnapshot[] => {
     if (component.type === "timer") {
       const key = `ideal-day-timer:${activity.id}:${component.id}`;
-      const state = readStoredState<TimerState>(key, { running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: activity.duration * 60 });
+      const state = readStoredState<TimerState>(key, { running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: activity.timelineEnabled ? activity.duration * 60 : null });
       if (!state.firstStartedAt && !state.startedAt && !state.baseSeconds) return [];
       const elapsedSeconds = state.baseSeconds + (state.running ? Math.max(0, Math.floor((now - state.startedAt) / 1000)) : 0);
       writeStoredState(key, { ...state, running: false, baseSeconds: elapsedSeconds, startedAt: 0, firstStartedAt: state.firstStartedAt || state.startedAt });
       return [{
         componentId: component.id,
         mode: "timer",
-        plannedSeconds: state.plannedSeconds || activity.duration * 60,
+        plannedSeconds: state.plannedSeconds ?? (activity.timelineEnabled ? activity.duration * 60 : null),
         elapsedSeconds,
         startedAt: new Date(state.firstStartedAt || state.startedAt || now).toISOString(),
       }];
     }
     if (component.type === "countdown") {
-      const configuredSeconds = component.durationSource === "activity" ? activity.duration * 60 : component.durationSeconds;
+      const configuredSeconds = component.durationSource === "timeline" && activity.timelineEnabled ? activity.duration * 60 : component.durationSeconds;
       const key = `ideal-day-countdown:${activity.id}:${component.id}`;
       const state = readStoredState<CountdownState>(key, { running: false, remainingSeconds: configuredSeconds, endsAt: 0, startedAt: 0, plannedSeconds: configuredSeconds });
       if (!state.startedAt) return [];
@@ -257,7 +260,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
     return Boolean(record && hasUsefulActivityRecordData(record, {
       activityTitle: activity.title,
-      plannedDurationMinutes: activity.duration,
+      plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
     }));
   });
   const hasVisibleWorkspace = visibleComponents.length > 0;

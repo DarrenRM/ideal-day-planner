@@ -8,7 +8,7 @@ export type CountdownWorkspaceComponent = {
   id: string;
   type: "countdown";
   title: string;
-  durationSource: "activity" | "fixed";
+  durationSource: "timeline" | "fixed";
   durationSeconds: number;
 };
 
@@ -87,7 +87,7 @@ function validateComponent(value: unknown, defaultCountdownSeconds: number): Wor
 
   if (type === "countdown") {
     const hasExplicitDuration = typeof source.durationSeconds === "number";
-    const durationSource = source.durationSource === "activity" || !hasExplicitDuration ? "activity" : "fixed";
+    const durationSource = source.durationSource === "timeline" || source.durationSource === "activity" || !hasExplicitDuration ? "timeline" : "fixed";
     const requestedSeconds = hasExplicitDuration ? Math.round(source.durationSeconds as number) : defaultCountdownSeconds;
     return {
       id,

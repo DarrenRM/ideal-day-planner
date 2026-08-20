@@ -8,32 +8,41 @@ This document is the shared source of truth for what we are building. Confirmed 
 
 ## 1. Product thesis
 
-Ideal Day is not just a routine calendar. It is a personal operating system organized around activities.
+Ideal Day is not just a routine calendar. It is a personal operating system organized around activities. Its default home is a flexible daily checklist; clock scheduling is an optional layer rather than the product's organizing premise.
 
 Each activity combines:
 
-1. A place in an ideal daily sequence.
+1. A place in an ideal daily sequence, optionally placed on a clock.
 2. Contextually relevant, structured information.
 3. A scoped conversation and scratchpad.
 4. An agent that can retrieve context, ask useful questions, and file new information into the correct records.
 
-The calendar is the home screen. Activities are the primary context boundary. A global assistant can see across all activities, while an activity conversation should feel focused on that activity.
+Today’s activity list is the home screen. Activities are the primary context boundary. A global assistant can see across all activities, while an activity conversation should feel focused on that activity.
 
 ## 2. Confirmed product behavior
 
 ### 2.1 Home screen
 
-- Show the idealized daily sequence.
+- Show the idealized daily sequence as a flexible checklist by default.
 - Create a dated “today” plan from the idealized template on the first app open each day.
 - Treat today as the default edit target. The user or agent updates the underlying template only when that target is explicitly requested.
+- Allow activities to be added, edited, deleted, reordered, completed, skipped for today, and opened into their Luna-backed workspace.
+- Keep checklist order stable as activities are completed or skipped; status changes do not rearrange the list when clock scheduling is off.
+- Put durable product preferences in a Settings modal opened by a gear beside the development tools.
+- Keep timers and countdowns available as ordinary activity components in either day mode. They measure real use only when the person starts them.
+
+#### Day Timeline (optional, default off)
+
+- `Day Timeline` places activities on the clock. Turning it off preserves saved preferred starts and durations as dormant data so the feature can be restored without data loss.
 - Treat the template start time as a preferred launch time, defaulting to 8:00 AM, rather than permanently stapling activities to clock times.
 - Before today begins, show a welcome and Start action. Show a countdown when the preferred launch time is still ahead; after it passes, keep the Start action without a countdown.
 - Starting today anchors the first activity to the next five-minute boundary at that moment and calculates every later time from the activity sequence. Persist that anchor for today without changing the template’s preferred start.
-- Allow activities to be added, edited, deleted, reordered, and resized in five-minute increments.
+- In Timeline mode, allow activities to be resized in five-minute increments.
 - Recalculate downstream times automatically.
-- Allow activities to be marked complete. Detailed actual-time tracking is out of scope for now.
+- Allow activities to be marked complete. Detailed actual-time tracking is out of scope for now, except for timers or countdowns the person actually uses.
 - Allow an activity to be skipped for today from both its collapsed row and expanded footer. A skipped activity remains visible and reversible but contributes no minutes to today’s active sequence.
-- Show a live “Now” line that advances through the schedule.
+- With Timeline off, do not render start-day, activity clock labels, duration controls, Now state, clock-selected expansion, finish/length summaries, or minute-based Day Shape. Completion runs must not claim an allotted or planned duration merely because dormant schedule data exists.
+- In Timeline mode, show a live “Now” line that advances through the schedule.
 - Render the activity selected by the current clock in the full expanded-card layout when no other activity has been selected. This expanded layout is the activity’s Now state, with the previously defined header, middle details/chat area, and footer.
 - Keep at most one activity expanded. The user can move freely among activities without the clock forcing the interface to jump.
 - A clock transition updates which activity is current but never interrupts or replaces the card the user is viewing.
@@ -122,7 +131,7 @@ Activity creation is the primary workspace-design moment:
 
 ### 2.3 Mobile schedule contract
 
-Mobile should begin directly at the Schedule. Do not show the desktop supertext, hero title, explanatory subtitle, or start/finish/length summary.
+Mobile should begin directly at Today’s activity list. Do not show the desktop supertext, hero title, explanatory subtitle, or overview summary.
 
 Collapsed activity cards should use a compact, deliberately mobile layout:
 
@@ -285,13 +294,13 @@ Each activity has a versioned workspace document containing:
 
 Normal data changes update the records bound to existing components without redesigning the workspace. Luna may propose or generate a new workspace revision when the user requests a change, a new record type cannot be represented, or the current composition is demonstrably insufficient. Opening an activity never waits for generation; the last validated workspace renders immediately.
 
-The initial controlled catalog includes summaries, product/protocol cards, adherence views, timelines, shopping lists, pinned plans, quick log forms, comparisons, history tables, charts, open-item cards, empty states, count-up timers, and countdowns. Timers and countdowns are ordinary optional components, not a default layer for every scheduled activity. A scheduled duration is a planning budget; it justifies a clock component only when seeing elapsed or remaining time helps perform the activity, the protocol itself is time-defined, or the user asks for one. A five-minute chin-up visualization is a strong countdown case; Shake / Supplements is not merely because it occupies five minutes. A countdown created without an explicit duration remains bound to today’s allotted activity duration and updates immediately when that duration changes. An explicitly requested duration remains fixed. Component actions call typed application endpoints and never contain raw SQL, unrestricted network access, or generated executable code.
+The initial controlled catalog includes summaries, product/protocol cards, adherence views, timelines, shopping lists, pinned plans, quick log forms, comparisons, history tables, charts, open-item cards, empty states, count-up timers, and countdowns. Timers and countdowns are ordinary optional components, not a default layer for every activity. A Timeline duration is a planning budget; it justifies a clock component only when seeing elapsed or remaining time helps perform the activity, the protocol itself is time-defined, or the user asks for one. A five-minute chin-up visualization is a strong countdown case; Shake / Supplements is not merely because it occupies five minutes. In Timeline mode, a countdown created without an explicit duration remains bound to today’s allotted activity duration and updates immediately when that duration changes. With Timeline off, new countdowns require an explicit duration; existing bound countdowns retain their last validated duration as a fixed component value. Component actions call typed application endpoints and never contain raw SQL, unrestricted network access, or generated executable code.
 
 The production v2 catalog implements `summary`, `product`, `protocol`, `checklist`, `item_list`, `workout`, `quick_log`, `history`, `comparison`, `metric`, `trend`, `adherence`, `timeline`, `goal`, `attention`, `resources`, `timer`, and `countdown`. Components are reusable primitives rather than hard-coded activity pages. Luna composes them using activity-recipe guidance for strength, cardio, product/device care, body routines, meals and supplements, supplies, focused creative work, media queues, preparation workflows, and simple timed practices.
 
 Data-backed components bind by stable record key to validated activity records. Workspace documents control selection, order, and presentation; they do not become the authoritative home of checkmarks, workout sets, measurements, products, or history. Activity records support activity and day scope, immutable revisions, provenance, and explicit activity relations. Interactive component actions pass through bounded application operations such as toggling a dated protocol step, adding a supply item, logging a workout set, adding a quick-log entry, or recording adherence.
 
-Timer presentation and run history are separate concerns. Every started timer or countdown produces a timing snapshot that can be consumed when the activity is completed. A countdown is a display over an elapsed run clock rather than evidence that the allotted duration was actually performed. `Mark Complete` records the allotted duration, the timer’s planned-duration snapshot, actual elapsed time when a timer was used, timer mode and component identity, start time, and completion time. If no timer was started, completion is still recorded but actual elapsed time remains unknown. Changing today’s duration before starting updates a bound countdown; changing it after a run starts does not rewrite that run’s planned-duration snapshot.
+Timer presentation and run history are separate concerns. Every started timer or countdown produces a timing snapshot that can be consumed when the activity is completed. A countdown is a display over an elapsed run clock rather than evidence that the allotted duration was actually performed. `Mark Complete` records actual elapsed time when a timer was used, timer mode and component identity, start time, and completion time. In Timeline mode it also records the allotted duration and the timer’s planned-duration snapshot; in checklist mode those planning fields remain absent unless the timer component itself supplied a fixed plan. If no timer was started, completion is still recorded but actual elapsed time remains unknown. Changing today’s duration before starting updates a Timeline-bound countdown; changing it after a run starts does not rewrite that run’s planned-duration snapshot.
 
 ### Missing-component authoring workflow
 
@@ -504,10 +513,10 @@ This app will contain health-adjacent personal data. The initial product needs:
 - [x] Add persistent completion runs with allotted, planned, and timer-derived actual duration.
 - [x] Add activity-specific metrics and richer typed logs beyond timing.
 - [ ] Add the Now line, completion, overdue state, and rescheduling within today.
-- [x] Implement the collapsed mobile schedule contract: begin at Schedule, omit the desktop hero and summary, keep title/time/tag on one line, truncate long titles, use compact duration controls, align edit/delete separately, and center the drag handle.
-- [ ] Implement the expanded mobile schedule contract, including the details/chat middle and completion footer.
+- [x] Implement the collapsed mobile activity contract: begin at Today, omit the desktop hero and summary, keep title/category/status readable, truncate long titles, align the overflow/completion controls, and center the drag handle. Add time and compact duration only in Timeline mode.
+- [x] Implement the expanded mobile activity contract, including the shared header, details/chat middle, stable opening state, and completion footer.
 
-Implementation note (2026-08-20): presentation-only workspace records have been removed. Typed activity workspaces and append-only revisions now persist validated routine, count-up timer, and countdown components in D1. Clear durable information supplied in conversation can update the workspace in the same agent run. When Luna deliberately chooses a countdown, an omitted duration binds it to the schedule rather than copying a duration snapshot; explicit-duration countdowns remain fixed. Schedule presence alone never causes timer creation. Activities without supported records still show a truthful empty workspace.
+Implementation note (2026-08-20): presentation-only workspace records have been removed. Typed activity workspaces and append-only revisions now persist validated routine, count-up timer, and countdown components in D1. Clear durable information supplied in conversation can update the workspace in the same agent run. When Luna deliberately chooses a countdown in Timeline mode, an omitted duration binds it to the timeline rather than copying a duration snapshot; explicit-duration countdowns remain fixed. With Timeline off, Luna must supply an explicit duration for new countdowns. Timeline presence alone never causes timer creation. Activities without supported records still show a truthful empty workspace.
 
 Implementation note (2026-08-20): catalog v2 restores the adaptive preview capabilities as production, record-backed components rather than fixtures. Data is stored separately from workspace composition in validated, versioned activity records. Luna receives the approved catalog, recipe guidance, existing records, recent runs, conversation, schedule, and workspace; it may emit validated record and workspace actions in one result. Server-side binding checks prevent a data component from pointing at a missing or mismatched record. Existing activity setup keys include the catalog version so each activity can receive one idempotent v2 reassessment without turning ordinary opens into recurring redesign jobs.
 
@@ -544,7 +553,10 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 
 ## 12. Decisions recorded so far
 
-- The ideal-day schedule remains the home screen.
+- The ideal-day sequence remains the home screen; its default presentation is a flexible checklist.
+- `Day Timeline` is a persisted setting, defaults off, and is the single policy boundary for start-day, clock labels, duration controls, Now state, clock-selected expansion, finish/length summaries, and minute-based Day Shape.
+- Turning Day Timeline off preserves preferred-start and duration data without displaying it or treating it as an active plan.
+- Timers and countdowns remain optional activity components in either mode and record actual use independently of Timeline.
 - Each day gets an editable daily plan derived from an editable template.
 - Scheduling and completion are in scope; detailed actual-time tracking is deferred.
 - A live Now line separates passed and upcoming schedule content without removing missed activities.
@@ -554,7 +566,7 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Starting the day automatically opens the first active activity with its conversation visible, even if that activity’s drawer was previously left collapsed. Manual activity opens continue to restore the person’s last drawer state.
 - An expanded activity holds a stable opening surface until its initial data and saved mobile drawer preference are both ready, then mounts directly in its final workspace/conversation arrangement without an open-then-close flash.
 - Completion is available through both an expanded `Mark Complete` button and a small collapsed-row circle for batch catch-up.
-- Today remains an untimed sequence until the user presses Start; the resulting five-minute launch anchor is daily state, while 8:00 AM remains the current preferred default.
+- In Day Timeline mode, today remains an untimed sequence until the user presses Start; the resulting five-minute launch anchor is daily state, while 8:00 AM remains the current preferred default.
 - Activities completed before Start appear in the passed section above the Now line, display their completion time, and do not consume time in the newly anchored remaining sequence. Activities completed after Start continue to preserve later planned times by default.
 - Skip-for-today is available beside completion in collapsed and expanded states, removes the activity’s duration from today’s sequence, and never removes it from the template.
 - Collapsed skip and completion circles carry contextual hover and keyboard-focus tooltips so their icon-only actions remain understandable.
@@ -568,8 +580,9 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Missed activities can be dragged into a later part of today.
 - Moving a missed activity later reschedules all following activities.
 - Activities expand in their existing row/card on desktop and mobile.
-- Mobile begins at Schedule and omits the desktop hero and summary sections.
-- Mobile uses compact content-width duration controls and a single-line title/time/tag header.
+- Mobile begins at Today’s activity list and omits the desktop hero and summary sections.
+- Mobile uses one shared activity header in collapsed and expanded states. It contains title/category, overflow menu, and completion; Timeline mode additionally adds clock time and compact duration controls.
+- The expanded mobile footer contains the large `Skip for Today` and `Mark Complete` actions. Overflow and duration controls live in the shared header rather than repeating in the footer.
 - Expanded activities contain contextual details and an activity-scoped conversation.
 - Expanded activities move directly from the activity header into workspace components and conversation. They do not repeat the activity category/title or show a permanent “Activity context”/“Live activity” strip; a session-status strip appears only when it has meaningful run state such as started, elapsed, completed, skipped, or a real today-specific warning.
 - Every activity receives the complete details/chat/agent experience at launch; none are held back as prototypes.
@@ -578,8 +591,8 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Each activity has one permanent dated conversation.
 - Ordinary activity opens never enqueue conversational evaluation; Luna’s visible work comes from explicit setup, user, event, warning, or open-loop triggers.
 - Activity creation and material rename produce an idempotent, persistent workspace blueprint and setup-state decision.
-- Default countdowns stay bound to today’s allotted duration; explicit-duration countdowns remain fixed.
-- Completion records allotted, planned, and actual elapsed timing without pretending an unused timer was run.
+- Timeline-bound countdowns follow today’s allotted duration while Timeline is enabled; explicit-duration countdowns remain fixed, and checklist mode does not create new implicit-duration countdowns.
+- Completion records allotted and planned timing only in Timeline mode, plus actual elapsed timing when a timer or countdown was really used; it never pretends an unused timer was run.
 - Luna’s presence comes from useful action and timely judgment, not obligatory greetings or routine paraphrases.
 - An expanded activity remains visually active even when it is earlier or later than the clock-selected activity; time state must not wash out the workspace the user deliberately opened.
 - Global actions that affect an activity produce a linked output/reference in that activity conversation.

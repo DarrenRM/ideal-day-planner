@@ -143,8 +143,8 @@ export async function ensureAgentSchema() {
         daily_plan_item_id text,
         plan_date text NOT NULL,
         status text DEFAULT 'completed' NOT NULL,
-        allotted_duration_seconds integer NOT NULL,
-        planned_duration_seconds integer NOT NULL,
+        allotted_duration_seconds integer,
+        planned_duration_seconds integer,
         actual_elapsed_seconds integer,
         timer_mode text,
         timer_component_id text,
@@ -277,8 +277,8 @@ function parseWorkspaceDocument(value: string | null): WorkspaceDocument {
     if (parsed?.version !== 1 || !Array.isArray(parsed.components)) return EMPTY_WORKSPACE;
     return {
       version: 1,
-      components: parsed.components.map((component) => component.type === "countdown" && !component.durationSource
-        ? { ...component, durationSource: "activity" as const }
+      components: parsed.components.map((component) => component.type === "countdown" && component.durationSource !== "fixed"
+        ? { ...component, durationSource: "timeline" as const }
         : component),
     };
   } catch {

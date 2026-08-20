@@ -84,7 +84,7 @@ async function ensureAccount(userId: string, date: string) {
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)").bind(userId),
     db.prepare("INSERT OR IGNORE INTO routine_templates (id, user_id, name, start_minutes) VALUES (?, ?, 'Ideal Day', 480)").bind(templateId, userId),
-    db.prepare("INSERT OR IGNORE INTO settings (user_id, pull_forward_after_early_completion) VALUES (?, 0)").bind(userId),
+    db.prepare("INSERT OR IGNORE INTO settings (user_id, day_timeline_enabled, pull_forward_after_early_completion) VALUES (?, 0, 0)").bind(userId),
     db.prepare("UPDATE activities SET category = 'Recharge', updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND category = 'Reset'").bind(userId),
     db.prepare("UPDATE daily_plan_items SET category = 'Recharge', updated_at = CURRENT_TIMESTAMP WHERE category = 'Reset' AND daily_plan_id IN (SELECT id FROM daily_plans WHERE user_id = ?)").bind(userId),
   ]);
@@ -96,11 +96,14 @@ async function readDay(userId: string, date: string) {
   const { planId } = ids(userId, date);
   const plan = await db.prepare(`
     SELECT dp.start_minutes AS startMinutes, dp.started_at AS startedAt,
-           COALESCE(rt.start_minutes, 480) AS preferredStartMinutes
+           COALESCE(rt.start_minutes, 480) AS preferredStartMinutes,
+           COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled,
+           COALESCE(s.pull_forward_after_early_completion, 0) AS pullForwardAfterEarlyCompletion
     FROM daily_plans dp
     LEFT JOIN routine_templates rt ON rt.id = dp.template_id
+    LEFT JOIN settings s ON s.user_id = dp.user_id
     WHERE dp.id = ? AND dp.user_id = ?
-  `).bind(planId, userId).first<{ startMinutes: number; startedAt: string | null; preferredStartMinutes: number }>();
+  `).bind(planId, userId).first<{ startMinutes: number; startedAt: string | null; preferredStartMinutes: number; dayTimelineEnabled: number; pullForwardAfterEarlyCompletion: number }>();
   if (!plan) return null;
 
   const result = await db.prepare(`
@@ -116,6 +119,10 @@ async function readDay(userId: string, date: string) {
     startMinutes: plan.startMinutes,
     preferredStartMinutes: plan.preferredStartMinutes,
     startedAt: plan.startedAt,
+    settings: {
+      dayTimelineEnabled: Boolean(plan.dayTimelineEnabled),
+      pullForwardAfterEarlyCompletion: Boolean(plan.pullForwardAfterEarlyCompletion),
+    },
   };
 }
 
@@ -385,7 +392,25 @@ export async function GET(request: Request) {
 
   try {
     const templateId = await ensureAccount(userId, date);
-    if (!await hasTemplateItems(templateId)) return Response.json({ date, items: [], startMinutes: 480, preferredStartMinutes: 480, startedAt: null, needsImport: true });
+    if (!await hasTemplateItems(templateId)) {
+      const row = await getD1().prepare(`
+        SELECT COALESCE(day_timeline_enabled, 0) AS dayTimelineEnabled,
+               COALESCE(pull_forward_after_early_completion, 0) AS pullForwardAfterEarlyCompletion
+        FROM settings WHERE user_id = ?
+      `).bind(userId).first<{ dayTimelineEnabled: number; pullForwardAfterEarlyCompletion: number }>();
+      return Response.json({
+        date,
+        items: [],
+        startMinutes: 480,
+        preferredStartMinutes: 480,
+        startedAt: null,
+        settings: {
+          dayTimelineEnabled: Boolean(row?.dayTimelineEnabled),
+          pullForwardAfterEarlyCompletion: Boolean(row?.pullForwardAfterEarlyCompletion),
+        },
+        needsImport: true,
+      });
+    }
     await createTodayFromTemplate(userId, date, templateId);
     return Response.json({ date, ...await readDay(userId, date), needsImport: false });
   } catch (error) {

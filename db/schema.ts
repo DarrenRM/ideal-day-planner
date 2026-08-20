@@ -86,6 +86,7 @@ export const dailyPlanItems = sqliteTable("daily_plan_items", {
 
 export const settings = sqliteTable("settings", {
   userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  dayTimelineEnabled: integer("day_timeline_enabled", { mode: "boolean" }).notNull().default(false),
   pullForwardAfterEarlyCompletion: integer("pull_forward_after_early_completion", { mode: "boolean" }).notNull().default(false),
   updatedAt: updatedAt(),
 });
@@ -202,8 +203,8 @@ export const activityRuns = sqliteTable("activity_runs", {
   dailyPlanItemId: text("daily_plan_item_id").references(() => dailyPlanItems.id, { onDelete: "set null" }),
   planDate: text("plan_date").notNull(),
   status: text("status").notNull().default("completed"),
-  allottedDurationSeconds: integer("allotted_duration_seconds").notNull(),
-  plannedDurationSeconds: integer("planned_duration_seconds").notNull(),
+  allottedDurationSeconds: integer("allotted_duration_seconds"),
+  plannedDurationSeconds: integer("planned_duration_seconds"),
   actualElapsedSeconds: integer("actual_elapsed_seconds"),
   timerMode: text("timer_mode"),
   timerComponentId: text("timer_component_id"),

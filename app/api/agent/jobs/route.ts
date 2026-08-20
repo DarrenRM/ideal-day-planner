@@ -102,13 +102,15 @@ export async function GET(request: Request) {
       WHERE id = ? AND user_id = ?
     `).bind(candidate.activityId, candidate.userId).first<{ clientKey: string; title: string; category: string }>();
     const schedule = await db.prepare(`
-      SELECT dpi.duration, dp.plan_date AS planDate
+      SELECT dpi.duration, dp.plan_date AS planDate,
+             COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled
       FROM daily_plan_items dpi
       JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+      LEFT JOIN settings s ON s.user_id = dp.user_id
       WHERE dpi.activity_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
       ORDER BY dp.plan_date DESC
       LIMIT 1
-    `).bind(candidate.activityId, candidate.userId).first<{ duration: number; planDate: string }>();
+    `).bind(candidate.activityId, candidate.userId).first<{ duration: number; planDate: string; dayTimelineEnabled: number }>();
     const binding = await db.prepare(`
       SELECT runtime_session_id AS runtimeSessionId
       FROM agent_session_bindings
@@ -145,7 +147,11 @@ export async function GET(request: Request) {
       runtimeSessionId: binding?.runtimeSessionId ?? null,
       context: {
         activity,
-        schedule: schedule ?? null,
+        schedule: schedule ? {
+          planDate: schedule.planDate,
+          timelineEnabled: Boolean(schedule.dayTimelineEnabled),
+          duration: schedule.dayTimelineEnabled ? schedule.duration : null,
+        } : null,
         activityContext,
         workspace,
         records,
@@ -218,19 +224,23 @@ export async function POST(request: Request) {
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
       const schedule = await db.prepare(`
-        SELECT dpi.duration, dp.plan_date AS planDate, a.title AS activityTitle
+        SELECT dpi.duration, dp.plan_date AS planDate, a.title AS activityTitle,
+               COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled
         FROM daily_plan_items dpi
         JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
         JOIN activities a ON a.id = dpi.activity_id
+        LEFT JOIN settings s ON s.user_id = dp.user_id
         WHERE dpi.activity_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
         ORDER BY dp.plan_date DESC
         LIMIT 1
-      `).bind(job.activityId, job.userId).first<{ duration: number; planDate: string; activityTitle: string }>();
+      `).bind(job.activityId, job.userId).first<{ duration: number; planDate: string; activityTitle: string; dayTimelineEnabled: number }>();
+      const timelineEnabled = Boolean(schedule?.dayTimelineEnabled);
+      const plannedDurationMinutes = timelineEnabled ? schedule?.duration : undefined;
       const workspaceActions = validateWorkspaceActions(usesReplyFirstProtocol ? [] : payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
       const recordActions = validateRecordActions(usesReplyFirstProtocol ? [] : payload.recordActions, schedule?.planDate ?? null).filter((action) => (
         action.op === "remove" || hasUsefulActivityRecordData(action.record, {
           activityTitle: schedule?.activityTitle,
-          plannedDurationMinutes: schedule?.duration,
+          plannedDurationMinutes,
         })
       ));
       const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null);
@@ -242,12 +252,13 @@ export async function POST(request: Request) {
       const safeWorkspaceActions = workspaceActions.filter((action) => {
         if (action.op === "remove") return true;
         const component = action.component;
-        if (component.type === "timer" || component.type === "countdown") return true;
+        if (component.type === "timer") return true;
+        if (component.type === "countdown") return timelineEnabled || component.durationSource === "fixed";
         if (component.type === "routine") return hasUsefulRoutineComponent(component);
         const record = availableRecords.get(component.recordKey);
         return record?.type === component.type && hasUsefulActivityRecordData(record, {
           activityTitle: schedule?.activityTitle,
-          plannedDurationMinutes: schedule?.duration,
+          plannedDurationMinutes,
         });
       });
       if (job.kind === "user_message" && !response && !workspaceFollowup && !safeWorkspaceActions.length && !recordActions.length) {
@@ -273,7 +284,7 @@ export async function POST(request: Request) {
         const record = availableRecords.get(component.recordKey);
         return Boolean(record && hasUsefulActivityRecordData(record, {
           activityTitle: schedule?.activityTitle,
-          plannedDurationMinutes: schedule?.duration,
+          plannedDurationMinutes,
         }));
       });
       const messageId = response ? `agent-message:${safeId(jobId)}` : null;

@@ -25,7 +25,9 @@ test("server-renders the idealized day planner", async () => {
   assert.match(html, /Loading your saved day/);
   assert.doesNotMatch(html, /Walk in sun|Stretch \/ yoga|>Shake<|>Breakfast</);
   assert.match(html, /Drag a handle to reorder/);
-  assert.match(html, /Adjust minutes on any block/);
+  assert.doesNotMatch(html, /Adjust minutes on any block/);
+  assert.match(html, /class="app-shell is-checklist-mode"/);
+  assert.match(html, /aria-label="Open settings"/);
   assert.match(html, /Add Activity/);
   assert.doesNotMatch(html, /Reset order/);
   assert.match(html, /aria-label="Idealized day schedule"/);
@@ -138,6 +140,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Skip for Today/);
   assert.match(page, /Start My Day/);
   assert.match(page, /Start Early/);
+  assert.match(page, /Day Timeline/);
+  assert.match(page, /fetch\("\/api\/settings"/);
+  assert.match(page, /dayMode\.showStartGate && hasLoaded && !isDayStarted/);
+  assert.match(page, /dayMode\.showDurationControls \? <div className="duration-control"/);
+  assert.match(page, /Your day is a flexible checklist/);
   assert.match(page, /mode: "start-day"/);
   assert.match(page, /completedBeforeLaunchIds/);
   assert.match(page, /displayedScheduledItems/);
@@ -175,7 +182,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(workspace, /ideal-day-timer:/);
   assert.match(workspace, /ideal-day-countdown:/);
   assert.match(workspace, /component\.durationSeconds/);
-  assert.match(workspace, /component\.durationSource === "activity"/);
+  assert.match(workspace, /component\.durationSource === "timeline"/);
+  assert.match(workspace, /activity\.timelineEnabled/);
   assert.match(workspace, /captureActivityTimingSnapshot/);
   assert.match(workspace, /export function resetActivityTimingState/);
   assert.doesNotMatch(workspace, /RESUPPLY_WORKSPACE|LIFT_WORKSPACE|HAIR_SERUM_WORKSPACE|breakfastWorkspace|Toothpaste|Bench press|Multi-peptide|Oranges|Mock|Preview/);
@@ -187,7 +195,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /height: 100dvh/);
   assert.match(css, /\.page-shell:has\(\.routine-card\.is-expanded\).*padding: 0/);
   assert.match(css, /\.routine-card\.is-expanded \{ background: #101416;[^}]*margin: 0;[^}]*padding: 0;[^}]*position: fixed;/);
-  assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*gap: 6px 8px;[^}]*grid-template-rows: 24px 22px;[^}]*padding: max\(8px, env\(safe-area-inset-top\)\) 12px 8px 16px;/);
+  assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*gap: 6px 8px;[^}]*grid-template-rows: 32px 30px;[^}]*min-height: 86px;[^}]*padding: max\(8px, env\(safe-area-inset-top\)\) 12px 8px 16px;/);
   assert.match(css, /\.routine-row:has\(\.routine-card\.is-expanded\) \{ padding: 0; \}/);
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
@@ -208,6 +216,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner-menu-trigger/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*?\.planner-menu-trigger \{ height: 40px; width: 40px; \}/);
   assert.match(css, /\.dev-clock-popover/);
+  assert.match(css, /\.settings-trigger/);
+  assert.match(css, /\.settings-modal/);
+  assert.match(css, /\.settings-toggle-row/);
   assert.match(css, /\.reset-today-button/);
   assert.match(css, /\.dev-reset-confirm/);
   assert.match(css, /\.now-line/);
@@ -273,7 +284,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.item-controls \{[^}]*grid-template-columns: 32px 32px/s);
   assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*justify-self: end/s);
-  assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
+  assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{ display: none; \}/);
+  assert.match(css, /\.routine-card\.is-expanded > \.item-controls \{ display: grid; \}/);
+  assert.match(css, /\.activity-footer-tools \{ display: none; \}/);
   assert.match(css, /\.now-line span \{ font-size: var\(--type-micro\); justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
   assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*padding-left: 12px;[^}]*padding-right: 12px/s);
@@ -295,12 +308,13 @@ test("keeps the routine data and interactions in the page", async () => {
 });
 
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
-  const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, jobRoute, store, workspaceModel, bridge, startup, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
+  const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, settingsRoute, jobRoute, store, workspaceModel, bridge, startup, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/reset/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/settings/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/workspace-model.ts", import.meta.url), "utf8"),
@@ -324,6 +338,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(schema, /export const workspaceRevisions/);
   assert.match(schema, /export const activityProfiles/);
   assert.match(schema, /export const activityRuns/);
+  assert.match(schema, /dayTimelineEnabled/);
   assert.match(schema, /export const activityRecords/);
   assert.match(schema, /export const activityRecordRevisions/);
   assert.match(schema, /export const recordRelations/);
@@ -343,6 +358,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(runRoute, /actual_elapsed_seconds/);
   assert.match(runRoute, /allotted_duration_seconds/);
   assert.match(runRoute, /planned_duration_seconds/);
+  assert.match(runRoute, /dayTimelineEnabled \? dayItem\.duration \* 60 : null/);
   assert.match(runRoute, /UPDATE daily_plan_items SET completed_at/);
   assert.match(runRoute, /mode === "skip" \|\| mode === "unskip"/);
   assert.match(runRoute, /skipped_at/);
@@ -352,6 +368,9 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(dayRoute, /status = 'planned'/);
   assert.match(dayRoute, /started_at = CURRENT_TIMESTAMP/);
   assert.match(dayRoute, /preferredStartMinutes/);
+  assert.match(dayRoute, /dayTimelineEnabled/);
+  assert.match(settingsRoute, /UPDATE settings/);
+  assert.match(settingsRoute, /day_timeline_enabled/);
   assert.match(dayRoute, /prepareActivitySetups/);
   assert.match(dayRoute, /completed_at AS completedAt/);
   assert.match(jobRoute, /lease_expires_at/);
@@ -399,6 +418,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /Activity-setup behavior/);
   assert.match(bridge, /Cardio with no user-supplied description must ask/);
   assert.match(bridge, /A scheduled duration is a planning budget, not evidence/);
+  assert.match(bridge, /Day Timeline/);
   assert.match(bridge, /five-minute chin-up visualization/);
   assert.match(bridge, /Do not add a timer or countdown by default for Shake \/ Supplements/);
   assert.match(bridge, /Ordinary opens are silent and do not redesign the workspace/);

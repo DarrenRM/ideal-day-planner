@@ -2,9 +2,10 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, SkipForward, Sparkles, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
+import { dayModePolicy, DEFAULT_DAY_SETTINGS, normalizeDaySettings, type DaySettings } from "./day-settings";
 import { useMobileConversationDrawer } from "./use-mobile-conversation-drawer";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 
@@ -319,6 +320,7 @@ function conversationWorkspaceSignature(state: Pick<ConversationState, "workspac
 
 type ActivityWorkbenchProps = {
   item: ScheduledItem;
+  timelineEnabled: boolean;
   isComplete: boolean;
   isSkipped: boolean;
   openConversationOnMount: boolean;
@@ -330,7 +332,7 @@ type ActivityWorkbenchProps = {
   onSetDuration: (value: number) => void;
 };
 
-function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -361,7 +363,8 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
   const workspaceWorkState = hasWorkspaceJob
     ? activeJobHasWorker ? "building" : "waiting"
     : null;
-  const hasWorkspaceContent = hasVisibleActivityWorkspace(item, workspace, records);
+  const workspaceActivity = { ...item, timelineEnabled };
+  const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
   const conversationDrawer = useMobileConversationDrawer({ activityId: item.id, canCollapse: showWorkspace, messages, openOnMount: openConversationOnMount });
   const isOpeningActivity = connectionState === "joining" || !conversationDrawer.isPreferenceReady;
@@ -583,7 +586,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
     if (isCompleting) return;
     setIsCompleting(true);
     try {
-      const timing = isComplete ? null : captureActivityTimingSnapshot(item, workspace);
+      const timing = isComplete ? null : captureActivityTimingSnapshot(workspaceActivity, workspace);
       const response = await fetch("/api/activity/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -672,7 +675,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
             <span className="activity-opening-progress" aria-hidden="true" />
           </div>
         ) : <>
-          <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
+          <ActivityWorkspace activity={workspaceActivity} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 
           <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
@@ -764,7 +767,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
               </div>
             ) : null}
           </div>
-          <div className="duration-control" aria-label={`Duration for ${item.title}`}>
+          {timelineEnabled ? <div className="duration-control" aria-label={`Duration for ${item.title}`}>
             <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjustDuration(-DURATION_STEP)}>−</button>
             <div className="duration-value">
               <input
@@ -781,7 +784,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
               <span className="duration-unit">min</span>
             </div>
             <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjustDuration(DURATION_STEP)}>+</button>
-          </div>
+          </div> : null}
         </div>
         <div className="activity-footer-status">
           <button className={`skip-activity-button ${isSkipped ? "is-skipped" : ""}`} disabled={isSkipping} type="button" onClick={() => void toggleActivitySkip()}>
@@ -922,7 +925,12 @@ export default function Home() {
   const [mobileActivityMenuId, setMobileActivityMenuId] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [daySettings, setDaySettings] = useState<DaySettings>(DEFAULT_DAY_SETTINGS);
+  const [settingsSaveState, setSettingsSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [resetTodayState, setResetTodayState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
+  const [mobileResetActivity, setMobileResetActivity] = useState<{ id: string; state: "confirming" | "resetting" | "error" } | null>(null);
+  const [activityResetVersions, setActivityResetVersions] = useState<Record<string, number>>({});
   const [realMinutes, setRealMinutes] = useState(minutesNow);
   const [fakeMinutes, setFakeMinutes] = useState<number | null>(DEFAULT_DEV_MINUTES);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
@@ -933,6 +941,7 @@ export default function Home() {
   const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuRef = useRef<HTMLDivElement>(null);
   const devMenuRef = useRef<HTMLDivElement>(null);
+  const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const skipNextSave = useRef(true);
 
@@ -977,7 +986,7 @@ export default function Home() {
           return;
         }
         if (!response.ok) throw new Error(`Could not load the saved day (${response.status}).`);
-        let day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; needsImport: boolean };
+        let day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; settings?: unknown; needsImport: boolean };
 
         if (day.needsImport) {
           const legacyItems = readLegacyRoutine();
@@ -999,6 +1008,7 @@ export default function Home() {
         setStartMinutes(day.startMinutes);
         setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
         setDayStartedAt(day.startedAt ?? null);
+        setDaySettings(normalizeDaySettings(day.settings));
         setDatabaseReady(true);
         setHasLoaded(true);
         setSaveState("saved");
@@ -1015,6 +1025,22 @@ export default function Home() {
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => settingsCloseRef.current?.focus(), 0);
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setIsSettingsOpen(false);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSettingsOpen]);
 
   useEffect(() => {
     if (!databaseReady) return;
@@ -1076,10 +1102,14 @@ export default function Home() {
       const menu = event.target instanceof Element ? event.target.closest(".mobile-activity-menu") : null;
       if (menu?.getAttribute("data-activity-id") === mobileActivityMenuId) return;
       setMobileActivityMenuId(null);
+      setMobileResetActivity(null);
     }
 
     function handleMobileActivityMenuKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setMobileActivityMenuId(null);
+      if (event.key === "Escape") {
+        setMobileActivityMenuId(null);
+        setMobileResetActivity(null);
+      }
     }
 
     document.addEventListener("pointerdown", handleMobileActivityMenuPointerDown);
@@ -1170,24 +1200,26 @@ export default function Home() {
   const finishMinutes = startMinutes + scheduledMinutes;
 
   const displayedMinutes = fakeMinutes ?? realMinutes;
-  const isDayStarted = Boolean(dayStartedAt);
+  const dayMode = dayModePolicy(daySettings);
+  const timelineEnabled = dayMode.timelineEnabled;
+  const isDayStarted = timelineEnabled && Boolean(dayStartedAt);
   const clockCurrentItem = isDayStarted ? scheduledItems.find((item) => displayedMinutes >= item.start && displayedMinutes < item.end) ?? null : null;
   const selectedItemExists = selectedActivityId ? scheduledItems.some((item) => item.id === selectedActivityId) : false;
   const expandedActivityId = selectedItemExists
     ? selectedActivityId
-    : clockCurrentItem && !completedIds.has(clockCurrentItem.id) && dismissedClockActivityId !== clockCurrentItem.id
+    : timelineEnabled && clockCurrentItem && !completedIds.has(clockCurrentItem.id) && dismissedClockActivityId !== clockCurrentItem.id
       ? clockCurrentItem.id
       : null;
-  const passedItemIds = useMemo(() => new Set(isDayStarted
+  const passedItemIds = useMemo(() => new Set(timelineEnabled && isDayStarted
     ? scheduledItems.filter((item) => item.completedAt || item.skippedAt || item.end <= displayedMinutes).map((item) => item.id)
-    : []), [displayedMinutes, isDayStarted, scheduledItems]);
-  const displayedScheduledItems = useMemo(() => isDayStarted
+    : []), [displayedMinutes, isDayStarted, scheduledItems, timelineEnabled]);
+  const displayedScheduledItems = useMemo(() => timelineEnabled && isDayStarted
     ? [
         ...scheduledItems.filter((item) => passedItemIds.has(item.id)),
         ...scheduledItems.filter((item) => !passedItemIds.has(item.id)),
       ]
-    : scheduledItems, [isDayStarted, passedItemIds, scheduledItems]);
-  const nowLineIndex = isDayStarted ? passedItemIds.size : null;
+    : scheduledItems, [isDayStarted, passedItemIds, scheduledItems, timelineEnabled]);
+  const nowLineIndex = timelineEnabled && isDayStarted ? passedItemIds.size : null;
 
   useEffect(() => {
     if (!expandedActivityId || !window.matchMedia("(max-width: 680px)").matches) return;
@@ -1205,6 +1237,7 @@ export default function Home() {
     () => CATEGORY_ORDER.map((category) => ({
       category,
       minutes: items.filter((item) => item.category === category && !item.skippedAt).reduce((sum, item) => sum + item.duration, 0),
+      count: items.filter((item) => item.category === category && !item.skippedAt).length,
       color: items.find((item) => item.category === category)?.color ?? "#8f9995",
     })).filter((entry) => entry.minutes > 0),
     [items],
@@ -1218,6 +1251,29 @@ export default function Home() {
   ];
   const minutesUntilPreferredStart = Math.max(0, preferredStartMinutes - displayedMinutes);
   const nextStartBoundary = Math.min(1435, Math.ceil(displayedMinutes / 5) * 5);
+  const activeItemCount = items.filter((item) => !item.skippedAt).length;
+  const completedItemCount = items.filter((item) => item.completedAt).length;
+
+  async function setTimelineEnabled(enabled: boolean) {
+    if (settingsSaveState === "saving" || enabled === timelineEnabled) return;
+    setSettingsSaveState("saving");
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ dayTimelineEnabled: enabled }),
+      });
+      const result = await response.json() as { settings?: unknown; error?: string };
+      if (!response.ok) throw new Error(result.error || "Settings could not be saved.");
+      setDaySettings(normalizeDaySettings(result.settings));
+      setSelectedActivityId(null);
+      setDismissedClockActivityId(null);
+      setStartConversationActivityId(null);
+      setSettingsSaveState("idle");
+    } catch {
+      setSettingsSaveState("error");
+    }
+  }
 
   async function startDay() {
     if (isStartingDay || isDayStarted) return;
@@ -1349,6 +1405,7 @@ export default function Home() {
 
   function startEditing(item: RoutineItem) {
     setMobileActivityMenuId(null);
+    setMobileResetActivity(null);
     setEditingId(item.id);
     setEditTitle(item.title);
     setEditCategory(item.category);
@@ -1451,6 +1508,34 @@ export default function Home() {
     }
   }
 
+  async function resetActivityForTesting(item: ScheduledItem) {
+    if (mobileResetActivity?.id === item.id && mobileResetActivity.state === "resetting") return;
+    setMobileResetActivity({ id: item.id, state: "resetting" });
+    try {
+      const response = await fetch("/api/activity/reset", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ activityId: item.id, date: localDateKey() }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "This activity could not be reset.");
+      resetActivityTimingState([item.id]);
+      setCompletedIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+      setItems((current) => current.map((candidate) => candidate.id === item.id
+        ? { ...candidate, completedAt: null, skippedAt: null }
+        : candidate));
+      setActivityResetVersions((current) => ({ ...current, [item.id]: (current[item.id] ?? 0) + 1 }));
+      setMobileActivityMenuId(null);
+      setMobileResetActivity(null);
+    } catch {
+      setMobileResetActivity({ id: item.id, state: "error" });
+    }
+  }
+
   function openActivity(id: string) {
     setMobileActivityMenuId(null);
     setStartConversationActivityId(null);
@@ -1517,7 +1602,7 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${timelineEnabled ? "is-timeline-mode" : "is-checklist-mode"}`}>
       <header className="app-header">
         <div className="brand">
           <span className="brand-mark">id</span>
@@ -1525,13 +1610,27 @@ export default function Home() {
         </div>
         <div className="header-actions">
           <div className={`save-state save-state-${saveState}`}><span /> {{ loading: "Loading your day", saving: "Saving", saved: "Saved to your day", retrying: "Offline · retrying" }[saveState]}</div>
+          <button
+            aria-expanded={isSettingsOpen}
+            aria-haspopup="dialog"
+            aria-label="Open settings"
+            className="settings-trigger"
+            type="button"
+            onClick={() => {
+              setIsDevMenuOpen(false);
+              setIsSettingsOpen(true);
+            }}
+          ><Settings aria-hidden="true" size={17} strokeWidth={1.8} /></button>
           <div className="dev-clock" ref={devMenuRef}>
             <button
               aria-expanded={isDevMenuOpen}
               aria-haspopup="dialog"
               className={`dev-clock-trigger ${fakeMinutes !== null ? "is-active" : ""}`}
               type="button"
-              onClick={() => setIsDevMenuOpen((current) => !current)}
+              onClick={() => {
+                setIsSettingsOpen(false);
+                setIsDevMenuOpen((current) => !current);
+              }}
             >
               <Clock3 aria-hidden="true" size={14} strokeWidth={1.9} />
               <span>Dev</span>
@@ -1594,17 +1693,67 @@ export default function Home() {
         </div>
       </header>
 
+      {isSettingsOpen ? (
+        <div className="settings-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsSettingsOpen(false); }}>
+          <section aria-labelledby="settings-title" aria-modal="true" className="settings-modal" role="dialog">
+            <header className="settings-modal-header">
+              <div><span>Ideal Day</span><h2 id="settings-title">Settings</h2></div>
+              <button aria-label="Close settings" ref={settingsCloseRef} type="button" onClick={() => setIsSettingsOpen(false)}><X aria-hidden="true" size={18} /></button>
+            </header>
+            <div className="settings-modal-body">
+              <div className="settings-section-heading">
+                <span>Day flow</span>
+                <p>Choose whether today follows the clock or stays flexible.</p>
+              </div>
+              <div className={`settings-toggle-row ${timelineEnabled ? "is-on" : ""}`}>
+                <span className="settings-toggle-copy">
+                  <strong id="day-timeline-label">Day Timeline</strong>
+                  <small id="day-timeline-description">Place activities on the clock with durations, a preferred start, a moving Now line, and day-length summaries.</small>
+                </span>
+                <button
+                  aria-checked={timelineEnabled}
+                  aria-describedby="day-timeline-description"
+                  aria-labelledby="day-timeline-label"
+                  className="settings-switch"
+                  disabled={settingsSaveState === "saving"}
+                  role="switch"
+                  type="button"
+                  onClick={() => void setTimelineEnabled(!timelineEnabled)}
+                >
+                  <i />
+                </button>
+              </div>
+              <div className="settings-mode-note" role="status">
+                <Sparkles aria-hidden="true" size={16} />
+                <div>
+                  <strong>{timelineEnabled ? "Your day follows a timeline" : "Your day is a flexible checklist"}</strong>
+                  <span>{timelineEnabled ? `Activities begin from ${formatTime(preferredStartMinutes)} when you start the day.` : "Timers and countdowns inside activities still work whenever they’re useful."}</span>
+                </div>
+              </div>
+              {settingsSaveState === "error" ? <p className="settings-save-error">That setting didn’t save. Try the switch again.</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <div className="page-shell">
         <section className="hero" aria-labelledby="page-title">
           <div className="hero-copy">
             <p className="eyebrow">Daily protocol</p>
             <h1 id="page-title">{formatTodayHeading()}</h1>
-            <p>One repeatable sequence from wake-up to done. Reorder the flow and tune the timing until it feels natural.</p>
+            <p>{timelineEnabled
+              ? "One repeatable sequence from wake-up to done. Reorder the flow and tune the timing until it feels natural."
+              : "A living checklist for the day, with Luna and the right tools inside every activity."}</p>
           </div>
-          <div className="day-overview" aria-label="Day overview">
-            <div><span>{isDayStarted ? "Started" : "Preferred start"}</span><strong>{formatTime(isDayStarted ? startMinutes : preferredStartMinutes)}</strong></div>
-            <div><span>Finish</span><strong>{hasLoaded && isDayStarted ? formatTime(finishMinutes) : "—"}</strong></div>
-            <div><span>Length</span><strong>{hasLoaded ? formatDuration(totalMinutes) : "—"}</strong></div>
+          <div className={`day-overview ${timelineEnabled ? "" : "is-checklist-overview"}`} aria-label="Day overview">
+            {timelineEnabled ? <>
+              <div><span>{isDayStarted ? "Started" : "Preferred start"}</span><strong>{formatTime(isDayStarted ? startMinutes : preferredStartMinutes)}</strong></div>
+              <div><span>Finish</span><strong>{hasLoaded && isDayStarted ? formatTime(finishMinutes) : "—"}</strong></div>
+              <div><span>Length</span><strong>{hasLoaded ? formatDuration(totalMinutes) : "—"}</strong></div>
+            </> : <>
+              <div><span>Completed</span><strong>{hasLoaded ? `${completedItemCount} of ${activeItemCount}` : "—"}</strong></div>
+              <div><span>Remaining</span><strong>{hasLoaded ? Math.max(0, activeItemCount - completedItemCount) : "—"}</strong></div>
+            </>}
           </div>
         </section>
 
@@ -1613,12 +1762,12 @@ export default function Home() {
             <header className="planner-header">
               <div>
                 <h2 id="schedule-title">
-                  <span className="desktop-schedule-title">Schedule</span>
+                  <span className="desktop-schedule-title">{timelineEnabled ? "Schedule" : "Today"}</span>
                   <span className="mobile-schedule-title">{formatTodayHeading()}</span>
                 </h2>
                 <p>
-                  <span className="desktop-schedule-summary">{hasLoaded ? isDayStarted ? `${items.length} activities · times move with your day` : `${items.length} activities · ready when you are` : "Loading your saved day…"}</span>
-                  <span className="mobile-schedule-summary">{hasLoaded ? <>{items.length} activities <i aria-hidden="true">·</i> {formatDuration(totalMinutes)} total</> : "Loading your saved day…"}</span>
+                  <span className="desktop-schedule-summary">{hasLoaded ? timelineEnabled ? isDayStarted ? `${items.length} activities · times move with your day` : `${items.length} activities · ready when you are` : `${items.length} activities · move through them in your own time` : "Loading your saved day…"}</span>
+                  <span className="mobile-schedule-summary">{hasLoaded ? timelineEnabled ? <>{items.length} activities <i aria-hidden="true">·</i> {formatDuration(totalMinutes)} total</> : <>{items.length} activities <i aria-hidden="true">·</i> {completedItemCount} done</> : "Loading your saved day…"}</span>
                 </p>
               </div>
               <div className="planner-actions">
@@ -1672,7 +1821,7 @@ export default function Home() {
                     value={draftTitle}
                   />
                 </div>
-                <div className="add-field">
+                {timelineEnabled ? <div className="add-field">
                   <label htmlFor="block-duration">Minutes</label>
                   <input
                     id="block-duration"
@@ -1685,7 +1834,7 @@ export default function Home() {
                     type="number"
                     value={draftDuration}
                   />
-                </div>
+                </div> : null}
                 <div className="add-field">
                   <label htmlFor="block-category">Category</label>
                   <CategoryPicker
@@ -1702,9 +1851,9 @@ export default function Home() {
               </form>
             ) : null}
 
-            <div className="planner-help"><span className="help-grip"><GripVertical aria-hidden="true" size={14} strokeWidth={1.8} /></span> Drag a handle to reorder <span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</div>
+            <div className="planner-help"><span className="help-grip"><GripVertical aria-hidden="true" size={14} strokeWidth={1.8} /></span> Drag a handle to reorder {timelineEnabled ? <><span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</> : null}</div>
 
-            {hasLoaded && !isDayStarted ? (
+            {dayMode.showStartGate && hasLoaded && !isDayStarted ? (
               <section className="day-launch" aria-labelledby="day-launch-title">
                 <div className="day-launch-copy">
                   <p className="eyebrow">{minutesUntilPreferredStart > 0 ? `Begins in ${formatCountdown(minutesUntilPreferredStart)}` : "Whenever you’re ready"}</p>
@@ -1730,12 +1879,12 @@ export default function Home() {
                 const isComplete = completedIds.has(item.id);
                 const isSkipped = Boolean(item.skippedAt);
                 const isPending = pendingActivityIds.has(item.id);
-                const activityState = isSkipped ? "skipped" : isComplete ? "complete" : !isDayStarted ? "planned" : item.end <= displayedMinutes ? "past" : item.start > displayedMinutes ? "upcoming" : "current";
+                const activityState = isSkipped ? "skipped" : isComplete ? "complete" : !timelineEnabled || !isDayStarted ? "planned" : item.end <= displayedMinutes ? "past" : item.start > displayedMinutes ? "upcoming" : "current";
                 const itemStyle = { "--item-color": item.color } as CSSProperties;
 
                 return (
                   <Fragment key={item.id}>
-                    {nowLineIndex === displayIndex ? (
+                    {dayMode.showClockState && nowLineIndex === displayIndex ? (
                       <div className="now-line" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
                         <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
                       </div>
@@ -1749,11 +1898,11 @@ export default function Home() {
                     >
                     {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Move here</span></div> : null}
 
-                    <div className="time-label">{isSkipped
+                    {dayMode.showClockState ? <div className="time-label">{isSkipped
                       ? <strong className="sequence-label">Skipped</strong>
                       : isDayStarted
                         ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
-                        : <strong className="sequence-label">Queued</strong>}</div>
+                        : <strong className="sequence-label">Queued</strong>}</div> : null}
 
                     <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""}`}>
                       <button
@@ -1769,7 +1918,7 @@ export default function Home() {
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
                       {isEditing ? (
                         <>
-                          <div className="mobile-time-label mobile-edit-time" aria-hidden="true">{isDayStarted ? <><strong>{start.time}</strong><span>{start.suffix}</span></> : <strong>Queued</strong>}</div>
+                          {dayMode.showClockState ? <div className="mobile-time-label mobile-edit-time" aria-hidden="true">{isDayStarted ? <><strong>{start.time}</strong><span>{start.suffix}</span></> : <strong>Queued</strong>}</div> : null}
                           <form className="inline-edit-form" onSubmit={saveEdit}>
                             <input
                               aria-label={`Title for ${item.title}`}
@@ -1791,7 +1940,7 @@ export default function Home() {
                           </form>
                         </>
                       ) : (
-                        <button className="item-copy" type="button" aria-expanded={isExpanded} onClick={() => openActivity(item.id)}>
+                        <button className="item-copy" type="button" aria-expanded={isExpanded} onClick={() => isExpanded ? collapseActivity() : openActivity(item.id)}>
                           <div className="item-title">
                             <h3>{item.title}</h3>
                           </div>
@@ -1801,20 +1950,18 @@ export default function Home() {
                             {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
                           </div>
                           <div className="item-meta">
-                            <div className="mobile-time-label" aria-hidden="true">{isSkipped
+                            {dayMode.showClockState ? <div className="mobile-time-label" aria-hidden="true">{isSkipped
                               ? <strong>Skipped</strong>
                               : isDayStarted
                                 ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
-                                : <strong>Queued</strong>}</div>
+                                : <strong>Queued</strong>}</div> : null}
                             <span className="category-chip">{item.category}</span>
                           </div>
                         </button>
                       )}
 
-                      {isExpanded ? (
-                        <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /><ChevronDown className="mobile-collapse-icon" aria-hidden="true" size={18} /></button>
-                      ) : (
-                        <div className="item-controls">
+                      {isExpanded ? <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /></button> : null}
+                      <div className="item-controls">
                           <button
                             className="edit-item-button desktop-row-action"
                             type="button"
@@ -1843,17 +1990,32 @@ export default function Home() {
                           <div className={`mobile-activity-menu ${mobileActivityMenuId === item.id ? "is-open" : ""}`} data-activity-id={item.id}>
                             <button
                               aria-expanded={mobileActivityMenuId === item.id}
-                              aria-haspopup="menu"
+                              aria-haspopup={mobileResetActivity?.id === item.id ? "dialog" : "menu"}
                               aria-label={`More options for ${item.title}`}
                               className="mobile-activity-menu-trigger"
                               type="button"
-                              onClick={() => setMobileActivityMenuId((current) => current === item.id ? null : item.id)}
+                              onClick={() => {
+                                setMobileResetActivity(null);
+                                setMobileActivityMenuId((current) => current === item.id ? null : item.id);
+                              }}
                             ><MoreVertical aria-hidden="true" size={18} strokeWidth={2} /></button>
                             {mobileActivityMenuId === item.id ? (
-                              <div className="mobile-activity-menu-panel" role="menu">
-                                <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
-                                <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
-                                <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateClosedActivity(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>
+                              <div className={`mobile-activity-menu-panel ${mobileResetActivity?.id === item.id ? "is-confirming" : ""}`} role={mobileResetActivity?.id === item.id ? "dialog" : "menu"}>
+                                {mobileResetActivity?.id === item.id ? (
+                                  <div className="activity-reset-confirmation">
+                                    <strong>{mobileResetActivity.state === "error" ? "Reset didn’t work" : "Reset this activity?"}</strong>
+                                    <span>{mobileResetActivity.state === "error" ? "Nothing was changed. You can try again." : "This clears Luna’s thread, workspace, saved activity details, and run history. The activity stays in your day."}</span>
+                                    <div>
+                                      <button type="button" onClick={() => setMobileResetActivity(null)}>Cancel</button>
+                                      <button className="activity-reset-confirm-button" disabled={mobileResetActivity.state === "resetting"} type="button" onClick={() => void resetActivityForTesting(item)}>{mobileResetActivity.state === "resetting" ? "Resetting…" : mobileResetActivity.state === "error" ? "Try Again" : "Reset Activity"}</button>
+                                    </div>
+                                  </div>
+                                ) : <>
+                                  <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
+                                  <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateClosedActivity(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>
+                                  <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
+                                  <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
+                                </>}
                               </div>
                             ) : null}
                           </div>
@@ -1869,7 +2031,7 @@ export default function Home() {
                             ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
                           </ControlTooltip>
 
-                          <div className="duration-control" aria-label={`Duration for ${item.title}`}>
+                          {dayMode.showDurationControls ? <div className="duration-control" aria-label={`Duration for ${item.title}`}>
                             <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
                             <div className="duration-value">
                               <input
@@ -1886,15 +2048,16 @@ export default function Home() {
                               <span className="duration-unit">min</span>
                             </div>
                             <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
-                          </div>
+                          </div> : null}
                         </div>
-                      )}
 
                       {isExpanded ? (
                         <ActivityWorkbench
+                          key={`${item.id}:${activityResetVersions[item.id] ?? 0}`}
                           isComplete={isComplete}
                           isSkipped={isSkipped}
                           item={item}
+                          timelineEnabled={timelineEnabled}
                           openConversationOnMount={startConversationActivityId === item.id}
                           onAdjustDuration={(delta) => adjustDuration(item.id, delta)}
                           onComplete={(completedAt) => toggleComplete(item.id, completedAt)}
@@ -1911,16 +2074,16 @@ export default function Home() {
                 );
               })}
 
-              {nowLineIndex === displayedScheduledItems.length ? (
+              {dayMode.showClockState && nowLineIndex === displayedScheduledItems.length ? (
                 <div className="now-line now-line-finished" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
                   <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
                 </div>
               ) : null}
 
-              <div className="finish-row">
+              {dayMode.showClockState ? <div className="finish-row">
                 <div className="time-label">{isDayStarted ? <><strong>{timeParts(finishMinutes).time}</strong><span>{timeParts(finishMinutes).suffix}</span></> : null}</div>
                 <p>{isDayStarted ? "Protocol complete" : "Your sequence will find its time when you start"}</p>
-              </div></> : (
+              </div> : null}</> : (
                 <div className="schedule-loading" role="status" aria-label="Loading your saved day">
                   {[0, 1, 2, 3].map((row) => <div className="schedule-loading-row" aria-hidden="true" key={row} />)}
                 </div>
@@ -1930,12 +2093,12 @@ export default function Home() {
 
           <aside className="summary-rail" aria-label="Plan summary">
             <section className="summary-card shape-card">
-              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{hasLoaded ? `${formatDuration(totalMinutes)} total` : "Loading…"}</h2></div><span>{hasLoaded ? isDayStarted ? `${formatTime(startMinutes)}–${formatTime(finishMinutes)}` : `Ready for ${formatTime(preferredStartMinutes)}` : "—"}</span></div>
+              <div className="summary-title"><div><p className="eyebrow">{timelineEnabled ? "Day shape" : "Today’s mix"}</p><h2>{hasLoaded ? timelineEnabled ? `${formatDuration(totalMinutes)} total` : `${activeItemCount} activities` : "Loading…"}</h2></div><span>{hasLoaded ? timelineEnabled ? isDayStarted ? `${formatTime(startMinutes)}–${formatTime(finishMinutes)}` : `Ready for ${formatTime(preferredStartMinutes)}` : `${completedItemCount} done` : "—"}</span></div>
               <div className="shape-list">
                 {hasLoaded ? categoryTotals.map((entry) => (
                   <div className="shape-row" key={entry.category}>
-                    <div><span className="shape-dot" style={{ background: entry.color }} /><strong>{entry.category}</strong><span>{entry.minutes} min</span></div>
-                    <div className="shape-track"><span style={{ background: entry.color, width: totalMinutes ? `${(entry.minutes / totalMinutes) * 100}%` : "0%" }} /></div>
+                    <div><span className="shape-dot" style={{ background: entry.color }} /><strong>{entry.category}</strong><span>{timelineEnabled ? `${entry.minutes} min` : entry.count}</span></div>
+                    <div className="shape-track"><span style={{ background: entry.color, width: timelineEnabled ? totalMinutes ? `${(entry.minutes / totalMinutes) * 100}%` : "0%" : activeItemCount ? `${(entry.count / activeItemCount) * 100}%` : "0%" }} /></div>
                   </div>
                 )) : [0, 1, 2, 3, 4].map((row) => <div className="shape-loading-row" aria-hidden="true" key={row} />)}
               </div>
