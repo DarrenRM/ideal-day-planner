@@ -94,6 +94,12 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
   assert.match(page, /activeJob\?\.kind === "workspace_refresh"/);
   assert.match(page, /workspace-ready-notice/);
+  assert.match(page, /MOBILE_DRAWER_KEY/);
+  assert.match(page, /isConversationDrawerOpen/);
+  assert.match(page, /conversation-unread-badge/);
+  assert.match(page, /handleDrawerPointerDown/);
+  assert.match(page, /handleDrawerPointerUp/);
+  assert.match(page, /"Connected"/);
   assert.match(page, /conversationAnchorTopRef/);
   assert.match(page, /useLayoutEffect/);
   assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob\)\)/);
@@ -109,7 +115,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /visitId/);
   assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob\)\)/);
   assert.match(page, /hasActiveJob \? 700 : 8_000/);
-  assert.match(page, /Permanent activity thread/);
+  assert.doesNotMatch(page, /Permanent activity thread/);
   assert.doesNotMatch(page, /Luna is joining/);
   assert.match(page, /activeJob\?\.kind === "user_message"/);
   assert.match(page, /activeJob\?\.kind === "activity_setup"/);
@@ -160,6 +166,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /--type-sans: ui-sans-serif, system-ui/);
   assert.doesNotMatch(css, /--font-geist-/);
   assert.match(css, /@media \(max-width: 680px\)/);
+  assert.match(css, /height: 100dvh/);
+  assert.match(css, /is-drawer-collapsed/);
+  assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
+  assert.match(css, /conversation-composer textarea:focus/);
   assert.match(css, /\.drop-indicator/);
   assert.match(css, /\.duration-control/);
   assert.match(css, /--type-micro: \.6875rem/);
@@ -238,7 +248,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.now-line span \{ font-size: var\(--type-micro\); justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
   assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*padding-left: 12px;[^}]*padding-right: 12px/s);
-  assert.match(css, /\.activity-expansion \{[^}]*grid-row: 2;[^}]*margin: 1px 0 0/s);
+  assert.match(css, /\.activity-expansion \{[^}]*grid-row: 2;[^}]*height: 100%;[^}]*margin: 0/s);
   assert.match(css, /\.control-tooltip-bubble \{ display: none; \}/);
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
