@@ -86,14 +86,35 @@ The interaction is closer to a quiet chat room than a formal prompt box:
 - Use familiar iOS Messages/Telegram conventions: readable bubbles, message grouping, restrained timestamps, conventional spacing, and standard delivery states.
 - Use a somewhat larger multiline input with a visible Send button.
 - `Enter` sends and `Shift+Enter` inserts a newline on keyboard devices.
+- The conversation follows new messages when the user is already at or near the bottom. If the user scrolls back to read history, incoming messages do not pull the viewport away from that position; sending a new message returns to the latest conversation.
 - Notes are sent into the conversation and processed by the agent.
 - The agent does not need to post a conversational reply unless the user asked a question or a response is otherwise necessary.
+- The interface must not impersonate Luna with canned onboarding bubbles. A new conversation may begin empty with non-message interface guidance. If Luna initiates, the wording is generated from the actual activity context and conversational judgment.
+- Luna speaks about the user’s activity and intent, not the system’s storage or rendering state. Avoid phrases such as “this activity is blank,” “working context,” “approved component,” or “maps cleanly” unless the user explicitly asks about implementation details.
 - Successful filing is communicated with messaging-style checkmarks rather than an extra assistant response. One gray check means the message is durably saved and waiting for Luna; double checkmarks mean Luna has read and processed it.
 - Each activity has one permanent conversation with date separators rather than separate daily threads.
 - The main page contains one unfiltered, chronological running conversation with the global assistant.
 - An expanded activity shows only its permanent activity conversation.
 - When a global message causes activity-specific work, the relevant output or linked reference must also appear in that activity’s conversation. Example: toothpaste mentioned globally produces a visible Resupply entry so the information can be found from either context.
 - Cross-posted activity output retains a link to its originating global message without duplicating the entire global conversation.
+
+Opening an activity is a deterministic UI event, not a standing invitation for the model to decide whether to speak:
+
+- The validated workspace and permanent conversation render immediately; the interface never waits for Luna before expanding.
+- Each expansion may be recorded as a visit, but ordinary opens enqueue no conversational agent job and cannot create greetings, duplicate messages, or delayed workspace controls.
+- Luna speaks only from an explicit visible trigger: a pending one-time setup question, a direct user message, a timely event or warning, or an unresolved open loop that has its own policy.
+- A visible `activity_setup` or user-message job shows typing. Silent maintenance jobs are incapable of posting chat messages and never show typing.
+- If the agent host is unavailable, already-validated workspace and conversation state remain usable. Durable setup or user-message jobs catch up when it reconnects.
+
+Activity creation is the primary workspace-design moment:
+
+- Saving a new activity is immediate and does not wait for Luna.
+- Creation, import, or a material title/category change enqueues one idempotent `activity_setup` job and creates a persistent activity setup profile.
+- Luna selects safe initial components from the approved catalog and may ask exactly one setup question only when its answer can determine a durable routine, protocol, product, goal, measurement, or tracking design.
+- Luna must be able to name the durable improvement the answer enables. A generic invitation to discuss the activity is not sufficient.
+- Open-ended activities such as Cardio and Stretch/Yoga normally require setup because their form and useful tracking depend on user choices. A fully specified low-choice action may be marked `setup unnecessary` and remain quiet.
+- Setup state is explicit: `preparing`, `question_pending`, `ready`, or `unnecessary`. It is not re-decided on every open.
+- Answering a setup question can update the typed workspace and mark the profile ready in the same agent run.
 
 ### 2.3 Mobile schedule contract
 
@@ -184,7 +205,7 @@ Context preparation is live and event-driven rather than a blanket start-of-day 
 
 - Persist each activity’s current details so they are already ready whenever the activity opens.
 - Reprocess affected activities immediately when a message or data change alters their context.
-- Invoke Luna for user messages, relevant record changes, explicit requests, or scheduled events that genuinely require judgment.
+- Invoke Luna for meaningful activity expansions, user messages, relevant record changes, explicit requests, or scheduled events that genuinely require judgment.
 - Do not invoke Luna merely because a new date started.
 - At first open on a new date, deterministic application code creates today’s plan and updates date-derived values such as product day counts. This work does not require a model call.
 - Example: “I need toothpaste” entered during Bed Prep should update Resupply immediately without waiting for Resupply to open.
@@ -240,6 +261,42 @@ Candidate components:
 
 The application remains responsible for spacing, typography, responsive behavior, accessibility, and interaction quality.
 
+### Adaptive activity workspace
+
+The left side of an expanded activity is an activity-specific workspace, not a fixed visual template. “Do now,” “current state,” and “open loops” are retrieval and reasoning priorities for Luna; they are not mandatory headings or regions in the rendered interface.
+
+Examples of intentionally different workspace forms:
+
+- Resupply may use an urgency-grouped shopping list, source links, quick add, and recently purchased history.
+- Lift may combine a pinned workout plan, quick set logger, last-session comparison, trend summary, and expandable workout history.
+- Hair Serum may combine the current product, protocol instructions, start/day count, adherence, comparison reminders, and a progress timeline.
+
+Each activity has a versioned workspace document containing:
+
+- Approved component instances and layout regions.
+- Typed data bindings and bounded application actions.
+- Responsive presentation hints rather than absolute generated styling.
+- User-pinned or locked components that Luna may not remove or replace.
+- Source record revisions, generation status, and the workspace revision it supersedes.
+
+Normal data changes update the records bound to existing components without redesigning the workspace. Luna may propose or generate a new workspace revision when the user requests a change, a new record type cannot be represented, or the current composition is demonstrably insufficient. Opening an activity never waits for generation; the last validated workspace renders immediately.
+
+The initial controlled catalog includes summaries, product/protocol cards, adherence views, timelines, shopping lists, pinned plans, quick log forms, comparisons, history tables, charts, open-item cards, empty states, count-up timers, and countdowns. A countdown created without an explicit duration remains bound to today’s allotted activity duration and updates immediately when that duration changes. An explicitly requested duration remains fixed. Component actions call typed application endpoints and never contain raw SQL, unrestricted network access, or generated executable code.
+
+Timer presentation and run history are separate concerns. Every started timer or countdown produces a timing snapshot that can be consumed when the activity is completed. A countdown is a display over an elapsed run clock rather than evidence that the allotted duration was actually performed. `Mark Complete` records the allotted duration, the timer’s planned-duration snapshot, actual elapsed time when a timer was used, timer mode and component identity, start time, and completion time. If no timer was started, completion is still recorded but actual elapsed time remains unknown. Changing today’s duration before starting updates a bound countdown; changing it after a run starts does not rewrite that run’s planned-duration snapshot.
+
+### Missing-component authoring workflow
+
+A user may explicitly ask Luna to design a component that the catalog cannot express. The system distinguishes three levels:
+
+1. **Configure:** change labels, fields, filters, grouping, or emphasis on an existing component.
+2. **Compose:** save a reusable recipe made from approved primitives. A validated composition can be previewed and adopted without deploying code.
+3. **Author capability:** create a component request describing purpose, data contract, actions, states, permissions, responsive behavior, and synthetic examples. A separate isolated builder agent may generate React implementation code, but that code must pass schema, type, accessibility, responsive, permission, and action tests plus user review before joining the approved catalog.
+
+The normal personal-information agent cannot inject HTML, JavaScript, database queries, or unreviewed code into the live product. The isolated builder receives component contracts and fabricated data rather than private activity records. Published components are versioned, reversible, and available to the workspace designer only after approval.
+
+Workspace design runs independently from the main conversation. User-message jobs have higher priority. A low-priority workspace-designer run receives a bounded context packet and may submit only a validated workspace revision. Component implementation is a separate development workflow rather than a child task that the main conversation waits to finish.
+
 Every activity receives the complete expanded experience from the first release: contextual details, permanent activity conversation, live agent processing, questions, and activity-appropriate actions. There is no limited pilot set or second-class generic card.
 
 When an activity has little or no known context, its details area uses a useful empty state and Luna can ask a normal conversational question. Missing data must not make the expansion unavailable.
@@ -282,6 +339,10 @@ Move durable product state from `localStorage` to the project’s D1 database be
 - `agent_jobs`
 - `record_relations`
 - `agent_session_bindings`
+- `activity_workspaces`
+- `workspace_revisions`
+- `component_catalog`
+- `component_requests`
 - `record_revisions`
 - `detail_view_snapshots` (optional cache, not authoritative data)
 - `attachments` (metadata in D1; bytes in R2 when needed)
@@ -424,19 +485,36 @@ This app will contain health-adjacent personal data. The initial product needs:
 ### Phase 2 — expanded activities without AI
 
 - [ ] Add a polished mobile and desktop expander.
-- [ ] Add the universal expanded-card shell and deterministic details renderer to every activity.
-- [ ] Add activity-scoped notes and history.
-- [ ] Add activity runs and basic typed logs.
+- [x] Add the universal expanded-card shell and deterministic details renderer to every activity.
+- [x] Add a typed, app-owned workspace component catalog and deterministic renderer.
+- [x] Prove adaptable composition with distinct Resupply, Lift, Hair Serum, and generic workspace layouts.
+- [x] Add the UI seam for requesting a missing component without pretending that Luna or a builder is connected.
+- [x] Add durable activity-scoped conversations and history.
+- [x] Add persistent completion runs with allotted, planned, and timer-derived actual duration.
+- [ ] Add activity-specific metrics and richer typed logs beyond timing.
 - [ ] Add the Now line, completion, overdue state, and rescheduling within today.
 - [x] Implement the collapsed mobile schedule contract: begin at Schedule, omit the desktop hero and summary, keep title/time/tag on one line, truncate long titles, use compact duration controls, align edit/delete separately, and center the drag handle.
 - [ ] Implement the expanded mobile schedule contract, including the details/chat middle and completion footer.
 
+Implementation note (2026-08-20): presentation-only workspace records have been removed. Typed activity workspaces and append-only revisions now persist validated routine, count-up timer, and countdown components in D1. Clear durable information supplied in conversation can update the workspace in the same agent run. Default countdowns are schedule-bound rather than copied duration snapshots, while explicit-duration countdowns remain fixed. Activities without supported records still show a truthful empty workspace.
+
+Implementation note (2026-08-19, revised 2026-08-20): the adaptive workspace prototype proved distinct Resupply, Lift, Hair Serum, and generic compositions using a controlled catalog. Those fixture compositions are no longer rendered because they obscured real empty-state testing. Persist workspace documents and requests in D1, add schema/version validation, and reconnect the catalog through Luna/OpenUI and the isolated component-builder review path in later phases.
+
+Implementation note (2026-08-20): Breakfast uses the same truthful empty workspace and permanent Hermes-backed Luna conversation as every activity. There is no Breakfast-only responder, canned onboarding bubble, or client-side extraction preview. Workspace changes must come from persisted typed records, confirmation policy, and validated Luna-generated revisions during trusted-write integration.
+
+The Breakfast workspace does not repeat raw conversation turns in a “What Luna heard” card. The conversation already provides that human-readable record; provenance remains attached to structured records in the data model and can be exposed contextually when needed. User-facing Luna replies should describe the result in ordinary language rather than component catalogs, extraction confidence, or internal workspace machinery. Its truly new state contains no pre-written Luna message; friendly interface guidance remains visually distinct from the conversation.
+
 ### Phase 3 — universal scoped agent
 
-- Connect one agent runtime.
-- Add one permanent conversation and full agent behavior to every activity.
-- Add read-only contextual retrieval.
-- Add proposed writes and explicit confirmation.
+- [x] Connect the dedicated local Hermes runtime through a durable app-owned bridge.
+- [x] Add one permanent conversation and contextual Luna opening behavior to every activity.
+- [ ] Add full typed agent behavior to every activity.
+- [x] Add the first validated typed workspace writes for routine, timer, and countdown components.
+- [x] Add persistent activity setup profiles and creation-time workspace blueprint jobs.
+- [ ] Add app-owned read-only contextual retrieval beyond the bounded UI-spike snapshot.
+- [ ] Add proposed writes and explicit confirmation.
+
+Implementation note (2026-08-20): the universal-agent slice runs locally through the dedicated `ideal-day` Hermes profile. Activity creation, import, or material rename creates one idempotent setup blueprint job; ordinary opens only record visits and never invoke conversational judgment. Visible setup and user-message jobs show typing, while silent maintenance cannot post chat. User messages can return a normal reply and validated workspace actions in one structured result. Ideal Day validates and commits those actions as versioned D1 workspace revisions. The profile runs GPT-5.6 Luna with max reasoning and Fast mode, is authenticated only over loopback, and has no general toolset. The browser receives no Hermes credential. Cross-activity retrieval, broader typed records, production bridge authentication, and deployment of an always-on agent host remain incomplete.
 
 ### Phase 4 — trusted agent writes
 
@@ -475,6 +553,12 @@ This app will contain health-adjacent personal data. The initial product needs:
 - The main page can show the full cross-activity conversation log.
 - The main page has one unfiltered chronological conversation with a global assistant.
 - Each activity has one permanent dated conversation.
+- Ordinary activity opens never enqueue conversational evaluation; Luna’s visible work comes from explicit setup, user, event, warning, or open-loop triggers.
+- Activity creation and material rename produce an idempotent, persistent workspace blueprint and setup-state decision.
+- Default countdowns stay bound to today’s allotted duration; explicit-duration countdowns remain fixed.
+- Completion records allotted, planned, and actual elapsed timing without pretending an unused timer was run.
+- Luna’s presence comes from useful action and timely judgment, not obligatory greetings or routine paraphrases.
+- An expanded activity remains visually active even when it is earlier or later than the clock-selected activity; time state must not wash out the workspace the user deliberately opened.
 - Global actions that affect an activity produce a linked output/reference in that activity conversation.
 - Activity conversations behave as quiet chat rooms: notes are processed without requiring an assistant reply.
 - Chat follows standard iOS/Telegram visual and interaction conventions, including bubbles, a touch-friendly Send button, and processing checkmarks.

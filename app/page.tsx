@@ -1,8 +1,10 @@
 "use client";
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, Pencil, RotateCcw, Send, Trash2 } from "lucide-react";
+import { ActivityWorkspace, captureActivityTimingSnapshot } from "./activity-workspace";
+import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
@@ -14,10 +16,18 @@ type RoutineItem = {
   category: Category;
   icon: string;
   color: string;
+  completedAt?: string | null;
 };
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
 type DropTarget = { id: string; position: "before" | "after" };
+type ConversationMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string; pending?: boolean };
+type ConversationJob = { status: "queued" | "leased" | "running"; kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" };
+type ConversationState = {
+  messages: ConversationMessage[];
+  activeJob: ConversationJob | null;
+  workspace: { revisionId: string | null; revisionNumber: number; document: WorkspaceDocument };
+};
 
 const START_MINUTES = 8 * 60;
 const DURATION_STEP = 5;
@@ -223,6 +233,297 @@ function formatDuration(duration: number) {
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
+function minutesNow() {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+function timeInputValue(totalMinutes: number) {
+  const normalized = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
+function minutesFromTimeInput(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return hours * 60 + minutes;
+}
+
+function formatDayOrdinal(day: number) {
+  if (day % 100 >= 11 && day % 100 <= 13) return `${day}th`;
+  if (day % 10 === 1) return `${day}st`;
+  if (day % 10 === 2) return `${day}nd`;
+  if (day % 10 === 3) return `${day}rd`;
+  return `${day}th`;
+}
+
+function formatTodayHeading(date = new Date()) {
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
+  const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
+  return `${weekday}, ${month} ${formatDayOrdinal(date.getDate())}`;
+}
+
+function conversationTime(value: string) {
+  const date = new Date(`${value.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  const today = new Date();
+  const isToday = date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
+  const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+  return isToday ? `Today · ${time}` : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+type ActivityWorkbenchProps = {
+  item: ScheduledItem;
+  isComplete: boolean;
+  onComplete: (completedAt: string | null) => void;
+  onEdit: () => void;
+  onRemove: () => void;
+  onAdjustDuration: (delta: number) => void;
+  onSetDuration: (value: number) => void;
+};
+
+function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceDocument>(EMPTY_WORKSPACE);
+  const [connectionState, setConnectionState] = useState<"joining" | "ready" | "error">("joining");
+  const [draft, setDraft] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const sendingRef = useRef(false);
+  const refreshConversationRef = useRef<() => void>(() => {});
+  const conversationLogRef = useRef<HTMLDivElement>(null);
+  const conversationShouldFollowRef = useRef(true);
+  const isLunaThinking = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
+
+  useEffect(() => {
+    let cancelled = false;
+    const visitId = window.crypto.randomUUID();
+    let refreshTimer: ReturnType<typeof window.setTimeout> | undefined;
+
+    function scheduleRefresh(hasActiveJob: boolean) {
+      if (cancelled) return;
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void refreshConversation(), hasActiveJob ? 700 : 8_000);
+    }
+
+    function applyConversationState(state: ConversationState) {
+      if (cancelled) return;
+      setMessages((current) => current.length === state.messages.length && current.every((message, index) => {
+        const next = state.messages[index];
+        return message.id === next.id && message.body === next.body && message.createdAt === next.createdAt;
+      }) ? current : state.messages);
+      setActiveJob((current) => current?.status === state.activeJob?.status && current?.kind === state.activeJob?.kind ? current : state.activeJob);
+      setWorkspace(state.workspace.document);
+      setConnectionState("ready");
+    }
+
+    async function openActivity() {
+      try {
+        const response = await fetch("/api/activity", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ mode: "open", activityId: item.id, date: localDateKey(), visitId }),
+        });
+        if (!response.ok) throw new Error("Luna could not join this activity yet.");
+        const state = await response.json() as ConversationState;
+        applyConversationState(state);
+        scheduleRefresh(Boolean(state.activeJob));
+      } catch {
+        if (!cancelled) setConnectionState("error");
+        scheduleRefresh(false);
+      }
+    }
+
+    async function refreshConversation() {
+      if (sendingRef.current) return;
+      try {
+        const response = await fetch(`/api/activity?activityId=${encodeURIComponent(item.id)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Conversation refresh failed.");
+        const state = await response.json() as ConversationState;
+        applyConversationState(state);
+        scheduleRefresh(Boolean(state.activeJob));
+      } catch {
+        if (!cancelled) setConnectionState("error");
+        scheduleRefresh(false);
+      }
+    }
+
+    refreshConversationRef.current = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      void refreshConversation();
+    };
+    void openActivity();
+    return () => {
+      cancelled = true;
+      refreshConversationRef.current = () => {};
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+    };
+  }, [item.id]);
+
+  useEffect(() => {
+    if (!conversationShouldFollowRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const log = conversationLogRef.current;
+      if (!log) return;
+      log.scrollTo({
+        top: log.scrollHeight,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, isLunaThinking]);
+
+  function handleConversationScroll() {
+    const log = conversationLogRef.current;
+    if (!log) return;
+    conversationShouldFollowRef.current = log.scrollHeight - log.scrollTop - log.clientHeight < 72;
+  }
+
+  async function sendMessage() {
+    const body = draft.trim();
+    if (!body || isSending) return;
+    const clientMessageId = window.crypto.randomUUID();
+    const optimisticMessage: ConversationMessage = {
+      id: `optimistic:${clientMessageId}`,
+      author: "user",
+      body,
+      createdAt: new Date().toISOString().replace("T", " ").replace("Z", ""),
+    };
+    conversationShouldFollowRef.current = true;
+    setMessages((current) => [...current, optimisticMessage]);
+    setDraft("");
+    setIsSending(true);
+    sendingRef.current = true;
+    try {
+      const response = await fetch("/api/activity", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "message", activityId: item.id, body, messageId: clientMessageId }),
+      });
+      if (!response.ok) throw new Error("Message could not be saved.");
+      const state = await response.json() as ConversationState;
+      setMessages(state.messages);
+      setActiveJob(state.activeJob);
+      setWorkspace(state.workspace.document);
+      setConnectionState("ready");
+    } catch {
+      setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
+      setDraft(body);
+      setConnectionState("error");
+    } finally {
+      setIsSending(false);
+      sendingRef.current = false;
+      refreshConversationRef.current();
+    }
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendMessage();
+    }
+  }
+
+  async function toggleActivityComplete() {
+    if (isCompleting) return;
+    setIsCompleting(true);
+    try {
+      const timing = isComplete ? null : captureActivityTimingSnapshot(item, workspace);
+      const response = await fetch("/api/activity/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: isComplete ? "reopen" : "complete",
+          activityId: item.id,
+          date: localDateKey(),
+          timing,
+        }),
+      });
+      if (!response.ok) throw new Error("Activity completion could not be saved.");
+      const result = await response.json() as { completed: boolean; completedAt?: string };
+      onComplete(result.completed ? result.completedAt ?? new Date().toISOString() : null);
+      setConnectionState("ready");
+    } catch {
+      setConnectionState("error");
+    } finally {
+      setIsCompleting(false);
+    }
+  }
+
+  return (
+    <div className="activity-expansion">
+      <div className="activity-workbench-heading">
+        <div>
+          <span className="workbench-kicker">Activity context</span>
+          <strong>{formatDuration(item.duration)} planned today</strong>
+        </div>
+        <span className="prototype-badge">Live activity</span>
+      </div>
+
+      <div className="activity-workbench-grid">
+        <ActivityWorkspace activity={item} hasConversation={messages.length > 0} workspace={workspace} />
+
+        <section className="activity-conversation" aria-label={`${item.title} conversation`}>
+          <header>
+            <div><strong>Notes & conversation</strong><span>Permanent activity thread</span></div>
+            <span className={`conversation-status ${connectionState === "ready" ? "is-prototype" : ""}`}><span /> {connectionState === "error" ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : isLunaThinking ? "Luna is thinking…" : "Luna"}</span>
+          </header>
+          <div className="conversation-log" aria-live="polite" ref={conversationLogRef} onScroll={handleConversationScroll}>
+            {messages.length ? <div className="date-separator"><span>Recent</span></div> : null}
+            {messages.map((message) => (
+              <div className={`message-group message-${message.author}`} key={message.id}>
+                <div className="message-bubble">{message.body}</div>
+                <div className="message-meta">{conversationTime(message.createdAt)}{message.author === "user" ? message.pending ? <span>Sending…</span> : <span aria-label="Saved message">✓</span> : null}</div>
+              </div>
+            ))}
+            {isLunaThinking ? <div className="message-group message-luna"><div className="message-bubble prototype-typing" aria-label="Luna is typing"><span /><span /><span /></div></div> : null}
+          </div>
+          <div className="conversation-composer">
+            <textarea
+              aria-label={`Message ${item.title}`}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              placeholder={`Talk with Luna about ${item.title.toLowerCase()}…`}
+              rows={2}
+              value={draft}
+            />
+            <button aria-label="Send message" disabled={!draft.trim() || isSending} type="button" onClick={() => void sendMessage()}><Send aria-hidden="true" size={16} strokeWidth={1.9} /></button>
+          </div>
+        </section>
+      </div>
+
+      <footer className="activity-footer">
+        <div className="activity-footer-tools">
+          <button className="footer-tool-button" type="button" onClick={onEdit}><Pencil aria-hidden="true" size={14} /> Edit</button>
+          <button className="footer-tool-button footer-remove-button" type="button" onClick={onRemove}><Trash2 aria-hidden="true" size={14} /> Remove</button>
+          <div className="duration-control" aria-label={`Duration for ${item.title}`}>
+            <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjustDuration(-DURATION_STEP)}>−</button>
+            <div className="duration-value">
+              <input
+                aria-label={`Duration for ${item.title} in minutes`}
+                inputMode="numeric"
+                max="480"
+                min="5"
+                onBlur={() => onSetDuration(normalizeActivityDuration(item.duration))}
+                onChange={(event) => onSetDuration(event.target.valueAsNumber)}
+                step="5"
+                type="number"
+                value={item.duration}
+              />
+              <span className="duration-unit">min</span>
+            </div>
+            <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjustDuration(DURATION_STEP)}>+</button>
+          </div>
+        </div>
+        <button className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting} type="button" onClick={() => void toggleActivityComplete()}>
+          <Check aria-hidden="true" size={16} strokeWidth={2.2} /> {isCompleting ? "Saving…" : isComplete ? "Completed" : "Mark Complete"}
+        </button>
+      </footer>
+    </div>
+  );
+}
+
 function normalizeActivityDuration(duration: number) {
   if (!Number.isFinite(duration)) return 15;
   return Math.min(480, Math.max(5, Math.round(duration / 5) * 5));
@@ -344,10 +645,22 @@ export default function Home() {
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
+  const [realMinutes, setRealMinutes] = useState(minutesNow);
+  const [fakeMinutes, setFakeMinutes] = useState<number | null>(null);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [dismissedClockActivityId, setDismissedClockActivityId] = useState<string | null>(null);
+  const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
   const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuRef = useRef<HTMLDivElement>(null);
+  const devMenuRef = useRef<HTMLDivElement>(null);
   const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const skipNextSave = useRef(true);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setRealMinutes(minutesNow()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -380,7 +693,9 @@ export default function Home() {
 
         if (cancelled) return;
         skipNextSave.current = true;
-        setItems(hydrateStoredItems(day.items));
+        const loadedItems = hydrateStoredItems(day.items);
+        setItems(loadedItems);
+        setCompletedIds(new Set(loadedItems.filter((item) => item.completedAt).map((item) => item.id)));
         setStartMinutes(day.startMinutes);
         setDatabaseReady(true);
         setHasLoaded(true);
@@ -474,6 +789,26 @@ export default function Home() {
     };
   }, [isMenuOpen]);
 
+  useEffect(() => {
+    if (!isDevMenuOpen) return;
+
+    function handleDevMenuPointerDown(event: PointerEvent) {
+      if (event.target instanceof Node && devMenuRef.current?.contains(event.target)) return;
+      setIsDevMenuOpen(false);
+    }
+
+    function handleDevMenuKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setIsDevMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", handleDevMenuPointerDown);
+    document.addEventListener("keydown", handleDevMenuKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleDevMenuPointerDown);
+      document.removeEventListener("keydown", handleDevMenuKeyDown);
+    };
+  }, [isDevMenuOpen]);
+
   useEffect(() => () => {
     if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
   }, []);
@@ -492,6 +827,21 @@ export default function Home() {
     [items],
   );
   const finishMinutes = startMinutes + totalMinutes;
+
+  const displayedMinutes = fakeMinutes ?? realMinutes;
+  const clockCurrentItem = scheduledItems.find((item) => displayedMinutes >= item.start && displayedMinutes < item.end) ?? null;
+  const selectedItemExists = selectedActivityId ? scheduledItems.some((item) => item.id === selectedActivityId) : false;
+  const expandedActivityId = selectedItemExists
+    ? selectedActivityId
+    : clockCurrentItem && !completedIds.has(clockCurrentItem.id) && dismissedClockActivityId !== clockCurrentItem.id
+      ? clockCurrentItem.id
+      : null;
+  const nowLineIndex = displayedMinutes <= startMinutes
+    ? 0
+    : displayedMinutes >= finishMinutes
+      ? scheduledItems.length
+      : Math.max(0, scheduledItems.findIndex((item) => displayedMinutes < item.end));
+
   const categoryTotals = useMemo(
     () => CATEGORY_ORDER.map((category) => ({
       category,
@@ -500,6 +850,13 @@ export default function Home() {
     })).filter((entry) => entry.minutes > 0),
     [items],
   );
+
+  const fakeTimePresets = [
+    { label: "Before", value: Math.max(0, startMinutes - 15) },
+    { label: "Start", value: startMinutes },
+    { label: "Middle", value: startMinutes + Math.round(totalMinutes / 2 / 5) * 5 },
+    { label: "Done", value: Math.min(1439, finishMinutes + 5) },
+  ];
 
   function setDuration(id: string, value: number) {
     if (!Number.isFinite(value)) return;
@@ -558,6 +915,12 @@ export default function Home() {
 
   function removeItem(id: string) {
     if (editingId === id) cancelEditing();
+    if (selectedActivityId === id) setSelectedActivityId(null);
+    setCompletedIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
     setItems((current) => current.filter((item) => item.id !== id));
   }
 
@@ -654,6 +1017,33 @@ export default function Home() {
     if (!relatedTarget || !event.currentTarget.contains(relatedTarget)) setDropTarget(null);
   }
 
+  function setTestTime(value: number | null) {
+    setFakeMinutes(value);
+    setDismissedClockActivityId(null);
+  }
+
+  function openActivity(id: string) {
+    setSelectedActivityId(id);
+    setDismissedClockActivityId(null);
+  }
+
+  function collapseActivity(id: string) {
+    setSelectedActivityId(null);
+    if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
+  }
+
+  function toggleComplete(id: string, completedAt: string | null) {
+    setCompletedIds((current) => {
+      const next = new Set(current);
+      if (completedAt) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    setItems((current) => current.map((item) => item.id === id ? { ...item, completedAt } : item));
+    setSelectedActivityId(null);
+    if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -661,14 +1051,64 @@ export default function Home() {
           <span className="brand-mark">id</span>
           <div><strong>Ideal Day</strong><span>Personal protocol</span></div>
         </div>
-        <div className={`save-state save-state-${saveState}`}><span /> {{ loading: "Loading your day", saving: "Saving", saved: "Saved to your day", retrying: "Offline · retrying" }[saveState]}</div>
+        <div className="header-actions">
+          <div className={`save-state save-state-${saveState}`}><span /> {{ loading: "Loading your day", saving: "Saving", saved: "Saved to your day", retrying: "Offline · retrying" }[saveState]}</div>
+          <div className="dev-clock" ref={devMenuRef}>
+            <button
+              aria-expanded={isDevMenuOpen}
+              aria-haspopup="dialog"
+              className={`dev-clock-trigger ${fakeMinutes !== null ? "is-active" : ""}`}
+              type="button"
+              onClick={() => setIsDevMenuOpen((current) => !current)}
+            >
+              <Clock3 aria-hidden="true" size={14} strokeWidth={1.9} />
+              <span>Dev</span>
+              {fakeMinutes !== null ? <strong>{formatTime(fakeMinutes)}</strong> : null}
+            </button>
+            {isDevMenuOpen ? (
+              <div className="dev-clock-popover" role="dialog" aria-label="Development clock">
+                <div className="dev-clock-heading">
+                  <div><span>Development clock</span><strong>{formatTime(displayedMinutes)}</strong></div>
+                  <button aria-label="Use actual time" disabled={fakeMinutes === null} type="button" onClick={() => setTestTime(null)}><RotateCcw aria-hidden="true" size={14} /> Actual time</button>
+                </div>
+                <label className="dev-time-field" htmlFor="dev-fake-time">
+                  <span>Fake time of day</span>
+                  <input
+                    id="dev-fake-time"
+                    type="time"
+                    step="300"
+                    value={timeInputValue(displayedMinutes)}
+                    onChange={(event) => setTestTime(minutesFromTimeInput(event.target.value))}
+                  />
+                </label>
+                <input
+                  aria-label="Fake time slider"
+                  className="dev-time-slider"
+                  max="1435"
+                  min="0"
+                  step="5"
+                  type="range"
+                  value={displayedMinutes}
+                  onChange={(event) => setTestTime(event.target.valueAsNumber)}
+                />
+                <div className="dev-time-presets">
+                  {fakeTimePresets.map((preset) => <button key={preset.label} type="button" onClick={() => setTestTime(preset.value)}>{preset.label}<span>{formatTime(preset.value)}</span></button>)}
+                </div>
+                <button className="follow-clock-button" type="button" onClick={() => { setSelectedActivityId(null); setDismissedClockActivityId(null); }}>
+                  Follow clock-selected activity
+                </button>
+                <p>Local preview only. This does not change the saved schedule.</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </header>
 
       <div className="page-shell">
         <section className="hero" aria-labelledby="page-title">
           <div className="hero-copy">
             <p className="eyebrow">Daily protocol</p>
-            <h1 id="page-title">Your ideal morning.</h1>
+            <h1 id="page-title">{formatTodayHeading()}</h1>
             <p>One repeatable sequence from wake-up to done. Reorder the flow and tune the timing until it feels natural.</p>
           </div>
           <div className="day-overview" aria-label="Day overview">
@@ -772,22 +1212,30 @@ export default function Home() {
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
                 const isDropAfter = dropTarget?.id === item.id && dropTarget.position === "after";
                 const isEditing = editingId === item.id;
+                const isExpanded = expandedActivityId === item.id;
+                const isComplete = completedIds.has(item.id);
+                const activityState = isComplete ? "complete" : item.end <= displayedMinutes ? "past" : item.start > displayedMinutes ? "upcoming" : "current";
                 const itemStyle = { "--item-color": item.color } as CSSProperties;
 
                 return (
-                  <div
-                    className={`routine-row ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""}`}
-                    key={item.id}
-                    onDragOver={(event) => handleDragOver(event, item.id)}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(event) => handleDrop(event, item.id)}
-                    style={itemStyle}
-                  >
+                  <Fragment key={item.id}>
+                    {nowLineIndex === scheduledItems.indexOf(item) ? (
+                      <div className="now-line" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
+                        <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
+                      </div>
+                    ) : null}
+                    <div
+                      className={`routine-row is-${activityState} ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""}`}
+                      onDragOver={(event) => handleDragOver(event, item.id)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(event) => handleDrop(event, item.id)}
+                      style={itemStyle}
+                    >
                     {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Move here</span></div> : null}
 
                     <div className="time-label"><strong>{start.time}</strong><span>{start.suffix}</span></div>
 
-                    <article className={`routine-card ${isEditing ? "is-editing" : ""}`}>
+                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""}`}>
                       <button
                         className="drag-button"
                         draggable
@@ -823,54 +1271,81 @@ export default function Home() {
                           </form>
                         </>
                       ) : (
-                        <div className="item-copy">
+                        <button className="item-copy" type="button" aria-expanded={isExpanded} onClick={() => openActivity(item.id)}>
                           <div className="item-title">
                             <h3>{item.title}</h3>
+                            {activityState === "current" ? <span className="now-chip">Now</span> : null}
+                            {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
                           </div>
                           <div className="item-meta">
                             <div className="mobile-time-label" aria-hidden="true"><strong>{start.time}</strong><span>{start.suffix}</span></div>
                             <span className="category-chip">{item.category}</span>
                           </div>
-                        </div>
+                        </button>
                       )}
 
-                      <button
-                        className="edit-item-button"
-                        type="button"
-                        aria-label={`Edit ${item.title}`}
-                        onClick={() => startEditing(item)}
-                      ><Pencil aria-hidden="true" size={14} strokeWidth={1.8} /></button>
+                      {isExpanded ? (
+                        <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={() => collapseActivity(item.id)}><ChevronUp aria-hidden="true" size={16} /></button>
+                      ) : (
+                        <>
+                          <button
+                            className="edit-item-button"
+                            type="button"
+                            aria-label={`Edit ${item.title}`}
+                            onClick={() => startEditing(item)}
+                          ><Pencil aria-hidden="true" size={14} strokeWidth={1.8} /></button>
 
-                      <button
-                        className="delete-item-button"
-                        type="button"
-                        aria-label={`Remove ${item.title}`}
-                        onClick={() => removeItem(item.id)}
-                      ><Trash2 aria-hidden="true" size={14} strokeWidth={1.8} /></button>
+                          <button
+                            className="delete-item-button"
+                            type="button"
+                            aria-label={`Remove ${item.title}`}
+                            onClick={() => removeItem(item.id)}
+                          ><Trash2 aria-hidden="true" size={14} strokeWidth={1.8} /></button>
 
-                      <div className="duration-control" aria-label={`Duration for ${item.title}`}>
-                        <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
-                        <div className="duration-value">
-                          <input
-                            aria-label={`Duration for ${item.title} in minutes`}
-                            inputMode="numeric"
-                            max="480"
-                            min="5"
-                            onBlur={() => setDuration(item.id, normalizeActivityDuration(item.duration))}
-                            onChange={(event) => setDuration(item.id, event.target.valueAsNumber)}
-                            step="5"
-                            type="number"
-                            value={item.duration}
-                          />
-                          <span className="duration-unit">min</span>
-                        </div>
-                        <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
-                      </div>
+                          <div className="duration-control" aria-label={`Duration for ${item.title}`}>
+                            <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
+                            <div className="duration-value">
+                              <input
+                                aria-label={`Duration for ${item.title} in minutes`}
+                                inputMode="numeric"
+                                max="480"
+                                min="5"
+                                onBlur={() => setDuration(item.id, normalizeActivityDuration(item.duration))}
+                                onChange={(event) => setDuration(item.id, event.target.valueAsNumber)}
+                                step="5"
+                                type="number"
+                                value={item.duration}
+                              />
+                              <span className="duration-unit">min</span>
+                            </div>
+                            <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
+                          </div>
+                        </>
+                      )}
+
+                      {isExpanded ? (
+                        <ActivityWorkbench
+                          isComplete={isComplete}
+                          item={item}
+                          onAdjustDuration={(delta) => adjustDuration(item.id, delta)}
+                          onComplete={(completedAt) => toggleComplete(item.id, completedAt)}
+                          onEdit={() => startEditing(item)}
+                          onRemove={() => removeItem(item.id)}
+                          onSetDuration={(value) => setDuration(item.id, value)}
+                        />
+                      ) : null}
 
                     </article>
-                  </div>
+                    </div>
+                  </Fragment>
                 );
               })}
+
+              {nowLineIndex === scheduledItems.length ? (
+                <div className="now-line now-line-finished" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
+                  <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
+                </div>
+              ) : null}
 
               <div className="finish-row">
                 <div className="time-label"><strong>{timeParts(finishMinutes).time}</strong><span>{timeParts(finishMinutes).suffix}</span></div>

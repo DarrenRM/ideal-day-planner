@@ -87,3 +87,132 @@ export const settings = sqliteTable("settings", {
   pullForwardAfterEarlyCompletion: integer("pull_forward_after_early_completion", { mode: "boolean" }).notNull().default(false),
   updatedAt: updatedAt(),
 });
+
+export const conversations = sqliteTable("conversations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("conversations_user_activity_unique").on(table.userId, table.activityId),
+  index("conversations_user_idx").on(table.userId),
+]);
+
+export const conversationMessages = sqliteTable("conversation_messages", {
+  id: text("id").primaryKey(),
+  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  body: text("body").notNull(),
+  source: text("source").notNull(),
+  agentJobId: text("agent_job_id"),
+  createdAt: createdAt(),
+}, (table) => [
+  index("conversation_messages_conversation_created_idx").on(table.conversationId, table.createdAt),
+]);
+
+export const activityVisits = sqliteTable("activity_visits", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  clientVisitId: text("client_visit_id").notNull(),
+  contextJson: text("context_json"),
+  openedAt: createdAt(),
+}, (table) => [
+  uniqueIndex("activity_visits_user_client_unique").on(table.userId, table.clientVisitId),
+  index("activity_visits_activity_opened_idx").on(table.activityId, table.openedAt),
+]);
+
+export const agentJobs = sqliteTable("agent_jobs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  sourceMessageId: text("source_message_id"),
+  status: text("status").notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  leaseToken: text("lease_token"),
+  leaseOwner: text("lease_owner"),
+  leasedAt: text("leased_at"),
+  leaseExpiresAt: text("lease_expires_at"),
+  error: text("error"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("agent_jobs_user_idempotency_unique").on(table.userId, table.idempotencyKey),
+  index("agent_jobs_status_created_idx").on(table.status, table.createdAt),
+  index("agent_jobs_conversation_idx").on(table.conversationId),
+]);
+
+export const agentSessionBindings = sqliteTable("agent_session_bindings", {
+  id: text("id").primaryKey(),
+  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  runtime: text("runtime").notNull(),
+  runtimeSessionId: text("runtime_session_id").notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("agent_session_bindings_conversation_runtime_unique").on(table.conversationId, table.runtime),
+]);
+
+export const activityWorkspaces = sqliteTable("activity_workspaces", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  currentRevisionId: text("current_revision_id"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("activity_workspaces_user_activity_unique").on(table.userId, table.activityId),
+]);
+
+export const activityProfiles = sqliteTable("activity_profiles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  setupStatus: text("setup_status").notNull().default("preparing"),
+  setupKey: text("setup_key").notNull(),
+  setupQuestionMessageId: text("setup_question_message_id"),
+  assessedAt: text("assessed_at"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("activity_profiles_user_activity_unique").on(table.userId, table.activityId),
+]);
+
+export const activityRuns = sqliteTable("activity_runs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  dailyPlanItemId: text("daily_plan_item_id").references(() => dailyPlanItems.id, { onDelete: "set null" }),
+  planDate: text("plan_date").notNull(),
+  status: text("status").notNull().default("completed"),
+  allottedDurationSeconds: integer("allotted_duration_seconds").notNull(),
+  plannedDurationSeconds: integer("planned_duration_seconds").notNull(),
+  actualElapsedSeconds: integer("actual_elapsed_seconds"),
+  timerMode: text("timer_mode"),
+  timerComponentId: text("timer_component_id"),
+  startedAt: text("started_at"),
+  completedAt: text("completed_at"),
+  detailsJson: text("details_json"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("activity_runs_user_activity_date_unique").on(table.userId, table.activityId, table.planDate),
+  index("activity_runs_activity_date_idx").on(table.activityId, table.planDate),
+]);
+
+export const workspaceRevisions = sqliteTable("workspace_revisions", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull().references(() => activityWorkspaces.id, { onDelete: "cascade" }),
+  revisionNumber: integer("revision_number").notNull(),
+  documentJson: text("document_json").notNull(),
+  sourceAgentJobId: text("source_agent_job_id"),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("workspace_revisions_workspace_number_unique").on(table.workspaceId, table.revisionNumber),
+  index("workspace_revisions_workspace_idx").on(table.workspaceId),
+]);

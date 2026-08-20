@@ -1,0 +1,1 @@
+ALTER TABLE `activity_visits` ADD `context_json` text;

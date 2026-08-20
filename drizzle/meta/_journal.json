@@ -8,6 +8,34 @@
       "when": 1787112188763,
       "tag": "0000_minor_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787195716276,
+      "tag": "0001_short_nightcrawler",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787196229544,
+      "tag": "0002_sticky_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787198424283,
+      "tag": "0003_sharp_sauron",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787200097135,
+      "tag": "0004_fluffy_bug",
+      "breakpoints": true
     }
   ]
 }
