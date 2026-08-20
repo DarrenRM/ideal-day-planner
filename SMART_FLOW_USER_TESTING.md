@@ -101,6 +101,7 @@ For every meaningful interaction, evaluate these dimensions.
 - Open an under-documented product activity. Expect one concrete question whose answer would affect the routine.
 - Answer with a product and a simple routine. Expect the left workspace to update immediately, not merely a conversational acknowledgment.
 - Ask Luna to add a timer or countdown. Confirm the correct control appears and a countdown defaults to the activity duration.
+- Create or initialize both a five-minute chin-up visualization and a five-minute Shake / Supplements activity. Expect a countdown for the visualization, but no timer for the shake unless the user explicitly asks or supplies a time-defined protocol. A calendar duration by itself is not timer intent.
 - Create a new open-ended activity such as a cardio modality or mobility routine. Confirm Luna prepares suitable components and one high-value setup question before repeated use.
 - Start a timer, complete the activity early, and verify that allotted, planned, and actual elapsed durations remain distinct. Complete another activity without starting a timer and verify that actual elapsed time remains unknown.
 - Ask for a component “just today,” then distinguish it from an activity-level component intended for future days.

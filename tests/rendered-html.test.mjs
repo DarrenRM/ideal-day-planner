@@ -148,6 +148,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.protocol-steps/);
   assert.match(css, /\.component-request/);
   assert.match(css, /\.blank-workspace/);
+  assert.match(css, /\.blank-workspace \{[^}]*column-gap: 24px[^}]*grid-template-columns: 40px minmax\(0, 250px\)[^}]*justify-content: center[^}]*min-height: 112px/);
   assert.match(css, /\.time-component-display/);
   assert.match(css, /\.routine-component-summary/);
   assert.match(css, /\.prototype-typing/);
@@ -237,6 +238,9 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(workspaceModel, /durationSource/);
   assert.match(bridge, /Activity-setup behavior/);
   assert.match(bridge, /Cardio with no user-supplied description must ask/);
+  assert.match(bridge, /A scheduled duration is a planning budget, not evidence/);
+  assert.match(bridge, /five-minute chin-up visualization/);
+  assert.match(bridge, /Do not add a timer or countdown by default for Shake \/ Supplements/);
   assert.match(bridge, /Ordinary opens are silent and do not redesign the workspace/);
   assert.match(bridge, /workspaceActions/);
   assert.match(bridge, /parseAgentResult/);
@@ -250,6 +254,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(productSpec, /Activity creation is the primary workspace-design moment/);
   assert.match(productSpec, /actual elapsed time remains unknown/);
   assert.match(productSpec, /count-up timers, and countdowns/);
+  assert.match(productSpec, /Timers and countdowns are ordinary optional components/);
   assert.match(smartFlowGuide, /Question product semantics, not only visual polish/);
   assert.match(smartFlowGuide, /Does an activity-level component remain when the activity is reopened and on future days/);
   assert.match(packageJson, /"bridge": "node bridge\/ideal-day-bridge\.mjs"/);

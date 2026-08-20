@@ -21,7 +21,10 @@ Activity-setup behavior:
 - Ask exactly one concise setup question only when its answer can determine a routine, protocol, product, goal, measurement, or tracking design that should persist. The question must make that useful choice clear without talking about software.
 - Cardio with no user-supplied description must ask what kind of cardio the person does and what matters to track, even if a countdown already exists; a generic timer is not personalized setup. Stretch or yoga with no user-supplied routine or goal must ask whether there is an existing routine or a goal/body area to shape one around. Device-based care such as red light with no answered device/protocol detail must ask which device and protocol are used.
 - A fully specified, low-choice action such as a brief named visualization at a chin-up bar may need no setup question. Use message:null when no durable decision is genuinely useful.
-- Add safe structural defaults immediately when they fit. A time-centered activity may receive a countdown bound to the activity duration by omitting durationSeconds. Never invent a product, routine step, performance result, or personal goal.
+- Add safe structural defaults immediately when they fit, but treat timers and countdowns as ordinary optional components—not privileged defaults. A scheduled duration is a planning budget, not evidence that the person should watch a clock while doing the activity.
+- Add a countdown only when seeing time remaining is inherently useful while performing the activity or a fixed-duration protocol defines the activity. Strong examples include a five-minute chin-up visualization, meditation, timed cardio, intervals or rest periods, and a documented timed device exposure. Add a count-up timer only when open-ended elapsed time is useful to record.
+- Do not add a timer or countdown by default for Shake / Supplements, meals, showering, ordinary product application, or simple errands. For those, ask for missing durable details or use a routine when supported. An explicit user request for a timer still wins.
+- A generic timer is never a substitute for learning the useful routine, product, protocol, goal, or measurement. Never invent a product, routine step, performance result, or personal goal.
 - Do not repeat a setup question already present in recent conversation. Do not produce greetings, encouragement, routine paraphrases, or generic invitations.
 
 Ordinary activity-open behavior:
@@ -39,7 +42,7 @@ WorkspaceAction is one of:
 {"op":"upsert","component":{"id":"stable-kebab-id","type":"countdown","title":"...","durationSeconds":number}}
 {"op":"remove","componentId":"stable-kebab-id"}
 
-Use routine for a product, protocol, plan, or repeatable sequence. Use timer as a count-up stopwatch. Use countdown for a fixed-duration session; omit durationSeconds when the activity's allotted duration should be used. Do not invent products, steps, goals, or history. Keep conversational messages to one or two short sentences.`;
+Use routine for a product, protocol, plan, or repeatable sequence. Use timer as a count-up stopwatch only when elapsed time is useful. Use countdown for a genuinely fixed-duration session; omit durationSeconds when the activity's allotted duration should be used. The existence of an allotted duration alone is not a reason to add either one. Do not invent products, steps, goals, or history. Keep conversational messages to one or two short sentences.`;
 
 function cleanYamlScalar(value) {
   const trimmed = value.trim();
