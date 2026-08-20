@@ -610,6 +610,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .day-launch-copy > p:last-child { font-size: var(--type-body-sm); }
   .start-day-button { width: 100%; }
   .schedule { padding: 8px 0 16px; }
+  .page-shell:has(.routine-card.is-expanded) { margin: 0; max-width: none; padding: 0; width: 100%; }
+  .page-shell:has(.routine-card.is-expanded) .schedule, .routine-row:has(.routine-card.is-expanded) { padding: 0; }
   .now-line { grid-template-columns: 54px minmax(20px, 1fr) auto; }
   .now-line span { font-size: var(--type-micro); justify-self: start; }
   .now-line strong { padding-right: 5px; }

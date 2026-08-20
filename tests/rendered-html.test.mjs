@@ -181,6 +181,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(css, /--font-geist-/);
   assert.match(css, /@media \(max-width: 680px\)/);
   assert.match(css, /height: 100dvh/);
+  assert.match(css, /\.page-shell:has\(\.routine-card\.is-expanded\).*padding: 0/);
+  assert.match(css, /\.routine-row:has\(\.routine-card\.is-expanded\) \{ padding: 0; \}/);
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
   assert.match(css, /\.activity-conversation\.has-workspace-peek \{ top: 96px; \}/);
