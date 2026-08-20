@@ -527,7 +527,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card.has-open-mobile-menu { z-index: 12; }
   .routine-card.is-expanded { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: 0; }
   .routine-card.is-expanded .item-copy { grid-column: 1 / -1; grid-row: 1; }
-  .routine-card.is-expanded .collapse-activity-button { grid-column: 2; grid-row: 1; z-index: 2; }
+  .routine-card.is-expanded .collapse-activity-button { grid-column: auto; grid-row: auto; height: 34px; position: absolute; right: 10px; top: 10px; width: 34px; z-index: 2; }
   .drag-button, .item-icon { display: none; }
   .item-copy { align-items: center; align-self: stretch; display: grid; gap: 9px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 21px; min-width: 0; padding: 0; width: 100%; }
   .item-title { display: block; grid-column: 1 / -1; grid-row: 1; min-width: 0; overflow: hidden; padding-right: 82px; }

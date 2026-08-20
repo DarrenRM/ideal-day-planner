@@ -214,6 +214,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-meta \{[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*padding-right: 0/s);
   assert.match(css, /\.item-state \{[^}]*grid-column: 2;[^}]*grid-row: 2/s);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
+  assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
   assert.match(css, /\.duration-control \{[^}]*grid-template-columns: 38px 68px 38px;[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
