@@ -107,6 +107,10 @@ async function ensureHermesSession(key, leased, existingSessionId) {
   });
   if (!created.ok && created.status !== 409) {
     const text = await created.text();
+    const existingSession = created.status === 400
+      ? text.match(/Title already in use by session ([A-Za-z0-9_-]+)/)?.[1]
+      : null;
+    if (existingSession) return existingSession;
     throw new Error(`Hermes session creation failed (${created.status}): ${text.slice(0, 300)}`);
   }
   return sessionId;

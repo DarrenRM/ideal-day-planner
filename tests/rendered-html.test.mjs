@@ -235,6 +235,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(store, /host === "localhost" \|\| host === "127\.0\.0\.1"/);
   assert.match(bridge, /profiles", "ideal-day"/);
   assert.match(bridge, /readHermesKey/);
+  assert.match(bridge, /Title already in use by session/);
   assert.match(bridge, /IDEAL_DAY_SITES_BYPASS_TOKEN/);
   assert.match(bridge, /OAI-Sites-Authorization/);
   assert.match(store, /persistWorkspaceActions/);
