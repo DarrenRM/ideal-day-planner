@@ -1385,7 +1385,13 @@ export default function Home() {
         <div className="main-grid">
           <section className="planner" aria-labelledby="schedule-title">
             <header className="planner-header">
-              <div><h2 id="schedule-title">Schedule</h2><p>{hasLoaded ? isDayStarted ? `${items.length} activities · times move with your day` : `${items.length} activities · ready when you are` : "Loading your saved day…"}</p></div>
+              <div>
+                <h2 id="schedule-title">Schedule</h2>
+                <p>
+                  <span className="desktop-schedule-summary">{hasLoaded ? isDayStarted ? `${items.length} activities · times move with your day` : `${items.length} activities · ready when you are` : "Loading your saved day…"}</span>
+                  <span className="mobile-schedule-summary">{hasLoaded ? `${items.length} activities` : "Loading your saved day…"}</span>
+                </p>
+              </div>
               <div className="planner-actions">
                 <div className="planner-menu" ref={menuRef}>
                   <button

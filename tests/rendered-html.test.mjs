@@ -209,6 +209,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /More options for/);
   assert.match(page, /Edit activity/);
   assert.match(page, /Skip for today/);
+  assert.match(page, /mobile-schedule-summary/);
   assert.match(css, /\.drag-button, \.item-icon \{ display: none; \}/);
   assert.match(css, /\.item-title \{[^}]*padding-right: 82px/s);
   assert.match(css, /\.item-meta \{[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*padding-right: 0/s);
@@ -217,6 +218,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
   assert.match(css, /\.now-line span \{ font-size: 7px; justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded::after \{[^}]*inset: -1px;[^}]*pointer-events: none;[^}]*z-index: 30/s);
+  assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
+  assert.match(css, /\.planner-help \{ display: none; \}/);
+  assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
+  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*display: grid;[^}]*grid-template-columns: 26px 48px 26px;[^}]*top: 36px/s);
   assert.match(css, /\.duration-control \{[^}]*grid-template-columns: 38px 68px 38px;[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);

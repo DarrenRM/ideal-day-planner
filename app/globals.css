@@ -96,6 +96,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .planner-header { align-items: center; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; min-height: 74px; padding: 17px 20px; }
 .planner-header h2 { font-size: 17px; font-weight: 580; letter-spacing: -.025em; margin-bottom: 6px; }
 .planner-header p { color: var(--subtle); font-size: 11px; margin: 0; }
+.mobile-schedule-summary { display: none; }
 .planner-actions { align-items: center; display: flex; gap: 8px; }
 .planner-menu { position: relative; }
 .planner-menu-trigger { align-items: center; background: transparent; border: 1px solid var(--border-strong); border-radius: 7px; color: #8d9792; cursor: pointer; display: inline-flex; height: 32px; justify-content: center; padding: 0; transition: background .18s, border-color .18s, color .18s; width: 32px; }
@@ -494,26 +495,27 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .save-state { font-size: 10px; }
   .hero, .summary-rail { display: none; }
   .main-grid { gap: 0; }
-  .planner { border-radius: 14px; }
-  .planner-header { min-height: 72px; padding: 14px 15px; }
+  .planner { background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+  .planner-header { border-bottom: 0; min-height: 72px; padding: 14px 0; }
   .planner-header > div:first-child { min-width: 0; }
   .planner-header h2 { font-size: 18px; margin-bottom: 5px; }
+  .desktop-schedule-summary { display: none; }
+  .mobile-schedule-summary { display: inline; }
   .planner-actions { flex: 0 0 auto; }
   .planner-menu-trigger { height: 40px; width: 40px; }
-  .add-block-form { grid-template-columns: 1fr 1fr; padding: 14px 16px 15px; }
+  .add-block-form { grid-template-columns: 1fr 1fr; padding: 14px 0 15px; }
   .add-name-field, .add-form-actions { grid-column: 1 / -1; }
   .add-form-actions { justify-content: flex-end; }
   .add-field label { font-size: 9px; }
   .add-field input, .add-field .category-picker-trigger { font-size: 12px; height: 42px; }
   .cancel-add-button, .confirm-add-button { font-size: 11px; height: 40px; }
   .add-block-button { font-size: 11px; min-height: 40px; padding: 8px 12px; }
-  .planner-help { font-size: 10px; justify-content: center; line-height: 1.45; padding: 11px 12px; }
-  .planner-help .help-grip { display: none; }
+  .planner-help { display: none; }
   .day-launch { align-items: stretch; flex-direction: column; gap: 18px; padding: 21px 18px; }
   .day-launch h2 { font-size: 19px; }
   .day-launch-copy > p:last-child { font-size: 11px; }
   .start-day-button { width: 100%; }
-  .schedule { padding: 8px 10px 16px; }
+  .schedule { padding: 8px 0 16px; }
   .now-line { grid-template-columns: 54px minmax(20px, 1fr) auto; }
   .now-line span { font-size: 7px; justify-self: start; }
   .now-line strong { padding-right: 5px; }
@@ -563,6 +565,12 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .duration-value { height: 42px; }
   .duration-control input { font-size: 16px; height: 42px; max-width: 4ch; }
   .duration-unit { font-size: 11px; line-height: 42px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control { display: grid; grid-template-columns: 26px 48px 26px; height: 30px; position: absolute; right: 0; top: 36px; width: 100px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control button { font-size: 14px; height: 28px; width: 26px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-value { height: 28px; padding: 0 4px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control input { font-size: 12px; height: 28px; max-width: 3ch; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-unit { font-size: 8px; line-height: 28px; }
+  .routine-row.is-current .routine-card:not(.is-expanded) .item-state { margin-right: 108px; }
   .activity-expansion { grid-column: 1 / -1; grid-row: 2; margin: 1px -12px 0 -10px; }
   .activity-workbench-heading { padding: 16px; }
   .activity-workbench-heading strong { font-size: 13px; }
