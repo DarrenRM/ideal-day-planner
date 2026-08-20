@@ -83,7 +83,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Wide desktop: content is capped at 1180px; the summary rail is 294px; schedule and summary may sit side by side.
 - At 1040px: collapse the main layout to one column.
 - At 680px and below: begin directly at Schedule; hide desktop hero/summary content; remove the schedule's redundant outer card; use edge space carefully.
-- Mobile collapsed activity: title first; category/status beneath; overflow menu and completion at upper right. When Day Timeline is enabled, add clock time and a compact duration control without changing the header anatomy. Long titles ellipsize instead of squeezing controls.
+- Mobile collapsed activity: title first; category/status beneath; overflow menu and completion at upper right; compact activity-length controls beneath those actions. Day Timeline adds clock time without changing the header anatomy. Long titles ellipsize instead of squeezing controls.
 - Mobile expanded activity: reuse the same header structure and controls as the collapsed activity. Preserve one continuous full-screen shell; stack workspace above conversation; keep only the large Skip/Mark Complete actions in the footer.
 - In its header, treat the activity title and metadata as one group while preserving a 6px optical separation between their rows.
 - The full-screen mobile expanded shell is flush to every viewport edge and has no inherited outer padding; its header, workspace, conversation, and footer own their internal spacing.

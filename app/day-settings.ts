@@ -12,7 +12,6 @@ export type DayModePolicy = {
   timelineEnabled: boolean;
   showStartGate: boolean;
   showClockState: boolean;
-  showDurationControls: boolean;
   showMinuteSummaries: boolean;
 };
 
@@ -22,7 +21,6 @@ export function dayModePolicy(settings: DaySettings): DayModePolicy {
     timelineEnabled,
     showStartGate: timelineEnabled,
     showClockState: timelineEnabled,
-    showDurationControls: timelineEnabled,
     showMinuteSummaries: timelineEnabled,
   };
 }

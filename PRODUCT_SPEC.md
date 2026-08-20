@@ -41,7 +41,7 @@ Today’s activity list is the home screen. Activities are the primary context b
 - Recalculate downstream times automatically.
 - Allow activities to be marked complete. Detailed actual-time tracking is out of scope for now, except for timers or countdowns the person actually uses.
 - Allow an activity to be skipped for today from both its collapsed row and expanded footer. A skipped activity remains visible and reversible but contributes no minutes to today’s active sequence.
-- With Timeline off, do not render start-day, activity clock labels, duration controls, Now state, clock-selected expansion, finish/length summaries, or minute-based Day Shape. Completion runs must not claim an allotted or planned duration merely because dormant schedule data exists.
+- With Timeline off, do not render start-day, activity clock labels, Now state, clock-selected expansion, finish/length summaries, or minute-based Day Shape. Activity-length controls remain available as practical estimates, but completion runs must not claim an allotted or planned duration merely because an estimate exists.
 - In Timeline mode, show a live “Now” line that advances through the schedule.
 - Render the activity selected by the current clock in the full expanded-card layout when no other activity has been selected. This expanded layout is the activity’s Now state, with the previously defined header, middle details/chat area, and footer.
 - Keep at most one activity expanded. The user can move freely among activities without the clock forcing the interface to jump.
@@ -554,8 +554,8 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 ## 12. Decisions recorded so far
 
 - The ideal-day sequence remains the home screen; its default presentation is a flexible checklist.
-- `Day Timeline` is a persisted setting, defaults off, and is the single policy boundary for start-day, clock labels, duration controls, Now state, clock-selected expansion, finish/length summaries, and minute-based Day Shape.
-- Turning Day Timeline off preserves preferred-start and duration data without displaying it or treating it as an active plan.
+- `Day Timeline` is a persisted setting, defaults off, and is the single policy boundary for start-day, clock labels, Now state, clock-selected expansion, finish/length summaries, and minute-based Day Shape.
+- Turning Day Timeline off preserves preferred-start data and stops treating activity lengths as clock scheduling. The activity-length controls remain visible and useful in checklist mode.
 - Timers and countdowns remain optional activity components in either mode and record actual use independently of Timeline.
 - Each day gets an editable daily plan derived from an editable template.
 - Scheduling and completion are in scope; detailed actual-time tracking is deferred.
@@ -581,7 +581,7 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Moving a missed activity later reschedules all following activities.
 - Activities expand in their existing row/card on desktop and mobile.
 - Mobile begins at Today’s activity list and omits the desktop hero and summary sections.
-- Mobile uses one shared activity header in collapsed and expanded states. It contains title/category, overflow menu, and completion; Timeline mode additionally adds clock time and compact duration controls.
+- Mobile uses one shared activity header in collapsed and expanded states. It contains title/category, overflow menu, completion, and compact activity-length controls; Timeline mode additionally adds clock time.
 - The expanded mobile footer contains the large `Skip for Today` and `Mark Complete` actions. Overflow and duration controls live in the shared header rather than repeating in the footer.
 - Expanded activities contain contextual details and an activity-scoped conversation.
 - Expanded activities move directly from the activity header into workspace components and conversation. They do not repeat the activity category/title or show a permanent “Activity context”/“Live activity” strip; a session-status strip appears only when it has meaningful run state such as started, elapsed, completed, skipped, or a real today-specific warning.

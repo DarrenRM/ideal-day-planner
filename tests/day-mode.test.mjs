@@ -7,7 +7,6 @@ test("checklist mode is the default and disables every clock-derived surface", (
     timelineEnabled: false,
     showStartGate: false,
     showClockState: false,
-    showDurationControls: false,
     showMinuteSummaries: false,
   });
 });
@@ -17,8 +16,6 @@ test("Day Timeline enables the complete clock policy as one unit", () => {
     timelineEnabled: true,
     showStartGate: true,
     showClockState: true,
-    showDurationControls: true,
     showMinuteSummaries: true,
   });
 });
-

@@ -716,11 +716,11 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .duration-value { height: 42px; }
   .duration-control input { font-size: var(--type-body-lg); height: 42px; max-width: 4ch; }
   .duration-unit { font-size: var(--type-body-sm); line-height: 42px; }
-  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control { align-self: center; display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: 26px 48px 26px; height: 30px; justify-self: end; position: static; width: 100px; }
-  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control button { font-size: var(--type-body); height: 28px; width: 26px; }
-  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-value { height: 28px; padding: 0 4px; }
-  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control input { font-size: var(--type-label); height: 28px; max-width: 3ch; }
-  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-unit { font-size: var(--type-micro); line-height: 28px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card .item-controls > .duration-control { align-self: center; display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: 26px 48px 26px; height: 30px; justify-self: end; position: static; width: 100px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card .item-controls > .duration-control button { font-size: var(--type-body); height: 28px; width: 26px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card .item-controls > .duration-control .duration-value { height: 28px; padding: 0 4px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card .item-controls > .duration-control input { font-size: var(--type-label); height: 28px; max-width: 3ch; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card .item-controls > .duration-control .duration-unit { font-size: var(--type-micro); line-height: 28px; }
   .routine-row.is-current .routine-card:not(.is-expanded) .item-state { margin-right: 108px; }
   .routine-row:has(.routine-card.is-expanded) { z-index: 100; }
   .routine-card.is-expanded { background: #101416; border: 0; border-radius: 0; bottom: 0; box-shadow: none; display: grid; gap: 0; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; inset-inline: 0; margin: 0; max-width: none; padding: 0; position: fixed; top: 0; width: 100%; z-index: 100; }
@@ -728,12 +728,6 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card.is-expanded .item-title { padding-right: 108px; }
   .routine-card.is-expanded > .item-controls { align-self: start; grid-row: 1; padding-top: max(8px, env(safe-area-inset-top)); right: 12px; top: 0; }
   .is-timeline-mode .routine-card.is-expanded .item-state { margin-right: 108px; }
-  .is-checklist-mode .routine-card { min-height: 78px; }
-  .is-checklist-mode .item-copy { grid-template-rows: 32px 24px; }
-  .is-checklist-mode .item-title { padding-right: 76px; }
-  .is-checklist-mode .item-controls { grid-row: 1; grid-template-rows: 32px; min-width: 68px; width: 68px; }
-  .is-checklist-mode .routine-card.is-expanded .item-copy { grid-template-rows: 32px 24px; min-height: 78px; }
-  .is-checklist-mode .routine-card.is-expanded .item-title { padding-right: 76px; }
   .desktop-collapse-icon { display: none; }
   .mobile-collapse-icon { display: block; }
   .activity-expansion { display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-rows: minmax(0, 1fr) auto; height: 100%; margin: 0; min-height: 0; overflow: hidden; }

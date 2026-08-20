@@ -2031,11 +2031,11 @@ export default function Home() {
                             ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
                           </ControlTooltip>
 
-                          {dayMode.showDurationControls ? <div className="duration-control" aria-label={`Duration for ${item.title}`}>
+                          <div className="duration-control" aria-label={`Length for ${item.title}`}>
                             <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
                             <div className="duration-value">
                               <input
-                                aria-label={`Duration for ${item.title} in minutes`}
+                                aria-label={`Length for ${item.title} in minutes`}
                                 inputMode="numeric"
                                 max="480"
                                 min="5"
@@ -2048,7 +2048,7 @@ export default function Home() {
                               <span className="duration-unit">min</span>
                             </div>
                             <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
-                          </div> : null}
+                          </div>
                         </div>
 
                       {isExpanded ? (

@@ -143,7 +143,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Day Timeline/);
   assert.match(page, /fetch\("\/api\/settings"/);
   assert.match(page, /dayMode\.showStartGate && hasLoaded && !isDayStarted/);
-  assert.match(page, /dayMode\.showDurationControls \? <div className="duration-control"/);
+  assert.match(page, /<div className="duration-control" aria-label={`Length for \$\{item\.title\}`}>/);
   assert.match(page, /Your day is a flexible checklist/);
   assert.match(page, /mode: "start-day"/);
   assert.match(page, /completedBeforeLaunchIds/);
