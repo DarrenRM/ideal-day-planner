@@ -54,7 +54,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /restore-template/);
   assert.match(page, /MIGRATION_KEY/);
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
-  assert.match(page, /hasLoaded \? <>\{scheduledItems\.map/);
+  assert.match(page, /hasLoaded \? <>\{displayedScheduledItems\.map/);
   assert.match(page, /draggable/);
   assert.match(page, /onDrop/);
   assert.match(page, /DropTarget/);
@@ -117,6 +117,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Start My Day/);
   assert.match(page, /Start Early/);
   assert.match(page, /mode: "start-day"/);
+  assert.match(page, /completedBeforeLaunchIds/);
+  assert.match(page, /displayedScheduledItems/);
+  assert.match(page, /timestampTimeParts/);
+  assert.match(page, /consumesScheduleTime/);
   assert.match(page, /mode: "reset-today"/);
   assert.match(page, /Reset Today/);
   assert.match(page, /Your routine and Luna history stay put/);

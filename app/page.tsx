@@ -232,6 +232,22 @@ function timeParts(totalMinutes: number) {
   };
 }
 
+function storedTimestampMillis(value: string | null | undefined) {
+  if (!value) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)
+    ? `${value.replace(" ", "T")}Z`
+    : value;
+  const parsed = Date.parse(normalized);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function timestampTimeParts(value: string | null | undefined) {
+  const timestamp = storedTimestampMillis(value);
+  if (timestamp === null) return null;
+  const date = new Date(timestamp);
+  return timeParts(date.getHours() * 60 + date.getMinutes());
+}
+
 function formatTime(totalMinutes: number) {
   const { time, suffix } = timeParts(totalMinutes);
   return `${time} ${suffix}`;
@@ -896,20 +912,34 @@ export default function Home() {
     if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
   }, []);
 
+  const completedBeforeLaunchIds = useMemo(() => {
+    const launchTimestamp = storedTimestampMillis(dayStartedAt);
+    if (launchTimestamp === null) return new Set<string>();
+    return new Set(items.flatMap((item) => {
+      const completedTimestamp = storedTimestampMillis(item.completedAt);
+      return completedTimestamp !== null && completedTimestamp <= launchTimestamp ? [item.id] : [];
+    }));
+  }, [dayStartedAt, items]);
+
   const scheduledItems = useMemo(() => {
     let cursor = startMinutes;
     return items.map<ScheduledItem>((item) => {
-      const scheduled = { ...item, start: cursor, end: cursor + (item.skippedAt ? 0 : item.duration) };
+      const consumesScheduleTime = !item.skippedAt && !completedBeforeLaunchIds.has(item.id);
+      const scheduled = { ...item, start: cursor, end: cursor + (consumesScheduleTime ? item.duration : 0) };
       cursor = scheduled.end;
       return scheduled;
     });
-  }, [items, startMinutes]);
+  }, [completedBeforeLaunchIds, items, startMinutes]);
 
   const totalMinutes = useMemo(
     () => items.reduce((total, item) => total + (item.skippedAt ? 0 : item.duration), 0),
     [items],
   );
-  const finishMinutes = startMinutes + totalMinutes;
+  const scheduledMinutes = useMemo(
+    () => items.reduce((total, item) => total + (item.skippedAt || completedBeforeLaunchIds.has(item.id) ? 0 : item.duration), 0),
+    [completedBeforeLaunchIds, items],
+  );
+  const finishMinutes = startMinutes + scheduledMinutes;
 
   const displayedMinutes = fakeMinutes ?? realMinutes;
   const isDayStarted = Boolean(dayStartedAt);
@@ -920,11 +950,16 @@ export default function Home() {
     : clockCurrentItem && !completedIds.has(clockCurrentItem.id) && dismissedClockActivityId !== clockCurrentItem.id
       ? clockCurrentItem.id
       : null;
-  const nowLineIndex = !isDayStarted ? null : displayedMinutes <= startMinutes
-    ? 0
-    : displayedMinutes >= finishMinutes
-      ? scheduledItems.length
-      : Math.max(0, scheduledItems.findIndex((item) => displayedMinutes < item.end));
+  const passedItemIds = useMemo(() => new Set(isDayStarted
+    ? scheduledItems.filter((item) => item.completedAt || item.skippedAt || item.end <= displayedMinutes).map((item) => item.id)
+    : []), [displayedMinutes, isDayStarted, scheduledItems]);
+  const displayedScheduledItems = useMemo(() => isDayStarted
+    ? [
+        ...scheduledItems.filter((item) => passedItemIds.has(item.id)),
+        ...scheduledItems.filter((item) => !passedItemIds.has(item.id)),
+      ]
+    : scheduledItems, [isDayStarted, passedItemIds, scheduledItems]);
+  const nowLineIndex = isDayStarted ? passedItemIds.size : null;
 
   const categoryTotals = useMemo(
     () => CATEGORY_ORDER.map((category) => ({
@@ -938,7 +973,7 @@ export default function Home() {
   const fakeTimePresets = [
     { label: "Before", value: Math.max(0, startMinutes - 15) },
     { label: "Start", value: startMinutes },
-    { label: "Middle", value: startMinutes + Math.round(totalMinutes / 2 / 5) * 5 },
+    { label: "Middle", value: startMinutes + Math.round(scheduledMinutes / 2 / 5) * 5 },
     { label: "Done", value: Math.min(1439, finishMinutes + 5) },
   ];
   const minutesUntilPreferredStart = Math.max(0, preferredStartMinutes - displayedMinutes);
@@ -954,8 +989,11 @@ export default function Home() {
         body: JSON.stringify({ mode: "start-day", currentMinutes: displayedMinutes }),
       });
       if (!response.ok) throw new Error("The day could not be started.");
-      const day = await response.json() as { startMinutes: number; startedAt: string; preferredStartMinutes?: number };
+      const day = await response.json() as { items: unknown; startMinutes: number; startedAt: string; preferredStartMinutes?: number };
+      const launchedItems = hydrateStoredItems(day.items);
       skipNextSave.current = true;
+      setItems(launchedItems);
+      setCompletedIds(new Set(launchedItems.filter((item) => item.completedAt).map((item) => item.id)));
       setStartMinutes(day.startMinutes);
       setPreferredStartMinutes(day.preferredStartMinutes ?? preferredStartMinutes);
       setDayStartedAt(day.startedAt);
@@ -1421,8 +1459,8 @@ export default function Home() {
             ) : null}
 
             <div className="schedule" aria-label="Idealized day schedule">
-              {hasLoaded ? <>{scheduledItems.map((item) => {
-                const start = timeParts(item.start);
+              {hasLoaded ? <>{displayedScheduledItems.map((item, displayIndex) => {
+                const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);
                 const isDragging = draggingId === item.id;
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
                 const isDropAfter = dropTarget?.id === item.id && dropTarget.position === "after";
@@ -1436,7 +1474,7 @@ export default function Home() {
 
                 return (
                   <Fragment key={item.id}>
-                    {nowLineIndex === scheduledItems.indexOf(item) ? (
+                    {nowLineIndex === displayIndex ? (
                       <div className="now-line" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
                         <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
                       </div>
@@ -1591,7 +1629,7 @@ export default function Home() {
                 );
               })}
 
-              {nowLineIndex === scheduledItems.length ? (
+              {nowLineIndex === displayedScheduledItems.length ? (
                 <div className="now-line now-line-finished" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
                   <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
                 </div>
