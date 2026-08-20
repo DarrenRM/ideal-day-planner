@@ -596,7 +596,16 @@ export async function readConversationState(conversationId: string, planDate?: s
   `).first<{ id: string }>();
   const workspace = conversation ? await readActivityWorkspace(conversation.activityId) : { revisionId: null, revisionNumber: 0, document: EMPTY_WORKSPACE };
   const records = conversation ? await readActivityRecords(conversation.activityId, planDate) : [];
-  return { messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null, agentOnline: Boolean(onlineWorker), workspace, records };
+  const recentRuns = conversation
+    ? (await db.prepare(`
+        SELECT plan_date AS planDate, status, completed_at AS completedAt
+        FROM activity_runs
+        WHERE activity_id = ?
+        ORDER BY plan_date DESC
+        LIMIT 90
+      `).bind(conversation.activityId).all<{ planDate: string; status: string; completedAt: string | null }>()).results
+    : [];
+  return { messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null, agentOnline: Boolean(onlineWorker), workspace, records, recentRuns };
 }
 
 export function apiFailure(error: unknown) {

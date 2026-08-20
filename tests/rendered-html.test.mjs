@@ -179,6 +179,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(workspace, /hasUsefulActivityRecordData/);
   assert.match(workspace, /function TimerComponent/);
   assert.match(workspace, /function CountdownComponent/);
+  assert.match(workspace, /function ActivityStreak/);
+  assert.match(workspace, /Day \{dayNumber\}/);
+  assert.match(workspace, /supportsStarterStreak/);
   assert.match(workspace, /Want something else here\?/);
   assert.match(workspace, /onTalkWithLuna/);
   assert.match(workspace, /function RoutineComponent/);
@@ -242,6 +245,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.activity-workbench-grid\.is-conversation-only/);
   assert.match(css, /\.activity-workspace\.workspace-building/);
   assert.match(css, /\.time-component-display/);
+  assert.match(css, /\.streak-step\.is-waiting \.streak-dot/);
+  assert.match(css, /@keyframes streak-complete-pop/);
   assert.match(css, /\.routine-component-summary/);
   assert.match(css, /\.prototype-typing/);
   assert.match(css, /\.workspace-working/);
@@ -407,6 +412,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /usesReplyFirstProtocol/);
   assert.match(jobRoute, /usesReplyFirstProtocol \? \[\] : payload\.workspaceActions/);
   assert.match(jobRoute, /'workspace_refresh'/);
+  assert.match(store, /SELECT plan_date AS planDate, status, completed_at AS completedAt/);
   assert.match(jobRoute, /workspace-refresh:\$\{job\.id\}/);
   assert.match(jobRoute, /hermes-activity-blueprint-v2/);
   assert.match(jobRoute, /completeActivitySetup/);

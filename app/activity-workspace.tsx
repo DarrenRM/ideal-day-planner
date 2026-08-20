@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon } from "lucide-react";
+import { Check, Flame, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
@@ -13,6 +13,8 @@ export type WorkspaceActivity = {
   category: string;
   color: string;
   timelineEnabled: boolean;
+  completedToday?: boolean;
+  recentRuns?: Array<{ planDate: string; status: string; completedAt?: string | null }>;
 };
 
 type ActivityWorkspaceProps = {
@@ -27,7 +29,7 @@ type ActivityWorkspaceProps = {
 
 export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspace: WorkspaceDocument, records: ActivityRecord[]) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
-  return workspace.components.some((component) => {
+  return supportsStarterStreak(activity) || workspace.components.some((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
     if (component.type === "routine") return hasUsefulRoutineComponent(component);
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
@@ -36,6 +38,60 @@ export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspa
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
     }));
   });
+}
+
+function supportsStarterStreak(activity: Pick<WorkspaceActivity, "title" | "category">) {
+  const identity = `${activity.title} ${activity.category}`.toLowerCase();
+  return /skin|hair|serum|daily routine|morning routine|evening routine/.test(identity);
+}
+
+function localDateKey() {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+function previousDateKey(dateKey: string) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  date.setDate(date.getDate() - 1);
+  return date.toLocaleDateString("en-CA");
+}
+
+function ActivityStreak({ activity }: { activity: WorkspaceActivity }) {
+  const today = localDateKey();
+  const completedDates = new Set((activity.recentRuns ?? [])
+    .filter((run) => run.status === "completed")
+    .map((run) => run.planDate));
+  if (activity.completedToday) completedDates.add(today);
+
+  const todayIsComplete = completedDates.has(today);
+  let cursor = todayIsComplete ? today : previousDateKey(today);
+  let streak = 0;
+  while (completedDates.has(cursor) && streak < 365) {
+    streak += 1;
+    cursor = previousDateKey(cursor);
+  }
+
+  const firstDay = streak >= 7 ? streak - 5 : 1;
+  const steps = Array.from({ length: 7 }, (_, index) => firstDay + index);
+  const waitingDay = todayIsComplete ? null : streak + 1;
+
+  return (
+    <section className="workspace-block activity-streak" aria-label={`${activity.title} streak`}>
+      <header className="activity-streak-heading"><span>Streak</span><Flame aria-hidden="true" size={16} /></header>
+      <div className="streak-track">
+        {steps.map((dayNumber) => {
+          const complete = dayNumber <= streak;
+          const waiting = dayNumber === waitingDay;
+          const latest = complete && dayNumber === streak;
+          return (
+            <div className={`streak-step ${complete ? "is-complete" : ""} ${waiting ? "is-waiting" : ""} ${latest ? "is-latest" : ""}`} key={dayNumber}>
+              <span className="streak-dot">{complete ? <Check aria-hidden="true" size={13} strokeWidth={3} /> : null}</span>
+              <small>Day {dayNumber}</small>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export type ActivityTimingSnapshot = {
@@ -263,7 +319,8 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
     }));
   });
-  const hasVisibleWorkspace = visibleComponents.length > 0;
+  const showStarterStreak = supportsStarterStreak(activity) && !visibleComponents.some((component) => component.type === "adherence");
+  const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak;
   if (!hasVisibleWorkspace && !workState && !recordError) return null;
   return (
     <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
@@ -282,6 +339,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       {hasVisibleWorkspace ? (
         <>
           <div className="workspace-stack">
+            {showStarterStreak ? <ActivityStreak activity={activity} /> : null}
             {visibleComponents.map((component) => {
               if (component.type === "timer") return <TimerComponent activity={activity} component={component} key={component.id} />;
               if (component.type === "countdown") return <CountdownComponent activity={activity} component={component} key={component.id} />;

@@ -29,12 +29,14 @@ type DropTarget = { id: string; position: "before" | "after" };
 type TouchDrag = { active: boolean; pointerId: number; sourceId: string; startX: number; startY: number; timer: ReturnType<typeof setTimeout> };
 type ConversationMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string; pending?: boolean };
 type ConversationJob = { status: "queued" | "leased" | "running"; kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" };
+type ActivityRunSummary = { planDate: string; status: string; completedAt?: string | null };
 type ConversationState = {
   messages: ConversationMessage[];
   activeJob: ConversationJob | null;
   agentOnline: boolean;
   workspace: { revisionId: string | null; revisionNumber: number; document: WorkspaceDocument };
   records: ActivityRecord[];
+  recentRuns: ActivityRunSummary[];
 };
 
 const START_MINUTES = 8 * 60;
@@ -417,9 +419,11 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isPreviewingCompletion, setIsPreviewingCompletion] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
   const [isFooterMenuOpen, setIsFooterMenuOpen] = useState(false);
   const [resetActivityState, setResetActivityState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
+  const [recentRuns, setRecentRuns] = useState<ActivityRunSummary[]>([]);
   const sendingRef = useRef(false);
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
@@ -437,7 +441,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
   const workspaceWorkState = hasWorkspaceJob
     ? activeJobHasWorker ? "building" : "waiting"
     : null;
-  const workspaceActivity = { ...item, timelineEnabled };
+  const workspaceActivity = { ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns };
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
   const conversationDrawer = useMobileConversationDrawer({
@@ -509,6 +513,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
       setRecords(state.records ?? []);
+      setRecentRuns(state.recentRuns ?? []);
       setConnectionState("ready");
     }
 
@@ -652,6 +657,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
       setRecords(state.records ?? []);
+      setRecentRuns(state.recentRuns ?? []);
       workspaceSignatureRef.current = conversationWorkspaceSignature(state);
       hasAppliedConversationStateRef.current = true;
       setWorkspaceReadyLabel(null);
@@ -705,7 +711,10 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
 
   async function toggleActivityComplete() {
     if (isCompleting) return;
-    if (!isComplete) onCompletionIntent();
+    if (!isComplete) {
+      setIsPreviewingCompletion(true);
+      onCompletionIntent();
+    }
     setIsCompleting(true);
     try {
       const timing = isComplete ? null : captureActivityTimingSnapshot(workspaceActivity, workspace);
@@ -721,11 +730,17 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
       });
       if (!response.ok) throw new Error("Activity completion could not be saved.");
       const result = await response.json() as { completed: boolean; completedAt?: string };
+      const today = localDateKey();
+      setRecentRuns((current) => result.completed
+        ? [{ planDate: today, status: "completed", completedAt: result.completedAt ?? new Date().toISOString() }, ...current.filter((run) => run.planDate !== today)]
+        : current.filter((run) => run.planDate !== today));
       onComplete(result.completed ? result.completedAt ?? new Date().toISOString() : null);
       setConnectionState("ready");
     } catch {
+      setIsPreviewingCompletion(false);
       setConnectionState("error");
     } finally {
+      setIsPreviewingCompletion(false);
       setIsCompleting(false);
     }
   }
@@ -773,6 +788,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
       setAgentOnline(Boolean(state.agentOnline));
       setWorkspace(state.workspace?.document ?? EMPTY_WORKSPACE);
       setRecords(state.records ?? []);
+      setRecentRuns(state.recentRuns ?? []);
       workspaceSignatureRef.current = conversationWorkspaceSignature(state);
       hasAppliedConversationStateRef.current = true;
       setWorkspaceReadyLabel(null);
@@ -1754,7 +1770,6 @@ export default function Home() {
       return next;
     });
     setItems((current) => current.map((item) => item.id === id ? { ...item, completedAt, skippedAt: completedAt ? null : item.skippedAt } : item));
-    setSelectedActivityId(null);
     if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
 
