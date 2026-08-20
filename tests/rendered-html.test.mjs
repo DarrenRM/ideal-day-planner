@@ -183,6 +183,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /height: 100dvh/);
   assert.match(css, /\.page-shell:has\(\.routine-card\.is-expanded\).*padding: 0/);
   assert.match(css, /\.routine-card\.is-expanded \{ background: #101416;[^}]*margin: 0;[^}]*padding: 0;[^}]*position: fixed;/);
+  assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*gap: 6px 8px;[^}]*grid-template-rows: 24px 22px;[^}]*padding: max\(8px, env\(safe-area-inset-top\)\) 12px 8px 16px;/);
   assert.match(css, /\.routine-row:has\(\.routine-card\.is-expanded\) \{ padding: 0; \}/);
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);

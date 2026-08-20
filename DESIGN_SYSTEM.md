@@ -84,6 +84,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - At 680px and below: begin directly at Schedule; hide desktop hero/summary content; remove the schedule's redundant outer card; use edge space carefully.
 - Mobile collapsed activity: title first; time/category/status beneath; overflow menu and completion at upper right; compact duration control beneath them. Long titles ellipsize instead of squeezing controls.
 - Mobile expanded activity: preserve one continuous outer card; stack context above conversation; put overflow/duration tools and Skip/Mark Complete in a balanced footer.
+- In its header, treat the activity title and metadata as one group while preserving a 6px optical separation between their rows.
 - The full-screen mobile expanded shell is flush to every viewport edge and has no inherited outer padding; its header, workspace, conversation, and footer own their internal spacing.
 - Move directly from the activity header into workspace components and conversation. Do not repeat the activity category/title or reserve a permanent context strip for duration/status already visible elsewhere.
 - Never solve a narrow layout by reducing text below its semantic role. Reflow, stack, shorten nonessential copy, or move actions into an overflow menu.
