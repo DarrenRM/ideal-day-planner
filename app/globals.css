@@ -107,6 +107,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .planner-header { align-items: center; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; min-height: 74px; padding: 17px 20px; }
 .planner-header h2 { font-size: 17px; font-weight: 580; letter-spacing: -.025em; margin-bottom: 6px; }
 .planner-header p { color: var(--subtle); font-size: var(--type-body-sm); margin: 0; }
+.mobile-schedule-title { display: none; }
 .mobile-schedule-summary { display: none; }
 .planner-actions { align-items: center; display: flex; gap: 8px; }
 .planner-menu { position: relative; }
@@ -579,8 +580,11 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .planner-header { border-bottom: 0; min-height: 72px; padding: 14px 0; }
   .planner-header > div:first-child { min-width: 0; }
   .planner-header h2 { font-size: 18px; margin-bottom: 5px; }
+  .desktop-schedule-title { display: none; }
+  .mobile-schedule-title { display: inline; }
   .desktop-schedule-summary { display: none; }
   .mobile-schedule-summary { display: inline; }
+  .mobile-schedule-summary i { color: #4f5955; font-style: normal; padding: 0 3px; }
   .planner-actions { flex: 0 0 auto; }
   .planner-menu-trigger { height: 40px; width: 40px; }
   .add-block-form { grid-template-columns: 1fr 1fr; padding: 14px 0 15px; }
@@ -611,6 +615,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card.is-expanded .item-copy { grid-column: 1 / -1; grid-row: 1; padding-left: 12px; padding-right: 12px; }
   .routine-card.is-expanded .collapse-activity-button { grid-column: auto; grid-row: auto; height: 34px; position: absolute; right: 10px; top: 10px; width: 34px; z-index: 2; }
   .drag-button, .item-icon { display: none; }
+  .routine-row.is-planned .routine-card:not(.is-expanded):not(.is-editing) { padding-left: 42px; }
+  .routine-row.is-planned .routine-card:not(.is-expanded):not(.is-editing) > .drag-button { display: flex; height: 40px; left: 2px; position: absolute; top: 50%; transform: translateY(-50%); width: 36px; z-index: 4; }
   .item-copy { align-items: center; align-self: stretch; display: grid; gap: 6px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 32px 30px; min-width: 0; padding: 0; width: 100%; }
   .item-title { align-self: center; display: block; grid-column: 1 / -1; grid-row: 1; min-width: 0; overflow: hidden; padding-right: 108px; }
   .item-title h3 { display: block; font-size: var(--type-body-lg); font-weight: 610; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -620,7 +626,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .mobile-time-label strong { color: #aab3af; font: 500 var(--type-body)/var(--leading-body) var(--type-sans); letter-spacing: -.015em; }
   .mobile-time-label span { color: #68716e; font: 500 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .05em; }
   .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: var(--type-micro); height: 18px; padding: 1px 6px 0; }
-  .item-controls { align-self: stretch; display: grid; gap: 6px 2px; grid-column: 2; grid-row: 1 / 3; grid-template-columns: repeat(2, 1fr); grid-template-rows: 32px 30px; justify-content: end; min-width: 100px; position: relative; width: 100px; z-index: 3; }
+  .item-controls { align-self: stretch; display: grid; gap: 6px 2px; grid-column: 2; grid-row: 1 / 3; grid-template-columns: 32px 32px; grid-template-rows: 32px 30px; justify-content: end; min-width: 100px; position: relative; width: 100px; z-index: 3; }
   .item-controls > .desktop-row-action, .item-controls > .desktop-skip-control, .item-controls > .duration-control { display: none; }
   .control-tooltip-bubble { display: none; }
   .item-controls > .control-tooltip { align-self: center; grid-column: 2; grid-row: 1; justify-self: end; }

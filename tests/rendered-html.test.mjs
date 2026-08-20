@@ -218,11 +218,15 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Edit activity/);
   assert.match(page, /Skip for today/);
   assert.match(page, /mobile-schedule-summary/);
+  assert.match(page, /mobile-schedule-title/);
+  assert.match(page, /formatDuration\(totalMinutes\).*total/s);
   assert.match(css, /\.drag-button, \.item-icon \{ display: none; \}/);
+  assert.match(css, /\.routine-row\.is-planned \.routine-card:not\(\.is-expanded\):not\(\.is-editing\) > \.drag-button \{[^}]*display: flex;[^}]*position: absolute;[^}]*top: 50%;[^}]*transform: translateY\(-50%\)/s);
   assert.match(css, /\.item-title \{[^}]*padding-right: 108px/s);
   assert.match(css, /\.item-meta \{[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*padding-right: 0/s);
   assert.match(css, /\.item-state \{[^}]*grid-column: 2;[^}]*grid-row: 2/s);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1 \/ 3/s);
+  assert.match(css, /\.item-controls \{[^}]*grid-template-columns: 32px 32px/s);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
   assert.match(css, /\.now-line span \{ font-size: var\(--type-micro\); justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
