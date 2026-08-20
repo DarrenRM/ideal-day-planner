@@ -216,6 +216,18 @@ export async function POST(request: Request) {
     }>();
     if (!job) return Response.json({ error: "The job lease is no longer active." }, { status: 409 });
 
+    if (mode === "progress") {
+      const progressTitle = typeof payload.title === "string" ? payload.title.trim().slice(0, 120) : "";
+      const progressDetail = typeof payload.detail === "string" ? payload.detail.trim().slice(0, 240) : "";
+      if (!progressTitle || !progressDetail) return Response.json({ error: "Progress needs a title and detail." }, { status: 400 });
+      await db.prepare(`
+        UPDATE agent_jobs
+        SET progress_title = ?, progress_detail = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND lease_token = ? AND status = 'running'
+      `).bind(progressTitle, progressDetail, jobId, leaseToken).run();
+      return Response.json({ updated: true });
+    }
+
     if (mode === "complete") {
       const suppliedResponse = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
       const response = suppliedResponse;
@@ -317,7 +329,8 @@ export async function POST(request: Request) {
         db.prepare(`
           UPDATE agent_jobs
           SET status = 'succeeded', lease_token = NULL, lease_owner = NULL,
-              lease_expires_at = NULL, error = NULL, updated_at = CURRENT_TIMESTAMP
+              lease_expires_at = NULL, error = NULL, progress_title = NULL,
+              progress_detail = NULL, updated_at = CURRENT_TIMESTAMP
           WHERE id = ? AND lease_token = ?
         `).bind(jobId, leaseToken),
       );
@@ -340,7 +353,7 @@ export async function POST(request: Request) {
       await db.prepare(`
         UPDATE agent_jobs
         SET status = ?, lease_token = NULL, lease_owner = NULL, lease_expires_at = NULL,
-            error = ?, updated_at = CURRENT_TIMESTAMP
+            error = ?, progress_title = NULL, progress_detail = NULL, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND lease_token = ?
       `).bind(nextStatus, error, jobId, leaseToken).run();
       return Response.json({ completed: false, status: nextStatus });

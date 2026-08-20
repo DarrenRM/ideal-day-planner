@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
 import { hasUsefulRoutineComponent, type CountdownWorkspaceComponent, type DataWorkspaceComponent, type RoutineWorkspaceComponent, type TimerWorkspaceComponent, type WorkspaceDocument } from "./workspace-model";
+import { orderWorkspaceDisplayItems, type WorkspaceDisplayRole } from "./workspace-order";
 
 export type WorkspaceActivity = {
   id: string;
@@ -25,6 +26,8 @@ type ActivityWorkspaceProps = {
   onTalkWithLuna: () => void;
   recordError?: string | null;
   workState?: "building" | "waiting" | null;
+  workTitle?: string | null;
+  workDetail?: string | null;
 };
 
 export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspace: WorkspaceDocument, records: ActivityRecord[]) {
@@ -308,7 +311,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null }: ActivityWorkspaceProps) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const visibleComponents = workspace.components.filter((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
@@ -321,6 +324,14 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   });
   const showStarterStreak = supportsStarterStreak(activity) && !visibleComponents.some((component) => component.type === "adherence");
   const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak;
+  const orderedItems = orderWorkspaceDisplayItems([
+    ...visibleComponents.map((component) => ({
+      displayRole: (component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
+      id: component.id,
+      component,
+    })),
+    ...(showStarterStreak ? [{ displayRole: "starter" as const, id: "starter-streak", component: null }] : []),
+  ]);
   if (!hasVisibleWorkspace && !workState && !recordError) return null;
   return (
     <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
@@ -328,8 +339,8 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
         <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""}`} role="status">
           <span className="workspace-working-mark"><Sparkles size={15} /></span>
           <div>
-            <strong>{workState === "waiting" ? "Luna will pick this up shortly" : hasVisibleWorkspace ? "Luna is updating this section" : "Luna is building this section"}</strong>
-            <p>{workState === "waiting" ? "Your message is saved, and nothing will be lost." : "She’ll add the useful details here when they’re ready."}</p>
+            <strong>{workTitle || (workState === "waiting" ? `${activity.title} is queued` : hasVisibleWorkspace ? `Updating ${activity.title}` : `Building your ${activity.title} setup`)}</strong>
+            <p>{workDetail || (workState === "waiting" ? "Your message is saved, and Luna will pick it up shortly." : "Turning your latest details into something useful here.")}</p>
           </div>
           {workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
         </div>
@@ -339,8 +350,8 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       {hasVisibleWorkspace ? (
         <>
           <div className="workspace-stack">
-            {showStarterStreak ? <ActivityStreak activity={activity} /> : null}
-            {visibleComponents.map((component) => {
+            {orderedItems.map(({ component, id }) => {
+              if (!component) return <ActivityStreak activity={activity} key={id} />;
               if (component.type === "timer") return <TimerComponent activity={activity} component={component} key={component.id} />;
               if (component.type === "countdown") return <CountdownComponent activity={activity} component={component} key={component.id} />;
               if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;

@@ -28,7 +28,12 @@ type ScheduledItem = RoutineItem & { start: number; end: number };
 type DropTarget = { id: string; position: "before" | "after" };
 type TouchDrag = { active: boolean; pointerId: number; sourceId: string; startX: number; startY: number; timer: ReturnType<typeof setTimeout> };
 type ConversationMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string; pending?: boolean };
-type ConversationJob = { status: "queued" | "leased" | "running"; kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" };
+type ConversationJob = {
+  status: "queued" | "leased" | "running" | "retryable_failure";
+  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh";
+  progressTitle?: string | null;
+  progressDetail?: string | null;
+};
 type ActivityRunSummary = { planDate: string; status: string; completedAt?: string | null };
 type ConversationState = {
   messages: ConversationMessage[];
@@ -435,11 +440,21 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
   const footerMenuRef = useRef<HTMLDivElement>(null);
   const hasConversationJob = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
   const hasWorkspaceJob = activeJob?.kind === "workspace_refresh" || activeJob?.kind === "activity_setup";
-  const activeJobHasWorker = Boolean(activeJob && (agentOnline || activeJob.status === "leased" || activeJob.status === "running"));
+  const activeJobHasWorker = Boolean(activeJob
+    && activeJob.status !== "retryable_failure"
+    && (agentOnline || activeJob.status === "leased" || activeJob.status === "running"));
   const isLunaThinking = isSending || (activeJobHasWorker && hasConversationJob);
   const workspaceWorkState = hasWorkspaceJob
     ? activeJobHasWorker ? "building" : "waiting"
     : null;
+  const workspaceWorkTitle = workspaceWorkState === "waiting"
+    ? `${item.title} is queued`
+    : activeJob?.progressTitle || (activeJob?.kind === "activity_setup" ? `Setting up ${item.title}` : `Updating ${item.title}`);
+  const workspaceWorkDetail = workspaceWorkState === "waiting"
+    ? "Your message is saved, and Luna will pick it up shortly."
+    : activeJob?.progressDetail || (activeJob?.kind === "activity_setup"
+      ? "Choosing what will be useful each time you return."
+      : "Turning your latest details into something useful here.");
   const workspaceActivity = { ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns };
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
@@ -508,7 +523,12 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
         const next = state.messages[index];
         return message.id === next.id && message.body === next.body && message.createdAt === next.createdAt;
       }) ? current : state.messages);
-      setActiveJob((current) => current?.status === state.activeJob?.status && current?.kind === state.activeJob?.kind ? current : state.activeJob);
+      setActiveJob((current) => current?.status === state.activeJob?.status
+        && current?.kind === state.activeJob?.kind
+        && current?.progressTitle === state.activeJob?.progressTitle
+        && current?.progressDetail === state.activeJob?.progressDetail
+        ? current
+        : state.activeJob);
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
       setRecords(state.records ?? []);
@@ -811,9 +831,9 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
             <span className="activity-opening-progress" aria-hidden="true" />
           </div>
         ) : <>
-          <ActivityWorkspace activity={workspaceActivity} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
+          <ActivityWorkspace activity={workspaceActivity} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workDetail={workspaceWorkDetail} workState={workspaceWorkState} workTitle={workspaceWorkTitle} />
 
-          <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
+          <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${workspaceWorkState ? "has-workspace-work-peek" : showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
             <button
               aria-expanded={conversationDrawer.isOpen}
@@ -826,7 +846,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
             >
               <strong>Notes & conversation</strong>
               <span className="conversation-drawer-state">
-                <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is thinking…" : connectionState === "error" || (activeJob && !activeJobHasWorker) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : activeJob?.kind === "workspace_refresh" ? "Luna is organizing this…" : isLunaThinking ? "Luna is thinking…" : "Connected"}</span>
+                <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is thinking…" : connectionState === "error" || (activeJob && !activeJobHasWorker) ? "Luna will catch up" : activeJob?.kind === "activity_setup" || activeJob?.kind === "workspace_refresh" ? "Working" : isLunaThinking ? "Luna is thinking…" : "Connected"}</span>
                 {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">New</span> : null}
                 <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
               </span>

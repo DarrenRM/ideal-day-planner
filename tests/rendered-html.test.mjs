@@ -94,6 +94,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /ActivityWorkspace/);
   assert.match(page, /workspaceWorkState/);
   assert.match(page, /activeJobHasWorker/);
+  assert.match(page, /activeJob\.status !== "retryable_failure"/);
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
   assert.match(page, /activeJob\?\.kind === "workspace_refresh"/);
   assert.match(page, /workspace-ready-notice/);
@@ -136,7 +137,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /Luna is joining/);
   assert.match(page, /activeJob\?\.kind === "user_message"/);
   assert.match(page, /activeJob\?\.kind === "activity_setup"/);
-  assert.match(page, /Luna is setting this up/);
+  assert.match(page, /activeJob\?\.kind === "activity_setup" \|\| activeJob\?\.kind === "workspace_refresh" \? "Working"/);
   assert.doesNotMatch(page, /Done — I added oranges to your breakfast list/);
   assert.doesNotMatch(page, /maps cleanly to an approved component/);
   assert.match(page, /Mark Complete/);
@@ -173,7 +174,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /completedIds/);
   assert.doesNotMatch(page, /COMPLETE_KEY/);
   assert.doesNotMatch(workspace, /Nothing to manage here yet/);
-  assert.match(workspace, /Luna is building this section/);
+  assert.match(workspace, /Building your \$\{activity\.title\} setup/);
+  assert.match(workspace, /orderWorkspaceDisplayItems/);
   assert.match(workspace, /workState\?: "building" \| "waiting" \| null/);
   assert.match(workspace, /hasVisibleWorkspace && !workState && !recordError/);
   assert.match(workspace, /hasUsefulActivityRecordData/);
@@ -206,6 +208,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
   assert.match(css, /\.activity-conversation\.has-workspace-peek \{ top: 96px; \}/);
+  assert.match(css, /\.activity-conversation\.has-workspace-work-peek \{ top: 112px; \}/);
+  assert.match(css, /\.activity-workspace\.workspace-building \{ justify-content: flex-start; padding-top: 12px; \}/);
   assert.match(css, /\.activity-opening-state/);
   assert.match(css, /@keyframes activity-opening-sweep/);
   assert.match(css, /\.message-luna \.message-meta \{ justify-content: flex-start; \}/);
@@ -409,6 +413,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /IDEAL_DAY_BRIDGE_TOKEN/);
   assert.match(jobRoute, /INSERT INTO agent_workers/);
   assert.match(jobRoute, /mode === "heartbeat"/);
+  assert.match(jobRoute, /mode === "progress"/);
+  assert.match(jobRoute, /progress_title/);
   assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 ELSE 1 END/);
   assert.match(jobRoute, /ORDER BY created_at DESC/);
   assert.match(jobRoute, /Could not release an incomplete agent lease/);
@@ -460,6 +466,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /recordActions: replyFirst \? \[\] : agentResult\.recordActions/);
   assert.match(bridge, /parseAgentResult/);
   assert.match(bridge, /sendHeartbeat/);
+  assert.match(bridge, /function visibleProgress/);
+  assert.match(bridge, /mode: "progress"/);
   assert.match(bridge, /runJobWithHeartbeat/);
   assert.match(bridge, /heartbeatIntervalMs = 5_000/);
   assert.match(bridge, /activity-blueprint-v3/);

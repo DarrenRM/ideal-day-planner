@@ -84,6 +84,8 @@ export async function ensureAgentSchema() {
         leased_at text,
         lease_expires_at text,
         error text,
+        progress_title text,
+        progress_detail text,
         created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -226,6 +228,13 @@ export async function ensureAgentSchema() {
       if (!columns.results.some((column) => column.name === "created_at")) {
         await db.prepare("ALTER TABLE activity_visits ADD COLUMN created_at text").run();
         await db.prepare("UPDATE activity_visits SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL").run();
+      }
+      const jobColumns = await db.prepare("PRAGMA table_info(agent_jobs)").all<{ name: string }>();
+      if (!jobColumns.results.some((column) => column.name === "progress_title")) {
+        await db.prepare("ALTER TABLE agent_jobs ADD COLUMN progress_title text").run();
+      }
+      if (!jobColumns.results.some((column) => column.name === "progress_detail")) {
+        await db.prepare("ALTER TABLE agent_jobs ADD COLUMN progress_detail text").run();
       }
     }).catch((error) => {
       schemaPromise = null;
@@ -583,12 +592,12 @@ export async function readConversationState(conversationId: string, planDate?: s
   const conversation = await db.prepare("SELECT activity_id AS activityId FROM conversations WHERE id = ?")
     .bind(conversationId).first<{ activityId: string }>();
   const activeJob = await db.prepare(`
-    SELECT status, kind
+    SELECT status, kind, progress_title AS progressTitle, progress_detail AS progressDetail
     FROM agent_jobs
-    WHERE conversation_id = ? AND status IN ('queued', 'leased', 'running')
+    WHERE conversation_id = ? AND status IN ('queued', 'leased', 'running', 'retryable_failure')
     ORDER BY created_at DESC
     LIMIT 1
-  `).bind(conversationId).first<{ status: string; kind: string }>();
+  `).bind(conversationId).first<{ status: string; kind: string; progressTitle: string | null; progressDetail: string | null }>();
   const onlineWorker = await db.prepare(`
     SELECT id FROM agent_workers
     WHERE last_seen_at >= datetime('now', '-20 seconds')

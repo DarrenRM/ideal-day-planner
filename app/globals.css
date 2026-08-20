@@ -776,6 +776,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .activity-workbench-grid, .activity-workbench-grid.is-conversation-only { background: #0e1214; display: block; grid-template-columns: 1fr; height: 100%; min-height: 0; overflow: hidden; position: relative; }
   .activity-opening-state { height: 100%; min-height: 0; }
   .activity-workspace { height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 16px 16px 82px; }
+  .activity-workspace.workspace-building { justify-content: flex-start; padding-top: 12px; }
+  .workspace-building .workspace-working { flex: 0 0 auto; }
   .activity-workspace.workspace-live .workspace-stack { flex: 0 0 auto; }
   .workspace-luna-invitation { align-items: center; background: transparent; border: 1px solid #293235; border-radius: 9px; color: #9da8a2; cursor: pointer; display: flex; font-size: var(--type-body-sm); gap: 10px; line-height: var(--leading-body-sm); margin-top: 10px; min-height: 48px; padding: 10px 12px; text-align: left; width: 100%; }
   .workspace-luna-invitation:hover { background: rgba(181, 215, 125, .06); border-color: rgba(181, 215, 125, .28); color: #cbd5ce; }
@@ -783,7 +785,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .workspace-luna-invitation strong { color: #dce4de; font-weight: 620; }
   .workspace-working { grid-template-columns: 32px minmax(0, 1fr) auto; padding: 10px; }
   .workspace-working strong { font-size: var(--type-body-sm); }
-  .workspace-working p { font-size: var(--type-label); }
+  .workspace-working p { display: -webkit-box; font-size: var(--type-label); overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .workspace-block { padding: 12px; }
   .workspace-block-heading strong, .shopping-item-copy strong, .exercise-row strong { font-size: var(--type-label); }
   .shopping-item-copy small, .exercise-row small, .protocol-steps p, .timeline-entry p { font-size: var(--type-micro); }
@@ -800,6 +802,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .context-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .activity-conversation { background: #101416; border-left: 0; border-top: 1px solid #293033; bottom: 0; height: auto; left: 0; position: absolute; right: 0; top: 0; transform: translateY(0); transition: top .28s cubic-bezier(.22, .75, .22, 1), transform .28s cubic-bezier(.22, .75, .22, 1); z-index: 5; }
   .activity-conversation.has-workspace-peek { top: 96px; }
+  .activity-conversation.has-workspace-work-peek { top: 112px; }
   .activity-conversation.is-drawer-collapsed { transform: translateY(calc(100% - 58px)); }
   .activity-conversation > header { background: #13181a; min-height: 58px; padding: 0; }
   .conversation-drawer-toggle { cursor: pointer; min-height: 58px; padding: 0 16px; touch-action: none; }

@@ -184,6 +184,29 @@ function parseAgentResult(content) {
   return { message, workspaceFollowup, recordActions, workspaceActions };
 }
 
+function visibleProgress(leased) {
+  const activityTitle = leased.context.activity?.title || "this activity";
+  if (leased.job.kind === "activity_setup") {
+    return {
+      title: `Setting up ${activityTitle}`,
+      detail: "Choosing what will be useful each time you return.",
+    };
+  }
+  if (leased.job.kind !== "workspace_refresh") return null;
+
+  const sourceMessage = leased.context.sourceMessage?.body || "";
+  const requestedResearch = /look\s*up|research|verify|check\s+(?:the|its|these|those|spec)|web\s+(?:access|search)|specification|manufacturer/i.test(sourceMessage);
+  return requestedResearch
+    ? {
+        title: `Researching ${activityTitle}`,
+        detail: "Checking the details you asked about before updating this activity.",
+      }
+    : {
+        title: `Organizing ${activityTitle}`,
+        detail: "Turning your latest details into something useful here.",
+      };
+}
+
 function sendHeartbeat() {
   return requestAppJson("/api/agent/jobs", {
     method: "POST",
@@ -193,6 +216,19 @@ function sendHeartbeat() {
 }
 
 async function runJob(key, leased) {
+  const progress = visibleProgress(leased);
+  if (progress) {
+    await requestAppJson("/api/agent/jobs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        mode: "progress",
+        jobId: leased.job.id,
+        leaseToken: leased.job.leaseToken,
+        ...progress,
+      }),
+    });
+  }
   const sessionId = await ensureHermesSession(key, leased);
   const result = await requestJson(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}/chat`, {
     method: "POST",
