@@ -161,6 +161,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*?\.planner-menu-trigger \{ height: 40px; width: 40px; \}/);
   assert.match(css, /\.dev-clock-popover/);
   assert.match(css, /\.reset-today-button/);
   assert.match(css, /\.dev-reset-confirm/);

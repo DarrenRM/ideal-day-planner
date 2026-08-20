@@ -497,6 +497,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .planner-header > div:first-child { min-width: 0; }
   .planner-header h2 { font-size: 18px; margin-bottom: 5px; }
   .planner-actions { flex: 0 0 auto; }
+  .planner-menu-trigger { height: 40px; width: 40px; }
   .add-block-form { grid-template-columns: 1fr 1fr; padding: 14px 16px 15px; }
   .add-name-field, .add-form-actions { grid-column: 1 / -1; }
   .add-form-actions { justify-content: flex-end; }
