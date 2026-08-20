@@ -61,13 +61,13 @@ export async function ensureAgentSchema() {
         conversation_id text NOT NULL,
         client_visit_id text NOT NULL,
         context_json text,
-        opened_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       )`),
       db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_visits_user_client_unique ON activity_visits (user_id, client_visit_id)"),
-      db.prepare("CREATE INDEX IF NOT EXISTS activity_visits_activity_opened_idx ON activity_visits (activity_id, opened_at)"),
+      db.prepare("CREATE INDEX IF NOT EXISTS activity_visits_activity_opened_idx ON activity_visits (activity_id, created_at)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS agent_jobs (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,

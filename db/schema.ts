@@ -118,10 +118,10 @@ export const activityVisits = sqliteTable("activity_visits", {
   conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
   clientVisitId: text("client_visit_id").notNull(),
   contextJson: text("context_json"),
-  openedAt: createdAt(),
+  createdAt: createdAt(),
 }, (table) => [
   uniqueIndex("activity_visits_user_client_unique").on(table.userId, table.clientVisitId),
-  index("activity_visits_activity_opened_idx").on(table.activityId, table.openedAt),
+  index("activity_visits_activity_opened_idx").on(table.activityId, table.createdAt),
 ]);
 
 export const agentJobs = sqliteTable("agent_jobs", {

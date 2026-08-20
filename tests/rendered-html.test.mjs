@@ -221,6 +221,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /request\.headers\.get\("origin"\)/);
   assert.match(jobRoute, /IDEAL_DAY_BRIDGE_TOKEN/);
   assert.match(jobRoute, /INSERT INTO agent_workers/);
+  assert.match(jobRoute, /ORDER BY created_at DESC/);
+  assert.match(jobRoute, /Could not release an incomplete agent lease/);
   assert.match(jobRoute, /activityContext/);
   assert.match(jobRoute, /INSERT OR IGNORE INTO conversation_messages/);
   assert.match(jobRoute, /validateWorkspaceActions/);

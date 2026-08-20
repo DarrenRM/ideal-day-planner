@@ -55,6 +55,7 @@ export async function GET(request: Request) {
   const denied = await bridgeOnly(request);
   if (denied) return denied;
   const workerId = new URL(request.url).searchParams.get("workerId")?.trim().slice(0, 120) || "ideal-day-local-bridge";
+  let claimedJob: { id: string; leaseToken: string } | null = null;
 
   try {
     await ensureAgentSchema();
@@ -87,6 +88,7 @@ export async function GET(request: Request) {
       )
     `).bind(leaseToken, workerId, candidate.id).run();
     if (!(leased.meta.changes ?? 0)) return new Response(null, { status: 204 });
+    claimedJob = { id: candidate.id, leaseToken };
 
     const activity = await db.prepare(`
       SELECT client_key AS clientKey, title, category
@@ -110,7 +112,7 @@ export async function GET(request: Request) {
       SELECT context_json AS contextJson
       FROM activity_visits
       WHERE activity_id = ? AND user_id = ?
-      ORDER BY opened_at DESC
+      ORDER BY created_at DESC
       LIMIT 1
     `).bind(candidate.activityId, candidate.userId).first<{ contextJson: string | null }>();
     let activityContext = null;
@@ -137,6 +139,19 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    if (claimedJob) {
+      try {
+        await getD1().prepare(`
+          UPDATE agent_jobs
+          SET status = CASE WHEN attempts >= 5 THEN 'retryable_failure' ELSE 'queued' END,
+              lease_token = NULL, lease_owner = NULL, lease_expires_at = NULL,
+              error = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND lease_token = ?
+        `).bind(error instanceof Error ? error.message.slice(0, 1000) : "Job context assembly failed.", claimedJob.id, claimedJob.leaseToken).run();
+      } catch (releaseError) {
+        console.error("Could not release an incomplete agent lease.", releaseError);
+      }
+    }
     return apiFailure(error);
   }
 }
