@@ -97,6 +97,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /workspace-ready-notice/);
   assert.match(page, /useMobileConversationDrawer/);
   assert.match(page, /conversation-unread-badge/);
+  assert.match(page, /isOpeningActivity = connectionState === "joining" \|\| !conversationDrawer\.isPreferenceReady/);
+  assert.match(page, /activity-opening-state/);
+  assert.match(page, /Getting things ready…/);
   assert.match(page, /openConversationOnMount/);
   assert.match(page, /setStartConversationActivityId\(launchedItems\.find/);
   assert.match(drawer, /idealized-day-mobile-drawer-v1/);
@@ -106,6 +109,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(drawer, /function handlePointerDown/);
   assert.match(drawer, /function handlePointerUp/);
   assert.match(drawer, /const isOpen = canCollapse \? preferredOpen : true/);
+  assert.match(drawer, /isPreferenceReady/);
   assert.match(page, /if \(clockCurrentItem\) setDismissedClockActivityId\(clockCurrentItem\.id\)/);
   assert.match(page, /"Connected"/);
   assert.match(page, /conversationAnchorTopRef/);
@@ -188,6 +192,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
   assert.match(css, /\.activity-conversation\.has-workspace-peek \{ top: 96px; \}/);
+  assert.match(css, /\.activity-opening-state/);
+  assert.match(css, /@keyframes activity-opening-sweep/);
   assert.match(css, /\.message-luna \.message-meta \{ justify-content: flex-start; \}/);
   assert.match(css, /conversation-composer textarea:focus/);
   assert.match(css, /\.drop-indicator/);

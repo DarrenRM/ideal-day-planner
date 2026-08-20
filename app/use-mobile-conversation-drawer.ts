@@ -44,6 +44,7 @@ export function useMobileConversationDrawer({
 }) {
   const [preferredOpen, setPreferredOpen] = useState(true);
   const [hasUnreadLuna, setHasUnreadLuna] = useState(false);
+  const [readyActivityId, setReadyActivityId] = useState<string | null>(null);
   const preferenceReadyRef = useRef(false);
   const preferredOpenRef = useRef(true);
   const latestLunaMessageIdRef = useRef<string | null>(null);
@@ -64,6 +65,7 @@ export function useMobileConversationDrawer({
       setHasUnreadLuna(Boolean(canCollapse && !restoredOpen && latestMessageId && latestMessageId !== preference.lastSeenLunaMessageId));
       if (openOnMount) savePreference(activityId, { open: true, lastSeenLunaMessageId: latestMessageId });
       preferenceReadyRef.current = true;
+      setReadyActivityId(activityId);
     });
     return () => window.cancelAnimationFrame(frame);
   }, [activityId, canCollapse, openOnMount]);
@@ -133,6 +135,7 @@ export function useMobileConversationDrawer({
     handlePointerUp,
     hasUnreadLuna,
     isOpen,
+    isPreferenceReady: readyActivityId === activityId,
     setOpen,
     toggle,
   };

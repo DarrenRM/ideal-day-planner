@@ -73,6 +73,7 @@ The canonical global tokens are:
 - Use Lucide icons already present in the app. Keep ordinary control icons between 14 and 18px and align them optically with their labels.
 - Every interactive element needs default, hover, keyboard-focus, active/pressed, disabled, loading, success, and error treatment where applicable.
 - Loading feedback appears where work will land. Luna typing belongs in conversation; workspace preparation belongs in the workspace. Do not leave either region apparently frozen.
+- Opening an activity preserves its final header and footer while a quiet middle loading surface waits for both the initial activity state and saved drawer preference. Never render a provisional drawer position that immediately moves.
 - A pending setup question may coexist with the truthful empty workspace. Do not render an empty workout, checklist, protocol, or other domain card merely to fill space.
 
 ## Responsive layout

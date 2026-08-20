@@ -364,6 +364,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
   const hasWorkspaceContent = hasVisibleActivityWorkspace(item, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
   const conversationDrawer = useMobileConversationDrawer({ activityId: item.id, canCollapse: showWorkspace, messages, openOnMount: openConversationOnMount });
+  const isOpeningActivity = connectionState === "joining" || !conversationDrawer.isPreferenceReady;
 
   useEffect(() => {
     if (!isFooterMenuOpen) return;
@@ -662,10 +663,18 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
 
   return (
     <div className="activity-expansion">
-      <div className={`activity-workbench-grid ${showWorkspace ? "" : "is-conversation-only"}`}>
-        <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
+      <div className={`activity-workbench-grid ${isOpeningActivity ? "is-opening" : showWorkspace ? "" : "is-conversation-only"}`}>
+        {isOpeningActivity ? (
+          <div className="activity-opening-state" role="status" aria-live="polite">
+            <span className="activity-opening-mark" aria-hidden="true"><Sparkles size={17} strokeWidth={1.8} /></span>
+            <strong>Getting things ready…</strong>
+            <p>Your notes and activity space will be here in a moment.</p>
+            <span className="activity-opening-progress" aria-hidden="true" />
+          </div>
+        ) : <>
+          <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 
-        <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
+          <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
             <button
               aria-expanded={conversationDrawer.isOpen}
@@ -712,7 +721,8 @@ function ActivityWorkbench({ item, isComplete, isSkipped, openConversationOnMoun
             />
             <button aria-label="Send message" disabled={!draft.trim() || isSending} type="button" onClick={() => void sendMessage()}><Send aria-hidden="true" size={16} strokeWidth={1.9} /></button>
           </div>
-        </section>
+          </section>
+        </>}
       </div>
 
       <footer className="activity-footer">
