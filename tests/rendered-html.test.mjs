@@ -205,9 +205,15 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.day-overview \{[^}]*width: var\(--summary-rail-width\)/s);
   assert.match(css, /\.main-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--summary-rail-width\)/s);
   assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/s);
-  assert.match(css, /\.drag-button \{[^}]*grid-row: 1 \/ 3;[^}]*justify-self: center/s);
-  assert.match(css, /\.item-meta \{[^}]*padding-right: 15px/s);
-  assert.match(css, /\.item-controls \{[^}]*grid-column: 2 \/ 4;[^}]*grid-row: 2/s);
+  assert.match(page, /mobile-activity-menu/);
+  assert.match(page, /More options for/);
+  assert.match(page, /Edit activity/);
+  assert.match(page, /Skip for today/);
+  assert.match(css, /\.drag-button, \.item-icon \{ display: none; \}/);
+  assert.match(css, /\.item-title \{[^}]*padding-right: 82px/s);
+  assert.match(css, /\.item-meta \{[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*padding-right: 0/s);
+  assert.match(css, /\.item-state \{[^}]*grid-column: 2;[^}]*grid-row: 2/s);
+  assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
   assert.match(css, /\.duration-control \{[^}]*grid-template-columns: 38px 68px 38px;[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);

@@ -213,9 +213,9 @@ function CategoryPicker({ id, ariaLabel, value, onChange }: CategoryPickerProps)
   );
 }
 
-function ControlTooltip({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+function ControlTooltip({ id, label, children, className = "" }: { id: string; label: string; children: ReactNode; className?: string }) {
   return (
-    <span className="control-tooltip">
+    <span className={`control-tooltip ${className}`}>
       {children}
       <span className="control-tooltip-bubble" id={id} role="tooltip">{label}</span>
     </span>
@@ -735,6 +735,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
+  const [mobileActivityMenuId, setMobileActivityMenuId] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
   const [resetTodayState, setResetTodayState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
@@ -861,6 +862,27 @@ export default function Home() {
     document.addEventListener("pointerdown", handleOutsidePointerDown);
     return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
   }, [editCategory, editTitle, editingId, items]);
+
+  useEffect(() => {
+    if (!mobileActivityMenuId) return;
+
+    function handleMobileActivityMenuPointerDown(event: PointerEvent) {
+      const menu = event.target instanceof Element ? event.target.closest(".mobile-activity-menu") : null;
+      if (menu?.getAttribute("data-activity-id") === mobileActivityMenuId) return;
+      setMobileActivityMenuId(null);
+    }
+
+    function handleMobileActivityMenuKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setMobileActivityMenuId(null);
+    }
+
+    document.addEventListener("pointerdown", handleMobileActivityMenuPointerDown);
+    document.addEventListener("keydown", handleMobileActivityMenuKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handleMobileActivityMenuPointerDown);
+      document.removeEventListener("keydown", handleMobileActivityMenuKeyDown);
+    };
+  }, [mobileActivityMenuId]);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -1094,6 +1116,7 @@ export default function Home() {
   }
 
   function removeItem(id: string) {
+    setMobileActivityMenuId(null);
     if (editingId === id) cancelEditing();
     if (selectedActivityId === id) setSelectedActivityId(null);
     setCompletedIds((current) => {
@@ -1105,6 +1128,7 @@ export default function Home() {
   }
 
   function startEditing(item: RoutineItem) {
+    setMobileActivityMenuId(null);
     setEditingId(item.id);
     setEditTitle(item.title);
     setEditCategory(item.category);
@@ -1203,11 +1227,13 @@ export default function Home() {
   }
 
   function openActivity(id: string) {
+    setMobileActivityMenuId(null);
     setSelectedActivityId(id);
     setDismissedClockActivityId(null);
   }
 
   function collapseActivity(id: string) {
+    setMobileActivityMenuId(null);
     setSelectedActivityId(null);
     if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
   }
@@ -1494,7 +1520,7 @@ export default function Home() {
                         ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                         : <strong className="sequence-label">Queued</strong>}</div>
 
-                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""}`}>
+                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""}`}>
                       <button
                         className="drag-button"
                         draggable
@@ -1533,6 +1559,8 @@ export default function Home() {
                         <button className="item-copy" type="button" aria-expanded={isExpanded} onClick={() => openActivity(item.id)}>
                           <div className="item-title">
                             <h3>{item.title}</h3>
+                          </div>
+                          <div className="item-state">
                             {activityState === "current" ? <span className="now-chip">Now</span> : null}
                             {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
                             {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
@@ -1553,20 +1581,20 @@ export default function Home() {
                       ) : (
                         <div className="item-controls">
                           <button
-                            className="edit-item-button"
+                            className="edit-item-button desktop-row-action"
                             type="button"
                             aria-label={`Edit ${item.title}`}
                             onClick={() => startEditing(item)}
                           ><Pencil aria-hidden="true" size={14} strokeWidth={1.8} /></button>
 
                           <button
-                            className="delete-item-button"
+                            className="delete-item-button desktop-row-action"
                             type="button"
                             aria-label={`Remove ${item.title}`}
                             onClick={() => removeItem(item.id)}
                           ><Trash2 aria-hidden="true" size={14} strokeWidth={1.8} /></button>
 
-                          <ControlTooltip id={`skip-tooltip-${item.id}`} label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}>
+                          <ControlTooltip className="desktop-skip-control" id={`skip-tooltip-${item.id}`} label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}>
                             <button
                               aria-describedby={`skip-tooltip-${item.id}`}
                               aria-label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}
@@ -1576,6 +1604,24 @@ export default function Home() {
                               onClick={() => void updateClosedActivity(item, isSkipped ? "unskip" : "skip")}
                             ><SkipForward aria-hidden="true" size={14} strokeWidth={2} /></button>
                           </ControlTooltip>
+
+                          <div className={`mobile-activity-menu ${mobileActivityMenuId === item.id ? "is-open" : ""}`} data-activity-id={item.id}>
+                            <button
+                              aria-expanded={mobileActivityMenuId === item.id}
+                              aria-haspopup="menu"
+                              aria-label={`More options for ${item.title}`}
+                              className="mobile-activity-menu-trigger"
+                              type="button"
+                              onClick={() => setMobileActivityMenuId((current) => current === item.id ? null : item.id)}
+                            ><MoreHorizontal aria-hidden="true" size={18} strokeWidth={2} /></button>
+                            {mobileActivityMenuId === item.id ? (
+                              <div className="mobile-activity-menu-panel" role="menu">
+                                <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
+                                <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
+                                <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateClosedActivity(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>
+                              </div>
+                            ) : null}
+                          </div>
 
                           <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `Mark ${item.title} incomplete` : `Mark ${item.title} complete`}>
                             <button
