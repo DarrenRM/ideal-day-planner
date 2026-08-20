@@ -652,7 +652,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .duration-value { height: 42px; }
   .duration-control input { font-size: var(--type-body-lg); height: 42px; max-width: 4ch; }
   .duration-unit { font-size: var(--type-body-sm); line-height: 42px; }
-  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control { align-self: center; display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: 26px 48px 26px; height: 30px; position: static; width: 100px; }
+  .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control { align-self: center; display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-columns: 26px 48px 26px; height: 30px; justify-self: end; position: static; width: 100px; }
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control button { font-size: var(--type-body); height: 28px; width: 26px; }
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-value { height: 28px; padding: 0 4px; }
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control input { font-size: var(--type-label); height: 28px; max-width: 3ch; }

@@ -227,6 +227,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-state \{[^}]*grid-column: 2;[^}]*grid-row: 2/s);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 2;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.item-controls \{[^}]*grid-template-columns: 32px 32px/s);
+  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*justify-self: end/s);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{[^}]*position: absolute;[^}]*right: 10px;[^}]*top: 10px/s);
   assert.match(css, /\.now-line span \{ font-size: var\(--type-micro\); justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
