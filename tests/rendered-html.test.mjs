@@ -110,6 +110,15 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /maps cleanly to an approved component/);
   assert.match(page, /Live activity/);
   assert.match(page, /Mark Complete/);
+  assert.match(page, /Skip for Today/);
+  assert.match(page, /Start My Day/);
+  assert.match(page, /Start Early/);
+  assert.match(page, /mode: "start-day"/);
+  assert.match(page, /currentMinutes: displayedMinutes/);
+  assert.match(page, /function ControlTooltip/);
+  assert.match(page, /role="tooltip"/);
+  assert.match(page, /skippedAt/);
+  assert.match(page, /item\.skippedAt \? 0 : item\.duration/);
   assert.match(page, /captureActivityTimingSnapshot/);
   assert.match(page, /\/api\/activity\/run/);
   assert.match(page, /Fake time of day/);
@@ -154,6 +163,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.prototype-typing/);
   assert.match(css, /\.activity-conversation/);
   assert.match(css, /\.complete-activity-button/);
+  assert.match(css, /\.skip-activity-button/);
+  assert.match(css, /\.closed-status-button/);
+  assert.match(css, /\.control-tooltip-bubble/);
+  assert.match(css, /\.day-launch/);
   assert.match(css, /\.routine-row\.is-past:not\(\.is-current\) \.routine-card:not\(\.is-expanded\)/);
   assert.match(css, /\.category-picker-options/);
   assert.match(css, /\.category-picker-trigger svg/);
@@ -171,7 +184,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/s);
   assert.match(css, /\.drag-button \{[^}]*grid-row: 1 \/ 3;[^}]*justify-self: center/s);
   assert.match(css, /\.item-meta \{[^}]*padding-right: 15px/s);
-  assert.match(css, /\.duration-control \{[^}]*grid-column: 2 \/ 4;[^}]*justify-self: start;[^}]*width: auto/s);
+  assert.match(css, /\.item-controls \{[^}]*grid-column: 2 \/ 4;[^}]*grid-row: 2/s);
+  assert.match(css, /\.duration-control \{[^}]*grid-template-columns: 38px 68px 38px;[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
 });
@@ -205,6 +219,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(schema, /export const workspaceRevisions/);
   assert.match(schema, /export const activityProfiles/);
   assert.match(schema, /export const activityRuns/);
+  assert.match(schema, /startedAt: text\("started_at"\)/);
+  assert.match(schema, /skippedAt: text\("skipped_at"\)/);
   assert.doesNotMatch(activityRoute, /OPENING_COOLDOWN_MS|Math\.floor\(Date\.now/);
   assert.match(activityRoute, /INSERT OR IGNORE INTO activity_visits/);
   assert.doesNotMatch(activityRoute, /'activity_opened'/);
@@ -215,6 +231,11 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(runRoute, /allotted_duration_seconds/);
   assert.match(runRoute, /planned_duration_seconds/);
   assert.match(runRoute, /UPDATE daily_plan_items SET completed_at/);
+  assert.match(runRoute, /mode === "skip" \|\| mode === "unskip"/);
+  assert.match(runRoute, /skipped_at/);
+  assert.match(dayRoute, /mode === "start-day"/);
+  assert.match(dayRoute, /started_at = CURRENT_TIMESTAMP/);
+  assert.match(dayRoute, /preferredStartMinutes/);
   assert.match(dayRoute, /prepareActivitySetups/);
   assert.match(dayRoute, /completed_at AS completedAt/);
   assert.match(jobRoute, /lease_expires_at/);

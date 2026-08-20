@@ -36,6 +36,34 @@ export async function POST(request: Request) {
     if (!dayItem) return Response.json({ error: "This activity is not scheduled for that day." }, { status: 404 });
 
     const runId = `activity-run:${safeId(userId)}:${safeId(activity.clientKey)}:${date}`;
+    if (mode === "skip" || mode === "unskip") {
+      const skipped = mode === "skip";
+      await db.batch([
+        db.prepare(`
+          UPDATE daily_plan_items
+          SET skipped_at = ${skipped ? "CURRENT_TIMESTAMP" : "NULL"}, completed_at = NULL, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(dayItem.id),
+        db.prepare(`
+          INSERT INTO activity_runs
+            (id, user_id, activity_id, daily_plan_item_id, plan_date, status,
+             allotted_duration_seconds, planned_duration_seconds)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, activity_id, plan_date) DO UPDATE SET
+            daily_plan_item_id = excluded.daily_plan_item_id,
+            status = excluded.status,
+            actual_elapsed_seconds = NULL,
+            timer_mode = NULL,
+            timer_component_id = NULL,
+            started_at = NULL,
+            completed_at = NULL,
+            details_json = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(runId, userId, activity.id, dayItem.id, date, skipped ? "skipped" : "planned", dayItem.duration * 60, dayItem.duration * 60),
+      ]);
+      return Response.json({ skipped, skippedAt: skipped ? new Date().toISOString() : null, runId });
+    }
+
     if (mode === "reopen") {
       await db.batch([
         db.prepare("UPDATE daily_plan_items SET completed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(dayItem.id),
@@ -56,7 +84,7 @@ export async function POST(request: Request) {
     const detailsJson = timerMode ? JSON.stringify({ timingSource: "workspace", timerMode, timerComponentId }) : null;
 
     await db.batch([
-      db.prepare("UPDATE daily_plan_items SET completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(dayItem.id),
+      db.prepare("UPDATE daily_plan_items SET completed_at = CURRENT_TIMESTAMP, skipped_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(dayItem.id),
       db.prepare(`
         INSERT INTO activity_runs
           (id, user_id, activity_id, daily_plan_item_id, plan_date, status,

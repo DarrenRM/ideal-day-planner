@@ -1,8 +1,8 @@
 "use client";
 
-import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent } from "react";
+import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, Pencil, RotateCcw, Send, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, Pencil, RotateCcw, Send, SkipForward, Trash2 } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot } from "./activity-workspace";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 
@@ -17,6 +17,7 @@ type RoutineItem = {
   icon: string;
   color: string;
   completedAt?: string | null;
+  skippedAt?: string | null;
 };
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
@@ -212,6 +213,15 @@ function CategoryPicker({ id, ariaLabel, value, onChange }: CategoryPickerProps)
   );
 }
 
+function ControlTooltip({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  return (
+    <span className="control-tooltip">
+      {children}
+      <span className="control-tooltip-bubble" id={id} role="tooltip">{label}</span>
+    </span>
+  );
+}
+
 function timeParts(totalMinutes: number) {
   const normalized = totalMinutes % (24 * 60);
   const hour = Math.floor(normalized / 60);
@@ -232,6 +242,14 @@ function formatDuration(duration: number) {
   const hours = Math.floor(duration / 60);
   const minutes = duration % 60;
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+function formatCountdown(duration: number) {
+  if (duration <= 0) return "Ready now";
+  const hours = Math.floor(duration / 60);
+  const minutes = duration % 60;
+  if (!hours) return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  return minutes ? `${hours}h ${minutes}m` : `${hours} hour${hours === 1 ? "" : "s"}`;
 }
 
 function minutesNow() {
@@ -276,14 +294,16 @@ function conversationTime(value: string) {
 type ActivityWorkbenchProps = {
   item: ScheduledItem;
   isComplete: boolean;
+  isSkipped: boolean;
   onComplete: (completedAt: string | null) => void;
+  onSkip: (skippedAt: string | null) => void;
   onEdit: () => void;
   onRemove: () => void;
   onAdjustDuration: (delta: number) => void;
   onSetDuration: (value: number) => void;
 };
 
-function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -292,6 +312,7 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
   const sendingRef = useRef(false);
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
@@ -462,6 +483,30 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
     }
   }
 
+  async function toggleActivitySkip() {
+    if (isSkipping) return;
+    setIsSkipping(true);
+    try {
+      const response = await fetch("/api/activity/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: isSkipped ? "unskip" : "skip",
+          activityId: item.id,
+          date: localDateKey(),
+        }),
+      });
+      if (!response.ok) throw new Error("Activity skip could not be saved.");
+      const result = await response.json() as { skipped: boolean; skippedAt?: string | null };
+      onSkip(result.skipped ? result.skippedAt ?? new Date().toISOString() : null);
+      setConnectionState("ready");
+    } catch {
+      setConnectionState("error");
+    } finally {
+      setIsSkipping(false);
+    }
+  }
+
   return (
     <div className="activity-expansion">
       <div className="activity-workbench-heading">
@@ -527,9 +572,14 @@ function ActivityWorkbench({ item, isComplete, onComplete, onEdit, onRemove, onA
             <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjustDuration(DURATION_STEP)}>+</button>
           </div>
         </div>
-        <button className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting} type="button" onClick={() => void toggleActivityComplete()}>
-          <Check aria-hidden="true" size={16} strokeWidth={2.2} /> {isCompleting ? "Saving…" : isComplete ? "Completed" : "Mark Complete"}
-        </button>
+        <div className="activity-footer-status">
+          <button className={`skip-activity-button ${isSkipped ? "is-skipped" : ""}`} disabled={isSkipping} type="button" onClick={() => void toggleActivitySkip()}>
+            <SkipForward aria-hidden="true" size={15} strokeWidth={2} /> {isSkipping ? "Saving…" : isSkipped ? "Skipped Today" : "Skip for Today"}
+          </button>
+          <button className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting} type="button" onClick={() => void toggleActivityComplete()}>
+            <Check aria-hidden="true" size={16} strokeWidth={2.2} /> {isCompleting ? "Saving…" : isComplete ? "Completed" : "Mark Complete"}
+          </button>
+        </div>
       </footer>
     </div>
   );
@@ -643,6 +693,9 @@ function hydrateStoredItems(value: unknown): RoutineItem[] {
 export default function Home() {
   const [items, setItems] = useState<RoutineItem[]>([]);
   const [startMinutes, setStartMinutes] = useState(START_MINUTES);
+  const [preferredStartMinutes, setPreferredStartMinutes] = useState(START_MINUTES);
+  const [dayStartedAt, setDayStartedAt] = useState<string | null>(null);
+  const [isStartingDay, setIsStartingDay] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -662,6 +715,7 @@ export default function Home() {
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [dismissedClockActivityId, setDismissedClockActivityId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
+  const [pendingActivityIds, setPendingActivityIds] = useState<Set<string>>(() => new Set());
   const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuRef = useRef<HTMLDivElement>(null);
   const devMenuRef = useRef<HTMLDivElement>(null);
@@ -688,7 +742,7 @@ export default function Home() {
           return;
         }
         if (!response.ok) throw new Error(`Could not load the saved day (${response.status}).`);
-        let day = await response.json() as { items: unknown; startMinutes: number; needsImport: boolean };
+        let day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; needsImport: boolean };
 
         if (day.needsImport) {
           const legacyItems = readLegacyRoutine();
@@ -708,6 +762,8 @@ export default function Home() {
         setItems(loadedItems);
         setCompletedIds(new Set(loadedItems.filter((item) => item.completedAt).map((item) => item.id)));
         setStartMinutes(day.startMinutes);
+        setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
+        setDayStartedAt(day.startedAt ?? null);
         setDatabaseReady(true);
         setHasLoaded(true);
         setSaveState("saved");
@@ -827,27 +883,28 @@ export default function Home() {
   const scheduledItems = useMemo(() => {
     let cursor = startMinutes;
     return items.map<ScheduledItem>((item) => {
-      const scheduled = { ...item, start: cursor, end: cursor + item.duration };
+      const scheduled = { ...item, start: cursor, end: cursor + (item.skippedAt ? 0 : item.duration) };
       cursor = scheduled.end;
       return scheduled;
     });
   }, [items, startMinutes]);
 
   const totalMinutes = useMemo(
-    () => items.reduce((total, item) => total + item.duration, 0),
+    () => items.reduce((total, item) => total + (item.skippedAt ? 0 : item.duration), 0),
     [items],
   );
   const finishMinutes = startMinutes + totalMinutes;
 
   const displayedMinutes = fakeMinutes ?? realMinutes;
-  const clockCurrentItem = scheduledItems.find((item) => displayedMinutes >= item.start && displayedMinutes < item.end) ?? null;
+  const isDayStarted = Boolean(dayStartedAt);
+  const clockCurrentItem = isDayStarted ? scheduledItems.find((item) => displayedMinutes >= item.start && displayedMinutes < item.end) ?? null : null;
   const selectedItemExists = selectedActivityId ? scheduledItems.some((item) => item.id === selectedActivityId) : false;
   const expandedActivityId = selectedItemExists
     ? selectedActivityId
     : clockCurrentItem && !completedIds.has(clockCurrentItem.id) && dismissedClockActivityId !== clockCurrentItem.id
       ? clockCurrentItem.id
       : null;
-  const nowLineIndex = displayedMinutes <= startMinutes
+  const nowLineIndex = !isDayStarted ? null : displayedMinutes <= startMinutes
     ? 0
     : displayedMinutes >= finishMinutes
       ? scheduledItems.length
@@ -856,7 +913,7 @@ export default function Home() {
   const categoryTotals = useMemo(
     () => CATEGORY_ORDER.map((category) => ({
       category,
-      minutes: items.filter((item) => item.category === category).reduce((sum, item) => sum + item.duration, 0),
+      minutes: items.filter((item) => item.category === category && !item.skippedAt).reduce((sum, item) => sum + item.duration, 0),
       color: items.find((item) => item.category === category)?.color ?? "#8f9995",
     })).filter((entry) => entry.minutes > 0),
     [items],
@@ -868,6 +925,33 @@ export default function Home() {
     { label: "Middle", value: startMinutes + Math.round(totalMinutes / 2 / 5) * 5 },
     { label: "Done", value: Math.min(1439, finishMinutes + 5) },
   ];
+  const minutesUntilPreferredStart = Math.max(0, preferredStartMinutes - displayedMinutes);
+  const nextStartBoundary = Math.min(1435, Math.ceil(displayedMinutes / 5) * 5);
+
+  async function startDay() {
+    if (isStartingDay || isDayStarted) return;
+    setIsStartingDay(true);
+    try {
+      const response = await fetch(`/api/day?date=${localDateKey()}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "start-day", currentMinutes: displayedMinutes }),
+      });
+      if (!response.ok) throw new Error("The day could not be started.");
+      const day = await response.json() as { startMinutes: number; startedAt: string; preferredStartMinutes?: number };
+      skipNextSave.current = true;
+      setStartMinutes(day.startMinutes);
+      setPreferredStartMinutes(day.preferredStartMinutes ?? preferredStartMinutes);
+      setDayStartedAt(day.startedAt);
+      setSelectedActivityId(null);
+      setDismissedClockActivityId(null);
+      setSaveState("saved");
+    } catch {
+      setSaveState("retrying");
+    } finally {
+      setIsStartingDay(false);
+    }
+  }
 
   function setDuration(id: string, value: number) {
     if (!Number.isFinite(value)) return;
@@ -1050,9 +1134,49 @@ export default function Home() {
       else next.delete(id);
       return next;
     });
-    setItems((current) => current.map((item) => item.id === id ? { ...item, completedAt } : item));
+    setItems((current) => current.map((item) => item.id === id ? { ...item, completedAt, skippedAt: completedAt ? null : item.skippedAt } : item));
     setSelectedActivityId(null);
     if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
+  }
+
+  function toggleSkip(id: string, skippedAt: string | null) {
+    setCompletedIds((current) => {
+      const next = new Set(current);
+      if (skippedAt) next.delete(id);
+      return next;
+    });
+    setItems((current) => current.map((item) => item.id === id ? { ...item, skippedAt, completedAt: skippedAt ? null : item.completedAt } : item));
+    setSelectedActivityId(null);
+    if (clockCurrentItem?.id === id) setDismissedClockActivityId(id);
+  }
+
+  async function updateClosedActivity(item: ScheduledItem, mode: "complete" | "reopen" | "skip" | "unskip") {
+    if (pendingActivityIds.has(item.id)) return;
+    setPendingActivityIds((current) => new Set(current).add(item.id));
+    try {
+      const response = await fetch("/api/activity/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode, activityId: item.id, date: localDateKey(), timing: null }),
+      });
+      if (!response.ok) throw new Error("Activity status could not be saved.");
+      if (mode === "complete" || mode === "reopen") {
+        const result = await response.json() as { completed: boolean; completedAt?: string };
+        toggleComplete(item.id, result.completed ? result.completedAt ?? new Date().toISOString() : null);
+      } else {
+        const result = await response.json() as { skipped: boolean; skippedAt?: string | null };
+        toggleSkip(item.id, result.skipped ? result.skippedAt ?? new Date().toISOString() : null);
+      }
+      setSaveState("saved");
+    } catch {
+      setSaveState("retrying");
+    } finally {
+      setPendingActivityIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
   }
 
   return (
@@ -1123,8 +1247,8 @@ export default function Home() {
             <p>One repeatable sequence from wake-up to done. Reorder the flow and tune the timing until it feels natural.</p>
           </div>
           <div className="day-overview" aria-label="Day overview">
-            <div><span>Start</span><strong>{formatTime(startMinutes)}</strong></div>
-            <div><span>Finish</span><strong>{hasLoaded ? formatTime(finishMinutes) : "—"}</strong></div>
+            <div><span>{isDayStarted ? "Started" : "Preferred start"}</span><strong>{formatTime(isDayStarted ? startMinutes : preferredStartMinutes)}</strong></div>
+            <div><span>Finish</span><strong>{hasLoaded && isDayStarted ? formatTime(finishMinutes) : "—"}</strong></div>
             <div><span>Length</span><strong>{hasLoaded ? formatDuration(totalMinutes) : "—"}</strong></div>
           </div>
         </section>
@@ -1132,7 +1256,7 @@ export default function Home() {
         <div className="main-grid">
           <section className="planner" aria-labelledby="schedule-title">
             <header className="planner-header">
-              <div><h2 id="schedule-title">Schedule</h2><p>{hasLoaded ? `${items.length} blocks · times update automatically` : "Loading your saved day…"}</p></div>
+              <div><h2 id="schedule-title">Schedule</h2><p>{hasLoaded ? isDayStarted ? `${items.length} activities · times move with your day` : `${items.length} activities · ready when you are` : "Loading your saved day…"}</p></div>
               <div className="planner-actions">
                 <div className="planner-menu" ref={menuRef}>
                   <button
@@ -1216,6 +1340,21 @@ export default function Home() {
 
             <div className="planner-help"><span className="help-grip"><GripVertical aria-hidden="true" size={14} strokeWidth={1.8} /></span> Drag a handle to reorder <span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</div>
 
+            {hasLoaded && !isDayStarted ? (
+              <section className="day-launch" aria-labelledby="day-launch-title">
+                <div className="day-launch-copy">
+                  <p className="eyebrow">{minutesUntilPreferredStart > 0 ? `Begins in ${formatCountdown(minutesUntilPreferredStart)}` : "Whenever you’re ready"}</p>
+                  <h2 id="day-launch-title">Good morning. Your day is ready.</h2>
+                  <p>{minutesUntilPreferredStart > 0
+                    ? `Your preferred start is ${formatTime(preferredStartMinutes)}. Start early if today is already moving.`
+                    : `We’ll begin at ${formatTime(nextStartBoundary)} and keep the whole sequence intact.`}</p>
+                </div>
+                <button className="start-day-button" disabled={isStartingDay} type="button" onClick={() => void startDay()}>
+                  {isStartingDay ? "Starting…" : minutesUntilPreferredStart > 0 ? "Start Early" : "Start My Day"}
+                </button>
+              </section>
+            ) : null}
+
             <div className="schedule" aria-label="Idealized day schedule">
               {hasLoaded ? <>{scheduledItems.map((item) => {
                 const start = timeParts(item.start);
@@ -1225,7 +1364,9 @@ export default function Home() {
                 const isEditing = editingId === item.id;
                 const isExpanded = expandedActivityId === item.id;
                 const isComplete = completedIds.has(item.id);
-                const activityState = isComplete ? "complete" : item.end <= displayedMinutes ? "past" : item.start > displayedMinutes ? "upcoming" : "current";
+                const isSkipped = Boolean(item.skippedAt);
+                const isPending = pendingActivityIds.has(item.id);
+                const activityState = isSkipped ? "skipped" : isComplete ? "complete" : !isDayStarted ? "planned" : item.end <= displayedMinutes ? "past" : item.start > displayedMinutes ? "upcoming" : "current";
                 const itemStyle = { "--item-color": item.color } as CSSProperties;
 
                 return (
@@ -1244,7 +1385,11 @@ export default function Home() {
                     >
                     {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Move here</span></div> : null}
 
-                    <div className="time-label"><strong>{start.time}</strong><span>{start.suffix}</span></div>
+                    <div className="time-label">{isSkipped
+                      ? <strong className="sequence-label">Skipped</strong>
+                      : isDayStarted
+                        ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
+                        : <strong className="sequence-label">Queued</strong>}</div>
 
                     <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""}`}>
                       <button
@@ -1260,7 +1405,7 @@ export default function Home() {
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
                       {isEditing ? (
                         <>
-                          <div className="mobile-time-label mobile-edit-time" aria-hidden="true"><strong>{start.time}</strong><span>{start.suffix}</span></div>
+                          <div className="mobile-time-label mobile-edit-time" aria-hidden="true">{isDayStarted ? <><strong>{start.time}</strong><span>{start.suffix}</span></> : <strong>Queued</strong>}</div>
                           <form className="inline-edit-form" onSubmit={saveEdit}>
                             <input
                               aria-label={`Title for ${item.title}`}
@@ -1287,9 +1432,14 @@ export default function Home() {
                             <h3>{item.title}</h3>
                             {activityState === "current" ? <span className="now-chip">Now</span> : null}
                             {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
+                            {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
                           </div>
                           <div className="item-meta">
-                            <div className="mobile-time-label" aria-hidden="true"><strong>{start.time}</strong><span>{start.suffix}</span></div>
+                            <div className="mobile-time-label" aria-hidden="true">{isSkipped
+                              ? <strong>Skipped</strong>
+                              : isDayStarted
+                                ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
+                                : <strong>Queued</strong>}</div>
                             <span className="category-chip">{item.category}</span>
                           </div>
                         </button>
@@ -1298,7 +1448,7 @@ export default function Home() {
                       {isExpanded ? (
                         <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={() => collapseActivity(item.id)}><ChevronUp aria-hidden="true" size={16} /></button>
                       ) : (
-                        <>
+                        <div className="item-controls">
                           <button
                             className="edit-item-button"
                             type="button"
@@ -1312,6 +1462,28 @@ export default function Home() {
                             aria-label={`Remove ${item.title}`}
                             onClick={() => removeItem(item.id)}
                           ><Trash2 aria-hidden="true" size={14} strokeWidth={1.8} /></button>
+
+                          <ControlTooltip id={`skip-tooltip-${item.id}`} label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}>
+                            <button
+                              aria-describedby={`skip-tooltip-${item.id}`}
+                              aria-label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}
+                              className={`closed-status-button skip-status-button ${isSkipped ? "is-active" : ""}`}
+                              disabled={isPending}
+                              type="button"
+                              onClick={() => void updateClosedActivity(item, isSkipped ? "unskip" : "skip")}
+                            ><SkipForward aria-hidden="true" size={14} strokeWidth={2} /></button>
+                          </ControlTooltip>
+
+                          <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `Mark ${item.title} incomplete` : `Mark ${item.title} complete`}>
+                            <button
+                              aria-describedby={`complete-tooltip-${item.id}`}
+                              aria-label={isComplete ? `Mark ${item.title} incomplete` : `Mark ${item.title} complete`}
+                              className={`closed-status-button complete-status-button ${isComplete ? "is-active" : ""}`}
+                              disabled={isPending}
+                              type="button"
+                              onClick={() => void updateClosedActivity(item, isComplete ? "reopen" : "complete")}
+                            ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
+                          </ControlTooltip>
 
                           <div className="duration-control" aria-label={`Duration for ${item.title}`}>
                             <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
@@ -1331,15 +1503,17 @@ export default function Home() {
                             </div>
                             <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
                           </div>
-                        </>
+                        </div>
                       )}
 
                       {isExpanded ? (
                         <ActivityWorkbench
                           isComplete={isComplete}
+                          isSkipped={isSkipped}
                           item={item}
                           onAdjustDuration={(delta) => adjustDuration(item.id, delta)}
                           onComplete={(completedAt) => toggleComplete(item.id, completedAt)}
+                          onSkip={(skippedAt) => toggleSkip(item.id, skippedAt)}
                           onEdit={() => startEditing(item)}
                           onRemove={() => removeItem(item.id)}
                           onSetDuration={(value) => setDuration(item.id, value)}
@@ -1359,8 +1533,8 @@ export default function Home() {
               ) : null}
 
               <div className="finish-row">
-                <div className="time-label"><strong>{timeParts(finishMinutes).time}</strong><span>{timeParts(finishMinutes).suffix}</span></div>
-                <p>Protocol complete</p>
+                <div className="time-label">{isDayStarted ? <><strong>{timeParts(finishMinutes).time}</strong><span>{timeParts(finishMinutes).suffix}</span></> : null}</div>
+                <p>{isDayStarted ? "Protocol complete" : "Your sequence will find its time when you start"}</p>
               </div></> : (
                 <div className="schedule-loading" role="status" aria-label="Loading your saved day">
                   {[0, 1, 2, 3].map((row) => <div className="schedule-loading-row" aria-hidden="true" key={row} />)}
@@ -1371,7 +1545,7 @@ export default function Home() {
 
           <aside className="summary-rail" aria-label="Plan summary">
             <section className="summary-card shape-card">
-              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{hasLoaded ? `${formatDuration(totalMinutes)} total` : "Loading…"}</h2></div><span>{hasLoaded ? `${formatTime(startMinutes)}–${formatTime(finishMinutes)}` : "—"}</span></div>
+              <div className="summary-title"><div><p className="eyebrow">Day shape</p><h2>{hasLoaded ? `${formatDuration(totalMinutes)} total` : "Loading…"}</h2></div><span>{hasLoaded ? isDayStarted ? `${formatTime(startMinutes)}–${formatTime(finishMinutes)}` : `Ready for ${formatTime(preferredStartMinutes)}` : "—"}</span></div>
               <div className="shape-list">
                 {hasLoaded ? categoryTotals.map((entry) => (
                   <div className="shape-row" key={entry.category}>

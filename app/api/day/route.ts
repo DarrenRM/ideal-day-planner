@@ -12,6 +12,7 @@ type StoredItem = {
   icon: string;
   color: string;
   completedAt?: string | null;
+  skippedAt?: string | null;
 };
 
 function identity(request: Request) {
@@ -56,7 +57,8 @@ function normalizeItems(value: unknown): StoredItem[] | null {
     if (!id || seen.has(id) || !title || !category || !icon || !color || !Number.isFinite(duration)) return null;
     seen.add(id);
     const completedAt = typeof raw.completedAt === "string" ? raw.completedAt.slice(0, 40) : null;
-    items.push({ id, title, category, icon, color, duration, completedAt });
+    const skippedAt = typeof raw.skippedAt === "string" ? raw.skippedAt.slice(0, 40) : null;
+    items.push({ id, title, category, icon, color, duration, completedAt, skippedAt });
   }
 
   return items;
@@ -92,17 +94,49 @@ async function ensureAccount(userId: string, date: string) {
 async function readDay(userId: string, date: string) {
   const db = getD1();
   const { planId } = ids(userId, date);
-  const plan = await db.prepare("SELECT start_minutes AS startMinutes FROM daily_plans WHERE id = ? AND user_id = ?").bind(planId, userId).first<{ startMinutes: number }>();
+  const plan = await db.prepare(`
+    SELECT dp.start_minutes AS startMinutes, dp.started_at AS startedAt,
+           COALESCE(rt.start_minutes, 480) AS preferredStartMinutes
+    FROM daily_plans dp
+    LEFT JOIN routine_templates rt ON rt.id = dp.template_id
+    WHERE dp.id = ? AND dp.user_id = ?
+  `).bind(planId, userId).first<{ startMinutes: number; startedAt: string | null; preferredStartMinutes: number }>();
   if (!plan) return null;
 
   const result = await db.prepare(`
-    SELECT client_key AS id, title, duration, category, icon, color, completed_at AS completedAt
+    SELECT client_key AS id, title, duration, category, icon, color,
+           completed_at AS completedAt, skipped_at AS skippedAt
     FROM daily_plan_items
     WHERE daily_plan_id = ? AND removed_at IS NULL
     ORDER BY position ASC
   `).bind(planId).all<StoredItem>();
 
-  return { items: result.results, startMinutes: plan.startMinutes };
+  return {
+    items: result.results,
+    startMinutes: plan.startMinutes,
+    preferredStartMinutes: plan.preferredStartMinutes,
+    startedAt: plan.startedAt,
+  };
+}
+
+async function startToday(userId: string, date: string, currentMinutes: unknown) {
+  const db = getD1();
+  const { planId } = ids(userId, date);
+  const plan = await db.prepare("SELECT started_at AS startedAt FROM daily_plans WHERE id = ? AND user_id = ?")
+    .bind(planId, userId).first<{ startedAt: string | null }>();
+  if (!plan) throw new Error("Today has not loaded yet.");
+  if (plan.startedAt) return readDay(userId, date);
+
+  const current = typeof currentMinutes === "number" && Number.isFinite(currentMinutes)
+    ? Math.min(1435, Math.max(0, currentMinutes))
+    : 480;
+  const anchoredStart = Math.min(1435, Math.ceil(current / 5) * 5);
+  await db.prepare(`
+    UPDATE daily_plans
+    SET start_minutes = ?, started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND user_id = ? AND started_at IS NULL
+  `).bind(anchoredStart, planId, userId).run();
+  return readDay(userId, date);
 }
 
 async function createTodayFromTemplate(userId: string, date: string, templateId: string) {
@@ -191,9 +225,9 @@ async function replaceToday(userId: string, date: string, items: StoredItem[], s
       `).bind(activityId, userId, item.id, item.title, item.category, item.icon, item.color),
       db.prepare(`
         INSERT INTO daily_plan_items
-          (id, daily_plan_id, activity_id, client_key, title, category, icon, color, position, duration, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(`day-item:${user}:${date}:${safeSegment(item.id)}`, planId, activityId, item.id, item.title, item.category, item.icon, item.color, position, item.duration, item.completedAt ?? null),
+          (id, daily_plan_id, activity_id, client_key, title, category, icon, color, position, duration, completed_at, skipped_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(`day-item:${user}:${date}:${safeSegment(item.id)}`, planId, activityId, item.id, item.title, item.category, item.icon, item.color, position, item.duration, item.completedAt ?? null, item.skippedAt ?? null),
     );
   });
   await db.batch(statements);
@@ -233,8 +267,6 @@ async function saveTodayAsTemplate(userId: string, date: string) {
 
   const statements = [
     db.prepare("DELETE FROM routine_items WHERE routine_id = ?").bind(templateId),
-    db.prepare("UPDATE routine_templates SET start_minutes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?")
-      .bind(plan.startMinutes, templateId, userId),
   ];
 
   dayItems.results.forEach((item, position) => {
@@ -314,7 +346,7 @@ export async function GET(request: Request) {
 
   try {
     const templateId = await ensureAccount(userId, date);
-    if (!await hasTemplateItems(templateId)) return Response.json({ date, items: [], startMinutes: 480, needsImport: true });
+    if (!await hasTemplateItems(templateId)) return Response.json({ date, items: [], startMinutes: 480, preferredStartMinutes: 480, startedAt: null, needsImport: true });
     await createTodayFromTemplate(userId, date, templateId);
     return Response.json({ date, ...await readDay(userId, date), needsImport: false });
   } catch (error) {
@@ -329,8 +361,12 @@ export async function POST(request: Request) {
   if (!date) return Response.json({ error: "A valid local date is required." }, { status: 400 });
 
   try {
-    const payload = await request.json() as { mode?: unknown; items?: unknown; startMinutes?: unknown };
+    const payload = await request.json() as { mode?: unknown; items?: unknown; startMinutes?: unknown; currentMinutes?: unknown };
     const templateId = await ensureAccount(userId, date);
+    if (payload.mode === "start-day") {
+      await createTodayFromTemplate(userId, date, templateId);
+      return Response.json({ date, ...await startToday(userId, date, payload.currentMinutes), needsImport: false });
+    }
     if (payload.mode === "save-template") {
       const result = await saveTodayAsTemplate(userId, date);
       return Response.json({ date, ...result, savedAsTemplate: true });

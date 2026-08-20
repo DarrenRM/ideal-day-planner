@@ -26,9 +26,13 @@ The calendar is the home screen. Activities are the primary context boundary. A 
 - Show the idealized daily sequence.
 - Create a dated “today” plan from the idealized template on the first app open each day.
 - Treat today as the default edit target. The user or agent updates the underlying template only when that target is explicitly requested.
+- Treat the template start time as a preferred launch time, defaulting to 8:00 AM, rather than permanently stapling activities to clock times.
+- Before today begins, show a welcome and Start action. Show a countdown when the preferred launch time is still ahead; after it passes, keep the Start action without a countdown.
+- Starting today anchors the first activity to the next five-minute boundary at that moment and calculates every later time from the activity sequence. Persist that anchor for today without changing the template’s preferred start.
 - Allow activities to be added, edited, deleted, reordered, and resized in five-minute increments.
 - Recalculate downstream times automatically.
 - Allow activities to be marked complete. Detailed actual-time tracking is out of scope for now.
+- Allow an activity to be skipped for today from both its collapsed row and expanded footer. A skipped activity remains visible and reversible but contributes no minutes to today’s active sequence.
 - Show a live “Now” line that advances through the schedule.
 - Render the activity selected by the current clock in the full expanded-card layout when no other activity has been selected. This expanded layout is the activity’s Now state, with the previously defined header, middle details/chat area, and footer.
 - Keep at most one activity expanded. The user can move freely among activities without the clock forcing the interface to jump.
@@ -538,7 +542,10 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - The clock-selected activity automatically uses the expanded card as its Now state.
 - Only one card is expanded at a time, and user navigation always takes precedence over automatic Now presentation.
 - Clock changes update time state without moving the UI. Completing the active Now card is the one automatic handoff that may open the next clock-current card.
-- Completion is available through both an expanded `Complete` button and a small collapsed-row circle for batch catch-up.
+- Completion is available through both an expanded `Mark Complete` button and a small collapsed-row circle for batch catch-up.
+- Today remains an untimed sequence until the user presses Start; the resulting five-minute launch anchor is daily state, while 8:00 AM remains the current preferred default.
+- Skip-for-today is available beside completion in collapsed and expanded states, removes the activity’s duration from today’s sequence, and never removes it from the template.
+- Collapsed skip and completion circles carry contextual hover and keyboard-focus tooltips so their icon-only actions remain understandable.
 - Completing early moves an activity above the Now line. Reversing completion leaves it there as overdue until the user reschedules it.
 - Completing early preserves later planned times by default. Settings can opt into pulling the remaining schedule forward.
 - The passed section preserves original schedule order.

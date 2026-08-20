@@ -58,6 +58,7 @@ export const dailyPlans = sqliteTable("daily_plans", {
   planDate: text("plan_date").notNull(),
   templateId: text("template_id").references(() => routineTemplates.id, { onDelete: "set null" }),
   startMinutes: integer("start_minutes").notNull().default(480),
+  startedAt: text("started_at"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [uniqueIndex("daily_plans_user_date_unique").on(table.userId, table.planDate)]);
@@ -74,6 +75,7 @@ export const dailyPlanItems = sqliteTable("daily_plan_items", {
   position: integer("position").notNull(),
   duration: integer("duration").notNull(),
   completedAt: text("completed_at"),
+  skippedAt: text("skipped_at"),
   removedAt: text("removed_at"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
