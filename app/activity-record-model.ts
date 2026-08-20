@@ -169,6 +169,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
     const name = boundedString(source.name, 160);
     if (!name) return null;
     return {
+      kind: source.kind === "device" ? "device" : "product",
       name,
       manufacturer: boundedString(source.manufacturer, 160),
       variant: boundedString(source.variant, 200),

@@ -27,6 +27,15 @@ test("catalog record components stay synchronized with the server validators", a
   }
 });
 
+test("product records distinguish products from devices", async () => {
+  const [catalogSource, recordModelSource] = await Promise.all([
+    readFile(new URL("../bridge/component-catalog.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-record-model.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(catalogSource, /kind\(product\|device\)/);
+  assert.match(recordModelSource, /kind: source\.kind === "device" \? "device" : "product"/);
+});
+
 test("recipe hints cover the live activity families without treating schedule duration as intent", () => {
   assert.equal(activityRecipeHint("Lift", "Training"), "Strength session");
   assert.equal(activityRecipeHint("Red light", "Care"), "Product/device care");
@@ -34,4 +43,3 @@ test("recipe hints cover the live activity families without treating schedule du
   assert.equal(activityRecipeHint("Build / Create", "Creativity"), "Focus/creative session");
   assert.ok(ACTIVITY_RECIPES.some((recipe) => recipe.includes("no timer merely")));
 });
-

@@ -2,7 +2,7 @@ export const CATALOG_VERSION = "workspace-catalog-v2";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
-  ["product", "A named product or device", "name, manufacturer, variant, notes, fields[{label,value}]"],
+  ["product", "A named product or device", "kind(product|device), name, manufacturer, variant, notes, fields[{label,value}]"],
   ["protocol", "Repeatable ordered instructions", "summary, steps[{id,label,note,completed}]"],
   ["checklist", "A stable checkable routine", "items[{id,label,detail,completed}]"],
   ["item_list", "Shopping, queue, inventory, or open items", "items[{id,label,detail,completed,urgency,source}]"],

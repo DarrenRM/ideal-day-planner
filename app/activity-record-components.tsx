@@ -42,11 +42,13 @@ function SummaryRecord({ record }: { record: ActivityRecord }) {
 }
 
 function ProductRecord({ record }: { record: ActivityRecord }) {
-  const data = record.data as { name: string; manufacturer?: string; variant?: string; notes?: string; fields?: Field[] };
+  const data = record.data as { kind?: "product" | "device"; name: string; manufacturer?: string; variant?: string; notes?: string; fields?: Field[] };
+  const kindLabel = data.kind === "device" ? "Device" : "Product";
+  const usefulFields = (data.fields ?? []).filter((field) => /use|dose|duration|setting|frequency|model|variant|strength|amount|application|protocol/i.test(field.label));
   return <section className="workspace-block protocol-block product-record">
-    <div className="product-heading"><span className="product-mark"><Package size={16} /></span><div><small>{data.manufacturer || "Product or device"}</small><strong>{data.name}</strong>{data.variant ? <span>{data.variant}</span> : null}</div></div>
+    <div className="product-heading"><span className="product-mark"><Package size={16} /></span><div><small>{data.manufacturer || kindLabel}</small><strong>{data.name}</strong>{data.variant ? <span>{data.variant}</span> : null}</div></div>
     {data.notes ? <p className="record-description">{data.notes}</p> : null}
-    {data.fields?.length ? <dl className="record-field-grid">{data.fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl> : null}
+    {usefulFields.length ? <dl className="record-field-grid">{usefulFields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl> : null}
   </section>;
 }
 
