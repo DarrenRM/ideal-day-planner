@@ -83,7 +83,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Wide desktop: content is capped at 1180px; the summary rail is 294px; schedule and summary may sit side by side.
 - At 1040px: collapse the main layout to one column.
 - At 680px and below: begin directly at Schedule; hide desktop hero/summary content; remove the schedule's redundant outer card; use edge space carefully.
-- Mobile collapsed activity: title first; category/status beneath; overflow menu and completion at upper right; compact activity-length controls beneath those actions. Day Timeline adds clock time without changing the header anatomy. Long titles ellipsize instead of squeezing controls.
+- Mobile collapsed activity: title first; compact activity-length controls beneath it on the left; category/status aligned on the right; overflow menu and completion at upper right. Day Timeline adds clock time without changing the header anatomy. Long titles ellipsize instead of squeezing controls.
 - Mobile expanded activity: reuse the same header structure and controls as the collapsed activity. Preserve one continuous full-screen shell; stack workspace above conversation; keep only the large Skip/Mark Complete actions in the footer.
 - In its header, treat the activity title and metadata as one group while preserving a 6px optical separation between their rows.
 - The full-screen mobile expanded shell is flush to every viewport edge and has no inherited outer padding; its header, workspace, conversation, and footer own their internal spacing.
@@ -91,6 +91,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Checklist mode must not leave blank columns, labels, padding, or controls where Timeline information would have appeared. Timeline-on and Timeline-off are deliberate layouts, not visibility patches over one layout.
 - Never solve a narrow layout by reducing text below its semantic role. Reflow, stack, shorten nonessential copy, or move actions into an overflow menu.
 - Test mobile layouts with long titles, active/complete/skipped states, open menus, a multiline Luna message, populated records, empty state, loading state, and the on-screen keyboard assumption.
+- Do not reserve a visible drag handle. A closed activity is itself the reorder surface: drag directly with a mouse, or hold briefly and drag on touch. A normal tap still opens it; `Alt` + arrow keys reorder a focused activity without dragging.
 
 ## Completion motion
 

@@ -1,8 +1,8 @@
 "use client";
 
-import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
+import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Clock3, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import { dayModePolicy, DEFAULT_DAY_SETTINGS, normalizeDaySettings, type DaySettings } from "./day-settings";
@@ -25,6 +25,7 @@ type RoutineItem = {
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
 type DropTarget = { id: string; position: "before" | "after" };
+type TouchDrag = { active: boolean; pointerId: number; sourceId: string; startX: number; startY: number; timer: ReturnType<typeof setTimeout> };
 type ConversationMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string; pending?: boolean };
 type ConversationJob = { status: "queued" | "leased" | "running"; kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" };
 type ConversationState = {
@@ -947,6 +948,8 @@ export default function Home() {
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
   const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionCelebrationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const touchDragRef = useRef<TouchDrag | null>(null);
+  const suppressActivityClickUntilRef = useRef(0);
   const skipNextSave = useRef(true);
 
   useEffect(() => {
@@ -1173,6 +1176,7 @@ export default function Home() {
   useEffect(() => () => {
     if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
     if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
+    if (touchDragRef.current) clearTimeout(touchDragRef.current.timer);
   }, []);
 
   const completedBeforeLaunchIds = useMemo(() => {
@@ -1463,17 +1467,95 @@ export default function Home() {
     });
   }
 
-  function handleDragKeyDown(event: KeyboardEvent<HTMLButtonElement>, id: string) {
-    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+  function handleDragKeyDown(event: KeyboardEvent<HTMLElement>, id: string) {
+    if (event.target !== event.currentTarget || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
     event.preventDefault();
     moveByKeyboard(id, event.key === "ArrowUp" ? -1 : 1);
   }
 
-  function handleDragStart(event: DragEvent<HTMLButtonElement>, id: string) {
+  function isActivityDragTarget(target: EventTarget | null) {
+    if (!(target instanceof Element)) return true;
+    return !target.closest(".item-controls, .inline-edit-form, input, textarea, select, a");
+  }
+
+  function handleDragStart(event: DragEvent<HTMLElement>, id: string) {
+    if (!isActivityDragTarget(event.target)) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", id);
     setDraggingId(id);
     setDropTarget(null);
+  }
+
+  function touchDropTarget(clientX: number, clientY: number, sourceId: string): DropTarget | null {
+    const row = document.elementsFromPoint(clientX, clientY)
+      .map((element) => element.closest<HTMLElement>(".routine-row[data-activity-id]"))
+      .find((candidate) => candidate?.dataset.activityId && candidate.dataset.activityId !== sourceId);
+    const targetId = row?.dataset.activityId;
+    if (!row || !targetId) return null;
+    const bounds = row.getBoundingClientRect();
+    return { id: targetId, position: clientY < bounds.top + bounds.height / 2 ? "before" : "after" };
+  }
+
+  function cancelTouchDrag(moveItemOnRelease: boolean, clientX = 0, clientY = 0) {
+    const drag = touchDragRef.current;
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    if (drag.active) {
+      const target = moveItemOnRelease ? touchDropTarget(clientX, clientY, drag.sourceId) : null;
+      if (target) moveItem(drag.sourceId, target.id, target.position);
+      suppressActivityClickUntilRef.current = Date.now() + 500;
+    }
+    touchDragRef.current = null;
+    setDraggingId(null);
+    setDropTarget(null);
+  }
+
+  function handleActivityPointerDown(event: ReactPointerEvent<HTMLElement>, id: string) {
+    if (event.pointerType !== "touch" || !isActivityDragTarget(event.target)) return;
+    if (touchDragRef.current) cancelTouchDrag(false);
+    const element = event.currentTarget;
+    const pointerId = event.pointerId;
+    const drag: TouchDrag = {
+      active: false,
+      pointerId,
+      sourceId: id,
+      startX: event.clientX,
+      startY: event.clientY,
+      timer: setTimeout(() => {
+        drag.active = true;
+        element.setPointerCapture(pointerId);
+        setMobileActivityMenuId(null);
+        setDraggingId(id);
+        setDropTarget(null);
+      }, 320),
+    };
+    touchDragRef.current = drag;
+  }
+
+  function handleActivityPointerMove(event: ReactPointerEvent<HTMLElement>) {
+    const drag = touchDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.active) {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 9) cancelTouchDrag(false);
+      return;
+    }
+    event.preventDefault();
+    const target = touchDropTarget(event.clientX, event.clientY, drag.sourceId);
+    setDropTarget((current) => current?.id === target?.id && current?.position === target?.position ? current : target);
+    const edge = 72;
+    if (event.clientY < edge) window.scrollBy({ top: -10, behavior: "auto" });
+    else if (event.clientY > window.innerHeight - edge) window.scrollBy({ top: 10, behavior: "auto" });
+  }
+
+  function handleActivityPointerUp(event: ReactPointerEvent<HTMLElement>) {
+    const drag = touchDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.active) event.preventDefault();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    cancelTouchDrag(true, event.clientX, event.clientY);
   }
 
   function handleDragOver(event: DragEvent<HTMLDivElement>, targetId: string) {
@@ -1865,7 +1947,7 @@ export default function Home() {
               </form>
             ) : null}
 
-            <div className="planner-help"><span className="help-grip"><GripVertical aria-hidden="true" size={14} strokeWidth={1.8} /></span> Drag a handle to reorder {timelineEnabled ? <><span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</> : null}</div>
+            <div className="planner-help">Drag an activity to reorder {timelineEnabled ? <><span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</> : null}</div>
 
             {dayMode.showStartGate && hasLoaded && !isDayStarted ? (
               <section className="day-launch" aria-labelledby="day-launch-title">
@@ -1904,6 +1986,7 @@ export default function Home() {
                       </div>
                     ) : null}
                     <div
+                      data-activity-id={item.id}
                       className={`routine-row is-${activityState} ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""}`}
                       onDragOver={(event) => handleDragOver(event, item.id)}
                       onDragLeave={handleDragLeave}
@@ -1920,16 +2003,6 @@ export default function Home() {
 
                     <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""}`}>
                       {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
-                      <button
-                        className="drag-button"
-                        draggable
-                        type="button"
-                        aria-label={`Drag ${item.title} to reorder`}
-                        onDragStart={(event) => handleDragStart(event, item.id)}
-                        onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                        onKeyDown={(event) => handleDragKeyDown(event, item.id)}
-                      ><GripVertical aria-hidden="true" size={15} strokeWidth={1.8} /></button>
-
                       <div className="item-icon" aria-hidden="true">{item.icon}</div>
                       {isEditing ? (
                         <>
@@ -1955,7 +2028,26 @@ export default function Home() {
                           </form>
                         </>
                       ) : (
-                        <button className="item-copy" type="button" aria-expanded={isExpanded} onClick={() => isExpanded ? collapseActivity() : openActivity(item.id)}>
+                        <button
+                          aria-expanded={isExpanded}
+                          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                          className="item-copy"
+                          draggable={!isExpanded}
+                          type="button"
+                          onContextMenu={(event) => { if (touchDragRef.current?.sourceId === item.id) event.preventDefault(); }}
+                          onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                          onDragStart={(event) => handleDragStart(event, item.id)}
+                          onKeyDown={(event) => handleDragKeyDown(event, item.id)}
+                          onPointerCancel={() => cancelTouchDrag(false)}
+                          onPointerDown={(event) => handleActivityPointerDown(event, item.id)}
+                          onPointerMove={handleActivityPointerMove}
+                          onPointerUp={handleActivityPointerUp}
+                          onClick={() => {
+                          if (Date.now() < suppressActivityClickUntilRef.current) return;
+                          if (isExpanded) collapseActivity();
+                          else openActivity(item.id);
+                          }}
+                        >
                           <div className="item-title">
                             <h3>{item.title}</h3>
                           </div>
@@ -1971,6 +2063,11 @@ export default function Home() {
                                 ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                 : <strong>Queued</strong>}</div> : null}
                             <span className="category-chip">{item.category}</span>
+                            <div className="mobile-item-state">
+                              {activityState === "current" ? <span className="now-chip">Now</span> : null}
+                              {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
+                              {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
+                            </div>
                           </div>
                         </button>
                       )}
