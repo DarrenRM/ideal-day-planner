@@ -5,6 +5,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, SkipForward, Sparkles, Trash2 } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
+import { useMobileConversationDrawer } from "./use-mobile-conversation-drawer";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
@@ -38,7 +39,6 @@ const DURATION_STEP = 5;
 const STORAGE_KEY = "idealized-day-items-v1";
 const DELETED_KEY = "idealized-day-deleted-v1";
 const MIGRATION_KEY = "idealized-day-d1-imported-v1";
-const MOBILE_DRAWER_KEY = "idealized-day-mobile-drawer-v1";
 
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
@@ -315,29 +315,6 @@ function conversationWorkspaceSignature(state: Pick<ConversationState, "workspac
   return `${state.workspace.revisionId ?? "none"}::${recordVersions}`;
 }
 
-type MobileDrawerPreference = { open: boolean; lastSeenLunaMessageId: string | null };
-
-function readMobileDrawerPreference(activityId: string): MobileDrawerPreference {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(MOBILE_DRAWER_KEY) || "{}") as Record<string, Partial<MobileDrawerPreference>>;
-    return {
-      open: saved[activityId]?.open !== false,
-      lastSeenLunaMessageId: typeof saved[activityId]?.lastSeenLunaMessageId === "string" ? saved[activityId].lastSeenLunaMessageId : null,
-    };
-  } catch {
-    return { open: true, lastSeenLunaMessageId: null };
-  }
-}
-
-function saveMobileDrawerPreference(activityId: string, preference: MobileDrawerPreference) {
-  try {
-    const saved = JSON.parse(window.localStorage.getItem(MOBILE_DRAWER_KEY) || "{}") as Record<string, Partial<MobileDrawerPreference>>;
-    window.localStorage.setItem(MOBILE_DRAWER_KEY, JSON.stringify({ ...saved, [activityId]: preference }));
-  } catch {
-    // Device-local drawer memory is helpful, but never blocks the activity.
-  }
-}
-
 type ActivityWorkbenchProps = {
   item: ScheduledItem;
   isComplete: boolean;
@@ -358,8 +335,6 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const [records, setRecords] = useState<ActivityRecord[]>([]);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [workspaceReadyLabel, setWorkspaceReadyLabel] = useState<string | null>(null);
-  const [isConversationDrawerOpen, setIsConversationDrawerOpen] = useState(true);
-  const [hasUnreadLuna, setHasUnreadLuna] = useState(false);
   const [connectionState, setConnectionState] = useState<"joining" | "ready" | "error">("joining");
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -368,8 +343,6 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const [isFooterMenuOpen, setIsFooterMenuOpen] = useState(false);
   const [resetActivityState, setResetActivityState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const sendingRef = useRef(false);
-  const activityItemRef = useRef(item);
-  activityItemRef.current = item;
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
   const conversationSectionRef = useRef<HTMLElement>(null);
@@ -377,12 +350,6 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const conversationAnchorTopRef = useRef<number | null>(null);
   const hasAppliedConversationStateRef = useRef(false);
   const workspaceSignatureRef = useRef<string | null>(null);
-  const conversationDrawerOpenRef = useRef(true);
-  const drawerPreferenceReadyRef = useRef(false);
-  const drawerPointerStartRef = useRef<number | null>(null);
-  const drawerGestureRef = useRef(false);
-  const latestLunaMessageIdRef = useRef<string | null>(null);
-  const lastSeenLunaMessageIdRef = useRef<string | null>(null);
   const footerMenuRef = useRef<HTMLDivElement>(null);
   const hasConversationJob = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
   const hasWorkspaceJob = activeJob?.kind === "workspace_refresh" || activeJob?.kind === "activity_setup";
@@ -393,27 +360,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
     : null;
   const hasWorkspaceContent = hasVisibleActivityWorkspace(item, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
-
-  useEffect(() => {
-    drawerPreferenceReadyRef.current = false;
-    const preference = readMobileDrawerPreference(item.id);
-    conversationDrawerOpenRef.current = preference.open;
-    lastSeenLunaMessageIdRef.current = preference.lastSeenLunaMessageId;
-    const frame = window.requestAnimationFrame(() => {
-      setIsConversationDrawerOpen(preference.open);
-      setHasUnreadLuna(Boolean(!preference.open && latestLunaMessageIdRef.current && latestLunaMessageIdRef.current !== preference.lastSeenLunaMessageId));
-      drawerPreferenceReadyRef.current = true;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [item.id]);
-
-  useEffect(() => {
-    if (!drawerPreferenceReadyRef.current) return;
-    saveMobileDrawerPreference(item.id, {
-      open: isConversationDrawerOpen,
-      lastSeenLunaMessageId: lastSeenLunaMessageIdRef.current,
-    });
-  }, [isConversationDrawerOpen, item.id]);
+  const conversationDrawer = useMobileConversationDrawer({ activityId: item.id, canCollapse: showWorkspace, messages });
 
   useEffect(() => {
     if (!isFooterMenuOpen) return;
@@ -451,23 +398,6 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
 
     function applyConversationState(state: ConversationState) {
       if (cancelled) return;
-      const nextHasWorkspaceJob = state.activeJob?.kind === "workspace_refresh" || state.activeJob?.kind === "activity_setup";
-      const nextShowsWorkspace = hasVisibleActivityWorkspace(activityItemRef.current, state.workspace.document, state.records ?? []) || nextHasWorkspaceJob;
-      if (!nextShowsWorkspace) {
-        conversationDrawerOpenRef.current = true;
-        setIsConversationDrawerOpen(true);
-      }
-      const latestLunaMessageId = [...state.messages].reverse().find((message) => message.author === "luna")?.id ?? null;
-      latestLunaMessageIdRef.current = latestLunaMessageId;
-      if (conversationDrawerOpenRef.current) {
-        lastSeenLunaMessageIdRef.current = latestLunaMessageId;
-        setHasUnreadLuna(false);
-        if (drawerPreferenceReadyRef.current) {
-          saveMobileDrawerPreference(item.id, { open: true, lastSeenLunaMessageId: latestLunaMessageId });
-        }
-      } else if (latestLunaMessageId && latestLunaMessageId !== lastSeenLunaMessageIdRef.current) {
-        setHasUnreadLuna(true);
-      }
       const nextWorkspaceSignature = conversationWorkspaceSignature(state);
       if (hasAppliedConversationStateRef.current && nextWorkspaceSignature !== workspaceSignatureRef.current) {
         const conversationSection = conversationSectionRef.current;
@@ -613,40 +543,13 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   function viewWorkspaceUpdate() {
     setWorkspaceReadyLabel(null);
     if (window.matchMedia("(max-width: 680px)").matches) {
-      setConversationDrawer(false);
+      conversationDrawer.setOpen(false);
       return;
     }
     document.getElementById(`activity-workspace-${item.id}`)?.scrollIntoView({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       block: "start",
     });
-  }
-
-  function setConversationDrawer(open: boolean) {
-    if (!window.matchMedia("(max-width: 680px)").matches) return;
-    if (!open && !showWorkspace) return;
-    conversationDrawerOpenRef.current = open;
-    setIsConversationDrawerOpen(open);
-    if (open) {
-      lastSeenLunaMessageIdRef.current = latestLunaMessageIdRef.current;
-      setHasUnreadLuna(false);
-    }
-  }
-
-  function handleDrawerPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
-    drawerPointerStartRef.current = event.clientY;
-    drawerGestureRef.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function handleDrawerPointerUp(event: React.PointerEvent<HTMLButtonElement>) {
-    const start = drawerPointerStartRef.current;
-    drawerPointerStartRef.current = null;
-    if (start === null) return;
-    const distance = event.clientY - start;
-    if (Math.abs(distance) < 36) return;
-    drawerGestureRef.current = true;
-    setConversationDrawer(distance < 0);
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -759,27 +662,21 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       <div className={`activity-workbench-grid ${showWorkspace ? "" : "is-conversation-only"}`}>
         <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 
-        <section className={`activity-conversation ${isConversationDrawerOpen ? "is-drawer-open" : "is-drawer-collapsed"}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
+        <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
             <button
-              aria-expanded={isConversationDrawerOpen}
+              aria-expanded={conversationDrawer.isOpen}
               className="conversation-drawer-toggle"
               type="button"
-              onClick={() => {
-                if (drawerGestureRef.current) {
-                  drawerGestureRef.current = false;
-                  return;
-                }
-                setConversationDrawer(!isConversationDrawerOpen);
-              }}
-              onPointerCancel={() => { drawerPointerStartRef.current = null; }}
-              onPointerDown={handleDrawerPointerDown}
-              onPointerUp={handleDrawerPointerUp}
+              onClick={conversationDrawer.toggle}
+              onPointerCancel={conversationDrawer.handlePointerCancel}
+              onPointerDown={conversationDrawer.handlePointerDown}
+              onPointerUp={conversationDrawer.handlePointerUp}
             >
               <strong>Notes & conversation</strong>
               <span className="conversation-drawer-state">
                 <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is thinking…" : connectionState === "error" || (activeJob && !activeJobHasWorker) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : activeJob?.kind === "workspace_refresh" ? "Luna is organizing this…" : isLunaThinking ? "Luna is thinking…" : "Connected"}</span>
-                {hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">1</span> : null}
+                {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">1</span> : null}
                 <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
               </span>
             </button>

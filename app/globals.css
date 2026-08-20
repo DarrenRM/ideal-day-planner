@@ -493,6 +493,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .prototype-typing > span:nth-child(3) { animation-delay: .28s; }
 .message-meta { align-items: center; color: #59625e; display: flex; font-size: var(--type-micro); gap: 4px; justify-content: flex-end; margin: 4px 3px 0; }
 .message-meta span { color: #829575; letter-spacing: -.14em; }
+.message-luna .message-meta { justify-content: flex-start; }
 .conversation-composer { align-items: end; background: #121619; border-top: 1px solid #252c2f; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) 34px; padding: 10px; }
 .conversation-composer textarea { background: #0d1113; border: 1px solid #2c3436; border-radius: 9px; color: #dce2dc; font-size: var(--type-label); line-height: 1.45; min-height: 52px; outline: 0; padding: 9px 10px; resize: vertical; width: 100%; }
 .conversation-composer textarea::placeholder { color: #59625e; }
@@ -667,10 +668,10 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-row:not(.is-complete):not(.is-skipped) .routine-card:not(.is-expanded) .item-controls > .duration-control .duration-unit { font-size: var(--type-micro); line-height: 28px; }
   .routine-row.is-current .routine-card:not(.is-expanded) .item-state { margin-right: 108px; }
   .routine-row:has(.routine-card.is-expanded) { z-index: 100; }
-  .routine-card.is-expanded { background: #101416; border: 0; border-radius: 0; bottom: 0; box-shadow: none; display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; inset-inline: 0; margin: 0; max-width: none; position: fixed; top: 0; width: 100%; z-index: 100; }
-  .routine-card.is-expanded .item-copy { background: #151a1d; border-bottom: 1px solid #293033; grid-column: 1 / -1; grid-row: 1; min-height: 82px; padding: max(12px, env(safe-area-inset-top)) 56px 10px 16px; }
-  .routine-card.is-expanded .item-title { padding-right: 0; }
-  .routine-card.is-expanded .collapse-activity-button { right: 12px; top: max(12px, env(safe-area-inset-top)); }
+  .routine-card.is-expanded { background: #101416; border: 0; border-radius: 0; bottom: 0; box-shadow: none; display: grid; gap: 0; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; inset-inline: 0; margin: 0; max-width: none; position: fixed; top: 0; width: 100%; z-index: 100; }
+  .routine-card.is-expanded .item-copy { background: #151a1d; border-bottom: 1px solid #293033; gap: 2px 8px; grid-column: 1 / -1; grid-row: 1; grid-template-rows: 26px 22px; min-height: 68px; padding: max(7px, env(safe-area-inset-top)) 12px 7px 16px; }
+  .routine-card.is-expanded .item-title { padding-right: 40px; }
+  .routine-card.is-expanded .collapse-activity-button { right: 8px; top: max(7px, env(safe-area-inset-top)); }
   .desktop-collapse-icon { display: none; }
   .mobile-collapse-icon { display: block; }
   .activity-expansion { display: grid; grid-column: 1 / -1; grid-row: 2; grid-template-rows: minmax(0, 1fr) auto; height: 100%; margin: 0; min-height: 0; overflow: hidden; }
@@ -693,7 +694,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .record-history-list .timeline-entry > b { grid-column: 2; }
   .context-checklist li, .context-facts dd { font-size: var(--type-body-sm); }
   .context-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .activity-conversation { background: #101416; border-left: 0; border-top: 1px solid #293033; bottom: 0; height: auto; left: 0; position: absolute; right: 0; top: 0; transform: translateY(0); transition: transform .28s cubic-bezier(.22, .75, .22, 1); z-index: 5; }
+  .activity-conversation { background: #101416; border-left: 0; border-top: 1px solid #293033; bottom: 0; height: auto; left: 0; position: absolute; right: 0; top: 0; transform: translateY(0); transition: top .28s cubic-bezier(.22, .75, .22, 1), transform .28s cubic-bezier(.22, .75, .22, 1); z-index: 5; }
+  .activity-conversation.has-workspace-peek { top: 96px; }
   .activity-conversation.is-drawer-collapsed { transform: translateY(calc(100% - 58px)); }
   .activity-conversation > header { background: #13181a; min-height: 58px; padding: 0; }
   .conversation-drawer-toggle { cursor: pointer; min-height: 58px; padding: 0 16px; touch-action: none; }

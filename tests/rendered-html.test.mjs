@@ -38,9 +38,10 @@ test("server-renders the idealized day planner", async () => {
 });
 
 test("keeps the routine data and interactions in the page", async () => {
-  const [page, workspace, css] = await Promise.all([
+  const [page, workspace, drawer, css] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/use-mobile-conversation-drawer.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
@@ -94,11 +95,14 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
   assert.match(page, /activeJob\?\.kind === "workspace_refresh"/);
   assert.match(page, /workspace-ready-notice/);
-  assert.match(page, /MOBILE_DRAWER_KEY/);
-  assert.match(page, /isConversationDrawerOpen/);
+  assert.match(page, /useMobileConversationDrawer/);
   assert.match(page, /conversation-unread-badge/);
-  assert.match(page, /handleDrawerPointerDown/);
-  assert.match(page, /handleDrawerPointerUp/);
+  assert.match(drawer, /idealized-day-mobile-drawer-v1/);
+  assert.match(drawer, /function readPreference/);
+  assert.match(drawer, /function savePreference/);
+  assert.match(drawer, /function handlePointerDown/);
+  assert.match(drawer, /function handlePointerUp/);
+  assert.match(drawer, /const isOpen = canCollapse \? preferredOpen : true/);
   assert.match(page, /if \(clockCurrentItem\) setDismissedClockActivityId\(clockCurrentItem\.id\)/);
   assert.match(page, /"Connected"/);
   assert.match(page, /conversationAnchorTopRef/);
@@ -170,6 +174,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /height: 100dvh/);
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
+  assert.match(css, /\.activity-conversation\.has-workspace-peek \{ top: 96px; \}/);
+  assert.match(css, /\.message-luna \.message-meta \{ justify-content: flex-start; \}/);
   assert.match(css, /conversation-composer textarea:focus/);
   assert.match(css, /\.drop-indicator/);
   assert.match(css, /\.duration-control/);
@@ -349,6 +355,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /hermes-activity-blueprint-v2/);
   assert.match(jobRoute, /completeActivitySetup/);
   assert.match(jobRoute, /markActivitySetupAnswered/);
+  assert.match(jobRoute, /const response = suppliedResponse/);
+  assert.doesNotMatch(jobRoute, /job\.kind === "workspace_refresh" \? ""/);
   assert.match(store, /requestIdentity/);
   assert.match(store, /host === "localhost" \|\| host === "127\.0\.0\.1"/);
   assert.match(bridge, /profiles", "ideal-day"/);
@@ -386,6 +394,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /This first pass is conversational/);
   assert.match(bridge, /Return recordActions:\[\] and workspaceActions:\[\]/);
   assert.match(bridge, /Always answer a direct question or conversational request/);
+  assert.match(bridge, /Never use web research in this first pass/);
+  assert.match(bridge, /perform the web research now and return one concise, natural message/);
   assert.match(bridge, /You have a web research tool/);
   assert.match(bridge, /Prefer official manufacturer documentation and other primary sources/);
   assert.match(bridge, /No durable activity records yet/);

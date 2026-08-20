@@ -212,7 +212,7 @@ export async function POST(request: Request) {
 
     if (mode === "complete") {
       const suppliedResponse = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
-      const response = job.kind === "workspace_refresh" ? "" : suppliedResponse;
+      const response = suppliedResponse;
       const workspaceFollowup = job.kind === "user_message" && payload.workspaceFollowup === true;
       const usesReplyFirstProtocol = job.kind === "user_message" && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
