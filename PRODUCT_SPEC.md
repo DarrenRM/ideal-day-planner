@@ -1,7 +1,7 @@
 # Ideal Day — Living Product Specification
 
 Status: discovery  
-Last updated: 2026-08-18  
+Last updated: 2026-08-19  
 Owner: Darren  
 
 This document is the shared source of truth for what we are building. Confirmed decisions are labeled as such. Hypotheses and unresolved questions are kept visible so implementation does not silently turn guesses into product behavior.
@@ -140,6 +140,31 @@ The product must distinguish these concepts:
 
 This separation prevents the ideal routine, today’s execution, historical data, and chat transcript from collapsing into one ambiguous list.
 
+### Activity as a context lens
+
+An activity is the primary UX context, but it is not a database folder that must exclusively own every relevant record. The expanded activity gathers the information needed for that activity while the underlying records retain their own type, lifecycle, provenance, and relationships.
+
+Each record may have:
+
+- One primary context when there is a natural owner.
+- Zero or more related activities.
+- An originating message and, when applicable, an originating activity run.
+- Explicit provenance identifying user input, agent inference, or an external source.
+- A filing state, including `needs_clarification` when the destination or interpretation is uncertain.
+
+Capture must never fail merely because Luna cannot classify it confidently. The original message is saved immediately, remains visible, and may stay unfiled while Luna asks a normal conversational follow-up question.
+
+Activities and schedule placement are independent. An activity may be a durable, always-available context without appearing in the routine, while a routine item is an optional scheduled placement of that activity. This allows operational contexts such as Resupply to exist without requiring a daily time block.
+
+The expanded activity acts as a small workbench with four conceptual layers:
+
+1. **Do now:** current instructions, controls, checklist, or next action.
+2. **Current state:** durable facts and the most relevant recent history.
+3. **Open loops:** tasks, unanswered questions, pending decisions, and follow-ups.
+4. **Capture:** the permanent activity conversation and scratchpad.
+
+Full history remains available through retrieval or a dedicated history view, but the default expanded state prioritizes what is useful now.
+
 ## 4. Agent contract
 
 The model is not the database. The chat transcript is not the database. The application database is authoritative.
@@ -255,6 +280,8 @@ Move durable product state from `localStorage` to the project’s D1 database be
 - `agent_runs`
 - `agent_actions`
 - `agent_jobs`
+- `record_relations`
+- `agent_session_bindings`
 - `record_revisions`
 - `detail_view_snapshots` (optional cache, not authoritative data)
 - `attachments` (metadata in D1; bytes in R2 when needed)
@@ -264,6 +291,8 @@ Typed activity data can use a hybrid model:
 - Common fields live in first-class relational columns.
 - Specialized records use a validated `type` plus versioned JSON payload.
 - Frequently queried specialized domains can graduate to dedicated tables later, such as workout sets.
+
+`record_relations` prevents cross-activity information from being duplicated merely so it can appear in multiple contexts. `agent_session_bindings` maps one permanent product conversation to one or more runtime sessions over time so Hermes compression, resets, recovery, or replacement cannot break product history.
 
 ### Migration
 
@@ -283,7 +312,7 @@ flowchart LR
     APP --> DB["D1 authoritative data"]
     APP --> JOBS["Agent runs and event stream"]
     JOBS --> BRIDGE["Dedicated agent host / bridge"]
-    BRIDGE --> HERMES["Hermes or Codex app-server"]
+    BRIDGE --> HERMES["Dedicated Ideal Day Hermes profile"]
     HERMES --> LUNA["GPT-5.6 Luna · max · fast"]
     HERMES --> TOOLS["Narrow Ideal Day tools"]
     TOOLS --> APP
@@ -299,6 +328,8 @@ The first agent host will be the owner’s PC. A later host may be:
 The web app must save notes and remain usable while the PC agent is offline. Agent work queues durably and retries after the local bridge reconnects. Retries must be idempotent so reconnects cannot file the same message twice.
 
 There is no paid API fallback. If GPT-5.6 Luna cannot be reached through the ChatGPT subscription bridge, processing waits and retries later.
+
+The browser never connects directly to Hermes. The PC bridge leases durable jobs from the application, calls Hermes over localhost, relays bounded run progress, and commits only validated application mutations. A message is considered saved when D1 accepts it and processed only after its agent job reaches a terminal successful state; Hermes transport acknowledgements alone do not produce double checkmarks.
 
 ## 8. Hermes evaluation
 
@@ -320,7 +351,30 @@ There is no paid API fallback. If GPT-5.6 Luna cannot be reached through the Cha
 
 ### Working recommendation
 
-Run a contained Hermes spike after the database foundation exists. Use one dedicated profile with only Ideal Day tools. Test:
+Use Hermes as the initial agent runtime behind a contained integration boundary. Create one dedicated Ideal Day profile with its own identity, configuration, credentials, sessions, and minimal tool surface. Disable terminal, filesystem, browser, delegation, cron, general memory, and unrelated tools for app-triggered runs.
+
+Ideal Day remains authoritative for messages and structured knowledge. Hermes session history is runtime infrastructure rather than product history. One permanent Ideal Day conversation may map to several Hermes sessions over its lifetime. If Hermes state is lost, the app can create a replacement session from a focused context packet and relevant product messages.
+
+Expose the app contract to Hermes as a narrow authenticated MCP server or local MCP adapter. Business validation, ownership checks, write policy, record-level approvals, revisions, and idempotency remain server-side in Ideal Day. Do not parse assistant prose to infer mutations; successful typed tool calls and committed D1 records are authoritative.
+
+Hermes long-term memory is initially disabled for application facts. If enabled later, it is limited to stable user communication preferences or other deliberately selected global context. Products, protocols, health-adjacent facts, observations, metrics, tasks, and activity history remain in D1 and are retrieved per turn.
+
+Hermes interactive clarification and MCP elicitation are not the product’s asynchronous question mechanism. When context is missing, Luna calls `create_follow_up_question`, completes the current run, and resumes work from the user’s later reply rather than holding a local process open.
+
+The bridge and application own durable job states such as `queued`, `leased`, `running`, `waiting_for_user`, `succeeded`, and `retryable_failure`. Every mutation carries an application-generated idempotency key derived from the agent job and logical action, so reconnects or replay cannot create duplicates.
+
+The first end-to-end acceptance spike is:
+
+1. Enter “I’m almost out of toothpaste” from Bed Prep while the PC agent is offline.
+2. Save the message and show one gray check without blocking the user.
+3. Bring the bridge and Hermes online and lease the queued job.
+4. Retrieve Bed Prep, Resupply, open-item, and relevant message context.
+5. Call `create_or_update_item` and create one Resupply item linked to the original Bed Prep message.
+6. Show the linked result in Resupply and update the original message to double checkmarks.
+7. Replay the same job and prove that no duplicate item or revision is created.
+8. Enter “Actually, I bought it” and close the existing item through a revision with preserved provenance.
+
+The broader Hermes evaluation must also test:
 
 1. Activity-scoped conversation continuity.
 2. Cross-activity retrieval.
@@ -328,7 +382,7 @@ Run a contained Hermes spike after the database foundation exists. Use one dedic
 4. GPT-5.6 Luna with max reasoning and Fast mode through the ChatGPT subscription.
 5. Recovery when the agent host is offline or a run is interrupted.
 
-Do not commit the entire product to Hermes until those five paths work.
+Do not deepen product coupling to Hermes until these paths work. The MCP contract, durable queue, D1 records, and conversation model must remain portable to another agent runtime.
 
 ## 9. Codex app-server alternative
 
@@ -437,7 +491,16 @@ This app will contain health-adjacent personal data. The initial product needs:
 - The agent may change the schedule when requested, but should not optimize or rearrange it unsolicited.
 - Cross-activity sources should be tracked internally; whether to expose them routinely in the UI is unresolved.
 - OpenUI is a presentation option, not a database or agent runtime.
-- Hermes is a candidate runtime to validate, not yet a committed dependency.
+- Hermes is the initial agent runtime for a contained integration spike, while the app contract remains portable to another runtime.
+- Activities are UX context lenses rather than exclusive record containers; records may relate to multiple activities while retaining one canonical identity.
+- Capture is saved even when Luna cannot confidently classify it; unresolved filing becomes a durable conversational follow-up rather than an error.
+- Activities may exist without scheduled routine placement.
+- Ideal Day conversations are permanent product records and may map to multiple Hermes runtime sessions over time.
+- The dedicated Ideal Day Hermes profile exposes only the narrow app tool surface for app-triggered work.
+- Hermes long-term memory does not store canonical application facts; D1 remains authoritative.
+- The PC bridge, not the browser, communicates with Hermes over localhost and owns durable queue leasing and reconciliation.
+- Successful typed tool writes, not assistant prose or Hermes transport acknowledgements, determine whether a message is processed.
+- Agent clarification is asynchronous: Luna records a follow-up question and completes the run instead of holding an interactive process open.
 - The first agent runtime will run on the owner’s PC.
 - Offline agent work waits in a durable, duplicate-safe queue and retries after the PC bridge reconnects.
 - The product does not fall back to paid API usage when the ChatGPT subscription bridge is unavailable.
@@ -461,6 +524,11 @@ There are no unresolved discovery blockers for the initial product architecture.
 - OpenAI Codex app-server: https://learn.chatgpt.com/docs/app-server
 - Hermes Agent repository: https://github.com/NousResearch/hermes-agent
 - Hermes API server: https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server
+- Hermes sessions: https://hermes-agent.nousresearch.com/docs/user-guide/sessions/
+- Hermes profiles: https://hermes-agent.nousresearch.com/docs/user-guide/profiles/
+- Hermes MCP integration and tool filtering: https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp/
+- Hermes hooks: https://hermes-agent.nousresearch.com/docs/user-guide/features/hooks
+- Hermes security: https://hermes-agent.nousresearch.com/docs/user-guide/security/
 - Hermes persistent memory: https://hermes-agent.nousresearch.com/docs/user-guide/features/memory/
 - Hermes OpenAI/Codex provider: https://hermes-agent.nousresearch.com/docs/integrations/providers/
 - OpenUI generative UI: https://www.openui.com/docs/agent/core-concepts/generative-ui
