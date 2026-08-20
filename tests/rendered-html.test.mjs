@@ -135,9 +135,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Follow clock-selected activity/);
   assert.match(page, /completedIds/);
   assert.doesNotMatch(page, /COMPLETE_KEY/);
-  assert.match(workspace, /Nothing to manage here yet/);
-  assert.match(workspace, /hasConversation/);
-  assert.match(workspace, /workState \? null/);
+  assert.doesNotMatch(workspace, /Nothing to manage here yet/);
+  assert.match(workspace, /Luna is building this section/);
+  assert.match(workspace, /hasVisibleWorkspace && !workState && !recordError/);
+  assert.match(workspace, /hasUsefulActivityRecordData/);
   assert.match(workspace, /function TimerComponent/);
   assert.match(workspace, /function CountdownComponent/);
   assert.match(workspace, /function RoutineComponent/);
@@ -178,8 +179,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.workout-plan/);
   assert.match(css, /\.protocol-steps/);
   assert.match(css, /\.component-request/);
-  assert.match(css, /\.blank-workspace/);
-  assert.match(css, /\.blank-workspace \{[^}]*column-gap: 24px[^}]*grid-template-columns: 40px minmax\(0, 250px\)[^}]*justify-content: center[^}]*min-height: 112px/);
+  assert.match(css, /\.activity-workbench-grid\.is-conversation-only/);
+  assert.match(css, /\.activity-workspace\.workspace-building/);
   assert.match(css, /\.time-component-display/);
   assert.match(css, /\.routine-component-summary/);
   assert.match(css, /\.prototype-typing/);

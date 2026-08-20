@@ -337,9 +337,9 @@ export async function queueActivitySetup(userId: string, activity: ActivityRecor
 export async function completeActivitySetup(input: {
   activityId: string;
   messageId: string | null;
-  hasWorkspaceActions: boolean;
+  hasUsefulWorkspaceContent: boolean;
 }) {
-  const status = input.messageId ? "question_pending" : input.hasWorkspaceActions ? "ready" : "unnecessary";
+  const status = input.messageId ? "question_pending" : input.hasUsefulWorkspaceContent ? "ready" : "unnecessary";
   await getD1().prepare(`
     UPDATE activity_profiles
     SET setup_status = ?, setup_question_message_id = ?, assessed_at = CURRENT_TIMESTAMP,

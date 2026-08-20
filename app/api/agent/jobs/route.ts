@@ -13,8 +13,8 @@ import {
   readConversationMessages,
   safeId,
 } from "../../agent-store";
-import { validateRecordActions } from "../../../activity-record-model";
-import { validateWorkspaceActions } from "../../../workspace-model";
+import { hasUsefulActivityRecordData, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
+import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
 
@@ -204,26 +204,37 @@ export async function POST(request: Request) {
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
       const schedule = await db.prepare(`
-        SELECT dpi.duration, dp.plan_date AS planDate
+        SELECT dpi.duration, dp.plan_date AS planDate, a.title AS activityTitle
         FROM daily_plan_items dpi
         JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+        JOIN activities a ON a.id = dpi.activity_id
         WHERE dpi.activity_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
         ORDER BY dp.plan_date DESC
         LIMIT 1
-      `).bind(job.activityId, job.userId).first<{ duration: number; planDate: string }>();
+      `).bind(job.activityId, job.userId).first<{ duration: number; planDate: string; activityTitle: string }>();
       const workspaceActions = validateWorkspaceActions(payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
-      const recordActions = validateRecordActions(payload.recordActions, schedule?.planDate ?? null);
+      const recordActions = validateRecordActions(payload.recordActions, schedule?.planDate ?? null).filter((action) => (
+        action.op === "remove" || hasUsefulActivityRecordData(action.record, {
+          activityTitle: schedule?.activityTitle,
+          plannedDurationMinutes: schedule?.duration,
+        })
+      ));
       const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null);
-      const availableRecordTypes = new Map(existingRecords.map((record) => [record.key, record.type]));
+      const availableRecords = new Map<string, ActivityRecordContent>(existingRecords.map((record) => [record.key, record]));
       for (const action of recordActions) {
-        if (action.op === "remove") availableRecordTypes.delete(action.recordKey);
-        else availableRecordTypes.set(action.record.key, action.record.type);
+        if (action.op === "remove") availableRecords.delete(action.recordKey);
+        else availableRecords.set(action.record.key, action.record);
       }
       const safeWorkspaceActions = workspaceActions.filter((action) => {
         if (action.op === "remove") return true;
         const component = action.component;
-        if (component.type === "timer" || component.type === "countdown" || component.type === "routine") return true;
-        return availableRecordTypes.get(component.recordKey) === component.type;
+        if (component.type === "timer" || component.type === "countdown") return true;
+        if (component.type === "routine") return hasUsefulRoutineComponent(component);
+        const record = availableRecords.get(component.recordKey);
+        return record?.type === component.type && hasUsefulActivityRecordData(record, {
+          activityTitle: schedule?.activityTitle,
+          plannedDurationMinutes: schedule?.duration,
+        });
       });
       if (job.kind === "user_message" && !response && !safeWorkspaceActions.length && !recordActions.length) {
         return Response.json({ error: "A user message requires either a Luna response or a workspace change." }, { status: 400 });
@@ -241,6 +252,15 @@ export async function POST(request: Request) {
         activityId: job.activityId,
         agentJobId: jobId,
         actions: safeWorkspaceActions,
+      });
+      const hasUsefulWorkspaceContent = workspace.document.components.some((component) => {
+        if (component.type === "timer" || component.type === "countdown") return true;
+        if (component.type === "routine") return hasUsefulRoutineComponent(component);
+        const record = availableRecords.get(component.recordKey);
+        return Boolean(record && hasUsefulActivityRecordData(record, {
+          activityTitle: schedule?.activityTitle,
+          plannedDurationMinutes: schedule?.duration,
+        }));
       });
       const messageId = response ? `agent-message:${safeId(jobId)}` : null;
       const bindingId = `agent-binding:${safeId(job.conversationId)}:${safeId(HERMES_RUNTIME)}`;
@@ -273,9 +293,9 @@ export async function POST(request: Request) {
         await completeActivitySetup({
           activityId: job.activityId,
           messageId,
-          hasWorkspaceActions: safeWorkspaceActions.length > 0 || recordActions.length > 0,
+          hasUsefulWorkspaceContent,
         });
-      } else if (job.kind === "user_message" && (safeWorkspaceActions.length || recordActions.length)) {
+      } else if (job.kind === "user_message" && hasUsefulWorkspaceContent) {
         await markActivitySetupAnswered(job.activityId);
       }
       return Response.json({ completed: true, messageId, workspace, recordActionsApplied: recordActions.length });

@@ -3,8 +3,8 @@
 import { Check, Hourglass, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
-import type { ActivityRecord } from "./activity-record-model";
-import type { CountdownWorkspaceComponent, DataWorkspaceComponent, RoutineWorkspaceComponent, TimerWorkspaceComponent, WorkspaceDocument } from "./workspace-model";
+import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
+import { hasUsefulRoutineComponent, type CountdownWorkspaceComponent, type DataWorkspaceComponent, type RoutineWorkspaceComponent, type TimerWorkspaceComponent, type WorkspaceDocument } from "./workspace-model";
 
 export type WorkspaceActivity = {
   id: string;
@@ -16,13 +16,25 @@ export type WorkspaceActivity = {
 
 type ActivityWorkspaceProps = {
   activity: WorkspaceActivity;
-  hasConversation?: boolean;
   workspace: WorkspaceDocument;
   records: ActivityRecord[];
   onRecordMutation: RecordMutation;
   recordError?: string | null;
-  workState?: "message" | "setup" | "waiting" | null;
+  workState?: "message" | "waiting" | null;
 };
+
+export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspace: WorkspaceDocument, records: ActivityRecord[]) {
+  const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  return workspace.components.some((component) => {
+    if (component.type === "timer" || component.type === "countdown") return true;
+    if (component.type === "routine") return hasUsefulRoutineComponent(component);
+    const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
+    return Boolean(record && hasUsefulActivityRecordData(record, {
+      activityTitle: activity.title,
+      plannedDurationMinutes: activity.duration,
+    }));
+  });
+}
 
 export type ActivityTimingSnapshot = {
   componentId: string;
@@ -236,25 +248,36 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, hasConversation = false, workspace, records, onRecordMutation, recordError = null, workState = null }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, recordError = null, workState = null }: ActivityWorkspaceProps) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  const visibleComponents = workspace.components.filter((component) => {
+    if (component.type === "timer" || component.type === "countdown") return true;
+    if (component.type === "routine") return hasUsefulRoutineComponent(component);
+    const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
+    return Boolean(record && hasUsefulActivityRecordData(record, {
+      activityTitle: activity.title,
+      plannedDurationMinutes: activity.duration,
+    }));
+  });
+  const hasVisibleWorkspace = visibleComponents.length > 0;
+  if (!hasVisibleWorkspace && !workState && !recordError) return null;
   return (
-    <section className={`activity-workspace ${workspace.components.length ? "workspace-live" : "workspace-new"}`} aria-label={`Workspace for ${activity.title}`}>
+    <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : "workspace-building"}`} aria-label={`Workspace for ${activity.title}`}>
       {workState ? (
-        <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""}`} role="status">
+        <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""}`} role="status">
           <span className="workspace-working-mark"><Sparkles size={15} /></span>
           <div>
-            <strong>{workState === "waiting" ? "Luna will pick this up shortly" : workState === "setup" ? "Luna is setting this activity up" : "Luna is looking into this"}</strong>
-            <p>{workState === "waiting" ? "Your message is saved, and nothing will be lost." : "She’ll keep the useful details with this activity when she’s done."}</p>
+            <strong>{workState === "waiting" ? "Luna will pick this up shortly" : hasVisibleWorkspace ? "Luna is updating this section" : "Luna is building this section"}</strong>
+            <p>{workState === "waiting" ? "Your message is saved, and nothing will be lost." : "She’ll add the useful details here when they’re ready."}</p>
           </div>
           {workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
         </div>
       ) : null}
       {recordError ? <p className="record-action-error" role="alert">{recordError}</p> : null}
 
-      {workspace.components.length ? (
+      {hasVisibleWorkspace ? (
         <div className="workspace-stack">
-          {workspace.components.map((component) => {
+          {visibleComponents.map((component) => {
             if (component.type === "timer") return <TimerComponent activity={activity} component={component} key={component.id} />;
             if (component.type === "countdown") return <CountdownComponent activity={activity} component={component} key={component.id} />;
             if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;
@@ -262,18 +285,10 @@ export function ActivityWorkspace({ activity, hasConversation = false, workspace
             const record = recordsByKey.get(dataComponent.recordKey);
             return record
               ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} />
-              : <section className="workspace-block record-binding-missing" key={component.id}><strong>{component.title}</strong><p>This information is being prepared.</p></section>;
+              : null;
           })}
         </div>
-      ) : workState ? null : (
-        <div className="blank-workspace">
-          <span className="blank-workspace-mark"><Sparkles size={19} /></span>
-          <strong>Nothing to manage here yet</strong>
-          <p>{hasConversation
-            ? "Your conversation is saved. This space can take shape when there is something useful to keep at hand."
-            : "Use the conversation whenever you want Luna to remember something or help with this activity."}</p>
-        </div>
-      )}
+      ) : null}
     </section>
   );
 }

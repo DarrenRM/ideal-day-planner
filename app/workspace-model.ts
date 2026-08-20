@@ -65,6 +65,15 @@ function recordKey(value: unknown) {
   return /^[a-z0-9][a-z0-9-]*$/.test(key) ? key : "";
 }
 
+function isPlaceholderRoutineText(value: string | undefined) {
+  const text = (value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return !text || /\b(not yet (specified|known|documented)|details? (are )?(not yet specified|needed|unknown)|still need(ed)?|to be determined|tbd|before (creating|building)|need to (ask|confirm|learn))\b/.test(text);
+}
+
+export function hasUsefulRoutineComponent(component: RoutineWorkspaceComponent) {
+  return Boolean((component.summary && !isPlaceholderRoutineText(component.summary)) || component.steps?.length || component.facts?.length);
+}
+
 function validateComponent(value: unknown, defaultCountdownSeconds: number): WorkspaceComponent | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, unknown>;
@@ -106,11 +115,13 @@ function validateComponent(value: unknown, defaultCountdownSeconds: number): Wor
           return label && factValue ? [{ label, value: factValue }] : [];
         }).slice(0, 20)
       : [];
+    const summary = boundedString(source.summary, 500);
+    if ((!summary || isPlaceholderRoutineText(summary)) && !steps.length && !facts.length) return null;
     return {
       id,
       type,
       title,
-      summary: boundedString(source.summary, 500),
+      summary,
       steps,
       facts,
     };

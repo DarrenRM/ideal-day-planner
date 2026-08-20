@@ -1,0 +1,47 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { hasUsefulActivityRecordData } from "../app/activity-record-model.ts";
+import { validateWorkspaceActions } from "../app/workspace-model.ts";
+
+const record = (type, title, data) => ({ type, title, data });
+
+test("rejects hollow domain records", () => {
+  assert.equal(hasUsefulActivityRecordData(record("checklist", "Shower routine", { items: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("workout", "Lift workout", { focus: "Lifting session", exercises: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("protocol", "Routine", { summary: "", steps: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("protocol", "Routine", { summary: "Routine details not yet specified.", steps: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("attention", "Details needed", { body: "Confirm the product before creating a routine.", actions: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("resources", "Helpful links", { entries: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("metric", "Weight", { label: "Weight", current: null, target: null, entries: [] })), false);
+});
+
+test("rejects a summary that only repeats schedule information", () => {
+  assert.equal(hasUsefulActivityRecordData(record("summary", "Cardio overview", {
+    summary: "Cardio session",
+    fields: [{ label: "Planned duration", value: "15 minutes" }],
+  }), { activityTitle: "Cardio", plannedDurationMinutes: 15 }), false);
+});
+
+test("accepts components with immediately useful content", () => {
+  assert.equal(hasUsefulActivityRecordData(record("checklist", "Shower routine", {
+    items: [{ id: "condition", label: "Condition hair" }],
+  })), true);
+  assert.equal(hasUsefulActivityRecordData(record("workout", "Leg day", {
+    exercises: [{ id: "lunges", name: "Walking lunges" }],
+  })), true);
+  assert.equal(hasUsefulActivityRecordData(record("summary", "Cardio plan", {
+    summary: "Use the rowing machine and track distance.",
+    fields: [],
+  }), { activityTitle: "Cardio", plannedDurationMinutes: 15 }), true);
+});
+
+test("does not admit an empty inline routine into a workspace", () => {
+  assert.deepEqual(validateWorkspaceActions([{
+    op: "upsert",
+    component: { id: "shower-routine", type: "routine", title: "Shower routine", steps: [], facts: [] },
+  }], 300), []);
+  assert.deepEqual(validateWorkspaceActions([{
+    op: "upsert",
+    component: { id: "shower-routine", type: "routine", title: "Shower routine", summary: "Routine details not yet specified." },
+  }], 300), []);
+});

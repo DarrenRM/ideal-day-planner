@@ -45,6 +45,13 @@ export type RecordAction =
     }
   | { op: "remove"; recordKey: string };
 
+export type ActivityRecordContent = Pick<ActivityRecord, "type" | "title" | "data">;
+
+export type ActivityRecordUsefulnessContext = {
+  activityTitle?: string;
+  plannedDurationMinutes?: number | null;
+};
+
 function boundedString(value: unknown, maximum: number) {
   return typeof value === "string" ? value.trim().slice(0, maximum) : "";
 }
@@ -86,6 +93,61 @@ function objectArray(value: unknown, maximumItems: number, map: (entry: Record<s
 
 function itemId(value: unknown, index: number) {
   return stableKey(value) || `item-${index + 1}`;
+}
+
+function nonEmptyArray(value: unknown) {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function normalizedText(value: unknown) {
+  return boundedString(value, 800).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function isPlaceholderActivityText(value: unknown) {
+  const text = normalizedText(value);
+  return !text || /\b(not yet (specified|known|documented)|details? (are )?(not yet specified|needed|unknown)|still need(ed)?|to be determined|tbd|before (creating|building)|need to (ask|confirm|learn))\b/.test(text);
+}
+
+export function hasUsefulActivityRecordData(record: ActivityRecordContent, context: ActivityRecordUsefulnessContext = {}) {
+  const data = record.data;
+  const activityTitle = normalizedText(context.activityTitle);
+
+  if (record.type === "summary") {
+    const summary = normalizedText(data.summary);
+    const genericSummaries = new Set([
+      activityTitle,
+      activityTitle ? `${activityTitle} overview` : "",
+      activityTitle ? `${activityTitle} session` : "",
+      activityTitle ? `${activityTitle} activity` : "",
+      normalizedText(record.title),
+    ].filter(Boolean));
+    const fields = Array.isArray(data.fields) ? data.fields : [];
+    const meaningfulFields = fields.filter((field) => {
+      if (!field || typeof field !== "object") return false;
+      const entry = field as Record<string, unknown>;
+      const label = normalizedText(entry.label);
+      const value = normalizedText(entry.value);
+      const plannedDuration = context.plannedDurationMinutes;
+      const repeatsSchedule = plannedDuration != null
+        && /^(planned )?duration$/.test(label)
+        && value === `${plannedDuration} minutes`;
+      return Boolean(label && value && !repeatsSchedule);
+    });
+    return Boolean((summary && !isPlaceholderActivityText(summary) && !genericSummaries.has(summary)) || meaningfulFields.length);
+  }
+
+  if (record.type === "product") return Boolean(normalizedText(data.name));
+  if (record.type === "protocol") return Boolean((!isPlaceholderActivityText(data.summary) && normalizedText(data.summary)) || nonEmptyArray(data.steps));
+  if (record.type === "checklist" || record.type === "item_list") return nonEmptyArray(data.items);
+  if (record.type === "workout") return nonEmptyArray(data.exercises);
+  if (record.type === "quick_log") return nonEmptyArray(data.fields);
+  if (record.type === "history" || record.type === "timeline" || record.type === "comparison" || record.type === "adherence" || record.type === "resources") return nonEmptyArray(data.entries);
+  if (record.type === "metric" || record.type === "trend") {
+    return typeof data.current === "number" || typeof data.target === "number" || nonEmptyArray(data.entries);
+  }
+  if (record.type === "goal") return Boolean(!isPlaceholderActivityText(data.statement) && normalizedText(data.statement));
+  if (record.type === "attention") return Boolean(!isPlaceholderActivityText(data.body) && normalizedText(data.body));
+  return false;
 }
 
 function validateData(type: ActivityRecordType, value: unknown): Record<string, unknown> | null {

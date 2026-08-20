@@ -3,7 +3,7 @@
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, SkipForward, Trash2 } from "lucide-react";
-import { ActivityWorkspace, captureActivityTimingSnapshot, resetActivityTimingState } from "./activity-workspace";
+import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 
@@ -344,13 +344,13 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const isLunaThinking = isSending || (agentOnline && hasVisibleAgentJob);
   const workspaceWorkState = isSending
     ? "message"
-    : activeJob && !agentOnline
+    : activeJob?.kind === "user_message" && !agentOnline
       ? "waiting"
-      : activeJob?.kind === "activity_setup"
-        ? "setup"
-        : activeJob?.kind === "user_message"
-          ? "message"
-          : null;
+      : activeJob?.kind === "user_message"
+        ? "message"
+        : null;
+  const hasWorkspaceContent = hasVisibleActivityWorkspace(item, workspace, records);
+  const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
 
   useEffect(() => {
     if (!isFooterMenuOpen) return;
@@ -613,8 +613,8 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
 
   return (
     <div className="activity-expansion">
-      <div className="activity-workbench-grid">
-        <ActivityWorkspace activity={item} hasConversation={messages.length > 0} onRecordMutation={mutateRecord} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
+      <div className={`activity-workbench-grid ${showWorkspace ? "" : "is-conversation-only"}`}>
+        <ActivityWorkspace activity={item} onRecordMutation={mutateRecord} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 
         <section className="activity-conversation" aria-label={`${item.title} conversation`}>
           <header>
