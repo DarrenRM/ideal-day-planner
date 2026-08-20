@@ -1,5 +1,5 @@
 import { getD1 } from "../../../../db";
-import { apiFailure, ensureAgentSchema, findActivity, requestIdentity, safeId } from "../../agent-store";
+import { apiFailure, ensureAgentSchema, findActivity, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
 
 function validDate(value: unknown) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
@@ -81,7 +81,15 @@ export async function POST(request: Request) {
     const timerMode = timing?.mode === "timer" || timing?.mode === "countdown" ? timing.mode : null;
     const timerComponentId = typeof timing?.componentId === "string" ? timing.componentId.trim().slice(0, 64) : null;
     const startedAt = typeof timing?.startedAt === "string" && !Number.isNaN(Date.parse(timing.startedAt)) ? timing.startedAt : null;
-    const detailsJson = timerMode ? JSON.stringify({ timingSource: "workspace", timerMode, timerComponentId }) : null;
+    const recordVersions = (await readActivityRecords(activity.id, date)).map((record) => ({
+      key: record.key,
+      type: record.type,
+      version: record.version,
+    }));
+    const detailsJson = JSON.stringify({
+      ...(timerMode ? { timingSource: "workspace", timerMode, timerComponentId } : {}),
+      recordVersions,
+    });
 
     await db.batch([
       db.prepare("UPDATE daily_plan_items SET completed_at = CURRENT_TIMESTAMP, skipped_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(dayItem.id),

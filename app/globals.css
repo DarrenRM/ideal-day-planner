@@ -367,6 +367,80 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .generic-summary dd { color: #c7d0c8; font-size: 8px; margin: 0; overflow-wrap: anywhere; }
 .generic-checklist button { color: #acb6ae; font-size: 8px; grid-template-columns: 15px minmax(0, 1fr); }
 .generic-checklist button.is-checked { color: #66706c; text-decoration: line-through; }
+.record-empty-line { color: #68736d; font-size: 8px; line-height: 1.5; margin: 8px 0 2px; }
+.record-description { color: #aeb8b1; font-size: 8px; line-height: 1.55; margin: 0 0 11px; }
+.record-action-error { background: rgba(209, 113, 103, .08); border: 1px solid rgba(209, 113, 103, .22); border-radius: 8px; color: #c99189; font-size: 8px; line-height: 1.45; margin: 0 0 9px; padding: 8px 9px; }
+.record-binding-missing { border-style: dashed; color: #737e78; }
+.record-binding-missing strong { color: #aab4ad; font-size: 9px; }
+.record-binding-missing p { font-size: 8px; margin: 5px 0 0; }
+.record-field-grid { display: grid; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.record-field-grid > div { background: #111719; border: 1px solid #252c2f; border-radius: 7px; padding: 8px; }
+.record-field-grid dt { color: #616b66; font-size: 6px; margin-bottom: 4px; text-transform: uppercase; }
+.record-field-grid dd { color: #c7d0c8; font-size: 8px; line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
+.product-heading > div > span { color: #68736d; font-size: 7px; }
+.workspace-check { background: transparent; cursor: pointer; padding: 0; }
+.workspace-check.is-checked { background: var(--accent); border-color: var(--accent); color: #15200f; }
+.interactive-protocol > div { grid-template-columns: 17px minmax(0, 1fr); }
+.interactive-protocol > div.is-complete { opacity: .55; }
+.interactive-protocol p { display: flex; flex-direction: column; }
+.interactive-protocol p b { color: #68736d; display: none; }
+.interactive-protocol p small { color: #66716c; font-size: 7px; margin-top: 2px; }
+.workout-session-record { padding: 0; }
+.workout-session-record > .workspace-block-heading, .workout-session-record > .record-description, .workout-session-record > .record-empty-line { margin-left: 11px; margin-right: 11px; }
+.workout-session-record > .workspace-block-heading { margin-top: 11px; }
+.workout-exercises { display: grid; }
+.exercise-card { border-top: 1px solid #242b2e; padding: 11px; }
+.exercise-card > header { align-items: center; display: grid; gap: 8px; grid-template-columns: 15px minmax(0, 1fr); }
+.exercise-card > header > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.exercise-card > header strong { color: #d5ddd6; font-size: 9px; }
+.exercise-card > header small { color: #69736f; font-size: 7px; }
+.exercise-card.is-complete > header { opacity: .56; }
+.exercise-targets { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 9px 0 8px 23px; }
+.exercise-targets > span { background: #111719; border: 1px solid #252d2f; border-radius: 7px; display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 7px; }
+.exercise-targets small { color: #616b66; font-size: 6px; text-transform: uppercase; }
+.exercise-targets b { color: #b9c3bb; font-size: 8px; font-weight: 570; overflow-wrap: anywhere; }
+.exercise-card .logged-sets { margin-left: 23px; }
+.exercise-card .set-logger { margin: 8px 0 0 23px; }
+.set-logger button:disabled { cursor: default; opacity: .38; }
+.quick-log-record form { align-items: end; display: grid; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.quick-log-record label { color: #69736f; display: flex; flex-direction: column; font-size: 6px; gap: 4px; text-transform: uppercase; }
+.quick-log-record input { background: #0a0e10; border: 1px solid #2b3436; border-radius: 6px; color: #d9e0da; font: inherit; font-size: 10px; height: 31px; min-width: 0; padding: 0 8px; width: 100%; }
+.quick-log-record form > button { background: #202920; border: 1px solid #344133; border-radius: 6px; color: #b7cba4; cursor: pointer; font-size: 7px; grid-column: 1 / -1; height: 31px; }
+.quick-log-record form > button:disabled { opacity: .4; }
+.record-footnote { color: #66716c; display: block; font-size: 7px; margin-top: 8px; }
+.record-history-list { display: grid; }
+.record-history-list .timeline-entry { border-top: 1px solid #22292c; grid-template-columns: 48px minmax(0, 1fr) auto; padding: 7px 0; }
+.record-history-list .timeline-entry:first-child { border-top: 0; }
+.timeline-entry p { display: flex; flex-direction: column; gap: 2px; }
+.timeline-entry p strong { color: #b8c2ba; font-size: 8px; font-weight: 580; }
+.timeline-entry p small { color: #65706b; font-size: 7px; }
+.timeline-entry > b { color: #94a784; font-size: 7px; font-weight: 600; }
+.metric-current { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.metric-current > span { color: #68736d; font-size: 7px; text-transform: uppercase; }
+.metric-current > strong { color: #dce5dd; font-size: 24px; font-weight: 500; grid-row: 1 / 3; }
+.metric-current > strong small { color: #718078; font-size: 8px; margin-left: 4px; }
+.metric-current > p { color: #7f8b84; font-size: 7px; margin: 5px 0 0; }
+.metric-bars { align-items: end; border-bottom: 1px solid #283032; display: flex; gap: 3px; height: 54px; margin-top: 11px; padding: 0 2px; }
+.metric-bars i { background: color-mix(in srgb, var(--item-color) 64%, #718173); border-radius: 2px 2px 0 0; flex: 1; min-width: 3px; opacity: .8; }
+.adherence-row button { align-items: center; background: transparent; border: 1px solid #30393a; border-radius: 50%; color: #182015; cursor: pointer; display: flex; height: 22px; justify-content: center; padding: 0; width: 22px; }
+.adherence-row button.is-complete { background: color-mix(in srgb, var(--item-color) 65%, var(--accent)); border-color: transparent; }
+.adherence-row button:disabled { cursor: default; }
+.goal-record > strong { color: #d4dcd5; display: block; font-size: 11px; line-height: 1.4; }
+.goal-record > p { color: #75817a; font-size: 8px; line-height: 1.5; margin: 6px 0 0; }
+.goal-track { background: #252d2f; border-radius: 99px; height: 4px; margin: 12px 0 6px; overflow: hidden; }
+.goal-track span { background: var(--item-color); display: block; height: 100%; }
+.goal-record > small { color: #718078; font-size: 7px; }
+.attention-record { border-color: rgba(222, 172, 89, .22); }
+.attention-record.tone-warning, .attention-record.tone-important { background: rgba(201, 120, 92, .045); border-color: rgba(201, 120, 92, .25); }
+.attention-record > p { color: #b9c2bb; font-size: 8px; line-height: 1.55; margin: 0; }
+.attention-record ul { color: #87938c; display: grid; font-size: 7px; gap: 4px; margin: 9px 0 0; padding-left: 16px; }
+.resource-list { display: grid; }
+.resource-list a { align-items: center; border-top: 1px solid #22292c; color: #b8c2ba; display: flex; gap: 9px; justify-content: space-between; padding: 8px 1px; text-decoration: none; }
+.resource-list a:first-child { border-top: 0; }
+.resource-list a:hover { color: var(--accent-bright); }
+.resource-list a > span { display: flex; flex-direction: column; gap: 2px; }
+.resource-list strong { font-size: 8px; font-weight: 580; }
+.resource-list small { color: #65706b; font-size: 7px; }
 .component-request { background: #0e1315; border: 1px dashed #2c3537; border-radius: 9px; margin-top: 10px; }
 .component-request > button { align-items: center; background: transparent; border: 0; color: #79837e; cursor: pointer; display: flex; gap: 8px; padding: 9px 10px; text-align: left; width: 100%; }
 .component-request > button:hover { color: #aeb9b0; }
@@ -587,6 +661,12 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .workspace-inline-form input, .component-request-form textarea { font-size: 10px; }
   .set-logger { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
   .set-logger > button { grid-column: 1 / -1; height: 34px; }
+  .record-field-grid { grid-template-columns: 1fr; }
+  .exercise-targets { margin-left: 0; }
+  .exercise-card .logged-sets, .exercise-card .set-logger { margin-left: 0; }
+  .quick-log-record form { grid-template-columns: 1fr; }
+  .record-history-list .timeline-entry { grid-template-columns: 48px minmax(0, 1fr); }
+  .record-history-list .timeline-entry > b { grid-column: 2; }
   .blank-workspace { align-content: center; align-items: center; column-gap: 24px; display: grid; grid-template-columns: 40px minmax(0, 250px); grid-template-rows: auto auto; justify-content: center; min-height: 112px; padding: 15px 16px; text-align: left; }
   .blank-workspace-mark { grid-column: 1; grid-row: 1 / 3; height: 40px; margin: 0; width: 40px; }
   .blank-workspace > strong { font-size: 12px; grid-column: 2; grid-row: 1; }

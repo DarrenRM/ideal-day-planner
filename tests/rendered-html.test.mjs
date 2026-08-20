@@ -259,6 +259,9 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(schema, /export const workspaceRevisions/);
   assert.match(schema, /export const activityProfiles/);
   assert.match(schema, /export const activityRuns/);
+  assert.match(schema, /export const activityRecords/);
+  assert.match(schema, /export const activityRecordRevisions/);
+  assert.match(schema, /export const recordRelations/);
   assert.match(schema, /startedAt: text\("started_at"\)/);
   assert.match(schema, /skippedAt: text\("skipped_at"\)/);
   assert.doesNotMatch(activityRoute, /OPENING_COOLDOWN_MS|Math\.floor\(Date\.now/);
@@ -291,6 +294,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /activityContext/);
   assert.match(jobRoute, /INSERT OR IGNORE INTO conversation_messages/);
   assert.match(jobRoute, /validateWorkspaceActions/);
+  assert.match(jobRoute, /validateRecordActions/);
+  assert.match(jobRoute, /persistRecordActions/);
   assert.match(jobRoute, /persistWorkspaceActions/);
   assert.match(jobRoute, /either a Luna response or a workspace change/);
   assert.match(jobRoute, /hermes-activity-blueprint-v2/);
@@ -304,6 +309,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /IDEAL_DAY_SITES_BYPASS_TOKEN/);
   assert.match(bridge, /OAI-Sites-Authorization/);
   assert.match(store, /persistWorkspaceActions/);
+  assert.match(store, /persistRecordActions/);
+  assert.match(store, /applyUserRecordMutation/);
   assert.match(store, /queueActivitySetup/);
   assert.match(store, /setup_status = 'preparing'/);
   assert.match(workspaceModel, /type: "timer"/);
@@ -318,6 +325,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /Do not add a timer or countdown by default for Shake \/ Supplements/);
   assert.match(bridge, /Ordinary opens are silent and do not redesign the workspace/);
   assert.match(bridge, /workspaceActions/);
+  assert.match(bridge, /recordActions/);
   assert.match(bridge, /parseAgentResult/);
   assert.match(bridge, /activity-blueprint-v2/);
   assert.match(bridge, /Do not produce greetings, encouragement, routine paraphrases/);
@@ -325,7 +333,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /Always answer a direct question or conversational request/);
   assert.match(bridge, /You have a web research tool/);
   assert.match(bridge, /Prefer official manufacturer documentation and other primary sources/);
-  assert.match(bridge, /No routine details, goals, or history are documented/);
+  assert.match(bridge, /No durable activity records yet/);
+  assert.match(bridge, /Suggested starting recipe/);
   assert.doesNotMatch(bridge, /api[_-]?key\s*=\s*["'][A-Za-z0-9_-]{20,}/i);
   assert.match(startup, /Start-Process[\s\S]*-WindowStyle Hidden/);
   assert.match(startup, /Import-Clixml/);

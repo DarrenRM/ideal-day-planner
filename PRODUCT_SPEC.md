@@ -287,6 +287,10 @@ Normal data changes update the records bound to existing components without rede
 
 The initial controlled catalog includes summaries, product/protocol cards, adherence views, timelines, shopping lists, pinned plans, quick log forms, comparisons, history tables, charts, open-item cards, empty states, count-up timers, and countdowns. Timers and countdowns are ordinary optional components, not a default layer for every scheduled activity. A scheduled duration is a planning budget; it justifies a clock component only when seeing elapsed or remaining time helps perform the activity, the protocol itself is time-defined, or the user asks for one. A five-minute chin-up visualization is a strong countdown case; Shake / Supplements is not merely because it occupies five minutes. A countdown created without an explicit duration remains bound to today’s allotted activity duration and updates immediately when that duration changes. An explicitly requested duration remains fixed. Component actions call typed application endpoints and never contain raw SQL, unrestricted network access, or generated executable code.
 
+The production v2 catalog implements `summary`, `product`, `protocol`, `checklist`, `item_list`, `workout`, `quick_log`, `history`, `comparison`, `metric`, `trend`, `adherence`, `timeline`, `goal`, `attention`, `resources`, `timer`, and `countdown`. Components are reusable primitives rather than hard-coded activity pages. Luna composes them using activity-recipe guidance for strength, cardio, product/device care, body routines, meals and supplements, supplies, focused creative work, media queues, preparation workflows, and simple timed practices.
+
+Data-backed components bind by stable record key to validated activity records. Workspace documents control selection, order, and presentation; they do not become the authoritative home of checkmarks, workout sets, measurements, products, or history. Activity records support activity and day scope, immutable revisions, provenance, and explicit activity relations. Interactive component actions pass through bounded application operations such as toggling a dated protocol step, adding a supply item, logging a workout set, adding a quick-log entry, or recording adherence.
+
 Timer presentation and run history are separate concerns. Every started timer or countdown produces a timing snapshot that can be consumed when the activity is completed. A countdown is a display over an elapsed run clock rather than evidence that the allotted duration was actually performed. `Mark Complete` records the allotted duration, the timer’s planned-duration snapshot, actual elapsed time when a timer was used, timer mode and component identity, start time, and completion time. If no timer was started, completion is still recorded but actual elapsed time remains unknown. Changing today’s duration before starting updates a bound countdown; changing it after a run starts does not rewrite that run’s planned-duration snapshot.
 
 ### Missing-component authoring workflow
@@ -331,6 +335,9 @@ Move durable product state from `localStorage` to the project’s D1 database be
 - `activities`
 - `routine_items`
 - `activity_runs`
+- `activity_records`
+- `activity_record_revisions`
+- `record_relations`
 - `facts`
 - `observations`
 - `metrics`
@@ -495,12 +502,14 @@ This app will contain health-adjacent personal data. The initial product needs:
 - [x] Add the UI seam for requesting a missing component without pretending that Luna or a builder is connected.
 - [x] Add durable activity-scoped conversations and history.
 - [x] Add persistent completion runs with allotted, planned, and timer-derived actual duration.
-- [ ] Add activity-specific metrics and richer typed logs beyond timing.
+- [x] Add activity-specific metrics and richer typed logs beyond timing.
 - [ ] Add the Now line, completion, overdue state, and rescheduling within today.
 - [x] Implement the collapsed mobile schedule contract: begin at Schedule, omit the desktop hero and summary, keep title/time/tag on one line, truncate long titles, use compact duration controls, align edit/delete separately, and center the drag handle.
 - [ ] Implement the expanded mobile schedule contract, including the details/chat middle and completion footer.
 
 Implementation note (2026-08-20): presentation-only workspace records have been removed. Typed activity workspaces and append-only revisions now persist validated routine, count-up timer, and countdown components in D1. Clear durable information supplied in conversation can update the workspace in the same agent run. When Luna deliberately chooses a countdown, an omitted duration binds it to the schedule rather than copying a duration snapshot; explicit-duration countdowns remain fixed. Schedule presence alone never causes timer creation. Activities without supported records still show a truthful empty workspace.
+
+Implementation note (2026-08-20): catalog v2 restores the adaptive preview capabilities as production, record-backed components rather than fixtures. Data is stored separately from workspace composition in validated, versioned activity records. Luna receives the approved catalog, recipe guidance, existing records, recent runs, conversation, schedule, and workspace; it may emit validated record and workspace actions in one result. Server-side binding checks prevent a data component from pointing at a missing or mismatched record. Existing activity setup keys include the catalog version so each activity can receive one idempotent v2 reassessment without turning ordinary opens into recurring redesign jobs.
 
 Implementation note (2026-08-19, revised 2026-08-20): the adaptive workspace prototype proved distinct Resupply, Lift, Hair Serum, and generic compositions using a controlled catalog. Those fixture compositions are no longer rendered because they obscured real empty-state testing. Persist workspace documents and requests in D1, add schema/version validation, and reconnect the catalog through Luna/OpenUI and the isolated component-builder review path in later phases.
 
@@ -512,7 +521,7 @@ The Breakfast workspace does not repeat raw conversation turns in a “What Luna
 
 - [x] Connect the dedicated local Hermes runtime through a durable app-owned bridge.
 - [x] Add one permanent conversation and contextual Luna opening behavior to every activity.
-- [ ] Add full typed agent behavior to every activity.
+- [x] Add full typed agent behavior to every activity.
 - [x] Add the first validated typed workspace writes for routine, timer, and countdown components.
 - [x] Add persistent activity setup profiles and creation-time workspace blueprint jobs.
 - [ ] Add app-owned read-only contextual retrieval beyond the bounded UI-spike snapshot.

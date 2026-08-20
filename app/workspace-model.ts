@@ -16,12 +16,29 @@ export type RoutineWorkspaceComponent = {
   id: string;
   type: "routine";
   title: string;
-  summary: string;
-  steps: string[];
-  facts: Array<{ label: string; value: string }>;
+  recordKey?: string;
+  summary?: string;
+  steps?: string[];
+  facts?: Array<{ label: string; value: string }>;
 };
 
-export type WorkspaceComponent = TimerWorkspaceComponent | CountdownWorkspaceComponent | RoutineWorkspaceComponent;
+export const DATA_WORKSPACE_COMPONENT_TYPES = [
+  "summary", "product", "protocol", "checklist", "item_list", "workout", "quick_log",
+  "history", "comparison", "metric", "trend", "adherence", "timeline", "goal",
+  "attention", "resources",
+] as const;
+
+export type DataWorkspaceComponentType = typeof DATA_WORKSPACE_COMPONENT_TYPES[number];
+
+export type DataWorkspaceComponent = {
+  id: string;
+  type: DataWorkspaceComponentType;
+  title: string;
+  recordKey: string;
+  presentation?: "default" | "compact" | "featured";
+};
+
+export type WorkspaceComponent = TimerWorkspaceComponent | CountdownWorkspaceComponent | RoutineWorkspaceComponent | DataWorkspaceComponent;
 
 export type WorkspaceDocument = {
   version: 1;
@@ -41,6 +58,11 @@ function boundedString(value: unknown, maximum: number) {
 function componentId(value: unknown) {
   const id = boundedString(value, 64).toLowerCase();
   return /^[a-z0-9][a-z0-9-]*$/.test(id) ? id : "";
+}
+
+function recordKey(value: unknown) {
+  const key = boundedString(value, 80).toLowerCase();
+  return /^[a-z0-9][a-z0-9-]*$/.test(key) ? key : "";
 }
 
 function validateComponent(value: unknown, defaultCountdownSeconds: number): WorkspaceComponent | null {
@@ -70,6 +92,8 @@ function validateComponent(value: unknown, defaultCountdownSeconds: number): Wor
   if (type === "routine") {
     const title = boundedString(source.title, 100);
     if (!title) return null;
+    const binding = recordKey(source.recordKey);
+    if (binding) return { id, type, title, recordKey: binding };
     const steps = Array.isArray(source.steps)
       ? source.steps.map((step) => boundedString(step, 300)).filter(Boolean).slice(0, 12)
       : [];
@@ -90,6 +114,14 @@ function validateComponent(value: unknown, defaultCountdownSeconds: number): Wor
       steps,
       facts,
     };
+  }
+
+  if (DATA_WORKSPACE_COMPONENT_TYPES.includes(type as DataWorkspaceComponentType)) {
+    const title = boundedString(source.title, 100);
+    const binding = recordKey(source.recordKey);
+    if (!title || !binding) return null;
+    const presentation = source.presentation === "compact" || source.presentation === "featured" ? source.presentation : "default";
+    return { id, type: type as DataWorkspaceComponentType, title, recordKey: binding, presentation };
   }
 
   return null;

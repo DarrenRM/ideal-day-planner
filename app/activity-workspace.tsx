@@ -2,7 +2,9 @@
 
 import { Check, Hourglass, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { CountdownWorkspaceComponent, RoutineWorkspaceComponent, TimerWorkspaceComponent, WorkspaceDocument } from "./workspace-model";
+import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
+import type { ActivityRecord } from "./activity-record-model";
+import type { CountdownWorkspaceComponent, DataWorkspaceComponent, RoutineWorkspaceComponent, TimerWorkspaceComponent, WorkspaceDocument } from "./workspace-model";
 
 export type WorkspaceActivity = {
   id: string;
@@ -16,6 +18,9 @@ type ActivityWorkspaceProps = {
   activity: WorkspaceActivity;
   hasConversation?: boolean;
   workspace: WorkspaceDocument;
+  records: ActivityRecord[];
+  onRecordMutation: RecordMutation;
+  recordError?: string | null;
   workState?: "message" | "setup" | "waiting" | null;
 };
 
@@ -186,8 +191,8 @@ function RoutineComponent({ component }: { component: RoutineWorkspaceComponent 
     <section className="workspace-block routine-component" aria-label={component.title}>
       <div className="workspace-block-heading"><div><span>Saved routine</span><strong>{component.title}</strong></div><Sparkles size={15} /></div>
       {component.summary ? <p className="routine-component-summary">{component.summary}</p> : null}
-      {component.steps.length ? <ol>{component.steps.map((step) => <li key={step}>{step}</li>)}</ol> : null}
-      {component.facts.length ? <dl>{component.facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl> : null}
+      {component.steps?.length ? <ol>{component.steps.map((step) => <li key={step}>{step}</li>)}</ol> : null}
+      {component.facts?.length ? <dl>{component.facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl> : null}
     </section>
   );
 }
@@ -231,7 +236,8 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, hasConversation = false, workspace, workState = null }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, hasConversation = false, workspace, records, onRecordMutation, recordError = null, workState = null }: ActivityWorkspaceProps) {
+  const recordsByKey = new Map(records.map((record) => [record.key, record]));
   return (
     <section className={`activity-workspace ${workspace.components.length ? "workspace-live" : "workspace-new"}`} aria-label={`Workspace for ${activity.title}`}>
       <header className="workspace-header">
@@ -255,13 +261,19 @@ export function ActivityWorkspace({ activity, hasConversation = false, workspace
           {workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
         </div>
       ) : null}
+      {recordError ? <p className="record-action-error" role="alert">{recordError}</p> : null}
 
       {workspace.components.length ? (
         <div className="workspace-stack">
           {workspace.components.map((component) => {
             if (component.type === "timer") return <TimerComponent activity={activity} component={component} key={component.id} />;
             if (component.type === "countdown") return <CountdownComponent activity={activity} component={component} key={component.id} />;
-            return <RoutineComponent component={component} key={component.id} />;
+            if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;
+            const dataComponent = component as DataWorkspaceComponent;
+            const record = recordsByKey.get(dataComponent.recordKey);
+            return record
+              ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} />
+              : <section className="workspace-block record-binding-missing" key={component.id}><strong>{component.title}</strong><p>This information is being prepared.</p></section>;
           })}
         </div>
       ) : (

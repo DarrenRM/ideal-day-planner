@@ -4,6 +4,7 @@ import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, ReactNode } fr
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Clock3, GripVertical, MoreHorizontal, Pencil, RotateCcw, Send, SkipForward, Trash2 } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, resetActivityTimingState } from "./activity-workspace";
+import type { ActivityRecord } from "./activity-record-model";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
@@ -29,6 +30,7 @@ type ConversationState = {
   activeJob: ConversationJob | null;
   agentOnline: boolean;
   workspace: { revisionId: string | null; revisionNumber: number; document: WorkspaceDocument };
+  records: ActivityRecord[];
 };
 
 const START_MINUTES = 8 * 60;
@@ -324,6 +326,8 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceDocument>(EMPTY_WORKSPACE);
+  const [records, setRecords] = useState<ActivityRecord[]>([]);
+  const [recordError, setRecordError] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<"joining" | "ready" | "error">("joining");
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -365,6 +369,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       setActiveJob((current) => current?.status === state.activeJob?.status && current?.kind === state.activeJob?.kind ? current : state.activeJob);
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
+      setRecords(state.records ?? []);
       setConnectionState("ready");
     }
 
@@ -391,7 +396,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
     async function refreshConversation() {
       if (sendingRef.current) return;
       try {
-        const response = await fetch(`/api/activity?activityId=${encodeURIComponent(item.id)}`, { cache: "no-store" });
+        const response = await fetch(`/api/activity?activityId=${encodeURIComponent(item.id)}&date=${localDateKey()}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Conversation refresh failed.");
         const state = await response.json() as ConversationState;
         applyConversationState(state);
@@ -456,7 +461,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       const response = await fetch("/api/activity", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "message", activityId: item.id, body, messageId: clientMessageId }),
+          body: JSON.stringify({ mode: "message", activityId: item.id, body, messageId: clientMessageId, date: localDateKey() }),
       });
       if (!response.ok) throw new Error("Message could not be saved.");
       const state = await response.json() as ConversationState;
@@ -464,6 +469,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       setActiveJob(state.activeJob);
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
+      setRecords(state.records ?? []);
       setConnectionState("ready");
     } catch {
       setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
@@ -481,6 +487,22 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void sendMessage();
+    }
+  }
+
+  async function mutateRecord(recordKey: string, operation: string, payload: Record<string, unknown>) {
+    setRecordError(null);
+    try {
+      const response = await fetch("/api/activity/record", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ activityId: item.id, recordKey, operation, payload, actionId: window.crypto.randomUUID(), date: localDateKey() }),
+      });
+      const result = await response.json() as { records?: ActivityRecord[]; error?: string };
+      if (!response.ok || !result.records) throw new Error(result.error || "That change could not be saved.");
+      setRecords(result.records);
+    } catch (error) {
+      setRecordError(error instanceof Error ? error.message : "That change could not be saved.");
     }
   }
 
@@ -545,7 +567,7 @@ function ActivityWorkbench({ item, isComplete, isSkipped, onComplete, onSkip, on
       </div>
 
       <div className="activity-workbench-grid">
-        <ActivityWorkspace activity={item} hasConversation={messages.length > 0} workspace={workspace} workState={workspaceWorkState} />
+        <ActivityWorkspace activity={item} hasConversation={messages.length > 0} onRecordMutation={mutateRecord} recordError={recordError} records={records} workspace={workspace} workState={workspaceWorkState} />
 
         <section className="activity-conversation" aria-label={`${item.title} conversation`}>
           <header>

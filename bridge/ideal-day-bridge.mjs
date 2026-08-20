@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
+import { CATALOG_VERSION, activityRecipeHint, catalogInstructions } from "./component-catalog.mjs";
 
 const appUrl = (process.env.IDEAL_DAY_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 const bridgeToken = (process.env.IDEAL_DAY_BRIDGE_TOKEN || "").trim();
@@ -14,7 +15,7 @@ const pollIntervalMs = 700;
 
 const lunaInstructions = `You are Luna inside Ideal Day, a personal activity companion.
 Return exactly one JSON object with this shape and no markdown or surrounding prose:
-{"message": string|null, "workspaceActions": WorkspaceAction[]}
+{"message": string|null, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[]}
 
 Speak naturally to the person about their activity, intentions, progress, and today—not about software. Never mention events, context packets, databases, records, blank states, components, rendering, tools, or internal reasoning in message.
 
@@ -34,10 +35,11 @@ Ordinary activity-open behavior:
 
 User-message behavior:
 - Always answer a direct question or conversational request naturally and concisely. The message must not be null just because workspace actions also happen.
-- When the same message supplies useful lasting details, briefly acknowledge what you are keeping in ordinary language. Do not promise to save something later: include the matching workspaceActions in this result.
+- When the same message supplies useful lasting details, briefly acknowledge what you are keeping in ordinary language. Do not promise to save something later: include matching recordActions and workspaceActions in this result.
 - For a straightforward factual note, a successful workspace action may be the entire response; use message:null instead of adding a redundant acknowledgment.
-- When the user supplies clear durable information that would be useful at future visits, immediately emit workspaceActions in the same run. Do not merely repeat the information in chat.
+- When the user supplies clear durable information that would be useful at future visits, immediately emit recordActions and bind suitable workspace components in the same run. Do not merely repeat the information in chat.
 - Preserve existing useful workspace content. Upsert a stable component id when updating the same concept.
+- When a richer record-backed component clearly replaces a legacy inline routine, remove that legacy routine in the same result so the workspace does not show duplicate versions of the same information. Preserve it when it still provides distinct useful information.
 
 Web research:
 - You have a web research tool. Use it when the user asks you to look something up or verify it, and when current manufacturer or primary-source facts would materially improve an activity answer or durable workspace.
@@ -45,13 +47,21 @@ Web research:
 - Research selectively. Do not browse for ordinary activity opens, casual acknowledgments, or facts already supplied well enough for the task.
 - If research fails or the authoritative answer is unclear, say that plainly. Never claim that you lack web access merely because you have not used the tool.
 
+RecordAction is one of:
+{"op":"upsert","record":{"key":"stable-kebab-key","type":"catalog-record-type","title":"...","scope":"activity|day","data":{...}}}
+{"op":"remove","recordKey":"stable-kebab-key"}
+
 WorkspaceAction is one of:
-{"op":"upsert","component":{"id":"stable-kebab-id","type":"routine","title":"...","summary":"...","steps":["..."],"facts":[{"label":"...","value":"..."}]}}
+{"op":"upsert","component":{"id":"stable-kebab-id","type":"catalog-record-type","title":"...","recordKey":"matching-record-key","presentation":"default|compact|featured"}}
 {"op":"upsert","component":{"id":"stable-kebab-id","type":"timer","title":"..."}}
 {"op":"upsert","component":{"id":"stable-kebab-id","type":"countdown","title":"...","durationSeconds":number}}
 {"op":"remove","componentId":"stable-kebab-id"}
 
-Use routine for a product, protocol, plan, or repeatable sequence. Use timer as a count-up stopwatch only when elapsed time is useful. Use countdown for a genuinely fixed-duration session; omit durationSeconds when the activity's allotted duration should be used. The existence of an allotted duration alone is not a reason to add either one. Do not invent products, steps, goals, or history. Keep conversational messages to one or two short sentences.`;
+Every data-backed workspace component must have a matching upserted or existing record with the same recordKey. Durable information belongs in records; workspace components describe what should be visible. Preserve stable keys and update existing records rather than duplicating them. Never invent products, steps, goals, measurements, history, prior performance, completion, URLs, or personal preferences. It is acceptable to create a truthful empty structure, such as a workout containing only exercises the user named and no invented targets.
+
+Use timer as a count-up stopwatch only when elapsed time is useful. Use countdown for a genuinely fixed-duration session; omit durationSeconds when the activity's allotted duration should be used. The existence of an allotted duration alone is not a reason to add either one. Keep conversational messages to one or two short sentences.
+
+${catalogInstructions()}`;
 
 function cleanYamlScalar(value) {
   const trimmed = value.trim();
@@ -133,16 +143,20 @@ function compactWorkspace(workspace) {
   return components?.length ? JSON.stringify(workspace.document) : "No saved workspace components yet.";
 }
 
+function compactRecords(records) {
+  return records?.length ? JSON.stringify(records) : "No durable activity records yet.";
+}
+
 function eventPrompt(job) {
   const activity = job.context.activity || {};
   const schedule = job.context.schedule;
   const activityContext = job.context.activityContext;
   const knownContext = activityContext
     ? `\nKnown steps: ${activityContext.steps?.join("; ") || "None documented"}\nKnown facts: ${activityContext.facts?.map((fact) => `${fact.label}: ${fact.value}`).join("; ") || "None documented"}\nOpen consideration: ${activityContext.openLoop || "None"}`
-    : "\nNo routine details, goals, or history are documented for this activity yet.";
-  const shared = `Activity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nToday: ${schedule?.planDate || "Unknown date"}\nPlanned duration: ${schedule?.duration ? `${schedule.duration} minutes` : "Unknown"}${knownContext}\n\nCurrent saved workspace:\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
+    : "\nNo additional visit-specific context was supplied.";
+  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nPlanned duration: ${schedule?.duration ? `${schedule.duration} minutes` : "Unknown"}${knownContext}\n\nDurable activity records:\n${compactRecords(job.context.records)}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace:\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
   if (job.job.kind === "user_message") {
-    return `The user has just spoken in this activity conversation. Always answer a direct question or request. If the message also contains useful lasting information, acknowledge it naturally and capture it with workspaceActions now. Use web research when the user asks for it or current primary-source facts would materially improve the answer. A pure factual note with no question can be handled with actions and message:null.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
+    return `The user has just spoken in this activity conversation. Always answer a direct question or request. If the message also contains useful lasting information, acknowledge it naturally and capture it with recordActions and workspaceActions now. Use web research when the user asks for it or current primary-source facts would materially improve the answer. A pure factual note with no question can be handled with actions and message:null.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "workspace_refresh") {
     return `Silently bring the workspace up to date from the conversation. Use message:null. Emit only actions for useful, clearly supported information that is not already represented.\n\n${shared}`;
@@ -158,8 +172,9 @@ function parseAgentResult(content) {
   const parsed = JSON.parse(cleaned);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Luna returned an invalid result envelope.");
   const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message.trim() : null;
+  const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
   const workspaceActions = Array.isArray(parsed.workspaceActions) ? parsed.workspaceActions : [];
-  return { message, workspaceActions };
+  return { message, recordActions, workspaceActions };
 }
 
 async function runJob(key, leased) {
@@ -184,6 +199,7 @@ async function runJob(key, leased) {
       leaseToken: leased.job.leaseToken,
       runtimeSessionId: result.session_id || sessionId,
       response: agentResult.message,
+      recordActions: agentResult.recordActions,
       workspaceActions: agentResult.workspaceActions,
     }),
   });

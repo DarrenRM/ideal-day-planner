@@ -217,6 +217,54 @@ export const activityRuns = sqliteTable("activity_runs", {
   index("activity_runs_activity_date_idx").on(table.activityId, table.planDate),
 ]);
 
+export const activityRecords = sqliteTable("activity_records", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  recordKey: text("record_key").notNull(),
+  recordType: text("record_type").notNull(),
+  title: text("title").notNull(),
+  scope: text("scope").notNull().default("activity"),
+  scopeDate: text("scope_date"),
+  payloadJson: text("payload_json").notNull(),
+  version: integer("version").notNull().default(1),
+  sourceMessageId: text("source_message_id"),
+  sourceAgentJobId: text("source_agent_job_id"),
+  archivedAt: text("archived_at"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("activity_records_user_activity_key_unique").on(table.userId, table.activityId, table.recordKey),
+  index("activity_records_activity_scope_idx").on(table.activityId, table.scope, table.scopeDate),
+  index("activity_records_activity_type_idx").on(table.activityId, table.recordType),
+]);
+
+export const activityRecordRevisions = sqliteTable("activity_record_revisions", {
+  id: text("id").primaryKey(),
+  recordId: text("record_id").notNull().references(() => activityRecords.id, { onDelete: "cascade" }),
+  revisionNumber: integer("revision_number").notNull(),
+  title: text("title").notNull(),
+  payloadJson: text("payload_json").notNull(),
+  sourceMessageId: text("source_message_id"),
+  sourceAgentJobId: text("source_agent_job_id"),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("activity_record_revisions_record_number_unique").on(table.recordId, table.revisionNumber),
+  index("activity_record_revisions_record_idx").on(table.recordId),
+]);
+
+export const recordRelations = sqliteTable("record_relations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  recordId: text("record_id").notNull().references(() => activityRecords.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  relationType: text("relation_type").notNull().default("related"),
+  createdAt: createdAt(),
+}, (table) => [
+  uniqueIndex("record_relations_record_activity_type_unique").on(table.recordId, table.activityId, table.relationType),
+  index("record_relations_activity_idx").on(table.activityId),
+]);
+
 export const workspaceRevisions = sqliteTable("workspace_revisions", {
   id: text("id").primaryKey(),
   workspaceId: text("workspace_id").notNull().references(() => activityWorkspaces.id, { onDelete: "cascade" }),

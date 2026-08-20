@@ -41,6 +41,7 @@ export async function GET(request: Request) {
   const userId = requestIdentity(request);
   if (!userId) return Response.json({ error: "Sign in to load this conversation." }, { status: 401 });
   const clientKey = clientActivityKey(request);
+  const date = validDate(new URL(request.url).searchParams.get("date"));
   if (!clientKey) return Response.json({ error: "An activity is required." }, { status: 400 });
 
   try {
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     const activity = await findActivity(userId, clientKey);
     if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
     const conversationId = await ensureConversation(userId, activity);
-    return Response.json({ conversationId, ...await readConversationState(conversationId) });
+    return Response.json({ conversationId, ...await readConversationState(conversationId, date) });
   } catch (error) {
     return apiFailure(error);
   }
@@ -81,12 +82,13 @@ export async function POST(request: Request) {
         VALUES (?, ?, ?, ?, ?, ?)
       `).bind(visitId, userId, activity.id, conversationId, clientVisitId, activityContext ? JSON.stringify(activityContext) : null).run();
       await queueActivitySetup(userId, activity);
-      return Response.json({ conversationId, visitId, ...await readConversationState(conversationId) }, { status: 202 });
+      return Response.json({ conversationId, visitId, ...await readConversationState(conversationId, date) }, { status: 202 });
     }
 
     if (mode === "message") {
       const body = typeof payload.body === "string" ? payload.body.trim().slice(0, 4000) : "";
       const clientMessageId = typeof payload.messageId === "string" ? payload.messageId.trim().slice(0, 160) : "";
+      const date = validDate(payload.date);
       if (!body || !clientMessageId) return Response.json({ error: "A message and message ID are required." }, { status: 400 });
       const messageId = `message:${safeId(userId)}:${safeId(clientMessageId)}`;
       const idempotencyKey = `user-message:${messageId}`;
@@ -103,7 +105,7 @@ export async function POST(request: Request) {
           VALUES (?, ?, ?, ?, 'user_message', ?, ?)
         `).bind(jobId, userId, activity.id, conversationId, idempotencyKey, messageId),
       ]);
-      return Response.json({ conversationId, ...await readConversationState(conversationId) }, { status: 202 });
+      return Response.json({ conversationId, ...await readConversationState(conversationId, date) }, { status: 202 });
     }
 
     return Response.json({ error: "Unsupported activity operation." }, { status: 400 });

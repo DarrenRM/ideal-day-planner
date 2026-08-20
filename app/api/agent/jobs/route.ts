@@ -6,11 +6,14 @@ import {
   ensureAgentSchema,
   isLocalBridgeRequest,
   markActivitySetupAnswered,
+  persistRecordActions,
   persistWorkspaceActions,
+  readActivityRecords,
   readActivityWorkspace,
   readConversationMessages,
   safeId,
 } from "../../agent-store";
+import { validateRecordActions } from "../../../activity-record-model";
 import { validateWorkspaceActions } from "../../../workspace-model";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
@@ -122,6 +125,14 @@ export async function GET(request: Request) {
     try { activityContext = visit?.contextJson ? JSON.parse(visit.contextJson) : null; } catch { activityContext = null; }
     const messages = await readConversationMessages(candidate.conversationId);
     const workspace = await readActivityWorkspace(candidate.activityId);
+    const records = await readActivityRecords(candidate.activityId, schedule?.planDate ?? null);
+    const runs = await db.prepare(`
+      SELECT plan_date AS planDate, status, allotted_duration_seconds AS allottedDurationSeconds,
+             planned_duration_seconds AS plannedDurationSeconds, actual_elapsed_seconds AS actualElapsedSeconds,
+             timer_mode AS timerMode, started_at AS startedAt, completed_at AS completedAt, details_json AS detailsJson
+      FROM activity_runs WHERE activity_id = ? AND user_id = ?
+      ORDER BY plan_date DESC LIMIT 20
+    `).bind(candidate.activityId, candidate.userId).all();
     const sourceMessage = candidate.sourceMessageId
       ? messages.find((message) => message.id === candidate.sourceMessageId) ?? null
       : null;
@@ -137,6 +148,8 @@ export async function GET(request: Request) {
         schedule: schedule ?? null,
         activityContext,
         workspace,
+        records,
+        recentRuns: runs.results,
         recentMessages: messages.slice(-30),
         sourceMessage,
       },
@@ -173,7 +186,7 @@ export async function POST(request: Request) {
     const db = getD1();
     const job = await db.prepare(`
       SELECT id, user_id AS userId, activity_id AS activityId, conversation_id AS conversationId,
-             kind, attempts
+             kind, attempts, source_message_id AS sourceMessageId
       FROM agent_jobs WHERE id = ? AND lease_token = ? AND status = 'running'
     `).bind(jobId, leaseToken).first<{
       id: string;
@@ -182,6 +195,7 @@ export async function POST(request: Request) {
       conversationId: string;
       kind: LeasedJob["kind"];
       attempts: number;
+      sourceMessageId: string | null;
     }>();
     if (!job) return Response.json({ error: "The job lease is no longer active." }, { status: 409 });
 
@@ -190,22 +204,43 @@ export async function POST(request: Request) {
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
       const schedule = await db.prepare(`
-        SELECT dpi.duration
+        SELECT dpi.duration, dp.plan_date AS planDate
         FROM daily_plan_items dpi
         JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
         WHERE dpi.activity_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
         ORDER BY dp.plan_date DESC
         LIMIT 1
-      `).bind(job.activityId, job.userId).first<{ duration: number }>();
+      `).bind(job.activityId, job.userId).first<{ duration: number; planDate: string }>();
       const workspaceActions = validateWorkspaceActions(payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
-      if (job.kind === "user_message" && !response && !workspaceActions.length) {
+      const recordActions = validateRecordActions(payload.recordActions, schedule?.planDate ?? null);
+      const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null);
+      const availableRecordTypes = new Map(existingRecords.map((record) => [record.key, record.type]));
+      for (const action of recordActions) {
+        if (action.op === "remove") availableRecordTypes.delete(action.recordKey);
+        else availableRecordTypes.set(action.record.key, action.record.type);
+      }
+      const safeWorkspaceActions = workspaceActions.filter((action) => {
+        if (action.op === "remove") return true;
+        const component = action.component;
+        if (component.type === "timer" || component.type === "countdown" || component.type === "routine") return true;
+        return availableRecordTypes.get(component.recordKey) === component.type;
+      });
+      if (job.kind === "user_message" && !response && !safeWorkspaceActions.length && !recordActions.length) {
         return Response.json({ error: "A user message requires either a Luna response or a workspace change." }, { status: 400 });
       }
+      await persistRecordActions({
+        userId: job.userId,
+        activityId: job.activityId,
+        actionId: jobId,
+        actions: recordActions,
+        sourceMessageId: job.kind === "user_message" ? job.sourceMessageId : null,
+        sourceAgentJobId: jobId,
+      });
       const workspace = await persistWorkspaceActions({
         userId: job.userId,
         activityId: job.activityId,
         agentJobId: jobId,
-        actions: workspaceActions,
+        actions: safeWorkspaceActions,
       });
       const messageId = response ? `agent-message:${safeId(jobId)}` : null;
       const bindingId = `agent-binding:${safeId(job.conversationId)}:${safeId(HERMES_RUNTIME)}`;
@@ -238,12 +273,12 @@ export async function POST(request: Request) {
         await completeActivitySetup({
           activityId: job.activityId,
           messageId,
-          hasWorkspaceActions: workspaceActions.length > 0,
+          hasWorkspaceActions: safeWorkspaceActions.length > 0 || recordActions.length > 0,
         });
-      } else if (job.kind === "user_message" && workspaceActions.length) {
+      } else if (job.kind === "user_message" && (safeWorkspaceActions.length || recordActions.length)) {
         await markActivitySetupAnswered(job.activityId);
       }
-      return Response.json({ completed: true, messageId, workspace });
+      return Response.json({ completed: true, messageId, workspace, recordActionsApplied: recordActions.length });
     }
 
     if (mode === "failure") {
