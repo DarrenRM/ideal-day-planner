@@ -303,10 +303,12 @@ function formatDuration(duration: number) {
 }
 
 function DurationControl({
+  inlineMeta,
   item,
   onAdjust,
   onSet,
 }: {
+  inlineMeta?: ReactNode;
   item: Pick<RoutineItem, "id" | "title" | "duration">;
   onAdjust: (delta: number) => void;
   onSet: (value: number) => void;
@@ -327,8 +329,11 @@ function DurationControl({
         />
         <span className="duration-unit">minutes</span>
       </div>
-      <button disabled={item.duration <= 5} type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjust(-DURATION_STEP)}><Minus aria-hidden="true" size={15} strokeWidth={2} /></button>
-      <button disabled={item.duration >= 480} type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjust(DURATION_STEP)}><Plus aria-hidden="true" size={15} strokeWidth={2} /></button>
+      {inlineMeta ? <div className="duration-inline-meta">{inlineMeta}</div> : null}
+      <div className="duration-adjustments">
+        <button disabled={item.duration <= 5} type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjust(-DURATION_STEP)}><Minus aria-hidden="true" size={15} strokeWidth={2} /></button>
+        <button disabled={item.duration >= 480} type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjust(DURATION_STEP)}><Plus aria-hidden="true" size={15} strokeWidth={2} /></button>
+      </div>
     </div>
   );
 }
@@ -419,6 +424,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
   const conversationSectionRef = useRef<HTMLElement>(null);
+  const latestUnreadLunaMessageRef = useRef<HTMLDivElement>(null);
   const conversationShouldFollowRef = useRef(true);
   const conversationAnchorTopRef = useRef<number | null>(null);
   const hasAppliedConversationStateRef = useRef(false);
@@ -442,6 +448,11 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
     messages,
     openOnMount: openConversationOnMount,
   });
+  const {
+    isOpen: isConversationDrawerOpen,
+    markLatestLunaRead,
+    unreadLunaMessageId: activeUnreadLunaMessageId,
+  } = conversationDrawer;
   const isOpeningActivity = connectionState === "joining" || !conversationDrawer.isPreferenceReady;
 
   useEffect(() => {
@@ -570,6 +581,41 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
     });
     return () => window.cancelAnimationFrame(frame);
   }, [messages, isLunaThinking, workspaceReadyLabel]);
+
+  useEffect(() => {
+    const unreadMessageId = activeUnreadLunaMessageId;
+    const messageElement = latestUnreadLunaMessageRef.current;
+    const logElement = conversationLogRef.current;
+    if (!isConversationDrawerOpen || !unreadMessageId || !messageElement || !logElement) return;
+
+    let readTimer: ReturnType<typeof window.setTimeout> | null = null;
+    let isVisible = false;
+
+    function clearReadTimer() {
+      if (readTimer === null) return;
+      window.clearTimeout(readTimer);
+      readTimer = null;
+    }
+
+    function scheduleRead() {
+      clearReadTimer();
+      if (!isVisible || document.visibilityState !== "visible") return;
+      readTimer = window.setTimeout(markLatestLunaRead, 900);
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting && entry.intersectionRatio >= 0.5;
+      scheduleRead();
+    }, { root: logElement, threshold: [0.5] });
+
+    observer.observe(messageElement);
+    document.addEventListener("visibilitychange", scheduleRead);
+    return () => {
+      clearReadTimer();
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", scheduleRead);
+    };
+  }, [activeUnreadLunaMessageId, isConversationDrawerOpen, markLatestLunaRead]);
 
   function handleConversationScroll() {
     const log = conversationLogRef.current;
@@ -767,7 +813,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
               <strong>Notes & conversation</strong>
               <span className="conversation-drawer-state">
                 <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is thinking…" : connectionState === "error" || (activeJob && !activeJobHasWorker) ? "Luna will catch up" : activeJob?.kind === "activity_setup" ? "Luna is setting this up…" : activeJob?.kind === "workspace_refresh" ? "Luna is organizing this…" : isLunaThinking ? "Luna is thinking…" : "Connected"}</span>
-                {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">1</span> : null}
+                {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">New</span> : null}
                 <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
               </span>
             </button>
@@ -775,10 +821,18 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
           <div className="conversation-log" aria-live="polite" ref={conversationLogRef} onScroll={handleConversationScroll}>
             {messages.length ? <div className="date-separator"><span>Recent</span></div> : null}
             {messages.map((message) => (
-              <div className={`message-group message-${message.author}`} key={message.id}>
-                <div className="message-bubble">{message.body}</div>
-                <div className="message-meta">{conversationTime(message.createdAt)}{message.author === "user" ? message.pending ? <span>Sending…</span> : <span aria-label="Saved message">✓</span> : null}</div>
-              </div>
+              <Fragment key={message.id}>
+                {message.id === conversationDrawer.unreadBoundaryLunaMessageId ? (
+                  <div className="unread-message-separator" role="status"><span>New from Luna</span></div>
+                ) : null}
+                <div
+                  className={`message-group message-${message.author} ${message.id === conversationDrawer.unreadBoundaryLunaMessageId ? "is-unread-boundary" : ""}`}
+                  ref={message.id === conversationDrawer.unreadLunaMessageId ? latestUnreadLunaMessageRef : undefined}
+                >
+                  <div className="message-bubble">{message.body}</div>
+                  <div className="message-meta">{conversationTime(message.createdAt)}{message.author === "user" ? message.pending ? <span>Sending…</span> : <span aria-label="Saved message">✓</span> : null}</div>
+                </div>
+              </Fragment>
             ))}
             {workspaceReadyLabel ? (
               <button className="workspace-ready-notice" type="button" onClick={viewWorkspaceUpdate}>
@@ -2201,6 +2255,19 @@ export default function Home() {
                           </ControlTooltip>
 
                           <DurationControl
+                            inlineMeta={<>
+                              {dayMode.showClockState ? <div className="mobile-time-label" aria-hidden="true">{isSkipped
+                                ? <strong>Skipped</strong>
+                                : isDayStarted
+                                  ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
+                                  : <strong>Queued</strong>}</div> : null}
+                              <span className="category-chip">{item.category}</span>
+                              <div className="mobile-item-state">
+                                {activityState === "current" ? <span className="now-chip">Now</span> : null}
+                                {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
+                                {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
+                              </div>
+                            </>}
                             item={item}
                             onAdjust={(delta) => adjustDuration(item.id, delta)}
                             onSet={(value) => setDuration(item.id, value)}

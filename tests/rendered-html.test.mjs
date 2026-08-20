@@ -198,7 +198,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /height: 100dvh/);
   assert.match(css, /\.page-shell:has\(\.routine-card\.is-expanded\).*padding: 0/);
   assert.match(css, /\.routine-card\.is-expanded \{ background: #101416;[^}]*margin: 0;[^}]*padding: 0;[^}]*position: fixed;/);
-  assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*gap: 6px 8px;[^}]*grid-template-rows: 32px 30px;[^}]*min-height: 86px;[^}]*padding: max\(8px, env\(safe-area-inset-top\)\) 12px 8px 16px;/);
+  assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*gap: 6px 8px;[^}]*grid-template-rows: 32px 32px;[^}]*min-height: 86px;[^}]*padding: max\(8px, env\(safe-area-inset-top\)\) 12px 8px 16px;/);
   assert.match(css, /\.routine-row:has\(\.routine-card\.is-expanded\) \{ padding: 0; \}/);
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
@@ -291,11 +291,12 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /className="item-icon"/);
   assert.doesNotMatch(css, /\.drag-button/);
   assert.match(css, /\.item-title \{[^}]*padding-right: 76px/s);
-  assert.match(css, /\.item-meta \{[^}]*grid-column: 2;[^}]*grid-row: 2;[^}]*justify-content: flex-end/s);
+  assert.match(css, /\.item-meta \{ display: none; \}/);
   assert.match(css, /\.item-state \{ display: none; \}/);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.item-controls \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px/s);
-  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*justify-self: start/s);
+  assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*grid-column: 1 \/ -1;[^}]*justify-self: stretch;[^}]*width: 100%/s);
+  assert.match(css, /\.duration-adjustments \{ margin-left: auto; \}/);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{ display: none; \}/);
   assert.match(css, /\.routine-card\.is-expanded > \.item-controls \{ display: grid; \}/);
   assert.match(css, /\.activity-footer-tools \{ display: none; \}/);
@@ -307,7 +308,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
-  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*display: flex;[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*position: static/s);
+  assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*display: flex;[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 2;[^}]*position: static/s);
   assert.match(css, /\.duration-control \{[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.duration-control button \{[^}]*border: 1px solid #2c3336;[^}]*height: 32px;[^}]*width: 32px/s);
   assert.match(css, /\.inline-edit-form/);
