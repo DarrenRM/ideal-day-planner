@@ -2,7 +2,8 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Clock3, MoreHorizontal, MoreVertical, Pencil, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { BedDouble, BicepsFlexed, Brain, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import { dayModePolicy, DEFAULT_DAY_SETTINGS, normalizeDaySettings, type DaySettings } from "./day-settings";
@@ -47,19 +48,19 @@ const DEV_TIME_KEY = "idealized-day-dev-time-v1";
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
   { id: "shower", title: "Shower", detail: "Recharge · get ready for the day", duration: 15, category: "Recharge", icon: "◌", color: "#67b7ce" },
-  { id: "stretch", title: "Stretch / yoga", detail: "Mobility · breathe and open up", duration: 20, category: "Recharge", icon: "⌁", color: "#928ce0" },
+  { id: "stretch", title: "Stretch / yoga", detail: "Mobility · breathe and open up", duration: 20, category: "Recharge", icon: "⌁", color: "#67b7ce" },
   { id: "hair-serum", title: "Hair serum", detail: "Care · apply and let it settle", duration: 5, category: "Care", icon: "✦", color: "#d58db5" },
-  { id: "red-light", title: "Red light", detail: "Care · device session", duration: 15, category: "Care", icon: "◉", color: "#dc766a" },
+  { id: "red-light", title: "Red light", detail: "Care · device session", duration: 15, category: "Care", icon: "◉", color: "#d58db5" },
   { id: "shake", title: "Shake", detail: "Quick fuel before training", duration: 5, category: "Fuel", icon: "◒", color: "#d59662" },
   { id: "hang", title: "Hang from chin-up bar", detail: "Grip · decompression", duration: 5, category: "Training", icon: "↑", color: "#a8c96d" },
-  { id: "kettlebells", title: "Kettlebells", detail: "Strength · short focused circuit", duration: 20, category: "Training", icon: "◆", color: "#c99a67" },
-  { id: "cardio", title: "Cardio", detail: "Conditioning · steady effort", duration: 25, category: "Training", icon: "≈", color: "#64b89a" },
-  { id: "lift", title: "Lift", detail: "Strength · main session", duration: 45, category: "Training", icon: "▰", color: "#8eb36d" },
+  { id: "kettlebells", title: "Kettlebells", detail: "Strength · short focused circuit", duration: 20, category: "Training", icon: "◆", color: "#a8c96d" },
+  { id: "cardio", title: "Cardio", detail: "Conditioning · steady effort", duration: 25, category: "Training", icon: "≈", color: "#a8c96d" },
+  { id: "lift", title: "Lift", detail: "Strength · main session", duration: 45, category: "Training", icon: "▰", color: "#a8c96d" },
   { id: "breakfast", title: "Breakfast", detail: "Sit down and eat", duration: 25, category: "Fuel", icon: "◒", color: "#d59662" },
-  { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Recharge", icon: "∿", color: "#73a6c8" },
-  { id: "skin-routine", title: "Skin routine", detail: "Care · cleanse and moisturize", duration: 15, category: "Care", icon: "✧", color: "#ce8fb7" },
-  { id: "lunch", title: "Lunch", detail: "Fuel · simple, intentional meal", duration: 30, category: "Fuel", icon: "◍", color: "#cf9e62" },
-  { id: "sun-tan", title: "Sun tan", detail: "Outdoor time · finish the protocol", duration: 20, category: "Light", icon: "☀", color: "#edb65b" },
+  { id: "massage-gun", title: "Massage gun", detail: "Recovery · quick pass on worked areas", duration: 10, category: "Recharge", icon: "∿", color: "#67b7ce" },
+  { id: "skin-routine", title: "Skin routine", detail: "Care · cleanse and moisturize", duration: 15, category: "Care", icon: "✧", color: "#d58db5" },
+  { id: "lunch", title: "Lunch", detail: "Fuel · simple, intentional meal", duration: 30, category: "Fuel", icon: "◍", color: "#d59662" },
+  { id: "sun-tan", title: "Sun tan", detail: "Outdoor time · finish the protocol", duration: 20, category: "Light", icon: "☀", color: "#e8b75f" },
 ];
 
 const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Recharge", "Care", "Logistics", "Creativity", "Spirit"];
@@ -74,7 +75,41 @@ const CATEGORY_META: Record<Category, Pick<RoutineItem, "icon" | "color">> = {
   Creativity: { icon: "✺", color: "#b58ad6" },
   Spirit: { icon: "✧", color: "#9a8ed8" },
 };
+const CATEGORY_ICONS: Record<Category, LucideIcon> = {
+  Care: Heart,
+  Training: Dumbbell,
+  Fuel: Utensils,
+  Recharge: Waves,
+  Light: Sun,
+  Logistics: Package,
+  Creativity: Palette,
+  Spirit: Sparkles,
+};
 const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
+
+function activityIconFor(item: Pick<RoutineItem, "title" | "category">): LucideIcon {
+  const title = item.title.toLowerCase();
+  if (/chin-up|pull-up|hang/.test(title)) return BicepsFlexed;
+  if (/kettlebell|\blift\b|weight/.test(title)) return Dumbbell;
+  if (/cardio|run|cycle|bike/.test(title)) return HeartPulse;
+  if (/walk/.test(title)) return Footprints;
+  if (/stretch|yoga/.test(title)) return PersonStanding;
+  if (/shower/.test(title)) return ShowerHead;
+  if (/skin/.test(title)) return Sparkles;
+  if (/hair|serum/.test(title)) return Droplet;
+  if (/red light/.test(title)) return SunMedium;
+  if (/shake|supplement/.test(title)) return Pill;
+  if (/breakfast|lunch|dinner|meal/.test(title)) return Utensils;
+  if (/massage|vibe/.test(title)) return Vibrate;
+  if (/sun|tan/.test(title)) return Sun;
+  if (/food prep|cook/.test(title)) return CookingPot;
+  if (/bed|sleep/.test(title)) return BedDouble;
+  if (/meditat/.test(title)) return Brain;
+  if (/entertain|consume|watch/.test(title)) return Film;
+  if (/resupply|shop|grocery/.test(title)) return ShoppingBasket;
+  if (/build|create|make/.test(title)) return Hammer;
+  return CATEGORY_ICONS[item.category];
+}
 
 function isCategory(value: unknown): value is Category {
   return CATEGORY_OPTIONS.includes(value as Category);
@@ -265,6 +300,37 @@ function formatDuration(duration: number) {
   const hours = Math.floor(duration / 60);
   const minutes = duration % 60;
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+}
+
+function DurationControl({
+  item,
+  onAdjust,
+  onSet,
+}: {
+  item: Pick<RoutineItem, "id" | "title" | "duration">;
+  onAdjust: (delta: number) => void;
+  onSet: (value: number) => void;
+}) {
+  return (
+    <div className="duration-control" aria-label={`Length for ${item.title}`}>
+      <div className="duration-value">
+        <input
+          aria-label={`Length for ${item.title} in minutes`}
+          inputMode="numeric"
+          max="480"
+          min="5"
+          onBlur={() => onSet(normalizeActivityDuration(item.duration))}
+          onChange={(event) => onSet(event.target.valueAsNumber)}
+          step="5"
+          type="number"
+          value={item.duration}
+        />
+        <span className="duration-unit">minutes</span>
+      </div>
+      <button disabled={item.duration <= 5} type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjust(-DURATION_STEP)}><Minus aria-hidden="true" size={15} strokeWidth={2} /></button>
+      <button disabled={item.duration >= 480} type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjust(DURATION_STEP)}><Plus aria-hidden="true" size={15} strokeWidth={2} /></button>
+    </div>
+  );
 }
 
 function formatCountdown(duration: number) {
@@ -777,24 +843,7 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
               </div>
             ) : null}
           </div>
-          {timelineEnabled ? <div className="duration-control" aria-label={`Duration for ${item.title}`}>
-            <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjustDuration(-DURATION_STEP)}>−</button>
-            <div className="duration-value">
-              <input
-                aria-label={`Duration for ${item.title} in minutes`}
-                inputMode="numeric"
-                max="480"
-                min="5"
-                onBlur={() => onSetDuration(normalizeActivityDuration(item.duration))}
-                onChange={(event) => onSetDuration(event.target.valueAsNumber)}
-                step="5"
-                type="number"
-                value={item.duration}
-              />
-              <span className="duration-unit">min</span>
-            </div>
-            <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjustDuration(DURATION_STEP)}>+</button>
-          </div> : null}
+          {timelineEnabled ? <DurationControl item={item} onAdjust={onAdjustDuration} onSet={onSetDuration} /> : null}
         </div>
         <div className="activity-footer-status">
           <button className={`skip-activity-button ${isSkipped ? "is-skipped" : ""}`} disabled={isSkipping} type="button" onClick={() => void toggleActivitySkip()}>
@@ -876,7 +925,7 @@ function readLegacyRoutine() {
         ...currentItem,
         title,
         category,
-        color: category === currentItem.category ? currentItem.color : CATEGORY_META[category].color,
+        color: CATEGORY_META[category].color,
         duration,
       }];
     });
@@ -910,7 +959,7 @@ function hydrateStoredItems(value: unknown): RoutineItem[] {
       typeof item.icon !== "string" ||
       typeof item.color !== "string"
     ) throw new Error("The saved day contains an invalid item.");
-    return { ...item, category, detail: "Saved activity" } as RoutineItem;
+    return { ...item, category, color: CATEGORY_META[category].color, detail: "Saved activity" } as RoutineItem;
   });
 }
 
@@ -1254,7 +1303,7 @@ export default function Home() {
       category,
       minutes: items.filter((item) => item.category === category && !item.skippedAt).reduce((sum, item) => sum + item.duration, 0),
       count: items.filter((item) => item.category === category && !item.skippedAt).length,
-      color: items.find((item) => item.category === category)?.color ?? "#8f9995",
+      color: CATEGORY_META[category].color,
     })).filter((entry) => entry.minutes > 0),
     [items],
   );
@@ -1443,7 +1492,7 @@ export default function Home() {
         ...item,
         title: title.slice(0, 60),
         category: editCategory,
-        color: categoryChanged ? CATEGORY_META[editCategory].color : item.color,
+        color: CATEGORY_META[editCategory].color,
         icon: categoryChanged && item.id.startsWith("custom-") ? CATEGORY_META[editCategory].icon : item.icon,
       };
     }));
@@ -1983,7 +2032,8 @@ export default function Home() {
                 const isSkipped = Boolean(item.skippedAt);
                 const isPending = pendingActivityIds.has(item.id);
                 const activityState = isSkipped ? "skipped" : isComplete ? "complete" : !timelineEnabled || !isDayStarted ? "planned" : item.end <= displayedMinutes ? "past" : item.start > displayedMinutes ? "upcoming" : "current";
-                const itemStyle = { "--item-color": item.color } as CSSProperties;
+                const itemStyle = { "--item-color": CATEGORY_META[item.category].color } as CSSProperties;
+                const ActivityIcon = activityIconFor(item);
 
                 return (
                   <Fragment key={item.id}>
@@ -2010,7 +2060,6 @@ export default function Home() {
 
                     <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""}`}>
                       {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
-                      <div className="item-icon" aria-hidden="true">{item.icon}</div>
                       {isEditing ? (
                         <>
                           {dayMode.showClockState ? <div className="mobile-time-label mobile-edit-time" aria-hidden="true">{isDayStarted ? <><strong>{start.time}</strong><span>{start.suffix}</span></> : <strong>Queued</strong>}</div> : null}
@@ -2056,6 +2105,7 @@ export default function Home() {
                           }}
                         >
                           <div className="item-title">
+                            <span className="activity-title-icon" aria-hidden="true"><ActivityIcon size={18} strokeWidth={1.9} /></span>
                             <h3>{item.title}</h3>
                           </div>
                           <div className="item-state">
@@ -2150,24 +2200,11 @@ export default function Home() {
                             ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
                           </ControlTooltip>
 
-                          <div className="duration-control" aria-label={`Length for ${item.title}`}>
-                            <button type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => adjustDuration(item.id, -DURATION_STEP)}>−</button>
-                            <div className="duration-value">
-                              <input
-                                aria-label={`Length for ${item.title} in minutes`}
-                                inputMode="numeric"
-                                max="480"
-                                min="5"
-                                onBlur={() => setDuration(item.id, normalizeActivityDuration(item.duration))}
-                                onChange={(event) => setDuration(item.id, event.target.valueAsNumber)}
-                                step="5"
-                                type="number"
-                                value={item.duration}
-                              />
-                              <span className="duration-unit">min</span>
-                            </div>
-                            <button type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => adjustDuration(item.id, DURATION_STEP)}>+</button>
-                          </div>
+                          <DurationControl
+                            item={item}
+                            onAdjust={(delta) => adjustDuration(item.id, delta)}
+                            onSet={(value) => setDuration(item.id, value)}
+                          />
                         </div>
 
                       {isExpanded ? (

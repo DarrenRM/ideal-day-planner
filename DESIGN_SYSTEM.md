@@ -52,6 +52,7 @@ The canonical global tokens are:
 
 - Meet accessible contrast in every state; never communicate state through color alone.
 - Use the activity's `--item-color` locally for its category, expanded outline, and relevant component accents. Do not wash an entire workspace in the activity color.
+- Category color is canonical rather than activity-authored: Training lime, Fuel warm orange, Light gold, Recharge blue, Care rose, Logistics steel blue, Creativity violet, and Spirit indigo. Every category pill and activity accent must resolve through that single mapping; persisted legacy colors never override it.
 - Off-time activities remain fully legible when deliberately opened. Time state may change a badge or border, not disable the content visually.
 - Destructive actions use restrained warm red and always include text plus confirmation when data loss is meaningful.
 
@@ -71,6 +72,7 @@ The canonical global tokens are:
 - Compact repeated icon controls may be 32px only when clearly separated and backed by an accessible name. Do not introduce new controls below 32px.
 - Icon-only controls require an `aria-label`; desktop hover/focus may add a tooltip. Menus use icon plus text.
 - Use Lucide icons already present in the app. Keep ordinary control icons between 14 and 18px and align them optically with their labels.
+- Give each activity a meaningful Lucide line icon immediately left of its title, colored with its category color. Match familiar activity words when possible (walk, shower, lifting, meals, meditation, and so on), then fall back to the category icon. Icons add recognition but never replace the title.
 - Every interactive element needs default, hover, keyboard-focus, active/pressed, disabled, loading, success, and error treatment where applicable.
 - Loading feedback appears where work will land. Luna typing belongs in conversation; workspace preparation belongs in the workspace. Do not leave either region apparently frozen.
 - Opening an activity preserves its final header and footer while a quiet middle loading surface waits for both the initial activity state and saved drawer preference. Never render a provisional drawer position that immediately moves.
@@ -83,7 +85,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Wide desktop: content is capped at 1180px; the summary rail is 294px; schedule and summary may sit side by side.
 - At 1040px: collapse the main layout to one column.
 - At 680px and below: begin directly at Schedule; hide desktop hero/summary content; remove the schedule's redundant outer card; use edge space carefully.
-- Mobile collapsed activity: title first; compact activity-length controls beneath it on the left; category/status aligned on the right; overflow menu and completion at upper right. Day Timeline adds clock time without changing the header anatomy. Long titles ellipsize instead of squeezing controls.
+- Mobile collapsed activity: icon and title first; a plain-language activity length such as “5 minutes” beneath it on the left with separate minus/plus buttons immediately after it; category/status aligned on the right; overflow menu and completion at upper right. Day Timeline adds clock time without changing the header anatomy. Long titles ellipsize instead of squeezing controls.
 - Mobile expanded activity: reuse the same header structure and controls as the collapsed activity. Preserve one continuous full-screen shell; stack workspace above conversation; keep only the large Skip/Mark Complete actions in the footer.
 - In its header, treat the activity title and metadata as one group while preserving a 6px optical separation between their rows.
 - The full-screen mobile expanded shell is flush to every viewport edge and has no inherited outer padding; its header, workspace, conversation, and footer own their internal spacing.

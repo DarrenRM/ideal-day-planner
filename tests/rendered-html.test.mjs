@@ -65,8 +65,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Math\.floor\(item\.duration \/ DURATION_STEP\)/);
   assert.match(page, /Math\.ceil\(item\.duration \/ DURATION_STEP\)/);
   assert.match(page, /setDuration/);
-  assert.match(page, /onBlur=\{\(\) => setDuration\(item\.id, normalizeActivityDuration\(item\.duration\)\)\}/);
-  assert.match(page, /Duration for .* in minutes/);
+  assert.match(page, /onBlur=\{\(\) => onSet\(normalizeActivityDuration\(item\.duration\)\)\}/);
+  assert.match(page, /Length for .* in minutes/);
   assert.doesNotMatch(page, /resetOrder/);
   assert.match(page, /addItem/);
   assert.match(page, /normalizeActivityDuration/);
@@ -269,7 +269,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.mobile-time-label/);
   assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip .*line-height: 16px; padding: 0 6px/);
   assert.doesNotMatch(css, /\.now-chip[^\n]*padding: 1px 6px 0/);
-  assert.match(css, /grid-template-columns: 38px 68px 38px/);
+  assert.match(css, /\.duration-value \{[^}]*min-width: 78px/s);
   assert.match(css, /\.hero, \.summary-rail \{ display: none; \}/);
   assert.match(css, /--summary-rail-width: 294px/);
   assert.match(css, /\.day-overview \{[^}]*width: var\(--summary-rail-width\)/s);
@@ -284,7 +284,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /mobile-schedule-summary/);
   assert.match(page, /mobile-schedule-title/);
   assert.match(page, /formatDuration\(totalMinutes\).*total/s);
-  assert.match(css, /\.item-icon \{ display: none; \}/);
+  assert.match(page, /function activityIconFor/);
+  assert.match(page, /CATEGORY_ICONS: Record<Category, LucideIcon>/);
+  assert.match(page, /"--item-color": CATEGORY_META\[item\.category\]\.color/);
+  assert.match(page, /className="activity-title-icon"/);
+  assert.doesNotMatch(page, /className="item-icon"/);
   assert.doesNotMatch(css, /\.drag-button/);
   assert.match(css, /\.item-title \{[^}]*padding-right: 76px/s);
   assert.match(css, /\.item-meta \{[^}]*grid-column: 2;[^}]*grid-row: 2;[^}]*justify-content: flex-end/s);
@@ -303,8 +307,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
-  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*display: grid;[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*grid-template-columns: 26px 48px 26px;[^}]*position: static/s);
-  assert.match(css, /\.duration-control \{[^}]*grid-template-columns: 38px 68px 38px;[^}]*justify-self: start;[^}]*width: auto/s);
+  assert.match(css, /\.routine-row:not\(\.is-complete\):not\(\.is-skipped\)[^}]*\.duration-control \{[^}]*display: flex;[^}]*grid-column: 1;[^}]*grid-row: 2;[^}]*position: static/s);
+  assert.match(css, /\.duration-control \{[^}]*justify-self: start;[^}]*width: auto/s);
+  assert.match(css, /\.duration-control button \{[^}]*border: 1px solid #2c3336;[^}]*height: 32px;[^}]*width: 32px/s);
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
   assert.match(css, /\.message-bubble,[\s\S]*?font-size: var\(--type-body\);[\s\S]*?line-height: var\(--leading-body\);/);
