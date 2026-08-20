@@ -182,7 +182,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .item-copy { align-items: center; background: transparent; border: 0; cursor: pointer; display: flex; gap: 9px; min-width: 0; padding: 0; text-align: left; }
 .item-title { align-items: center; display: flex; flex-wrap: wrap; gap: 9px; }
 .item-title h3 { font-size: 13px; font-weight: 570; letter-spacing: -.015em; margin: 0; }
-.now-chip, .complete-chip, .skipped-chip { align-items: center; border-radius: 999px; display: inline-flex; font-size: 7px; font-weight: 750; gap: 3px; height: 17px; letter-spacing: .1em; padding: 0 6px; text-transform: uppercase; }
+.now-chip, .complete-chip, .skipped-chip { align-items: center; border-radius: 999px; display: inline-flex; font-family: var(--type-sans); font-size: 7.5px; font-weight: 650; gap: 3px; height: 18px; justify-content: center; letter-spacing: .1em; line-height: 1; padding: 0 7px; text-transform: uppercase; }
 .now-chip { background: rgba(181, 215, 125, .1); border: 1px solid rgba(181, 215, 125, .25); color: var(--accent-bright); }
 .complete-chip { background: rgba(181, 215, 125, .07); border: 1px solid rgba(181, 215, 125, .18); color: #9eb682; }
 .skipped-chip { background: rgba(133, 143, 139, .08); border: 1px solid rgba(133, 143, 139, .2); color: #8d9792; }
@@ -536,7 +536,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .mobile-time-label { align-items: baseline; color: #87918c; display: inline-flex; gap: 4px; min-width: 0; }
   .mobile-time-label strong { color: #aab3af; font: 500 13px/1.35 var(--type-sans); letter-spacing: -.015em; }
   .mobile-time-label span { color: #68716e; font: 500 9px/1.35 var(--type-sans); letter-spacing: .05em; }
-  .category-chip { font-size: 8px; height: 20px; padding: 0 7px; }
+  .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 8px; height: 20px; padding: 0 7px; }
   .item-controls { grid-column: 2 / 4; grid-row: 2; justify-content: flex-end; min-width: 0; }
   .edit-item-button, .delete-item-button { align-self: center; height: 32px; opacity: .72; width: 32px; }
   .closed-status-button { height: 32px; width: 32px; }
@@ -604,7 +604,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .item-copy { gap: 7px; }
   .mobile-time-label { gap: 3px; }
   .mobile-time-label strong { font-size: 12px; }
-  .category-chip { font-size: 7.75px; height: 19px; padding: 0 6px; }
+  .now-chip, .complete-chip, .skipped-chip, .category-chip { font-size: 7.75px; height: 19px; padding: 0 6px; }
   .edit-item-button, .delete-item-button { height: 30px; width: 30px; }
   .closed-status-button { height: 30px; width: 30px; }
   .inline-edit-form { grid-template-columns: minmax(0, 1fr) 84px; }
