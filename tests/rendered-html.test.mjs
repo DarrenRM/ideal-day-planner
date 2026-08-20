@@ -176,6 +176,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.complete-activity-button/);
   assert.match(css, /\.skip-activity-button/);
   assert.match(css, /\.closed-status-button/);
+  assert.match(css, /\.closed-status-button \{[^}]*border: 0;[^}]*height: 24px;[^}]*width: 24px/s);
+  assert.match(css, /\.complete-status-button\.is-active \{[^}]*border: 1px solid[^}]*border-radius: 50%/s);
   assert.match(css, /\.control-tooltip-bubble/);
   assert.match(css, /\.day-launch/);
   assert.match(css, /\.routine-row\.is-past:not\(\.is-current\) \.routine-card:not\(\.is-expanded\)/);
