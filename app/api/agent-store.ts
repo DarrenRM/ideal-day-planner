@@ -707,14 +707,18 @@ export async function persistRecordActions(input: {
       .bind(revisionId).first<{ id: string }>();
     if (existingRevision) continue;
     const current = await db.prepare(`
-      SELECT version FROM activity_records
+      SELECT id, version FROM activity_records
       WHERE user_id = ? AND activity_id = ? AND record_key = ?
         AND ${variantId ? "activity_variant_id = ?" : "activity_variant_id IS NULL"}
       LIMIT 1
     `).bind(...(variantId
       ? [input.userId, input.activityId, action.record.key, variantId]
-      : [input.userId, input.activityId, action.record.key])).first<{ version: number }>();
+      : [input.userId, input.activityId, action.record.key])).first<{ id: string; version: number }>();
     const nextVersion = (current?.version ?? 0) + 1;
+    // A cross-activity move deliberately preserves the durable record id. Use
+    // that persisted id for its revisions and relations instead of rebuilding
+    // an activity-derived id that no longer names the row.
+    const persistedRecordId = current?.id ?? recordId;
     const payloadJson = JSON.stringify(action.record.data);
     await db.batch([
       db.prepare(`
@@ -738,11 +742,11 @@ export async function persistRecordActions(input: {
         INSERT OR IGNORE INTO activity_record_revisions
           (id, record_id, revision_number, title, payload_json, source_message_id, source_agent_job_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).bind(revisionId, recordId, nextVersion, action.record.title, payloadJson, input.sourceMessageId ?? null, input.sourceAgentJobId ?? null),
+      `).bind(revisionId, persistedRecordId, nextVersion, action.record.title, payloadJson, input.sourceMessageId ?? null, input.sourceAgentJobId ?? null),
       db.prepare(`
         INSERT OR IGNORE INTO record_relations (id, user_id, record_id, activity_id, relation_type)
         VALUES (?, ?, ?, ?, 'primary')
-      `).bind(`record-relation:${safeId(recordId)}:${safeId(input.activityId)}:primary`, input.userId, recordId, input.activityId),
+      `).bind(`record-relation:${safeId(persistedRecordId)}:${safeId(input.activityId)}:primary`, input.userId, persistedRecordId, input.activityId),
     ]);
   }
 }

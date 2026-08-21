@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { resolveSubjectMoveRecordKeys, validateActivityMoveActions } from "../app/activity-transfer-model.ts";
@@ -62,4 +63,11 @@ test("repairs a missing object terminator without rerunning research", () => {
 
 test("extracts unique public research links from the triggering message", () => {
   assert.deepEqual(extractResearchUrls("See https://example.com/item, then https://example.com/item."), ["https://example.com/item"]);
+});
+
+test("later writes keep the durable id of a record that moved activities", async () => {
+  const store = await readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8");
+  assert.match(store, /SELECT id, version FROM activity_records/);
+  assert.match(store, /const persistedRecordId = current\?\.id \?\? recordId/);
+  assert.match(store, /revisionId, persistedRecordId, nextVersion/);
 });
