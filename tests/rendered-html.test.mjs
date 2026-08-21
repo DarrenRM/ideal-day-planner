@@ -463,7 +463,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.doesNotMatch(activityRoute, /OPENING_COOLDOWN_MS|Math\.floor\(Date\.now/);
   assert.match(activityRoute, /INSERT OR IGNORE INTO activity_visits/);
   assert.doesNotMatch(activityRoute, /'activity_opened'/);
-  assert.match(activityRoute, /queueActivitySetup/);
+  assert.doesNotMatch(activityRoute, /queueActivitySetup/);
   assert.match(activityRoute, /safeActivityContext/);
   assert.match(resetActivityRoute, /requestIdentity/);
   assert.match(resetActivityRoute, /findActivity\(userId, activityKey\)/);

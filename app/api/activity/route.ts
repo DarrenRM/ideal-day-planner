@@ -4,7 +4,6 @@ import {
   ensureAgentSchema,
   ensureConversation,
   findActivity,
-  queueActivitySetup,
   readConversationState,
   requestIdentity,
   safeId,
@@ -112,7 +111,6 @@ export async function POST(request: Request) {
           (id, user_id, activity_id, conversation_id, client_visit_id, context_json)
         VALUES (?, ?, ?, ?, ?, ?)
       `).bind(visitId, userId, activity.id, conversationId, clientVisitId, JSON.stringify({ occurrence, activityContext })).run();
-      await queueActivitySetup(userId, activity);
       return Response.json({ conversationId, visitId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) }, { status: 202 });
     }
 
