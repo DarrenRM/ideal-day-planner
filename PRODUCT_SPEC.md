@@ -190,6 +190,16 @@ Capture must never fail merely because Luna cannot classify it confidently. The 
 
 Activities and schedule placement are independent. An activity may be a durable, always-available context without appearing in the routine, while a routine item is an optional scheduled placement of that activity. This allows operational contexts such as Resupply to exist without requiring a daily time block.
 
+### Universal scheduling and variants
+
+An activity definition, its recurring schedule, and each dated occurrence are separate durable concepts. A schedule pattern owns a cadence, an effective date, an optional end date, an ordered sequence of steps, and either calendar- or completion-based advancement. A one-step pattern is an ordinary repeat; multi-step patterns express both cross-activity alternation and same-activity rotation without domain-specific code.
+
+An activity may have named variants such as `Gym — Leg day` or `Face Mask — Green light`. Variants share the parent activity conversation and base workspace while optionally contributing variant-scoped records and a validated workspace overlay. The resolved occurrence snapshots its activity/variant labels and duration so later edits do not rewrite history.
+
+Today is resolved deterministically from active patterns. One-day movement, ordering, substitution, duration, label, skip, removal, and ad-hoc additions are occurrence actions; they do not rename an activity or silently rewrite its recurring pattern. The same activity may appear more than once on one date, with an independent occurrence and run each time. `Day Timeline` remains orthogonal: scheduling decides which ordered occurrences exist, while Timeline optionally places that already-resolved list on a clock.
+
+Basic recurrence and sequence setup are available through app-owned UI. Site-wide Luna may understand an open-ended scheduling request, ask one necessary clarification, or prepare a typed proposal. Recurring changes are previewed and confirmed. Clear reversible changes to one known occurrence may execute immediately through the narrow occurrence allowlist. Every write is ownership-checked, validated, revisioned, idempotent where retries are possible, and recorded in the schedule action audit log.
+
 The expanded activity acts as a small workbench with four conceptual layers:
 
 1. **Do now:** current instructions, controls, checklist, or next action.
@@ -342,7 +352,15 @@ Move durable product state from `localStorage` to the project’s D1 database be
 - `users`
 - `routines`
 - `activities`
-- `routine_items`
+- `routine_items` (legacy migration source; no longer authoritative for new scheduling)
+- `activity_variants`
+- `schedule_patterns`
+- `schedule_pattern_steps`
+- `schedule_pattern_state`
+- `schedule_proposals`
+- `schedule_action_events`
+- `daily_plans`
+- `daily_plan_items`
 - `activity_runs`
 - `activity_records`
 - `activity_record_revisions`
@@ -547,9 +565,13 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 
 ### Phase 5 — global assistant
 
-- Add cross-activity chat.
-- Add schedule changes, resupply capture, and cross-domain retrieval.
+- [x] Add a durable site-wide Luna conversation and app-shell entry point.
+- [x] Add typed schedule proposals, clarification, confirmation, dismissal, and narrow occurrence actions.
+- [x] Add deterministic recurrence, activity variants, sequence management, and daily overrides.
+- [ ] Add resupply capture and broader cross-domain retrieval.
 - Add background processing and notifications after explicit policy decisions.
+
+Implementation note (2026-08-21): universal scheduling is now D1-authoritative. Existing routine items migrate to same-position one-step daily patterns; new days resolve idempotently from patterns into historical occurrence snapshots. Activity variants, variant records/workspace overlays, duplicate same-activity occurrences, occurrence-owned runs, revisioned pattern edits, and idempotent completion-sequence advancement are supported. Add Activity offers deterministic recurrence, sequence setup, or an immediate durable handoff to global Luna. Manage Schedule exposes cadence, dates, steps, variants, advancement, and upcoming previews without exposing internal database vocabulary. Global and activity Luna use the same validated proposal and occurrence-action service; recurring changes never apply before confirmation.
 
 ## 12. Decisions recorded so far
 
@@ -618,6 +640,11 @@ Implementation note (2026-08-20): the universal-agent slice runs through the ded
 - Activities are UX context lenses rather than exclusive record containers; records may relate to multiple activities while retaining one canonical identity.
 - Capture is saved even when Luna cannot confidently classify it; unresolved filing becomes a durable conversational follow-up rather than an error.
 - Activities may exist without scheduled routine placement.
+- Recurrence is a routine-level schedule pattern; dated plan items are snapshots and overrides, never the activity definition.
+- One-step and multi-step patterns use the same universal cadence/sequence model for ordinary repeats, cross-activity alternation, and variant rotation.
+- Activity variants share the parent conversation and may layer variant-scoped records/workspace content without creating duplicate activities.
+- Recurring Luna schedule changes require a durable preview and explicit confirmation; only clear, reversible one-occurrence actions may apply immediately.
+- Schedule revision checks and action idempotency are product correctness boundaries, not optional implementation details.
 - Ideal Day conversations are permanent product records and may map to multiple Hermes runtime sessions over time.
 - The dedicated Ideal Day Hermes profile exposes only the narrow app tool surface for app-triggered work.
 - Hermes long-term memory does not store canonical application facts; D1 remains authoritative.

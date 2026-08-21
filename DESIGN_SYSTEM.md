@@ -95,6 +95,16 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Test mobile layouts with long titles, active/complete/skipped states, open menus, a multiline Luna message, populated records, empty state, loading state, and the on-screen keyboard assumption.
 - Do not reserve a visible drag handle. A closed activity is itself the reorder surface: drag directly with a mouse, or hold briefly and drag on touch. A normal tap still opens it; `Alt` + arrow keys reorder a focused activity without dragging.
 
+## Scheduling surfaces
+
+- Add Activity keeps simple scheduling compact: no schedule, every day, selected weekdays, every N days, create a sequence, or describe it to Luna. Saving the activity itself is immediate and never waits for Luna.
+- Manage Schedule presents one card per recurring pattern. Each card shows the name, plain-language cadence, sequence, advancement policy, effective date, and a short upcoming preview. Never expose cursor, occurrence-key, or revision terminology.
+- The sequence editor uses app-owned controls for cadence, start/end dates, advancement, initial step, activity/variant choice, duration, optional display label, ordering, and preview. A one-step pattern must still feel simple.
+- A resolved variant is part of the activity identity for that occurrence. Prefer `Activity — Variant` on one line; on constrained mobile widths retain the activity title and place the variant on a subordinate line rather than shrinking either below its type role.
+- Today-only editing uses an occurrence sheet/modal with explicit activity, variant, date, duration, and label fields. It must communicate that the change affects this occurrence; future-pattern changes belong in Manage Schedule or a confirmed Luna proposal.
+- Site-wide Luna opens from the app shell as a right-side drawer on desktop and a full-screen conversation on mobile. Messages, work state, clarification, and proposal cards survive closing and reopening.
+- A schedule proposal card must distinguish today impact from future-pattern impact and provide explicit Apply, Revise with Luna, and Dismiss actions. Applying once visibly settles the card; retries never produce duplicate patterns or occurrences.
+
 ## Completion motion
 
 - Completion feedback begins on press instead of waiting for persistence: sweep a restrained lime-to-gold highlight across a closed activity or the shared header of an expanded activity, briefly pop the checkmark, then settle into the normal Done state.

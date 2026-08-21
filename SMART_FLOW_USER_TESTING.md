@@ -111,6 +111,21 @@ For every meaningful interaction, evaluate these dimensions.
 - Collapse an active timer and reopen it. Expect elapsed state to remain coherent.
 - Stop the agent host, send a message, reconnect, and confirm one eventual result with no duplicate.
 
+### Scheduling and site-wide Luna
+
+- Create a no-schedule activity and confirm it remains available without appearing in future days unless explicitly added.
+- Create daily, selected-weekday, and every-other-day schedules in the deterministic UI. Check the upcoming preview across a weekend, month boundary, and year boundary.
+- Build a weekday sequence from two existing activities. Confirm the sequence continues across excluded weekend days according to the selected calendar/completion policy rather than resetting on Monday.
+- Build one activity with four variants and rotate them. Confirm Today shows the resolved variant in both collapsed and expanded headers while the conversation remains attached to the parent activity.
+- Add the same activity twice to one date. Complete one and verify the other occurrence and its run remain independent.
+- Change only today's duration, label, activity, variant, order, or date. Refresh and verify the durable activity definition and future pattern did not change.
+- Rename a variant after an older occurrence exists. Verify historical occurrence text remains legible and unchanged.
+- Ask site-wide Luna for a recurring alternation. Expect the user message immediately, at most one useful clarification, then a durable proposal with effective date and upcoming impact. Confirm no schedule changes before Apply.
+- Apply a Luna proposal twice or retry after refresh. Expect one pattern/action audit result. Dismiss another proposal and verify it mutates nothing.
+- Ask activity Luna to move the current occurrence to an explicit date. Expect the same narrow occurrence service used by site-wide Luna and no recurring-pattern rewrite.
+- Use Add Activity with “Describe it to Luna.” Confirm the activity saves immediately, the exact scheduling request appears in global Luna, and an explicit Include Today occurrence remains usable while recurring setup is unresolved.
+- Turn Day Timeline on and off. Confirm both modes resolve the same activity/variant sequence and order; only clock placement and timeline affordances change.
+
 ## Reporting format
 
 For each issue, report:
