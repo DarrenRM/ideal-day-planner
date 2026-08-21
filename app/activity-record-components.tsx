@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Check, ExternalLink, Package, Plus, Sparkles, Target, TrendingUp } from "lucide-react";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<void>;
@@ -74,14 +75,14 @@ function ItemListRecord({ record, onMutate }: Props) {
     setSaving(true);
     try { await onMutate(record.key, "add_item", { label: label.trim() }); setLabel(""); } finally { setSaving(false); }
   }
-  const eyebrow = record.type === "item_list" ? "Items" : "Checklist";
-  return <section className="workspace-block">
+  const eyebrow = record.type === "item_list" ? "List" : "Today";
+  return <section className={`workspace-block item-list-record is-${record.type.replace("_", "-")}`}>
     <Heading eyebrow={eyebrow} title={record.title} />
-    {data.items?.length ? <div className={record.type === "item_list" ? "shopping-list" : "generic-checklist"}>{data.items.map((item) => <div className={`shopping-item ${completedToday(item) ? "is-checked" : ""}`} key={item.id}>
-      <CheckButton checked={completedToday(item)} label={item.label} onClick={() => void onMutate(record.key, "toggle_item", { itemId: item.id })} />
-      <span className="shopping-item-copy"><strong>{item.label}</strong>{item.detail || item.source ? <small>{[item.detail, item.source ? `From ${item.source}` : ""].filter(Boolean).join(" · ")}</small> : null}</span>
+    {data.items?.length ? <div className="record-item-list">{data.items.map((item) => <button aria-pressed={completedToday(item)} className={`record-item-row ${completedToday(item) ? "is-checked" : ""}`} key={item.id} type="button" onClick={() => void onMutate(record.key, "toggle_item", { itemId: item.id })}>
+      <span className="record-item-check" aria-hidden="true">{completedToday(item) ? <Check size={12} strokeWidth={3} /> : null}</span>
+      <span className="record-item-copy"><strong>{item.label}</strong>{item.detail || item.source ? <small>{[item.detail, item.source ? `From ${item.source}` : ""].filter(Boolean).join(" · ")}</small> : null}</span>
       {item.urgency ? <span className={`urgency-badge urgency-${item.urgency.replace("_", "-")}`}>{item.urgency.replace("_", " ")}</span> : null}
-    </div>)}</div> : <EmptyLine>No items yet.</EmptyLine>}
+    </button>)}</div> : <EmptyLine>No items yet.</EmptyLine>}
     <form className="workspace-inline-form" onSubmit={add}><input aria-label={`Add to ${record.title}`} disabled={saving} placeholder="Add an item…" value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit"><Plus size={11} /> Add</button></form>
   </section>;
 }
@@ -136,8 +137,12 @@ function QuickLogRecord({ record, onMutate }: Props) {
 
 function HistoryRecord({ record }: { record: ActivityRecord }) {
   const data = record.data as { entries?: Entry[] };
-  return <section className="workspace-block"><Heading eyebrow={record.type === "timeline" ? "Timeline" : "Recent history"} title={record.title} />
-    {data.entries?.length ? <div className={record.type === "timeline" ? "progress-timeline" : "record-history-list"}>{data.entries.map((entry) => <div className={`timeline-entry tone-${entry.tone || "default"}`} key={entry.id}>{record.type === "timeline" ? <span /> : null}<time>{entry.date || "Recent"}</time><p><strong>{entry.title}</strong>{entry.detail ? <small>{entry.detail}</small> : null}</p>{entry.value ? <b>{entry.value}</b> : null}</div>)}</div> : <EmptyLine>No history yet.</EmptyLine>}
+  const entries = data.entries ?? [];
+  return <section className={`workspace-block ${record.type === "timeline" ? "timeline-record" : "history-record"}`}><Heading eyebrow={record.type === "timeline" ? "Timeline" : "Recent history"} title={record.title} />
+    {entries.length ? record.type === "timeline"
+      ? <div className="progress-timeline">{entries.map((entry) => <div className={`timeline-entry tone-${entry.tone || "default"}`} key={entry.id}><span /><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p><strong>{entry.title}</strong>{entry.detail ? <small>{entry.detail}</small> : null}</p>{entry.value ? <b>{entry.value}</b> : null}</div>)}</div>
+      : <div className="record-history-list">{entries.map((entry) => <article className={`record-history-entry tone-${entry.tone || "default"}`} key={entry.id}><header><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time>{entry.value ? <b>{entry.value}</b> : null}</header><div><strong>{entry.title}</strong>{entry.detail ? <p>{entry.detail}</p> : null}</div></article>)}</div>
+      : <EmptyLine>No history yet.</EmptyLine>}
   </section>;
 }
 

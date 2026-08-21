@@ -107,6 +107,8 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Render a component only when it has enough supported information to be useful. Ask for missing information first when the component would otherwise be a hollow shell.
 - Preserve stable component anatomy across activities while allowing the data and combination of components to fit the activity.
 - Record/history information is scannable; current actions are visually stronger than historical details.
+- Checklist rows are whole-row controls with an unmistakable check state and a minimum 44px mobile target. Use spacing and a quiet filled surface to group items; do not stack divider lines inside an already bordered workspace card.
+- History is a read-only recap, not a timeline impersonation. Format machine dates for people, keep dates unbroken, and let titles/details reflow beside or beneath metadata without fixed narrow columns.
 - On mobile, workspace cards keep their natural content height rather than stretching to fill the activity. When conversation is collapsed, a compact invitation directly below the workspace lets the person reopen Luna without speaking in internal component language.
 
 ## Conversation

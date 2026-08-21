@@ -279,7 +279,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.activity-workspace/);
   assert.match(css, /\.workspace-luna-invitation/);
   assert.match(css, /grid-auto-rows: max-content/);
-  assert.match(css, /\.shopping-list/);
+  assert.match(css, /\.record-item-list/);
   assert.match(css, /\.workout-plan/);
   assert.match(css, /\.protocol-steps/);
   assert.match(css, /\.component-request/);
