@@ -18,6 +18,10 @@ import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../wo
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
 
+function messageRequestsResearch(value: string | null | undefined) {
+  return /https?:\/\/\S+|www\.\S+|look\s*up|research|verify|check\s+(?:the|its|these|those|spec)|web\s+(?:access|search)|specification|manufacturer/i.test(value || "");
+}
+
 type LeasedJob = {
   id: string;
   userId: string;
@@ -69,6 +73,34 @@ export async function GET(request: Request) {
       ON CONFLICT(id) DO UPDATE SET
         runtime = excluded.runtime, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
     `).bind(workerId, HERMES_RUNTIME).run();
+    await db.prepare(`
+      INSERT OR IGNORE INTO agent_jobs
+        (id, user_id, activity_id, conversation_id, kind, idempotency_key, source_message_id)
+      SELECT 'agent-job:workspace-recovery:' || source.id,
+             source.user_id, source.activity_id, source.conversation_id,
+             'workspace_refresh', 'workspace-recovery:' || source.id, source.source_message_id
+      FROM agent_jobs source
+      JOIN conversation_messages message ON message.id = source.source_message_id
+      WHERE source.kind = 'user_message'
+        AND source.status = 'succeeded'
+        AND source.created_at >= datetime('now', '-30 days')
+        AND (
+          instr(lower(message.body), 'http://') > 0
+          OR instr(lower(message.body), 'https://') > 0
+          OR instr(lower(message.body), 'www.') > 0
+          OR instr(lower(message.body), 'look up') > 0
+          OR instr(lower(message.body), 'research') > 0
+          OR instr(lower(message.body), 'verify') > 0
+          OR instr(lower(message.body), 'manufacturer') > 0
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM agent_jobs followup
+          WHERE followup.kind = 'workspace_refresh'
+            AND followup.source_message_id = source.source_message_id
+        )
+      ORDER BY source.created_at DESC
+      LIMIT 10
+    `).run();
     const candidate = await db.prepare(`
       SELECT id, user_id AS userId, activity_id AS activityId, conversation_id AS conversationId,
              kind, source_message_id AS sourceMessageId, attempts
@@ -231,7 +263,12 @@ export async function POST(request: Request) {
     if (mode === "complete") {
       const suppliedResponse = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
       const response = suppliedResponse;
-      const workspaceFollowup = job.kind === "user_message" && payload.workspaceFollowup === true;
+      const sourceMessage = job.sourceMessageId
+        ? await db.prepare("SELECT body FROM conversation_messages WHERE id = ? AND conversation_id = ?")
+          .bind(job.sourceMessageId, job.conversationId).first<{ body: string }>()
+        : null;
+      const workspaceFollowup = job.kind === "user_message"
+        && (payload.workspaceFollowup === true || messageRequestsResearch(sourceMessage?.body));
       const usesReplyFirstProtocol = job.kind === "user_message" && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });

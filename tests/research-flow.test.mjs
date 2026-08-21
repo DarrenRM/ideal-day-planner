@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+import { researchAcknowledgement, userMessageRequestsResearch } from "../bridge/job-policy.mjs";
+
+test("treats pasted links and explicit lookup requests as research work", () => {
+  assert.equal(userMessageRequestsResearch("https://lumenlab.example/"), true);
+  assert.equal(userMessageRequestsResearch("Can you look up the manufacturer directions?"), true);
+  assert.equal(userMessageRequestsResearch("I use this after showering."), false);
+});
+
+test("acknowledges research immediately in the activity's language", () => {
+  assert.equal(
+    researchAcknowledgement("Hair serum"),
+    "I’ll take a look and keep the useful details with your hair serum.",
+  );
+});
+
+test("the bridge bypasses the slow conversational pass and the server recovers missed follow-ups", async () => {
+  const [bridge, route] = await Promise.all([
+    readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(bridge, /leased\.job\.kind === "user_message" && userMessageRequestsResearch\(sourceMessage\)/);
+  assert.match(bridge, /workspaceFollowup: true/);
+  assert.match(bridge, /model_options: \{ reasoning_effort: "low" \}/);
+  assert.match(bridge, /Do not leave a learned product name, device, usage direction, routine step, or protocol only in the conversational message/);
+  assert.match(route, /'agent-job:workspace-recovery:' \|\| source\.id/);
+  assert.match(route, /payload\.workspaceFollowup === true \|\| messageRequestsResearch\(sourceMessage\?\.body\)/);
+});

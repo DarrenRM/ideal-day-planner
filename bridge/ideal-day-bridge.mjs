@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { CATALOG_VERSION, activityRecipeHint, catalogInstructions } from "./component-catalog.mjs";
+import { researchAcknowledgement, userMessageRequestsResearch } from "./job-policy.mjs";
 
 const appUrl = (process.env.IDEAL_DAY_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 const bridgeToken = (process.env.IDEAL_DAY_BRIDGE_TOKEN || "").trim();
@@ -165,7 +166,7 @@ function eventPrompt(job) {
     return `The user has just spoken in this activity conversation. Respond first and quickly: answer what you can naturally, then decide whether the lasting activity space needs a follow-up. Return recordActions:[] and workspaceActions:[] in this pass. Do not use web research yet. If the user asks for research or verification, acknowledge that you will look into it, do not claim findings yet, and set workspaceFollowup:true. Also set workspaceFollowup:true when useful durable information or a requested design should be organized after your reply.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "workspace_refresh") {
-    return `Bring the lasting activity space up to date from the conversation. Set workspaceFollowup:false. Emit actions for useful, clearly supported information that is not already represented. Preserve existing useful workspace content and stable keys. When a richer record-backed component replaces a legacy inline routine, remove only that duplicate routine. If the triggering user message requested research or verification, perform the web research now and return one concise, natural message with the useful findings while also saving any clearly supported durable details. Otherwise remain silent with message:null so workspace maintenance does not create conversational spam.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}`;
+    return `Bring the lasting activity space up to date from the conversation. Set workspaceFollowup:false. Emit actions for useful, clearly supported information that is not already represented. Preserve existing useful workspace content and stable keys. When a richer record-backed component replaces a legacy inline routine, remove only that duplicate routine. A URL in the triggering message counts as a request to inspect that source. If the triggering user message requested research, verification, or supplied a URL, perform the web research now and return one concise, natural message with the useful findings while also saving every clearly supported durable detail. Do not leave a learned product name, device, usage direction, routine step, or protocol only in the conversational message: upsert the appropriate records and visible workspace components in the same result. For product or device care, a supported named product plus supported use directions should normally produce a product component and a protocol component. Add a pinned resource last when an authoritative source is worth returning to. Otherwise remain silent with message:null so workspace maintenance does not create conversational spam.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "activity_setup") {
     return `Prepare this activity for future use. Choose safe initial workspace components and ask at most one high-value setup question only when its answer will enable a named durable improvement. This is the setup decision; do not defer it to a later open.\n\n${shared}`;
@@ -195,7 +196,7 @@ function visibleProgress(leased) {
   if (leased.job.kind !== "workspace_refresh") return null;
 
   const sourceMessage = leased.context.sourceMessage?.body || "";
-  const requestedResearch = /look\s*up|research|verify|check\s+(?:the|its|these|those|spec)|web\s+(?:access|search)|specification|manufacturer/i.test(sourceMessage);
+  const requestedResearch = userMessageRequestsResearch(sourceMessage);
   return requestedResearch
     ? {
         title: `Researching ${activityTitle}`,
@@ -215,6 +216,24 @@ function sendHeartbeat() {
   });
 }
 
+async function completeJob(leased, runtimeSessionId, agentResult) {
+  const replyFirst = leased.job.kind === "user_message";
+  await requestAppJson("/api/agent/jobs", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      mode: "complete",
+      jobId: leased.job.id,
+      leaseToken: leased.job.leaseToken,
+      runtimeSessionId,
+      response: agentResult.message,
+      workspaceFollowup: agentResult.workspaceFollowup,
+      recordActions: replyFirst ? [] : agentResult.recordActions,
+      workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
+    }),
+  });
+}
+
 async function runJob(key, leased) {
   const progress = visibleProgress(leased);
   if (progress) {
@@ -230,32 +249,29 @@ async function runJob(key, leased) {
     });
   }
   const sessionId = await ensureHermesSession(key, leased);
+  const sourceMessage = leased.context.sourceMessage?.body || "";
+  if (leased.job.kind === "user_message" && userMessageRequestsResearch(sourceMessage)) {
+    await completeJob(leased, sessionId, {
+      message: researchAcknowledgement(leased.context.activity?.title),
+      workspaceFollowup: true,
+      recordActions: [],
+      workspaceActions: [],
+    });
+    return;
+  }
   const result = await requestJson(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}/chat`, {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({
       message: eventPrompt(leased),
       instructions: lunaInstructions,
+      ...(leased.job.kind === "user_message" ? { model_options: { reasoning_effort: "low" } } : {}),
     }),
   });
   const content = result?.message?.content;
   if (typeof content !== "string" || !content.trim()) throw new Error("Hermes returned an empty Luna result.");
   const agentResult = parseAgentResult(content);
-  const replyFirst = leased.job.kind === "user_message";
-  await requestAppJson("/api/agent/jobs", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      mode: "complete",
-      jobId: leased.job.id,
-      leaseToken: leased.job.leaseToken,
-      runtimeSessionId: result.session_id || sessionId,
-      response: agentResult.message,
-      workspaceFollowup: agentResult.workspaceFollowup,
-      recordActions: replyFirst ? [] : agentResult.recordActions,
-      workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
-    }),
-  });
+  await completeJob(leased, result.session_id || sessionId, agentResult);
 }
 
 async function runJobWithHeartbeat(key, leased) {
