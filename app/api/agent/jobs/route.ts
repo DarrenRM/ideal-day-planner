@@ -462,7 +462,7 @@ export async function POST(request: Request) {
         const highlightSource = payload.dayHighlight && typeof payload.dayHighlight === "object" && !Array.isArray(payload.dayHighlight)
           ? payload.dayHighlight as Record<string, unknown>
           : null;
-        const body = typeof highlightSource?.body === "string" ? highlightSource.body.trim().slice(0, 180) : "";
+        const body = typeof highlightSource?.body === "string" ? highlightSource.body.trim().slice(0, 80) : "";
         const allowedKinds = new Set(["streak", "milestone", "momentum", "effort", "comeback", "personal_best", "completion"]);
         const kind = typeof highlightSource?.kind === "string" && allowedKinds.has(highlightSource.kind) ? highlightSource.kind : null;
         const bindingId = `agent-binding:${safeId(job.conversationId)}:${safeId(HERMES_RUNTIME)}`;

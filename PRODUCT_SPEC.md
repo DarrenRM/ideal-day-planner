@@ -61,7 +61,7 @@ Completion has two affordances:
 Completion changes today’s execution view:
 
 - After its completion feedback settles, an activity moves into the compact Highlights panel above the working list. The panel shows the completed count and every completed activity as an icon grid, and expands into completion history.
-- Luna may add one short day highlight only when the stored evidence supports a real streak, milestone, completion cluster, substantial effort, comeback, or personal best. Ordinary progress gets no canned narrative.
+- Luna may add one short day highlight only when the stored evidence supports a real streak, milestone, completion cluster, substantial effort, comeback, or personal best. She ranks the supported candidates and names only the single strongest fact—never an overview or list. Ordinary progress gets no canned narrative.
 - By default, later activities keep their existing planned times; completing early does not pull the remaining schedule forward.
 - Marking it incomplete again leaves it above the Now line as unfinished/overdue rather than automatically reinserting it into the future schedule.
 - The user can drag that unfinished activity back into a later position when desired.

@@ -55,7 +55,7 @@ test("keeps the routine data and interactions in the page", async () => {
   const dayRoute = await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8");
   assert.doesNotMatch(dayRoute, /save-template/);
   assert.match(dayRoute, /restore-template/);
-  assert.match(dayRoute, /queueDayHighlightIfIdle/);
+  assert.match(dayRoute, /queueDayHighlightIfNeeded/);
   assert.match(page, /<ScheduleManager/);
   assert.match(page, /\/api\/occurrences/);
   assert.match(page, /MIGRATION_KEY/);
@@ -267,6 +267,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /@keyframes day-highlight-icon-land/);
   assert.doesNotMatch(css, /\.day-highlight-icon::after/);
   assert.match(css, /\.day-highlights-copy > strong[^}]*text-transform: uppercase/);
+  assert.match(css, /\.day-highlights-copy > span:not\(\.day-highlight-thinking\)[^}]*-webkit-line-clamp: 2/);
+  assert.match(css, /\.day-highlights-overview[^}]*min-height: 78px/);
   assert.match(page, /function cueNextActivity/);
   assert.match(page, /window\.scrollBy\(\{/);
   assert.match(page, /nextActivityCueId === item\.id \? "is-next-cue"/);
@@ -495,6 +497,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /mode === "heartbeat"/);
   assert.match(jobRoute, /mode === "progress"/);
   assert.match(jobRoute, /progress_title/);
+  assert.match(jobRoute, /highlightSource\.body\.trim\(\)\.slice\(0, 80\)/);
   assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'day_highlight' THEN 1 ELSE 2 END/);
   assert.match(jobRoute, /ORDER BY created_at DESC/);
   assert.match(jobRoute, /Could not release an incomplete agent lease/);
@@ -533,6 +536,9 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(workspaceModel, /defaultCountdownSeconds/);
   assert.match(workspaceModel, /durationSource/);
   assert.match(bridge, /Activity-setup behavior/);
+  assert.match(bridge, /Choose exactly one dominant fact, not an overview/);
+  assert.match(bridge, /at most 10 words and 64 characters/);
+  assert.match(bridge, /compactDayHighlightBody/);
   assert.match(bridge, /Cardio with no user-supplied description must ask/);
   assert.match(bridge, /A scheduled duration is a planning budget, not evidence/);
   assert.match(bridge, /Day Timeline/);

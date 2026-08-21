@@ -370,11 +370,11 @@ export async function queueDayHighlight(userId: string, dayPlanId: string): Prom
   return { status: "queued", body: null, kind: null, revision };
 }
 
-export async function queueDayHighlightIfIdle(userId: string, dayPlanId: string): Promise<DayHighlightState | null> {
+export async function queueDayHighlightIfNeeded(userId: string, dayPlanId: string): Promise<DayHighlightState | null> {
   await ensureAgentSchema();
   const db = getD1();
   const plan = await db.prepare(`
-    SELECT highlight_status AS status, highlight_revision AS revision,
+    SELECT highlight_status AS status, highlight_body AS body, highlight_revision AS revision,
            EXISTS(
              SELECT 1 FROM daily_plan_items
              WHERE daily_plan_id = daily_plans.id
@@ -382,8 +382,10 @@ export async function queueDayHighlightIfIdle(userId: string, dayPlanId: string)
            ) AS hasCompleted
     FROM daily_plans
     WHERE id = ? AND user_id = ?
-  `).bind(dayPlanId, userId).first<{ status: DayHighlightState["status"]; revision: number; hasCompleted: number }>();
-  if (!plan || plan.status !== "idle" || !plan.hasCompleted) return null;
+  `).bind(dayPlanId, userId).first<{ status: DayHighlightState["status"]; body: string | null; revision: number; hasCompleted: number }>();
+  const needsFirstReview = plan?.status === "idle";
+  const needsCompactRewrite = plan?.status === "ready" && (plan.body?.length ?? 0) > 72;
+  if (!plan || !plan.hasCompleted || (!needsFirstReview && !needsCompactRewrite)) return null;
 
   const conversationId = await ensureGlobalConversation(userId);
   const revision = plan.revision + 1;
@@ -391,7 +393,8 @@ export async function queueDayHighlightIfIdle(userId: string, dayPlanId: string)
     UPDATE daily_plans
     SET highlight_revision = ?, highlight_status = 'queued',
         highlight_body = NULL, highlight_kind = NULL, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND user_id = ? AND highlight_status = 'idle' AND highlight_revision = ?
+    WHERE id = ? AND user_id = ? AND highlight_revision = ?
+      AND (highlight_status = 'idle' OR (highlight_status = 'ready' AND length(COALESCE(highlight_body, '')) > 72))
     RETURNING highlight_revision AS revision
   `).bind(revision, dayPlanId, userId, plan.revision).first<{ revision: number }>();
   if (!claimed) return null;

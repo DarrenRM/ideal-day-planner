@@ -32,9 +32,10 @@ Site-wide scheduling behavior:
 
 Day-highlight behavior:
 - A day_highlight job is a silent editorial review, not a conversation. Return message:null, no actions, and either one evidence-backed dayHighlight or null.
-- Highlight only something concretely notable in the supplied data: a real streak, a full-day or category milestone, at least five completions, several completions close together, unusually substantial measured effort, a return after a meaningful gap, or a supported personal best.
+- Choose exactly one dominant fact, not an overview. Rank supported candidates in this order: personal best, comeback, real streak, unusual measured effort or longest meaningful block, verified completion cluster, then a count milestone such as five or more completions.
+- If the count is the strongest fact, state only the count. Never append examples of completed activities. Never join two achievements with “and,” “including,” “plus,” or “with.”
 - Never manufacture a sentiment, compliment ordinary participation, list generic categories, or write vague encouragement such as “you showed up.” If the evidence is ordinary, return dayHighlight:null.
-- Write one crisp human sentence of at most 18 words. Name the actual achievement and use numbers when they make it clearer.
+- Write one headline-like human sentence of at most 10 words and 64 characters. Name the achievement directly and use numbers when they make it clearer.
 
 Activity-setup behavior:
 - An activity_setup job happens once when an activity is created or materially renamed. Design a useful initial workspace from approved components and decide whether one setup question would unlock a concrete durable improvement.
@@ -182,7 +183,7 @@ function compactRecords(records) {
 
 function eventPrompt(job) {
   if (job.job.kind === "day_highlight" || job.context.scope === "day_highlight") {
-    return `Review today's completed activities and decide whether one thing is genuinely worth surfacing as a highlight. This is editorial judgment, not encouragement. Use only supplied evidence. A fast cluster requires timestamps that actually support it; a streak requires consecutive prior days; a personal best requires comparable run measurements. Return dayHighlight:null when nothing clears that bar.
+    return `Review today's completed activities and select the single most significant supported highlight. This is editorial judgment, not a recap or encouragement. Compare candidates before choosing one. Prefer a personal best, comeback, real streak, unusual measured effort, or verified cluster over a raw count; use the count only when it is genuinely the strongest fact. A fast cluster requires timestamps that actually support it; a streak requires consecutive prior days; a personal best requires comparable run measurements. Never mention a second achievement or append examples. Return dayHighlight:null when nothing clears that bar.
 
 Date: ${job.context.localDate}
 Today's activities and outcomes: ${JSON.stringify(job.context.today || [])}
@@ -233,6 +234,19 @@ ${job.context.sourceMessage?.body || ""}`;
   return `This is an ordinary activity open from the earlier runtime. Remain silent and make no workspace changes. Return message:null and an empty workspaceActions array.\n\n${shared}`;
 }
 
+function compactDayHighlightBody(value) {
+  if (typeof value !== "string") return "";
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) return "";
+  const dominantClause = normalized.split(/(?:,\s+(?:including|with|plus)\b|\s+[—–]\s+|;)/i)[0].trim();
+  const words = dominantClause.split(/\s+/).slice(0, 10);
+  let compact = words.join(" ").replace(/[,:;—–-]+$/, "");
+  if (compact.length > 64) {
+    compact = compact.slice(0, 64).replace(/\s+\S*$/, "").replace(/[,:;—–-]+$/, "");
+  }
+  return compact;
+}
+
 function parseAgentResult(content) {
   const cleaned = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const parsed = JSON.parse(cleaned);
@@ -247,9 +261,10 @@ function parseAgentResult(content) {
     : null;
   const scheduleProposal = parsed.scheduleProposal && typeof parsed.scheduleProposal === "object" ? parsed.scheduleProposal : null;
   const occurrenceActions = Array.isArray(parsed.occurrenceActions) ? parsed.occurrenceActions : [];
+  const dayHighlightBody = compactDayHighlightBody(parsed.dayHighlight?.body);
   const dayHighlight = parsed.dayHighlight && typeof parsed.dayHighlight === "object" && !Array.isArray(parsed.dayHighlight)
-    && typeof parsed.dayHighlight.body === "string" && parsed.dayHighlight.body.trim()
-    ? { body: parsed.dayHighlight.body.trim(), kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
+    && dayHighlightBody
+    ? { body: dayHighlightBody, kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
     : null;
   return { message, workspaceFollowup, recordActions, workspaceActions, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
 }
