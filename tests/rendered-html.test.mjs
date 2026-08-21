@@ -96,7 +96,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activeJobHasWorker/);
   assert.match(page, /activeJob\.status !== "retryable_failure"/);
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
-  assert.match(page, /activeJob\?\.kind === "workspace_refresh"/);
+  assert.match(page, /hasWorkspaceJob/);
   assert.match(page, /workspace-ready-notice/);
   assert.match(page, /useMobileConversationDrawer/);
   assert.match(page, /conversation-unread-badge/);
@@ -135,9 +135,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /hasActiveJob \? 700 : 8_000/);
   assert.doesNotMatch(page, /Permanent activity thread/);
   assert.doesNotMatch(page, /Luna is joining/);
-  assert.match(page, /activeJob\?\.kind === "user_message"/);
-  assert.match(page, /activeJob\?\.kind === "activity_setup"/);
-  assert.match(page, /activeJob\?\.kind === "activity_setup" \|\| activeJob\?\.kind === "workspace_refresh" \? "Working"/);
+  assert.match(page, /agentSurfaceState\(activeJob\?\.kind\)/);
+  assert.match(page, /conversationStatusLabel/);
+  assert.doesNotMatch(page, /activeJob\?\.kind === "activity_setup" \|\| activeJob\?\.kind === "workspace_refresh"/);
   assert.doesNotMatch(page, /Done — I added oranges to your breakfast list/);
   assert.doesNotMatch(page, /maps cleanly to an approved component/);
   assert.match(page, /Mark Complete/);

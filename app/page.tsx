@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import { BedDouble, BicepsFlexed, Brain, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
+import { agentSurfaceState, type AgentJobKind } from "./agent-surface-state";
 import { dayModePolicy, DEFAULT_DAY_SETTINGS, normalizeDaySettings, type DaySettings } from "./day-settings";
 import { useMobileConversationDrawer } from "./use-mobile-conversation-drawer";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
@@ -38,7 +39,7 @@ type MobileActivityTransition = {
 type ConversationMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string; pending?: boolean };
 type ConversationJob = {
   status: "queued" | "leased" | "running" | "retryable_failure";
-  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh";
+  kind: AgentJobKind;
   progressTitle?: string | null;
   progressDetail?: string | null;
 };
@@ -447,8 +448,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const hasAppliedConversationStateRef = useRef(false);
   const workspaceSignatureRef = useRef<string | null>(null);
   const footerMenuRef = useRef<HTMLDivElement>(null);
-  const hasConversationJob = activeJob?.kind === "user_message" || activeJob?.kind === "activity_setup";
-  const hasWorkspaceJob = activeJob?.kind === "workspace_refresh" || activeJob?.kind === "activity_setup";
+  const { hasConversationJob, hasWorkspaceJob } = agentSurfaceState(activeJob?.kind);
   const activeJobHasWorker = Boolean(activeJob
     && activeJob.status !== "retryable_failure"
     && (agentOnline || activeJob.status === "leased" || activeJob.status === "running"));
@@ -458,12 +458,19 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     : null;
   const workspaceWorkTitle = workspaceWorkState === "waiting"
     ? `${item.title} is queued`
-    : activeJob?.progressTitle || (activeJob?.kind === "activity_setup" ? `Setting up ${item.title}` : `Updating ${item.title}`);
+    : activeJob?.progressTitle || `Updating ${item.title}`;
   const workspaceWorkDetail = workspaceWorkState === "waiting"
     ? "Your message is saved, and Luna will pick it up shortly."
-    : activeJob?.progressDetail || (activeJob?.kind === "activity_setup"
-      ? "Choosing what will be useful each time you return."
-      : "Turning your latest details into something useful here.");
+    : activeJob?.progressDetail || "Turning your latest details into something useful here.";
+  const conversationStatusLabel = isSending
+    ? "Luna is thinking…"
+    : connectionState === "error" || (activeJob && !activeJobHasWorker)
+      ? "Luna will catch up"
+      : isLunaThinking
+        ? "Luna is thinking…"
+        : workspaceWorkState
+          ? "Working"
+          : "Connected";
   const workspaceActivity = { ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns };
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
@@ -863,7 +870,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
             >
               <strong>Notes & conversation</strong>
               <span className="conversation-drawer-state">
-                <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {isSending ? "Luna is thinking…" : connectionState === "error" || (activeJob && !activeJobHasWorker) ? "Luna will catch up" : activeJob?.kind === "activity_setup" || activeJob?.kind === "workspace_refresh" ? "Working" : isLunaThinking ? "Luna is thinking…" : "Connected"}</span>
+                <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {conversationStatusLabel}</span>
                 {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">New</span> : null}
                 <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
               </span>
