@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { BedDouble, BicepsFlexed, Brain, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
@@ -406,6 +406,7 @@ function conversationWorkspaceSignature(state: Pick<ConversationState, "workspac
 }
 
 type ActivityWorkbenchProps = {
+  completionActionRef: MutableRefObject<(() => void) | null>;
   item: ScheduledItem;
   timelineEnabled: boolean;
   isComplete: boolean;
@@ -419,7 +420,7 @@ type ActivityWorkbenchProps = {
   onSetDuration: (value: number) => void;
 };
 
-function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -771,6 +772,14 @@ function ActivityWorkbench({ item, timelineEnabled, isComplete, isSkipped, openC
     }
   }
 
+  useEffect(() => {
+    const action = () => void toggleActivityComplete();
+    completionActionRef.current = action;
+    return () => {
+      if (completionActionRef.current === action) completionActionRef.current = null;
+    };
+  });
+
   async function toggleActivitySkip() {
     if (isSkipping) return;
     setIsSkipping(true);
@@ -1108,8 +1117,10 @@ export default function Home() {
   const nextActivityCueTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const activityListPositionSnapshot = useRef<Map<string, { left: number; top: number }> | null>(null);
   const activityReorderAnimations = useRef<Animation[]>([]);
+  const expandedCompletionActionRef = useRef<(() => void) | null>(null);
   const mobileActivityTransitionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mobileActivityOriginRef = useRef<MobileActivityTransition | null>(null);
+  const mobileActivitySlotRectsRef = useRef<MobileActivityTransition[]>([]);
   const touchDragRef = useRef<TouchDrag | null>(null);
   const suppressActivityClickRef = useRef(false);
   const suppressActivityClickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -1856,6 +1867,17 @@ export default function Home() {
     clearMobileActivityTransitionTimer();
 
     if (origin && canAnimateMobileActivity()) {
+      mobileActivitySlotRectsRef.current = Array.from(document.querySelectorAll<HTMLElement>(".routine-row[data-activity-id] > .routine-card:not(.is-expanded)")).map((card) => {
+        const bounds = card.getBoundingClientRect();
+        return {
+          id: card.closest<HTMLElement>(".routine-row[data-activity-id]")?.dataset.activityId ?? "",
+          phase: "closing",
+          top: bounds.top,
+          left: bounds.left,
+          right: Math.max(0, window.innerWidth - bounds.right),
+          height: bounds.height,
+        };
+      });
       const geometry: MobileActivityTransition = {
         id,
         phase: "opening",
@@ -1872,6 +1894,7 @@ export default function Home() {
       }, 340);
     } else {
       mobileActivityOriginRef.current = null;
+      mobileActivitySlotRectsRef.current = [];
       setMobileActivityTransition(null);
     }
 
@@ -1891,12 +1914,14 @@ export default function Home() {
         setSelectedActivityId((current) => current === id ? null : current);
         setMobileActivityTransition(null);
         mobileActivityOriginRef.current = null;
+        mobileActivitySlotRectsRef.current = [];
         mobileActivityTransitionTimer.current = undefined;
       }, 280);
     } else {
       setSelectedActivityId(null);
       setMobileActivityTransition(null);
       mobileActivityOriginRef.current = null;
+      mobileActivitySlotRectsRef.current = [];
     }
     if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
@@ -1986,6 +2011,31 @@ export default function Home() {
     }, 1_600);
   }
 
+  function collapseCompletedActivity(id: string, destinationIndex: number, nextId: string | null) {
+    clearMobileActivityTransitionTimer();
+    const origin = mobileActivityOriginRef.current;
+    const destination = mobileActivitySlotRectsRef.current[destinationIndex] ?? origin;
+
+    if (origin?.id === id && destination && canAnimateMobileActivity()) {
+      setMobileActivityTransition({ ...destination, id, phase: "closing" });
+      mobileActivityTransitionTimer.current = setTimeout(() => {
+        setSelectedActivityId((current) => current === id ? null : current);
+        setMobileActivityTransition(null);
+        mobileActivityOriginRef.current = null;
+        mobileActivitySlotRectsRef.current = [];
+        mobileActivityTransitionTimer.current = undefined;
+        if (nextId) cueNextActivity(nextId);
+      }, 280);
+      return;
+    }
+
+    setSelectedActivityId((current) => current === id ? null : current);
+    setMobileActivityTransition(null);
+    mobileActivityOriginRef.current = null;
+    mobileActivitySlotRectsRef.current = [];
+    if (nextId) cueNextActivity(nextId);
+  }
+
   function handleCompletionSaved(id: string, completedAt: string | null, collapseAfterCelebration: boolean) {
     if (!completedAt) {
       const placementTimer = completionPlacementTimers.current.get(id);
@@ -2001,6 +2051,7 @@ export default function Home() {
     }
 
     const nextId = nextIncompleteActivityId(id);
+    const completedDestinationIndex = displayedScheduledItems.filter((item) => completedIds.has(item.id) && !settlingCompletedIds.has(item.id)).length;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const shouldAnimatePlacement = !collapseAfterCelebration && !prefersReducedMotion && (!timelineEnabled || !isDayStarted);
     if (collapseAfterCelebration) setSelectedActivityId(id);
@@ -2012,10 +2063,11 @@ export default function Home() {
     if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
     const handoffDelay = prefersReducedMotion
       ? collapseAfterCelebration ? 420 : 240
-      : collapseAfterCelebration ? 1_000 : shouldAnimatePlacement ? 1_080 : 760;
+      : collapseAfterCelebration ? 780 : shouldAnimatePlacement ? 1_080 : 760;
     completionHandoffTimer.current = setTimeout(() => {
       if (collapseAfterCelebration) {
-        setSelectedActivityId((current) => current === id ? null : current);
+        collapseCompletedActivity(id, completedDestinationIndex, nextId);
+        return;
       }
       if (nextId) cueNextActivity(nextId);
     }, handoffDelay);
@@ -2032,7 +2084,7 @@ export default function Home() {
     if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
 
-  async function updateClosedActivity(item: ScheduledItem, mode: "complete" | "reopen" | "skip" | "unskip") {
+  async function updateActivityStatus(item: ScheduledItem, mode: "complete" | "reopen" | "skip" | "unskip") {
     if (pendingActivityIds.has(item.id)) return;
     setPendingActivityIds((current) => new Set(current).add(item.id));
     try {
@@ -2377,6 +2429,7 @@ export default function Home() {
 
                     <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${transitionGeometry ? `is-mobile-${transitionGeometry.phase}` : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""}`}>
                       {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
+                      {celebratingActivityId === item.id && isExpanded ? <span className="completion-full-view-wash" aria-hidden="true" /> : null}
                       {isEditing ? (
                         <>
                           {dayMode.showClockState ? <div className="mobile-time-label mobile-edit-time" aria-hidden="true">{isDayStarted ? <><strong>{start.time}</strong><span>{start.suffix}</span></> : <strong>Queued</strong>}</div> : null}
@@ -2469,7 +2522,7 @@ export default function Home() {
                               className={`closed-status-button skip-status-button ${isSkipped ? "is-active" : ""}`}
                               disabled={isPending}
                               type="button"
-                              onClick={() => void updateClosedActivity(item, isSkipped ? "unskip" : "skip")}
+                              onClick={() => void updateActivityStatus(item, isSkipped ? "unskip" : "skip")}
                             ><SkipForward aria-hidden="true" size={14} strokeWidth={2} /></button>
                           </ControlTooltip>
 
@@ -2498,7 +2551,7 @@ export default function Home() {
                                   </div>
                                 ) : <>
                                   <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
-                                  <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateClosedActivity(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>
+                                  <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>
                                   <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
                                   <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
                                 </>}
@@ -2513,7 +2566,13 @@ export default function Home() {
                               className={`closed-status-button complete-status-button ${isComplete ? "is-active" : ""}`}
                               disabled={isPending}
                               type="button"
-                              onClick={() => void updateClosedActivity(item, isComplete ? "reopen" : "complete")}
+                              onClick={() => {
+                                if (isExpanded && expandedCompletionActionRef.current) {
+                                  expandedCompletionActionRef.current();
+                                  return;
+                                }
+                                void updateActivityStatus(item, isComplete ? "reopen" : "complete");
+                              }}
                             ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
                           </ControlTooltip>
 
@@ -2540,6 +2599,7 @@ export default function Home() {
                       {isExpanded ? (
                         <ActivityWorkbench
                           key={`${item.id}:${activityResetVersions[item.id] ?? 0}`}
+                          completionActionRef={expandedCompletionActionRef}
                           isComplete={isComplete}
                           isSkipped={isSkipped}
                           item={item}
