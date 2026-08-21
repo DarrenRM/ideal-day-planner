@@ -2,8 +2,8 @@ export const CATALOG_VERSION = "workspace-catalog-v4";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
-  ["product", "One named product or device identity card", "kind(product|device), name, manufacturer, variant, notes"],
-  ["protocol", "Repeatable ordered instructions", "summary, steps[{id,label,note,completed}]"],
+  ["product", "One named product or device identity card and subject root", "subjectKey(same as record key); kind(product|device), name, manufacturer, variant, notes"],
+  ["protocol", "Repeatable ordered instructions", "optional subjectKey; summary, steps[{id,label,note,completed}]"],
   ["checklist", "Repeatable actions to check during the current activity", "items[{id,label,detail,completed}]"],
   ["item_list", "Open shopping, queue, inventory, or supply items", "items[{id,label,detail,completed,urgency,source}]"],
   ["workout", "Exercise plan plus targets, completed sets, and intentional open exercise slots", "focus, exercises[{id,name,note,targetSets,targetReps,targetLoad,lastPerformance,completed,sets[{id,load,reps,effort,completedAt}]}], openChoices[{id,label,guidance,equipment[]}]"],
@@ -20,7 +20,7 @@ export const COMPONENT_CATALOG = [
   ["timeline", "Progress, milestones, or scheduled comparisons", "entries[{id,title,detail,date,value,tone}]"],
   ["goal", "A durable outcome and progress", "statement,current,target,unit,note"],
   ["attention", "A real warning, decision, or unresolved issue", "body,tone(info|warning|important),actions[]"],
-  ["resources", "Pinned authoritative links", "entries[{id,label,url,note}]"],
+  ["resources", "Authoritative links", "optional subjectKey; entries[{id,label,url,note}]"],
   ["timer", "Count-up elapsed time", "No record; workspace component only"],
   ["countdown", "Visible time remaining", "No record; workspace component only"],
 ];
@@ -28,7 +28,7 @@ export const COMPONENT_CATALOG = [
 export const ACTIVITY_RECIPES = [
   "Strength session: workout plus an activity-scoped equipment record when known; optionally comparison/history/metric. Use workout openChoices for a purposeful gym-selected slot. Never invent an exercise just to fill one.",
   "Cardio session: goal or summary plus quick_log/metric/history; timer or countdown only when modality or user intent makes time useful.",
-  "Product/device care: one product record per named product or device, plus one shared protocol; optionally one shared adherence/timeline/attention area. Use recurring_step when one tool is only due on some days, activity_event for a dated use, and session_choice for modes that do not need schedule variants. Timed devices may also use countdown.",
+  "Product/device care: one product subject root per named item, plus subject-owned protocol/resources for that item's directions and sources; optionally one shared adherence/timeline/attention area. Use recurring_step when one tool is only due on some days, activity_event for a dated use, and session_choice for modes that do not need schedule variants. Give all item-owned records the product record's subjectKey. Timed devices may also use countdown.",
   "Body routine: protocol or checklist plus goal; optionally quick_log/history and a deliberately chosen timer.",
   "Meal/supplement routine: protocol/checklist/product or item_list; no timer merely because it occupies schedule time.",
   "Supply manager: item_list plus history; preserve urgency and source.",

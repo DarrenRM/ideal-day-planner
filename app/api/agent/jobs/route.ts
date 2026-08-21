@@ -7,7 +7,7 @@ import {
   ensureAgentSchema,
   isLocalBridgeRequest,
   markActivitySetupAnswered,
-  moveActivityRecords,
+  moveActivitySubject,
   persistRecordActions,
   persistWorkspaceActions,
   readActivityRecords,
@@ -594,17 +594,21 @@ export async function POST(request: Request) {
         })
       ));
       const activityMoves = validateActivityMoveActions(usesReplyFirstProtocol ? [] : payload.activityMoves, job.activityId);
-      const movedKeys = new Set(activityMoves.flatMap((action) => action.recordKeys));
-      if (recordActions.some((action) => (action.op === "remove" ? movedKeys.has(action.recordKey) : movedKeys.has(action.record.key)))) {
+      const movedKeys = new Set(activityMoves.map((action) => action.subjectKey));
+      if (recordActions.some((action) => (
+        action.op === "remove"
+          ? movedKeys.has(action.recordKey)
+          : movedKeys.has(action.record.key) || Boolean(action.record.subjectKey && movedKeys.has(action.record.subjectKey))
+      ))) {
         return Response.json({ error: "A saved item cannot be edited and moved in the same update." }, { status: 400 });
       }
       for (const [index, action] of activityMoves.entries()) {
-        await moveActivityRecords({
+        await moveActivitySubject({
           userId: job.userId,
           sourceActivityId: job.activityId,
           targetActivityId: action.targetActivityId,
           actionId: `${jobId}:activity-move:${index}`,
-          recordKeys: action.recordKeys,
+          subjectKey: action.subjectKey,
         });
       }
       const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);

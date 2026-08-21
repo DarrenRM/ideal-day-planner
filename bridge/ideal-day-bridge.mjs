@@ -54,7 +54,7 @@ const resultShape = `Return exactly one JSON object with no markdown or surround
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
 const activityActionContract = `RecordAction:
-{"op":"upsert","record":{"key":"stable-kebab-key","type":"catalog-record-type","title":"...","scope":"activity|day|variant","data":{...}}}
+{"op":"upsert","record":{"key":"stable-kebab-key","subjectKey":"product-or-device-record-key-or-null","type":"catalog-record-type","title":"...","scope":"activity|day|variant","data":{...}}}
 or {"op":"remove","recordKey":"stable-kebab-key"}.
 
 WorkspaceAction:
@@ -62,8 +62,8 @@ WorkspaceAction:
 or timer/countdown upserts from the catalog, or {"op":"remove","componentId":"stable-kebab-id"}.
 
 ActivityMoveAction:
-{"op":"move_records","targetActivityId":"exact-owned-activity-id","recordKeys":["existing-record-key"]}.
-Use this only when the person explicitly asks to relocate existing saved information. Move only the relevant complete records; their matching visible cards move automatically. Never edit/remove the same record keys in that result. Conversation history remains where it was written. If the destination or information is ambiguous, ask one natural clarification and return activityMoves:[].`;
+{"op":"move_subject","targetActivityId":"exact-owned-activity-id","subjectKey":"existing-product-or-device-record-key"}.
+Use this only when the person explicitly asks to relocate an existing product or device and everything that belongs to it. Name only the subject root; Ideal Day resolves its complete owned bundle and matching visible cards. Never edit/remove that subject in the same result. Conversation messages remain where they were written, but structured usage history, cadence, directions, and resources owned by the subject move with it. If the destination or subject is ambiguous, ask one natural clarification and return activityMoves:[].`;
 
 const lunaInstructions = `${personaInstructions}
 ${resultShape}
@@ -71,7 +71,7 @@ ${resultShape}
 This is durable activity design work. Set scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
 
 Hard extraction checklist for the latest message:
-1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device".
+1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device" and subjectKey equal to that product record's stable key. Give every record owned by that item the same subjectKey.
 2. An explicit cadence such as “once a week” requires a recurring_step unless it already exists.
 3. “Used today” requires an activity_event unless it means the whole activity was completed.
 4. User-stated facts are authoritative for their own routine. Source-derived facts require supplied research evidence or actual web research.
@@ -82,7 +82,7 @@ Hard extraction checklist for the latest message:
 Activity design rules:
 - Never create an empty, generic, or “details needed” record/component. Ask naturally and leave that area absent.
 - Every product record has only name, manufacturer, variant, concise notes, and the binary kind; never emit fields or usage subfields. Put repeatable directions in a shared protocol.
-- When an activity uses multiple products or devices, create one product record and card for each named item. Keep one shared adherence streak, one combined routine/protocol, and one combined resources area rather than duplicating the rest of the workspace.
+- When an activity uses multiple products or devices, create one product record and card for each named item. Put item-specific directions and resources in records with that item's subjectKey so they compose inside its card and move with it. Keep adherence and genuinely activity-wide routines shared with no subjectKey; never combine unrelated products' resources into one ambiguous record.
 - A deliberately undecided workout exercise belongs in openChoices. Keep equipment at activity scope unless it truly varies by session variant.
 - Use session_choice for choosing a device mode today; use schedule variants only for an intentional recurring rotation.
 - Timers/countdowns are ordinary options, not defaults. Add one only when elapsed/remaining time is inherently useful or explicitly requested. Never default them for supplements, meals, showers, ordinary product application, or errands. A five-minute chin-up visualization and documented timed exposure are appropriate countdowns.
@@ -252,7 +252,7 @@ ${job.context.sourceMessage?.body || ""}`;
     const evidence = options.researchEvidence
       ? `\n\nFetched source evidence (captured once by Ideal Day; do not fetch these URLs again):\n${options.researchEvidence}`
       : "";
-    return `Bring the lasting activity space up to date. Set workspaceFollowup:false. Preserve useful content and stable keys. Apply the hard extraction checklist exactly once to the latest message, then emit only the necessary changes. Do not leave a learned product, device, cadence, usage event, direction, or protocol only in conversation. When the person explicitly asks to move existing saved information, use activityMoves instead of recreating it; if the destination is unclear, ask one concise question and make no move. Otherwise remain silent with message:null unless researched findings or a clarification need to be communicated.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}${evidence}`;
+    return `Bring the lasting activity space up to date. Set workspaceFollowup:false. Preserve useful content and stable keys. Apply the hard extraction checklist exactly once to the latest message, then emit only the necessary changes. Do not leave a learned product, device, cadence, usage event, direction, or protocol only in conversation. When the person explicitly asks to move an existing product or device, use one move_subject activityMove rooted at its product record instead of recreating it; the app moves all owned details. If the destination or subject is unclear, ask one concise question and make no move. Otherwise remain silent with message:null unless researched findings or a clarification need to be communicated.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}${evidence}`;
   }
   if (job.job.kind === "variant_setup") {
     return `A schedule proposal has just created this activity variant. Build the useful variant-specific workspace now from the confirmed request. Put shared products, devices, equipment, goals, and sources at activity scope; put the session plan or protocol that changes with this variant at variant scope. Never ask a duplicate question and never create placeholders. Remain silent unless one essential choice still blocks a useful result.\n\n${shared}\n\nOriginal confirmed request:\n${job.context.sourceMessage?.body || ""}`;

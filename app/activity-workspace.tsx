@@ -322,10 +322,30 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
     }));
   });
+  const productComponents = visibleComponents.flatMap((component) => {
+    if (component.type !== "product") return [];
+    const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
+    return record ? [{ component, record }] : [];
+  });
+  const nestedSupportingComponents = new Map<string, ActivityRecord[]>();
+  const nestedComponentIds = new Set<string>();
+  for (const component of visibleComponents) {
+    if (component.type !== "protocol" && component.type !== "resources") continue;
+    const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
+    if (!record) continue;
+    const owner = productComponents.find(({ record: product }) => record.subjectKey === product.key)
+      ?? (record.subjectKey === null && productComponents.length === 1 ? productComponents[0] : null);
+    if (!owner) continue;
+    const supporting = nestedSupportingComponents.get(owner.record.key) ?? [];
+    supporting.push(record);
+    supporting.sort((left, right) => (left.type === "resources" ? 1 : 0) - (right.type === "resources" ? 1 : 0));
+    nestedSupportingComponents.set(owner.record.key, supporting);
+    nestedComponentIds.add(component.id);
+  }
   const showStarterStreak = supportsStarterStreak(activity) && !visibleComponents.some((component) => component.type === "adherence");
   const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak;
   const orderedItems = orderWorkspaceDisplayItems([
-    ...visibleComponents.map((component) => ({
+    ...visibleComponents.filter((component) => !nestedComponentIds.has(component.id)).map((component) => ({
       displayRole: (component.type === "adherence" ? "streak" : component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
       id: component.id,
       component,
@@ -358,7 +378,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
               return record
-                ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} />
+                ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} supportingRecords={record.type === "product" ? nestedSupportingComponents.get(record.key) : undefined} />
                 : null;
             })}
           </div>

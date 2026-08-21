@@ -26,6 +26,7 @@ export type ActivityRecordType = typeof ACTIVITY_RECORD_TYPES[number];
 export type ActivityRecord = {
   id: string;
   key: string;
+  subjectKey: string | null;
   type: ActivityRecordType;
   title: string;
   scope: "activity" | "day" | "variant";
@@ -40,6 +41,7 @@ export type RecordAction =
       op: "upsert";
       record: {
         key: string;
+        subjectKey?: string | null;
         type: ActivityRecordType;
         title: string;
         scope?: "activity" | "day" | "variant";
@@ -49,7 +51,7 @@ export type RecordAction =
     }
   | { op: "remove"; recordKey: string };
 
-export type ActivityRecordContent = Pick<ActivityRecord, "type" | "title" | "data">;
+export type ActivityRecordContent = Pick<ActivityRecord, "type" | "title" | "data"> & Partial<Pick<ActivityRecord, "key" | "subjectKey">>;
 
 export type ActivityRecordUsefulnessContext = {
   activityTitle?: string;
@@ -439,12 +441,14 @@ export function validateRecordActions(value: unknown, planDate?: string | null):
     const requestedDate = boundedString(record.scopeDate, 10);
     const scopeDate = scope === "day" && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || planDate || "") ? (requestedDate || planDate || null) : null;
     if (scope === "day" && !scopeDate) return [];
-    return [{ op: "upsert" as const, record: { key, type, title, scope, scopeDate, data } }];
+    const requestedSubjectKey = stableKey(record.subjectKey);
+    const subjectKey = type === "product" ? requestedSubjectKey || key : requestedSubjectKey || null;
+    return [{ op: "upsert" as const, record: { key, subjectKey, type, title, scope, scopeDate, data } }];
   }).slice(0, 30);
 }
 
 export function parseActivityRecord(row: {
-  id: string; recordKey: string; recordType: string; title: string; scope: string;
+  id: string; recordKey: string; subjectKey?: string | null; recordType: string; title: string; scope: string;
   scopeDate: string | null; version: number; payloadJson: string; updatedAt: string;
 }): ActivityRecord | null {
   if (!ACTIVITY_RECORD_TYPES.includes(row.recordType as ActivityRecordType)) return null;
@@ -454,6 +458,7 @@ export function parseActivityRecord(row: {
     return {
       id: row.id,
       key: row.recordKey,
+      subjectKey: stableKey(row.subjectKey) || (row.recordType === "product" ? row.recordKey : null),
       type: row.recordType as ActivityRecordType,
       title: row.title,
       scope: row.scope === "day" ? "day" : row.scope === "variant" ? "variant" : "activity",

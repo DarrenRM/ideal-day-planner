@@ -1,6 +1,7 @@
 import { getD1 } from "../../db";
 import { parseActivityRecord, validateRecordActions, type ActivityRecord as PersistedActivityRecord, type RecordAction } from "../activity-record-model";
 import { activitySetupKey, activitySetupKeyMatches } from "../activity-setup-policy";
+import { resolveSubjectMoveRecordKeys } from "../activity-transfer-model";
 import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type WorkspaceAction, type WorkspaceDocument } from "../workspace-model";
 
 export type ActivityRecord = {
@@ -61,6 +62,7 @@ export async function ensureAgentSchema() {
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
         activity_id text NOT NULL,
+        activity_variant_id text,
         conversation_id text NOT NULL,
         client_visit_id text NOT NULL,
         context_json text,
@@ -179,6 +181,7 @@ export async function ensureAgentSchema() {
         activity_id text NOT NULL,
         activity_variant_id text,
         record_key text NOT NULL,
+        subject_key text,
         record_type text NOT NULL,
         title text NOT NULL,
         scope text DEFAULT 'activity' NOT NULL,
@@ -198,6 +201,7 @@ export async function ensureAgentSchema() {
       db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_records_user_activity_variant_key_unique ON activity_records (user_id, activity_id, activity_variant_id, record_key) WHERE activity_variant_id IS NOT NULL"),
       db.prepare("CREATE INDEX IF NOT EXISTS activity_records_activity_scope_idx ON activity_records (activity_id, scope, scope_date)"),
       db.prepare("CREATE INDEX IF NOT EXISTS activity_records_activity_type_idx ON activity_records (activity_id, record_type)"),
+      db.prepare("CREATE INDEX IF NOT EXISTS activity_records_activity_subject_idx ON activity_records (activity_id, subject_key)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS activity_record_revisions (
         id text PRIMARY KEY NOT NULL,
         record_id text NOT NULL,
@@ -642,6 +646,7 @@ export async function persistWorkspaceActions(input: {
 type ActivityRecordRow = {
   id: string;
   recordKey: string;
+  subjectKey: string | null;
   recordType: string;
   title: string;
   scope: string;
@@ -653,7 +658,7 @@ type ActivityRecordRow = {
 
 export async function readActivityRecords(activityId: string, planDate?: string | null, activityVariantId?: string | null): Promise<PersistedActivityRecord[]> {
   const result = await getD1().prepare(`
-    SELECT id, record_key AS recordKey, record_type AS recordType, title, scope,
+    SELECT id, record_key AS recordKey, subject_key AS subjectKey, record_type AS recordType, title, scope,
            scope_date AS scopeDate, version, payload_json AS payloadJson, updated_at AS updatedAt
     FROM activity_records
     WHERE activity_id = ? AND archived_at IS NULL
@@ -714,18 +719,18 @@ export async function persistRecordActions(input: {
     await db.batch([
       db.prepare(`
         INSERT INTO activity_records
-          (id, user_id, activity_id, activity_variant_id, record_key, record_type, title, scope, scope_date,
+          (id, user_id, activity_id, activity_variant_id, record_key, subject_key, record_type, title, scope, scope_date,
            payload_json, version, source_message_id, source_agent_job_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(${variantId ? "user_id, activity_id, activity_variant_id, record_key" : "user_id, activity_id, record_key"})
         WHERE activity_variant_id IS ${variantId ? "NOT " : ""}NULL DO UPDATE SET
-          record_type = excluded.record_type, title = excluded.title, scope = excluded.scope,
+          subject_key = excluded.subject_key, record_type = excluded.record_type, title = excluded.title, scope = excluded.scope,
           scope_date = excluded.scope_date, payload_json = excluded.payload_json,
           version = excluded.version, source_message_id = excluded.source_message_id,
           source_agent_job_id = excluded.source_agent_job_id, archived_at = NULL,
           updated_at = CURRENT_TIMESTAMP
       `).bind(
-        recordId, input.userId, input.activityId, variantId, action.record.key, action.record.type,
+        recordId, input.userId, input.activityId, variantId, action.record.key, action.record.subjectKey ?? null, action.record.type,
         action.record.title, action.record.scope ?? "activity", action.record.scopeDate ?? null,
         payloadJson, nextVersion, input.sourceMessageId ?? null, input.sourceAgentJobId ?? null,
       ),
@@ -750,7 +755,7 @@ export async function moveActivityRecords(input: {
   recordKeys: string[];
 }) {
   const db = getD1();
-  const keys = [...new Set(input.recordKeys)].slice(0, 20);
+  const keys = [...new Set(input.recordKeys)].slice(0, 40);
   if (!keys.length || input.sourceActivityId === input.targetActivityId) {
     throw new Error("An activity move needs saved information and a different destination.");
   }
@@ -860,6 +865,54 @@ export async function moveActivityRecords(input: {
 
   await db.batch(statements);
   return { movedRecords: sourceRecords.results.length, movedComponents: movedComponents.length, alreadyApplied: false };
+}
+
+export async function moveActivitySubject(input: {
+  userId: string;
+  sourceActivityId: string;
+  targetActivityId: string;
+  actionId: string;
+  subjectKey: string;
+}) {
+  const source = await getD1().prepare(`
+    SELECT record_key AS recordKey, subject_key AS subjectKey, record_type AS recordType,
+           payload_json AS payloadJson
+    FROM activity_records
+    WHERE user_id = ? AND activity_id = ? AND activity_variant_id IS NULL AND archived_at IS NULL
+    ORDER BY created_at ASC, id ASC
+    LIMIT 200
+  `).bind(input.userId, input.sourceActivityId).all<{
+    recordKey: string;
+    subjectKey: string | null;
+    recordType: string;
+    payloadJson: string;
+  }>();
+  const records = source.results.flatMap((record) => {
+    try {
+      const data = JSON.parse(record.payloadJson) as unknown;
+      if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+      return [{ key: record.recordKey, subjectKey: record.subjectKey, type: record.recordType, data: data as Record<string, unknown> }];
+    } catch {
+      return [];
+    }
+  });
+  const plan = resolveSubjectMoveRecordKeys(records, input.subjectKey);
+  if (plan.ambiguousRecordKeys.length) {
+    throw new Error("Some saved information is shared with another product or device. Separate it before moving this item.");
+  }
+  if (!plan.recordKeys.includes(input.subjectKey)) {
+    const existingTarget = await getD1().prepare(`
+      SELECT id FROM activity_records
+      WHERE user_id = ? AND activity_id = ? AND record_key = ?
+        AND record_type = 'product' AND archived_at IS NULL
+      LIMIT 1
+    `).bind(input.userId, input.targetActivityId, input.subjectKey).first<{ id: string }>();
+    if (existingTarget) {
+      return { movedRecords: 0, movedComponents: 0, alreadyApplied: true };
+    }
+    throw new Error("The product or device to move is no longer saved in this activity.");
+  }
+  return moveActivityRecords({ ...input, recordKeys: plan.recordKeys });
 }
 
 function asObject(value: unknown) {

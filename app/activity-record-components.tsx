@@ -7,7 +7,7 @@ import type { ActivityRecord } from "./activity-record-model";
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<void>;
 
-type Props = { record: ActivityRecord; onMutate: RecordMutation; presentation?: "default" | "compact" | "featured" };
+type Props = { record: ActivityRecord; onMutate: RecordMutation; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[] };
 type Item = { id: string; label: string; detail?: string; completed?: boolean; completedDates?: string[]; urgency?: string; source?: string };
 type Step = { id: string; label: string; note?: string; completed?: boolean; completedDates?: string[] };
 type Entry = { id: string; title: string; detail?: string; date?: string; value?: string; tone?: string };
@@ -43,26 +43,33 @@ function SummaryRecord({ record }: { record: ActivityRecord }) {
   </section>;
 }
 
-function ProductRecord({ record }: { record: ActivityRecord }) {
+function ProductRecord({ record, onMutate, supportingRecords = [] }: Props) {
   const data = record.data as { kind?: "product" | "device"; name: string; manufacturer?: string; variant?: string; notes?: string };
   const kindLabel = data.kind === "device" ? "Device" : "Product";
   const identityDetail = [data.manufacturer, data.variant].filter(Boolean).join(" · ");
   return <section className="workspace-block protocol-block product-record">
-    <div className="product-heading"><span className="product-mark"><Package size={16} /></span><div><small>{kindLabel}</small><strong>{data.name}</strong>{identityDetail ? <span>{identityDetail}</span> : null}</div></div>
+    <div className="product-heading"><div><small>{kindLabel}</small><strong>{data.name}</strong>{identityDetail ? <span>{identityDetail}</span> : null}</div><span className="product-mark"><Package size={16} /></span></div>
     {data.notes ? <p className="record-description">{data.notes}</p> : null}
+    {supportingRecords.length ? <div className="product-supporting-records">{supportingRecords.map((supportingRecord) => supportingRecord.type === "protocol"
+      ? <ProtocolContent key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
+      : supportingRecord.type === "resources" ? <ResourcesContent key={supportingRecord.id} nested record={supportingRecord} /> : null)}</div> : null}
   </section>;
 }
 
-function ProtocolRecord({ record, onMutate }: Props) {
+function ProtocolContent({ record, onMutate, nested = false }: Props & { nested?: boolean }) {
   const data = record.data as { summary?: string; steps?: Step[] };
-  return <section className="workspace-block protocol-block">
+  return <div className={nested ? "product-supporting-section product-protocol" : "protocol-content"}>
     <Heading eyebrow="Protocol" title={record.title} />
     {data.summary ? <p className="record-description">{data.summary}</p> : null}
     {data.steps?.length ? <div className="protocol-steps interactive-protocol">{data.steps.map((step, index) => <div className={completedToday(step) ? "is-complete" : ""} key={step.id}>
       <CheckButton checked={completedToday(step)} label={step.label} onClick={() => void onMutate(record.key, "toggle_item", { itemId: step.id })} />
       <p><b>{index + 1}.</b> {step.label}{step.note ? <small>{step.note}</small> : null}</p>
     </div>)}</div> : <EmptyLine>Add the known steps when the routine is clear.</EmptyLine>}
-  </section>;
+  </div>;
+}
+
+function ProtocolRecord(props: Props) {
+  return <section className="workspace-block protocol-block"><ProtocolContent {...props} /></section>;
 }
 
 function ItemListRecord({ record, onMutate }: Props) {
@@ -220,15 +227,19 @@ function AttentionRecord({ record }: { record: ActivityRecord }) {
   return <section className={`workspace-block attention-record tone-${data.tone || "info"}`}><Heading eyebrow="Keep in mind" title={record.title} icon={<AlertTriangle size={15} />} /><p>{data.body}</p>{data.actions?.length ? <ul>{data.actions.map((action) => <li key={action}>{action}</li>)}</ul> : null}</section>;
 }
 
-function ResourcesRecord({ record }: { record: ActivityRecord }) {
+function ResourcesContent({ record, nested = false }: { record: ActivityRecord; nested?: boolean }) {
   const data = record.data as { entries?: Array<{ id: string; label: string; url: string; note?: string }> };
-  return <section className="workspace-block"><Heading eyebrow="Pinned resources" title={record.title} /><div className="resource-list">{data.entries?.map((entry) => <a href={entry.url} key={entry.id} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div></section>;
+  return <div className={nested ? "product-supporting-section product-resources" : "resources-content"}><Heading eyebrow="Resources" title={record.title} /><div className="resource-list">{data.entries?.map((entry) => <a href={entry.url} key={entry.id} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div></div>;
+}
+
+function ResourcesRecord({ record }: { record: ActivityRecord }) {
+  return <section className="workspace-block"><ResourcesContent record={record} /></section>;
 }
 
 export function ActivityRecordComponent(props: Props) {
   const { record } = props;
   if (record.type === "summary") return <SummaryRecord record={record} />;
-  if (record.type === "product") return <ProductRecord record={record} />;
+  if (record.type === "product") return <ProductRecord {...props} />;
   if (record.type === "protocol") return <ProtocolRecord {...props} />;
   if (record.type === "checklist" || record.type === "item_list") return <ItemListRecord {...props} />;
   if (record.type === "workout") return <WorkoutRecord {...props} />;

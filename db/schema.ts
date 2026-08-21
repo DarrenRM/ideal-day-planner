@@ -317,6 +317,7 @@ export const activityRecords = sqliteTable("activity_records", {
   activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
   activityVariantId: text("activity_variant_id").references(() => activityVariants.id, { onDelete: "cascade" }),
   recordKey: text("record_key").notNull(),
+  subjectKey: text("subject_key"),
   recordType: text("record_type").notNull(),
   title: text("title").notNull(),
   scope: text("scope").notNull().default("activity"),
@@ -333,6 +334,7 @@ export const activityRecords = sqliteTable("activity_records", {
   uniqueIndex("activity_records_user_activity_variant_key_unique").on(table.userId, table.activityId, table.activityVariantId, table.recordKey).where(sql`${table.activityVariantId} IS NOT NULL`),
   index("activity_records_activity_scope_idx").on(table.activityId, table.scope, table.scopeDate),
   index("activity_records_activity_type_idx").on(table.activityId, table.recordType),
+  index("activity_records_activity_subject_idx").on(table.activityId, table.subjectKey),
   index("activity_records_variant_idx").on(table.activityVariantId),
 ]);
 

@@ -130,6 +130,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Talk with Luna about/);
   assert.doesNotMatch(page, /Breakfast is blank right now/);
   assert.match(page, /conversationShouldFollowRef/);
+  assert.match(page, /conversationProgrammaticScrollRef/);
+  assert.match(page, /scrollConversationToBottom/);
   assert.match(page, /scrollTo\(\{/);
   assert.match(page, /prefers-reduced-motion/);
   assert.match(page, /mode: "open"/);
@@ -146,6 +148,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /maps cleanly to an approved component/);
   assert.match(page, /Mark Complete/);
   assert.match(page, /Skip for Today/);
+  assert.match(page, /Mark incomplete/);
+  assert.match(page, /!isComplete \? <button className={`skip-activity-button/);
   assert.match(page, /Start My Day/);
   assert.match(page, /Start Early/);
   assert.match(page, /Day Timeline/);

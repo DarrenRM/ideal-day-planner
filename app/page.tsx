@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
@@ -459,6 +459,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const [isCompleting, setIsCompleting] = useState(false);
   const [isPreviewingCompletion, setIsPreviewingCompletion] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
+  const [isViewingWorkspace, setIsViewingWorkspace] = useState(false);
   const [isFooterMenuOpen, setIsFooterMenuOpen] = useState(false);
   const [resetActivityState, setResetActivityState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [recentRuns, setRecentRuns] = useState<ActivityRunSummary[]>([]);
@@ -470,6 +471,8 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const conversationSectionRef = useRef<HTMLElement>(null);
   const latestUnreadLunaMessageRef = useRef<HTMLDivElement>(null);
   const conversationShouldFollowRef = useRef(true);
+  const conversationProgrammaticScrollRef = useRef(false);
+  const conversationScrollTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const conversationAnchorTopRef = useRef<number | null>(null);
   const hasAppliedConversationStateRef = useRef(false);
   const workspaceSignatureRef = useRef<string | null>(null);
@@ -636,18 +639,51 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     if (typeof nextTop === "number") window.scrollBy({ top: nextTop - previousTop, behavior: "auto" });
   }, [records, workspace]);
 
+  const scrollConversationToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    if (!conversationShouldFollowRef.current) return;
+    const log = conversationLogRef.current;
+    if (!log) return;
+    conversationProgrammaticScrollRef.current = true;
+    log.scrollTo({ top: log.scrollHeight, behavior });
+    if (conversationScrollTimerRef.current) window.clearTimeout(conversationScrollTimerRef.current);
+    conversationScrollTimerRef.current = window.setTimeout(() => {
+      conversationProgrammaticScrollRef.current = false;
+      conversationScrollTimerRef.current = null;
+    }, behavior === "smooth" ? 360 : 50);
+  }, []);
+
   useEffect(() => {
     if (!conversationShouldFollowRef.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      const log = conversationLogRef.current;
-      if (!log) return;
-      log.scrollTo({
-        top: log.scrollHeight,
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      });
-    });
+    const frame = window.requestAnimationFrame(() => scrollConversationToBottom(
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    ));
     return () => window.cancelAnimationFrame(frame);
-  }, [messages, isLunaThinking, workspaceReadyLabel]);
+  }, [messages, isLunaThinking, workspaceReadyLabel, scrollConversationToBottom]);
+
+  useEffect(() => {
+    if (!isConversationDrawerOpen) return;
+    conversationShouldFollowRef.current = true;
+    const frame = window.requestAnimationFrame(() => scrollConversationToBottom("auto"));
+    const settleTimer = window.setTimeout(() => scrollConversationToBottom("auto"), 300);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(settleTimer);
+    };
+  }, [isConversationDrawerOpen, scrollConversationToBottom]);
+
+  useEffect(() => {
+    const log = conversationLogRef.current;
+    if (!log || !isConversationDrawerOpen) return;
+    const followAfterResize = () => scrollConversationToBottom("auto");
+    const observer = new ResizeObserver(followAfterResize);
+    observer.observe(log);
+    window.visualViewport?.addEventListener("resize", followAfterResize);
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", followAfterResize);
+      if (conversationScrollTimerRef.current) window.clearTimeout(conversationScrollTimerRef.current);
+    };
+  }, [isConversationDrawerOpen, scrollConversationToBottom]);
 
   useEffect(() => {
     const unreadMessageId = activeUnreadLunaMessageId;
@@ -686,7 +722,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
 
   function handleConversationScroll() {
     const log = conversationLogRef.current;
-    if (!log) return;
+    if (!log || conversationProgrammaticScrollRef.current) return;
     conversationShouldFollowRef.current = log.scrollHeight - log.scrollTop - log.clientHeight < 72;
   }
 
@@ -738,11 +774,18 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   }
 
   function viewWorkspaceUpdate() {
-    setWorkspaceReadyLabel(null);
+    if (isViewingWorkspace) return;
+    setIsViewingWorkspace(true);
     if (window.matchMedia("(max-width: 680px)").matches) {
       conversationDrawer.setOpen(false);
+      window.setTimeout(() => {
+        setWorkspaceReadyLabel(null);
+        setIsViewingWorkspace(false);
+      }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 20 : 280);
       return;
     }
+    setWorkspaceReadyLabel(null);
+    setIsViewingWorkspace(false);
     document.getElementById(`activity-workspace-${item.id}`)?.scrollIntoView({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       block: "start",
@@ -952,7 +995,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               </article>
             ))}
             {workspaceReadyLabel ? (
-              <button className="workspace-ready-notice" type="button" onClick={viewWorkspaceUpdate}>
+              <button className="workspace-ready-notice" disabled={isViewingWorkspace} type="button" onClick={viewWorkspaceUpdate}>
                 <Sparkles aria-hidden="true" size={14} />
                 <span><strong>{workspaceReadyLabel}</strong> is ready</span>
                 <b>View</b>
@@ -964,6 +1007,11 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
             <textarea
               aria-label={`Message ${item.title}`}
               onChange={(event) => setDraft(event.target.value)}
+              onFocus={() => {
+                const log = conversationLogRef.current;
+                if (log && log.scrollHeight - log.scrollTop - log.clientHeight < 120) conversationShouldFollowRef.current = true;
+                window.setTimeout(() => scrollConversationToBottom("auto"), 80);
+              }}
               onKeyDown={handleComposerKeyDown}
               placeholder={`Talk with Luna about ${item.title.toLowerCase()}…`}
               rows={2}
@@ -1007,6 +1055,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                 ) : (
                   <>
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onChangeToday(); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
+                    {isComplete ? <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); void toggleActivityComplete(); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onEdit(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                     <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setResetActivityState("confirming")}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
                     <button className="activity-remove-menu-action" role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onRemove(); }}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
@@ -1018,10 +1067,10 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
           {timelineEnabled ? <DurationControl item={item} onAdjust={onAdjustDuration} onSet={onSetDuration} /> : null}
         </div>
         <div className="activity-footer-status">
-          <button className={`skip-activity-button ${isSkipped ? "is-skipped" : ""}`} disabled={isSkipping} type="button" onClick={() => void toggleActivitySkip()}>
+          {!isComplete ? <button className={`skip-activity-button ${isSkipped ? "is-skipped" : ""}`} disabled={isSkipping} type="button" onClick={() => void toggleActivitySkip()}>
             <SkipForward aria-hidden="true" size={15} strokeWidth={2} /> {isSkipping ? "Saving…" : isSkipped ? "Skipped Today" : "Skip for Today"}
-          </button>
-          <button className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting} type="button" onClick={() => void toggleActivityComplete()}>
+          </button> : null}
+          <button aria-label={isComplete ? `${item.title} completed` : `Mark ${item.title} complete`} className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting || isComplete} type="button" onClick={() => void toggleActivityComplete()}>
             <Check aria-hidden="true" size={16} strokeWidth={2.2} /> {isCompleting ? "Saving…" : isComplete ? "Completed" : "Mark Complete"}
           </button>
         </div>
@@ -2926,7 +2975,7 @@ export default function Home() {
                                 ) : <>
                                   <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                                   <button role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
-                                  <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>
+                                  {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>}
                                   <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
                                   <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
                                 </>}
@@ -2934,12 +2983,12 @@ export default function Home() {
                             ) : null}
                           </div>
 
-                          <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `Mark ${item.title} incomplete` : `Mark ${item.title} complete`}>
+                          <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `${item.title} is complete` : `Mark ${item.title} complete`}>
                             <button
                               aria-describedby={`complete-tooltip-${item.id}`}
-                              aria-label={isComplete ? `Mark ${item.title} incomplete` : `Mark ${item.title} complete`}
+                              aria-label={isComplete ? `${item.title} completed` : `Mark ${item.title} complete`}
                               className={`closed-status-button complete-status-button ${isComplete ? "is-active" : ""}`}
-                              disabled={isPending}
+                              disabled={isPending || isComplete}
                               type="button"
                               onClick={() => {
                                 if (isExpanded && expandedCompletionActionRef.current) {

@@ -126,6 +126,9 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Checklist rows are whole-row controls with an unmistakable check state and a minimum 44px mobile target. Use spacing and a quiet filled surface to group items; do not stack divider lines inside an already bordered workspace card.
 - History is a read-only recap, not a timeline impersonation. Format machine dates for people, keep dates unbroken, and let titles/details reflow beside or beneath metadata without fixed narrow columns.
 - On mobile, workspace cards keep their natural content height rather than stretching to fill the activity. When conversation is collapsed, a compact invitation directly below the workspace lets the person reopen Luna without speaking in internal component language.
+- The conversation drawer opens at the latest message unless the person deliberately scrolled upward. Composer focus, keyboard resizing, ready notices, and drawer transitions must not move a touch target between pointer-down and pointer-up.
+- Product and device cards are visual parents. Their identity and description lead, the icon tile sits at the top-right, subject-specific protocol follows, and Resources is always the final subsection. Nested protocol/resources never render again as peer cards.
+- Completed expanded activities hide Skip for Today. Completion is passive status in the header/footer; the explicit `Mark incomplete` action lives in the overflow menu.
 
 ## Conversation
 

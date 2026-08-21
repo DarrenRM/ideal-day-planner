@@ -39,10 +39,22 @@ test("renders history as its own responsive recap rather than a timeline grid", 
 });
 
 test("keeps product cards focused on identity instead of generated subfields", async () => {
-  const component = await readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8");
+  const [component, workspace, css] = await Promise.all([
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
   const productRenderer = component.match(/function ProductRecord[\s\S]*?\n}/)?.[0] || "";
   assert.match(productRenderer, /<small>\{kindLabel\}<\/small>/);
   assert.doesNotMatch(productRenderer, /usefulFields|record-field-grid/);
+  assert.match(productRenderer, /product-supporting-records/);
+  assert.match(productRenderer, /<div><small>\{kindLabel\}<\/small><strong>\{data\.name\}<\/strong>/);
+  assert.match(productRenderer, /<span className="product-mark">/);
+  assert.match(component, /eyebrow="Resources"/);
+  assert.doesNotMatch(component, /Pinned resources/);
+  assert.match(workspace, /nestedSupportingComponents/);
+  assert.match(workspace, /record\.subjectKey === product\.key/);
+  assert.match(css, /\.product-heading \{[^}]*justify-content: space-between/s);
 
   const record = parseActivityRecord({
     id: "product-1",
@@ -68,6 +80,18 @@ test("keeps product cards focused on identity instead of generated subfields", a
     variant: "Hair serum",
     notes: "",
   });
+});
+
+test("keeps mobile composer focus from changing footer layout and follows drawer geometry", async () => {
+  const [page, css] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(css, /textarea:focus\) \.activity-footer \{ display: none;/);
+  assert.match(css, /textarea:focus\) \.activity-footer \{[^}]*visibility: hidden;/s);
+  assert.match(page, /\[isConversationDrawerOpen, scrollConversationToBottom\]/);
+  assert.match(page, /window\.visualViewport\?\.addEventListener\("resize"/);
+  assert.match(page, /setWorkspaceReadyLabel\(null\)[\s\S]*setIsViewingWorkspace\(false\)/);
 });
 
 test("lets the mobile activity row receive bottom-half taps around the duration controls", async () => {
