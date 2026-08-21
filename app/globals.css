@@ -777,8 +777,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .duration-control button { height: 36px; width: 36px; }
   .duration-control input { font-size: var(--type-body-lg); max-width: 4ch; }
   .duration-unit { font-size: var(--type-body-sm); }
-  .routine-card .item-controls > .duration-control { align-self: center; display: flex; gap: 8px; grid-column: 1 / -1; grid-row: 2; justify-self: stretch; min-height: 32px; position: static; width: 100%; }
-  .routine-card .item-controls > .duration-control button { height: 32px; width: 32px; }
+  .routine-card .item-controls > .duration-control { align-self: center; display: flex; gap: 8px; grid-column: 1 / -1; grid-row: 2; justify-self: stretch; min-height: 32px; pointer-events: none; position: static; width: 100%; }
+  .routine-card .item-controls > .duration-control button { height: 32px; pointer-events: auto; width: 32px; }
   .routine-card .item-controls > .duration-control .duration-value { margin-right: 0; min-width: 0; }
   .routine-card .item-controls > .duration-control input { font-size: var(--type-body-lg); max-width: 3ch; }
   .routine-card .item-controls > .duration-control .duration-unit { font-size: var(--type-body-sm); }

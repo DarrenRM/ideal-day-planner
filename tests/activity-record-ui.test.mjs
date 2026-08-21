@@ -69,3 +69,9 @@ test("keeps product cards focused on identity instead of generated subfields", a
     notes: "",
   });
 });
+
+test("lets the mobile activity row receive bottom-half taps around the duration controls", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*pointer-events: none;/s);
+  assert.match(css, /\.routine-card \.item-controls > \.duration-control button \{[^}]*pointer-events: auto;/s);
+});
