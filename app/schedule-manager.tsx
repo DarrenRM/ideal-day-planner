@@ -13,6 +13,7 @@ type LoadState = { revision: number; patterns: PatternView[]; activities: Activi
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const CATEGORIES = ["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"];
+const LEGACY_EFFECTIVE_DATE = "1970-01-01";
 
 function localDate() {
   const date = new Date();
@@ -29,6 +30,18 @@ function cadenceLabel(cadence: ScheduleCadence) {
 function dateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" })
     .format(new Date(`${value}T12:00:00`));
+}
+
+function patternForEditing(pattern: SchedulePattern): SchedulePattern {
+  if (pattern.effectiveDate !== LEGACY_EFFECTIVE_DATE) return { ...pattern, steps: pattern.steps.map((step) => ({ ...step })) };
+  const today = localDate();
+  return {
+    ...pattern,
+    effectiveDate: today,
+    anchorDate: today,
+    cadence: pattern.cadence.kind === "interval_days" ? { ...pattern.cadence, anchorDate: today } : pattern.cadence,
+    steps: pattern.steps.map((step) => ({ ...step })),
+  };
 }
 
 function emptyPattern(position: number, firstActivity?: Activity): SchedulePattern {
@@ -288,9 +301,9 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
             <>
               <div className="schedule-manager-intro"><div><CalendarDays aria-hidden="true" size={18} /><div><strong>Your recurring rhythm</strong><p>Simple repeats and rotating sequences live together here. Today-only changes stay in Today.</p></div></div><button type="button" onClick={() => { setIsCreating(true); setEditing(emptyPattern(data.patterns.length, data.activities[0])); }}><Plus size={16} /> Create sequence</button></div>
               <div className="schedule-pattern-list">{data.patterns.map((pattern) => <article className="schedule-pattern-card" key={pattern.id}>
-                <div className="schedule-pattern-summary"><div><span>{cadenceLabel(pattern.cadence)}</span><h3>{pattern.name}</h3><p>{pattern.steps.map((step) => `${activityMap.get(step.activityId)?.title ?? "Activity"}${step.activityVariantId ? ` — ${variantMap.get(step.activityVariantId)?.name ?? "Variant"}` : ""}`).join(" → ")}</p><small>Begins {dateLabel(pattern.effectiveDate)}{pattern.endDate ? ` · Ends ${dateLabel(pattern.endDate)}` : ""}</small></div><strong>{pattern.advancement.kind === "calendar" ? "Calendar sequence" : "Moves when done"}</strong></div>
+                <div className="schedule-pattern-summary"><div><span>{cadenceLabel(pattern.cadence)}</span><h3>{pattern.name}</h3><p>{pattern.steps.map((step) => `${activityMap.get(step.activityId)?.title ?? "Activity"}${step.activityVariantId ? ` — ${variantMap.get(step.activityVariantId)?.name ?? "Variant"}` : ""}`).join(" → ")}</p><small>{pattern.effectiveDate === LEGACY_EFFECTIVE_DATE ? "Active now" : `Begins ${dateLabel(pattern.effectiveDate)}`}{pattern.endDate ? ` · Ends ${dateLabel(pattern.endDate)}` : ""}</small></div><strong>{pattern.advancement.kind === "calendar" ? "Calendar sequence" : "Moves when done"}</strong></div>
                 <div className="schedule-pattern-preview">{pattern.preview.slice(0, 4).map((entry) => <span key={`${entry.date}-${entry.activityId}`}><time>{new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(`${entry.date}T12:00:00`))}</time>{activityMap.get(entry.activityId)?.title}{entry.activityVariantId ? ` — ${variantMap.get(entry.activityVariantId)?.name}` : ""}</span>)}</div>
-                <footer><button type="button" onClick={() => { setIsCreating(false); setEditing({ ...pattern, steps: pattern.steps.map((step) => ({ ...step })) }); }}>Edit</button><button type="button" onClick={() => onAskLuna(`Help me adjust the “${pattern.name}” schedule. Ask only what you need before proposing a change.`)}><MessageCircle size={14} /> Ask Luna</button><button type="button" onClick={() => void archivePattern(pattern)}><Archive size={14} /> Pause</button></footer>
+                <footer><button type="button" onClick={() => { setIsCreating(false); setEditing(patternForEditing(pattern)); }}>Edit</button><button type="button" onClick={() => onAskLuna(`Help me adjust the “${pattern.name}” schedule. Ask only what you need before proposing a change.`)}><MessageCircle size={14} /> Ask Luna</button><button type="button" onClick={() => void archivePattern(pattern)}><Archive size={14} /> Pause</button></footer>
               </article>)}</div>
             </>
           )}
