@@ -99,6 +99,8 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 
 - Completion feedback begins on press instead of waiting for persistence: sweep a restrained lime-to-gold highlight across a closed activity or the shared header of an expanded activity, briefly pop the checkmark, then settle into the normal Done state.
 - Keep the celebration under 720ms, non-blocking, and free of layout movement. Under reduced motion, replace travel and scaling with a short highlight fade.
+- Skip uses a separate, quieter status motion: a neutral 250–350ms sweep and small skip-icon settle, never the celebratory lime-to-gold treatment. A skipped card remains readable and stays in its checklist position rather than joining completed activities.
+- When Skip is used from an expanded activity, finish the status motion, collapse back to the list, and gently cue the next unfinished activity. Under reduced motion, use a short neutral fade before the same handoff.
 
 ## Activity workspace components
 

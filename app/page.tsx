@@ -415,13 +415,14 @@ type ActivityWorkbenchProps = {
   openConversationOnMount: boolean;
   onComplete: (completedAt: string | null) => void;
   onSkip: (skippedAt: string | null) => void;
+  onSkipStart: () => void;
   onEdit: () => void;
   onRemove: () => void;
   onAdjustDuration: (delta: number) => void;
   onSetDuration: (value: number) => void;
 };
 
-function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -790,6 +791,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   async function toggleActivitySkip() {
     if (isSkipping) return;
     setIsSkipping(true);
+    if (!isSkipped) onSkipStart();
     try {
       const response = await fetch("/api/activity/run", {
         method: "POST",
@@ -1111,6 +1113,7 @@ export default function Home() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
   const [pendingActivityIds, setPendingActivityIds] = useState<Set<string>>(() => new Set());
   const [celebratingActivityId, setCelebratingActivityId] = useState<string | null>(null);
+  const [skippingActivityId, setSkippingActivityId] = useState<string | null>(null);
   const [settlingCompletedIds, setSettlingCompletedIds] = useState<Set<string>>(() => new Set());
   const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
   const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -1120,6 +1123,10 @@ export default function Home() {
   const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionCelebrationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionHandoffTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const skipMotionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const skipHandoffTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const skipMotionStartedActivityRef = useRef<string | null>(null);
+  const skipMotionVisibleActivityRef = useRef<string | null>(null);
   const completionPlacementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const nextActivityCueTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const activityListPositionSnapshot = useRef<Map<string, { left: number; top: number }> | null>(null);
@@ -1358,6 +1365,8 @@ export default function Home() {
     if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
     if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
     if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
+    if (skipMotionTimer.current) clearTimeout(skipMotionTimer.current);
+    if (skipHandoffTimer.current) clearTimeout(skipHandoffTimer.current);
     completionPlacementTimers.current.forEach((timer) => clearTimeout(timer));
     activityReorderAnimations.current.forEach((animation) => animation.cancel());
     if (nextActivityCueTimer.current) clearTimeout(nextActivityCueTimer.current);
@@ -1987,9 +1996,9 @@ export default function Home() {
     completionPlacementTimers.current.set(id, timer);
   }
 
-  function nextIncompleteActivityId(completedId: string) {
+  function nextIncompleteActivityId(excludedId: string) {
     return scheduledItems
-      .find((item) => item.id !== completedId && !item.completedAt && !item.skippedAt && !completedIds.has(item.id))
+      .find((item) => item.id !== excludedId && !item.completedAt && !item.skippedAt && !completedIds.has(item.id))
       ?.id ?? null;
   }
 
@@ -2080,20 +2089,87 @@ export default function Home() {
     }, handoffDelay);
   }
 
-  function toggleSkip(id: string, skippedAt: string | null) {
+  function applySkipState(id: string, skippedAt: string | null) {
     setCompletedIds((current) => {
       const next = new Set(current);
       if (skippedAt) next.delete(id);
       return next;
     });
     setItems((current) => current.map((item) => item.id === id ? { ...item, skippedAt, completedAt: skippedAt ? null : item.completedAt } : item));
-    setSelectedActivityId(null);
     if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
+  }
+
+  function clearSkipMotion(id?: string) {
+    if (skipMotionTimer.current) clearTimeout(skipMotionTimer.current);
+    skipMotionTimer.current = undefined;
+    setSkippingActivityId((current) => !id || current === id ? null : current);
+    if (!id || skipMotionStartedActivityRef.current === id) skipMotionStartedActivityRef.current = null;
+    if (!id || skipMotionVisibleActivityRef.current === id) skipMotionVisibleActivityRef.current = null;
+  }
+
+  function beginSkipMotion(id: string) {
+    if (skipMotionTimer.current) clearTimeout(skipMotionTimer.current);
+    skipMotionStartedActivityRef.current = id;
+    skipMotionVisibleActivityRef.current = id;
+    setSkippingActivityId(id);
+    skipMotionTimer.current = setTimeout(() => {
+      setSkippingActivityId((current) => current === id ? null : current);
+      if (skipMotionVisibleActivityRef.current === id) skipMotionVisibleActivityRef.current = null;
+      skipMotionTimer.current = undefined;
+    }, 520);
+  }
+
+  function collapseSkippedActivity(id: string, nextId: string | null) {
+    setMobileActivityMenuId(null);
+    clearMobileActivityTransitionTimer();
+    const origin = mobileActivityOriginRef.current;
+
+    if (origin?.id === id && canAnimateMobileActivity()) {
+      setMobileActivityTransition({ ...origin, phase: "closing" });
+      mobileActivityTransitionTimer.current = setTimeout(() => {
+        setSelectedActivityId((current) => current === id ? null : current);
+        setMobileActivityTransition(null);
+        mobileActivityOriginRef.current = null;
+        mobileActivitySlotRectsRef.current = [];
+        mobileActivityTransitionTimer.current = undefined;
+        if (nextId) cueNextActivity(nextId);
+      }, 280);
+      return;
+    }
+
+    setSelectedActivityId((current) => current === id ? null : current);
+    setMobileActivityTransition(null);
+    mobileActivityOriginRef.current = null;
+    mobileActivitySlotRectsRef.current = [];
+    if (nextId) cueNextActivity(nextId);
+  }
+
+  function handleSkipSaved(id: string, skippedAt: string | null, collapseAfterMotion: boolean) {
+    if (!skippedAt) {
+      clearSkipMotion(id);
+      applySkipState(id, null);
+      return;
+    }
+
+    const nextId = nextIncompleteActivityId(id);
+    applySkipState(id, skippedAt);
+    if (skipMotionStartedActivityRef.current !== id) beginSkipMotion(id);
+    if (!collapseAfterMotion) return;
+
+    if (skipHandoffTimer.current) clearTimeout(skipHandoffTimer.current);
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const handoffDelay = prefersReducedMotion ? 160 : skipMotionVisibleActivityRef.current === id ? 300 : 120;
+    skipHandoffTimer.current = setTimeout(() => {
+      clearSkipMotion(id);
+      collapseSkippedActivity(id, nextId);
+      skipHandoffTimer.current = undefined;
+    }, handoffDelay);
   }
 
   async function updateActivityStatus(item: ScheduledItem, mode: "complete" | "reopen" | "skip" | "unskip") {
     if (pendingActivityIds.has(item.id)) return;
     setPendingActivityIds((current) => new Set(current).add(item.id));
+    if (mode === "skip") beginSkipMotion(item.id);
     try {
       const response = await fetch("/api/activity/run", {
         method: "POST",
@@ -2106,10 +2182,11 @@ export default function Home() {
         handleCompletionSaved(item.id, result.completed ? result.completedAt ?? new Date().toISOString() : null, false);
       } else {
         const result = await response.json() as { skipped: boolean; skippedAt?: string | null };
-        toggleSkip(item.id, result.skipped ? result.skippedAt ?? new Date().toISOString() : null);
+        handleSkipSaved(item.id, result.skipped ? result.skippedAt ?? new Date().toISOString() : null, false);
       }
       setSaveState("saved");
     } catch {
+      if (mode === "skip") clearSkipMotion(item.id);
       setSaveState("retrying");
     } finally {
       setPendingActivityIds((current) => {
@@ -2434,9 +2511,10 @@ export default function Home() {
                         ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                         : <strong className="sequence-label">Queued</strong>}</div> : null}
 
-                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${transitionGeometry ? `is-mobile-${transitionGeometry.phase}` : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""}`}>
+                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${transitionGeometry ? `is-mobile-${transitionGeometry.phase}` : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""} ${skippingActivityId === item.id ? "is-skipping" : ""}`}>
                       {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
                       {celebratingActivityId === item.id && isExpanded ? <span className="completion-full-view-wash" aria-hidden="true" /> : null}
+                      {skippingActivityId === item.id ? <span className="skip-sweep" aria-hidden="true" /> : null}
                       {isEditing ? (
                         <>
                           {dayMode.showClockState ? <div className="mobile-time-label mobile-edit-time" aria-hidden="true">{isDayStarted ? <><strong>{start.time}</strong><span>{start.suffix}</span></> : <strong>Queued</strong>}</div> : null}
@@ -2614,7 +2692,8 @@ export default function Home() {
                           openConversationOnMount={startConversationActivityId === item.id}
                           onAdjustDuration={(delta) => adjustDuration(item.id, delta)}
                           onComplete={(completedAt) => handleCompletionSaved(item.id, completedAt, true)}
-                          onSkip={(skippedAt) => toggleSkip(item.id, skippedAt)}
+                          onSkip={(skippedAt) => handleSkipSaved(item.id, skippedAt, true)}
+                          onSkipStart={() => beginSkipMotion(item.id)}
                           onEdit={() => startEditing(item)}
                           onRemove={() => removeItem(item.id)}
                           onSetDuration={(value) => setDuration(item.id, value)}

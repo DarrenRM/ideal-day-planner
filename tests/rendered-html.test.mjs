@@ -254,7 +254,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /setSettlingCompletedIds/);
   assert.match(page, /}, 560\);/);
   assert.match(page, /duration: 440/);
-  assert.match(page, /scheduledItems[\s\S]*?\.find\(\(item\) => item\.id !== completedId/);
+  assert.match(page, /scheduledItems[\s\S]*?\.find\(\(item\) => item\.id !== excludedId/);
   assert.doesNotMatch(page, /remainingInDayOrder/);
   assert.match(page, /collapseAfterCelebration \? 780 : shouldAnimatePlacement \? 1_080 : 760/);
   assert.match(page, /collapseCompletedActivity\(id, completedDestinationIndex, nextId\)/);
@@ -269,6 +269,17 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.routine-row\.is-next-cue \.routine-card:not\(\.is-expanded\)/);
   assert.match(css, /prefers-reduced-motion:[\s\S]*\.completion-sweep::before/);
   assert.match(css, /prefers-reduced-motion:[\s\S]*\.routine-row\.is-next-cue/);
+  assert.match(page, /skippingActivityId === item\.id \? <span className="skip-sweep"/);
+  assert.match(page, /function beginSkipMotion/);
+  assert.match(page, /function handleSkipSaved/);
+  assert.match(page, /function collapseSkippedActivity/);
+  assert.match(page, /onSkipStart=\{\(\) => beginSkipMotion\(item\.id\)\}/);
+  assert.match(page, /handleSkipSaved\(item\.id, result\.skipped[\s\S]*?, false\)/);
+  assert.match(page, /onSkip=\{\(skippedAt\) => handleSkipSaved\(item\.id, skippedAt, true\)\}/);
+  assert.match(css, /@keyframes skip-gradient-sweep/);
+  assert.match(css, /@keyframes skip-icon-settle/);
+  assert.match(css, /prefers-reduced-motion:[\s\S]*\.skip-sweep::before/);
+  assert.match(css, /\.routine-row\.is-skipped \.routine-card:not\(\.is-expanded\)[^}]*opacity: \.68/);
   assert.match(css, /\.reset-today-button/);
   assert.match(css, /\.dev-reset-confirm/);
   assert.match(css, /\.now-line/);

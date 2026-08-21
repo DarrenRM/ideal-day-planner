@@ -217,7 +217,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .routine-card:hover { background: #181d21; border-color: #343b40; box-shadow: 0 10px 30px rgba(0, 0, 0, .16); }
 .routine-row.is-past:not(.is-current) .routine-card:not(.is-expanded) { background: #111518; opacity: .68; }
 .routine-row.is-complete .routine-card:not(.is-expanded) { background: #101412; border-color: rgba(181, 215, 125, .16); opacity: .62; }
-.routine-row.is-skipped .routine-card:not(.is-expanded) { background: #111416; border-color: rgba(133, 143, 139, .16); opacity: .55; }
+.routine-row.is-skipped .routine-card:not(.is-expanded) { background: #111416; border-color: rgba(133, 143, 139, .2); opacity: .68; }
 .routine-row.is-current .routine-card { border-color: color-mix(in srgb, var(--item-color) 45%, #30383b); box-shadow: 0 0 0 1px color-mix(in srgb, var(--item-color) 10%, transparent), 0 16px 38px rgba(0, 0, 0, .2); }
 .routine-row.is-next-cue .routine-card:not(.is-expanded) { animation: next-activity-cue 1.5s cubic-bezier(.2, .78, .24, 1) both; z-index: 2; }
 .routine-row.is-next-cue .routine-card:not(.is-expanded)::before { animation: next-activity-marker 1.5s cubic-bezier(.2, .78, .24, 1) both; background: var(--item-color); border-radius: 999px; box-shadow: 0 0 12px color-mix(in srgb, var(--item-color) 38%, transparent); content: ""; height: 42%; left: -1px; position: absolute; top: 29%; transform-origin: center; width: 2px; }
@@ -229,11 +229,20 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .routine-card.is-expanded .completion-sweep { bottom: auto; height: 64px; }
 .routine-card.is-celebrating > .item-controls { position: relative; z-index: 41; }
 .routine-card.is-celebrating .complete-status-button svg, .routine-card.is-celebrating .complete-activity-button svg { animation: completion-check-pop 520ms cubic-bezier(.2, .9, .25, 1.25) both; filter: drop-shadow(0 0 5px rgba(213, 246, 148, .7)); }
+.skip-sweep { border-radius: inherit; inset: 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 40; }
+.skip-sweep::before { animation: skip-gradient-sweep 360ms cubic-bezier(.32, .72, .32, 1) both; background: linear-gradient(106deg, transparent 20%, rgba(143, 156, 151, .05) 36%, rgba(171, 184, 178, .22) 49%, color-mix(in srgb, var(--item-color) 11%, transparent) 58%, transparent 78%); content: ""; inset: -30% -62%; position: absolute; transform: translateX(-54%) skewX(-11deg); }
+.skip-sweep::after { animation: skip-border-settle 420ms ease-out both; border: 1px solid rgba(151, 164, 158, .42); border-radius: inherit; box-shadow: inset 0 0 14px rgba(145, 158, 152, .07); content: ""; inset: 0; position: absolute; }
+.routine-card.is-expanded .skip-sweep { bottom: auto; height: 64px; }
+.routine-card.is-skipping > .item-controls { position: relative; z-index: 41; }
+.routine-card.is-skipping .skip-status-button svg, .routine-card.is-skipping .skip-activity-button svg { animation: skip-icon-settle 340ms cubic-bezier(.24, .8, .28, 1) both; }
 @keyframes completion-gradient-sweep { 0% { opacity: 0; transform: translateX(-58%) skewX(-13deg); } 18% { opacity: 1; } 100% { opacity: 0; transform: translateX(58%) skewX(-13deg); } }
 @keyframes completion-border-glow { 0%, 100% { opacity: 0; } 24% { opacity: .9; } 62% { opacity: .42; } }
 @keyframes completion-check-pop { 0% { transform: scale(.72) rotate(-10deg); } 42% { transform: scale(1.35) rotate(4deg); } 72% { transform: scale(.94) rotate(0); } 100% { transform: scale(1); } }
 @keyframes completion-full-view-sweep { 0% { opacity: 0; transform: translateY(0); } 18% { opacity: .72; } 70% { opacity: .28; } 100% { opacity: 0; transform: translateY(145vh); } }
 @keyframes completion-full-view-glow { 0%, 100% { opacity: 0; } 24% { opacity: .68; } 64% { opacity: .2; } }
+@keyframes skip-gradient-sweep { 0% { opacity: 0; transform: translateX(-54%) skewX(-11deg); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateX(54%) skewX(-11deg); } }
+@keyframes skip-border-settle { 0%, 100% { opacity: 0; } 24% { opacity: .72; } 62% { opacity: .28; } }
+@keyframes skip-icon-settle { 0% { opacity: .55; transform: translateX(-2px); } 48% { opacity: 1; transform: translateX(2px); } 100% { opacity: 1; transform: translateX(0); } }
 @keyframes next-activity-cue { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--item-color) 0%, transparent); transform: translateY(2px); } 28% { border-color: color-mix(in srgb, var(--item-color) 58%, #30383b); box-shadow: 0 0 0 1px color-mix(in srgb, var(--item-color) 24%, transparent), 0 12px 30px rgba(0, 0, 0, .22); transform: translateY(0); } 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--item-color) 0%, transparent); transform: translateY(0); } }
 @keyframes next-activity-marker { 0%, 100% { opacity: 0; transform: scaleY(.25); } 25%, 60% { opacity: .9; transform: scaleY(1); } }
 .is-dragging .routine-card { opacity: .32; transform: scale(.99); }
@@ -786,6 +795,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card.is-expanded.is-mobile-closing .activity-expansion { animation: mobile-activity-content-out 160ms ease-in both; }
   .routine-card.is-expanded .item-copy { background: #151a1d; border-bottom: 1px solid #293033; gap: 6px 8px; grid-column: 1 / -1; grid-row: 1; grid-template-rows: 32px 32px; min-height: 86px; padding: max(8px, env(safe-area-inset-top)) 12px 8px 16px; }
   .routine-card.is-expanded .completion-sweep { height: max(86px, calc(78px + env(safe-area-inset-top))); }
+  .routine-card.is-expanded .skip-sweep { height: max(86px, calc(78px + env(safe-area-inset-top))); }
   .routine-card.is-expanded .completion-full-view-wash { display: block; inset: max(86px, calc(78px + env(safe-area-inset-top))) 0 0; overflow: hidden; pointer-events: none; position: absolute; z-index: 38; }
   .routine-card.is-expanded .completion-full-view-wash::before { animation: completion-full-view-sweep 780ms cubic-bezier(.2, .74, .22, 1) both; background: linear-gradient(180deg, transparent 0%, rgba(181, 215, 125, .04) 20%, rgba(204, 240, 143, .18) 48%, rgba(255, 204, 116, .1) 66%, transparent 100%); content: ""; filter: blur(8px); height: 44%; left: -16%; position: absolute; right: -16%; top: -46%; }
   .routine-card.is-expanded .completion-full-view-wash::after { animation: completion-full-view-glow 780ms ease-out both; background: radial-gradient(circle at 72% 0%, rgba(191, 229, 126, .13), transparent 52%); content: ""; inset: 0; position: absolute; }
@@ -915,6 +925,9 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 @media (prefers-reduced-motion: reduce) {
   .completion-sweep::before { animation: completion-celebration-fade 360ms ease-out both; inset: 0; transform: none; }
   .completion-sweep::after { animation: completion-celebration-fade 360ms ease-out both; }
+  .skip-sweep::before { animation: skip-status-fade 240ms ease-out both; inset: 0; transform: none; }
+  .skip-sweep::after { animation: skip-status-fade 240ms ease-out both; }
+  .routine-card.is-skipping .skip-status-button svg, .routine-card.is-skipping .skip-activity-button svg { animation: none; }
   .completion-full-view-wash::before, .completion-full-view-wash::after { animation: completion-celebration-fade 360ms ease-out both !important; filter: none !important; inset: 0 !important; transform: none !important; }
   .routine-card.is-celebrating .complete-status-button svg, .routine-card.is-celebrating .complete-activity-button svg { animation: none; }
   .streak-step.is-waiting .streak-dot, .streak-step.is-waiting small, .routine-card.is-celebrating .streak-step.is-latest .streak-dot, .routine-card.is-celebrating .streak-step.is-latest .streak-dot::after { animation: none; }
@@ -922,6 +935,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-row.is-next-cue .routine-card:not(.is-expanded)::before { animation: none; opacity: .9; transform: scaleY(1); }
   .routine-card.is-mobile-opening, .routine-card.is-mobile-closing, .routine-card.is-mobile-opening .activity-expansion, .routine-card.is-mobile-closing .activity-expansion { animation: none; }
   @keyframes completion-celebration-fade { 0%, 100% { opacity: 0; } 35% { opacity: .45; } }
+  @keyframes skip-status-fade { 0%, 100% { opacity: 0; } 35% { opacity: .32; } }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
   .schedule-loading-row, .shape-loading-row, .activity-opening-progress::after { animation: none; }
 }
