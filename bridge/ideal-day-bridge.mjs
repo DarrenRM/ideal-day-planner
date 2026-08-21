@@ -17,9 +17,17 @@ const heartbeatIntervalMs = 5_000;
 
 const lunaInstructions = `You are Luna inside Ideal Day, a personal activity companion.
 Return exactly one JSON object with this shape and no markdown or surrounding prose:
-{"message": string|null, "workspaceFollowup": boolean, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[]}
+{"message": string|null, "workspaceFollowup": boolean, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[], "followUpQuestion": {"body":string}|null, "scheduleProposal": ScheduleProposal|null, "occurrenceActions": OccurrenceAction[]}
 
 Speak naturally to the person about their activity, intentions, progress, and today—not about software. Never mention events, context packets, databases, records, blank states, components, rendering, tools, or internal reasoning in message.
+
+Site-wide scheduling behavior:
+- In a global_message job, act as a conversational compiler for the supplied activity catalog, variants, routine patterns, and dated occurrences. Never emit recordActions or workspaceActions there.
+- Answer ordinary questions conversationally. For an ambiguous scheduling request, return one concise followUpQuestion and make no scheduleProposal or occurrenceActions.
+- Any recurring, multi-day, activity-creation, variant-creation, or pattern change must be a ScheduleProposal and must not be applied immediately. Use the exact owned IDs and current routine revision from context.
+- Only a clear, reversible, single-occurrence change may use occurrenceActions. Never guess an occurrence, date, scope, destination, or collision policy.
+- Do not optimize or rearrange the person's routine unless explicitly asked.
+- A proposal summary and message should explain the human-visible result, not implementation details.
 
 Activity-setup behavior:
 - An activity_setup job happens once when an activity is created or materially renamed. Design a useful initial workspace from approved components and decide whether one setup question would unlock a concrete durable improvement.
@@ -65,6 +73,12 @@ WorkspaceAction is one of:
 {"op":"upsert","component":{"id":"stable-kebab-id","type":"timer","title":"..."}}
 {"op":"upsert","component":{"id":"stable-kebab-id","type":"countdown","title":"...","durationSeconds":number}}
 {"op":"remove","componentId":"stable-kebab-id"}
+
+OccurrenceAction is one of the validated day-only actions supplied in context: move_within_day, move_to_date, set_duration, set_activity, set_variant, set_status for planned/skipped/removed, or add_occurrence. Use an explicit unique idempotencyKey. Do not mark an occurrence complete; completion belongs to the person's activity controls.
+
+ScheduleProposal has this shape:
+{"baseRevision":number,"effectiveDate":"YYYY-MM-DD","summary":string,"impact":{"todayChanges":number,"futurePatternChanges":number},"actions":ScheduleProposalAction[]}
+ScheduleProposalAction may create_activity, create_variant, update_variant, archive_variant, add_occurrence, create_pattern, replace_pattern, or archive_pattern using the validated fields in the app contract. A proposed pattern contains name, position, anchorDate, initialStepPosition, effectiveDate, endDate, cadence, advancement, and ordered steps. Steps reference owned activityId and optional activityVariantId, with durationMinutes and displayLabelOverride. To reference an activity or variant created in the same proposal, use "proposal:<its clientKey>"; the server resolves it. Use add_occurrence inside the proposal only when the confirmed change should explicitly include a date such as today. Never invent an existing ID.
 
 Every data-backed workspace component must have a matching upserted or existing record with the same recordKey. Durable information belongs in records; workspace components describe what should be visible. Preserve stable keys and update existing records rather than duplicating them. A newly learned product or device may add one new product card, but it must update—not duplicate—shared protocol, adherence, and resources records. Never invent products, steps, goals, measurements, history, prior performance, completion, URLs, or personal preferences. Do not emit a record or component merely to reserve space for information that has not been learned yet.
 
@@ -128,7 +142,7 @@ async function ensureHermesSession(key, leased) {
     body: JSON.stringify({
       id: sessionId,
       source: "api_server",
-      title: `Ideal Day · ${leased.context.activity?.title || "Activity"} · ${leased.job.kind} · ${sessionId.slice(-8)}`,
+      title: `Ideal Day · ${leased.context.activity?.title || (leased.context.scope === "global" ? "Luna" : "Activity")} · ${leased.job.kind} · ${sessionId.slice(-8)}`,
     }),
   });
   if (!created.ok && created.status !== 409) {
@@ -157,13 +171,32 @@ function compactRecords(records) {
 }
 
 function eventPrompt(job) {
+  if (job.context.scope === "global" || job.job.kind === "global_message") {
+    return `The user has spoken to Luna about their day or schedule. Respond naturally and compile only safe, typed scheduling work. Recurring changes require a proposal and confirmation. If one essential choice is missing, ask exactly one useful clarification instead. A clear reversible change to one known occurrence may be emitted as an occurrence action. Never mutate the routine merely because you notice an optimization.
+
+Local date: ${job.context.localDate}
+Timezone: ${job.context.timeZone}
+Routine revision: ${job.context.routine?.revision}
+Settings: ${JSON.stringify(job.context.settings || {})}
+Owned activities: ${JSON.stringify(job.context.activities || [])}
+Owned variants: ${JSON.stringify(job.context.variants || [])}
+Current schedule patterns: ${JSON.stringify(job.context.patterns || [])}
+Today's occurrences: ${JSON.stringify(job.context.today || [])}
+Source activity, when this request began inside one: ${JSON.stringify(job.context.sourceActivity || null)}
+Pending proposals: ${JSON.stringify(job.context.pendingProposals || [])}
+Recent global conversation:
+${compactConversation(job.context.recentMessages)}
+
+Latest user message:
+${job.context.sourceMessage?.body || ""}`;
+  }
   const activity = job.context.activity || {};
   const schedule = job.context.schedule;
   const activityContext = job.context.activityContext;
   const knownContext = activityContext
     ? `\nKnown steps: ${activityContext.steps?.join("; ") || "None documented"}\nKnown facts: ${activityContext.facts?.map((fact) => `${fact.label}: ${fact.value}`).join("; ") || "None documented"}\nOpen consideration: ${activityContext.openLoop || "None"}`
     : "\nNo additional visit-specific context was supplied.";
-  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records:\n${compactRecords(job.context.records)}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace:\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
+  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
   if (job.job.kind === "user_message") {
     return `The user has just spoken in this activity conversation. Respond first and quickly: answer what you can naturally, then decide whether the lasting activity space needs a follow-up. Return recordActions:[] and workspaceActions:[] in this pass. Do not use web research yet. If the user asks for research or verification, acknowledge that you will look into it, do not claim findings yet, and set workspaceFollowup:true. Also set workspaceFollowup:true when useful durable information or a requested design should be organized after your reply.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
   }
@@ -184,10 +217,22 @@ function parseAgentResult(content) {
   const workspaceFollowup = parsed.workspaceFollowup === true;
   const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
   const workspaceActions = Array.isArray(parsed.workspaceActions) ? parsed.workspaceActions : [];
-  return { message, workspaceFollowup, recordActions, workspaceActions };
+  const followUpQuestion = parsed.followUpQuestion && typeof parsed.followUpQuestion === "object"
+    && typeof parsed.followUpQuestion.body === "string" && parsed.followUpQuestion.body.trim()
+    ? { body: parsed.followUpQuestion.body.trim() }
+    : null;
+  const scheduleProposal = parsed.scheduleProposal && typeof parsed.scheduleProposal === "object" ? parsed.scheduleProposal : null;
+  const occurrenceActions = Array.isArray(parsed.occurrenceActions) ? parsed.occurrenceActions : [];
+  return { message, workspaceFollowup, recordActions, workspaceActions, followUpQuestion, scheduleProposal, occurrenceActions };
 }
 
 function visibleProgress(leased) {
+  if (leased.job.kind === "global_message") {
+    return {
+      title: "Luna is working on your day",
+      detail: "Reviewing the request against your current activities and schedule.",
+    };
+  }
   const activityTitle = leased.context.activity?.title || "this activity";
   if (leased.job.kind === "activity_setup") {
     return {
@@ -237,6 +282,9 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       workspaceFollowup: agentResult.workspaceFollowup,
       recordActions: replyFirst ? [] : agentResult.recordActions,
       workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
+      followUpQuestion: agentResult.followUpQuestion,
+      scheduleProposal: agentResult.scheduleProposal,
+      occurrenceActions: agentResult.occurrenceActions,
     }),
   });
 }

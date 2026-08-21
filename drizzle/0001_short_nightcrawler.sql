@@ -27,6 +27,8 @@ CREATE TABLE `agent_jobs` (
 	`leased_at` text,
 	`lease_expires_at` text,
 	`error` text,
+	`progress_title` text,
+	`progress_detail` text,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,

@@ -19,6 +19,36 @@ function validDate(value: unknown) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
+function messageHasScheduleIntent(value: string) {
+  return /\b(?:schedule|reschedule|recurr|every\s+(?:other|day|week)|weekdays?|monday|tuesday|wednesday|thursday|friday|saturday|sunday|alternate|rotate|rotation|move\s+(?:this|it|all|every)|next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|future\s+(?:session|occurrence|day))\b/i.test(value);
+}
+
+async function occurrenceContext(userId: string, occurrenceId: unknown, date: string | null, activityId: string) {
+  const id = typeof occurrenceId === "string" ? occurrenceId.trim().slice(0, 240) : "";
+  if (!id || !date) return null;
+  return getD1().prepare(`
+    SELECT dpi.id AS occurrenceId, dpi.activity_variant_id AS activityVariantId,
+           dpi.variant_name_snapshot AS variantName,
+           dpi.display_label_override AS displayLabel, dpi.duration,
+           dpi.schedule_pattern_id AS schedulePatternId,
+           dpi.schedule_pattern_step_id AS schedulePatternStepId,
+           dp.plan_date AS planDate
+    FROM daily_plan_items dpi
+    JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+    WHERE dpi.id = ? AND dpi.activity_id = ? AND dp.user_id = ? AND dp.plan_date = ?
+    LIMIT 1
+  `).bind(id, activityId, userId, date).first<{
+    occurrenceId: string;
+    activityVariantId: string | null;
+    variantName: string | null;
+    displayLabel: string | null;
+    duration: number;
+    schedulePatternId: string | null;
+    schedulePatternStepId: string | null;
+    planDate: string;
+  }>();
+}
+
 function safeActivityContext(value: unknown) {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, unknown>;
@@ -42,14 +72,16 @@ export async function GET(request: Request) {
   if (!userId) return Response.json({ error: "Sign in to load this conversation." }, { status: 401 });
   const clientKey = clientActivityKey(request);
   const date = validDate(new URL(request.url).searchParams.get("date"));
+  const occurrenceId = new URL(request.url).searchParams.get("occurrenceId");
   if (!clientKey) return Response.json({ error: "An activity is required." }, { status: 400 });
 
   try {
     await ensureAgentSchema();
     const activity = await findActivity(userId, clientKey);
     if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
+    const occurrence = await occurrenceContext(userId, occurrenceId, date, activity.id);
     const conversationId = await ensureConversation(userId, activity);
-    return Response.json({ conversationId, ...await readConversationState(conversationId, date) });
+    return Response.json({ conversationId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) });
   } catch (error) {
     return apiFailure(error);
   }
@@ -69,10 +101,12 @@ export async function POST(request: Request) {
     if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
     const conversationId = await ensureConversation(userId, activity);
     const db = getD1();
+    const requestDate = validDate(payload.date);
+    const occurrence = await occurrenceContext(userId, payload.occurrenceId, requestDate, activity.id);
 
     if (mode === "open") {
       const clientVisitId = typeof payload.visitId === "string" ? payload.visitId.trim().slice(0, 160) : "";
-      const date = validDate(payload.date);
+      const date = requestDate;
       const activityContext = safeActivityContext(payload.activityContext);
       if (!clientVisitId || !date) return Response.json({ error: "A visit ID and local date are required." }, { status: 400 });
       const visitId = `visit:${safeId(userId)}:${safeId(clientVisitId)}`;
@@ -80,19 +114,20 @@ export async function POST(request: Request) {
         INSERT OR IGNORE INTO activity_visits
           (id, user_id, activity_id, conversation_id, client_visit_id, context_json)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).bind(visitId, userId, activity.id, conversationId, clientVisitId, activityContext ? JSON.stringify(activityContext) : null).run();
+      `).bind(visitId, userId, activity.id, conversationId, clientVisitId, JSON.stringify({ occurrence, activityContext })).run();
       await queueActivitySetup(userId, activity);
-      return Response.json({ conversationId, visitId, ...await readConversationState(conversationId, date) }, { status: 202 });
+      return Response.json({ conversationId, visitId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) }, { status: 202 });
     }
 
     if (mode === "message") {
       const body = typeof payload.body === "string" ? payload.body.trim().slice(0, 4000) : "";
       const clientMessageId = typeof payload.messageId === "string" ? payload.messageId.trim().slice(0, 160) : "";
-      const date = validDate(payload.date);
+      const date = requestDate;
       if (!body || !clientMessageId) return Response.json({ error: "A message and message ID are required." }, { status: 400 });
       const messageId = `message:${safeId(userId)}:${safeId(clientMessageId)}`;
       const idempotencyKey = `user-message:${messageId}`;
       const jobId = `agent-job:${safeId(userId)}:message:${safeId(clientMessageId)}`;
+      const scheduleIntent = messageHasScheduleIntent(body);
       await db.batch([
         db.prepare(`
           INSERT OR IGNORE INTO conversation_messages
@@ -101,11 +136,11 @@ export async function POST(request: Request) {
         `).bind(messageId, conversationId, body),
         db.prepare(`
           INSERT OR IGNORE INTO agent_jobs
-            (id, user_id, activity_id, conversation_id, kind, idempotency_key, source_message_id)
-          VALUES (?, ?, ?, ?, 'user_message', ?, ?)
-        `).bind(jobId, userId, activity.id, conversationId, idempotencyKey, messageId),
+            (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key, source_message_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(jobId, userId, scheduleIntent ? "global" : "activity", activity.id, conversationId, scheduleIntent ? "global_message" : "user_message", idempotencyKey, messageId),
       ]);
-      return Response.json({ conversationId, ...await readConversationState(conversationId, date) }, { status: 202 });
+      return Response.json({ conversationId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) }, { status: 202 });
     }
 
     return Response.json({ error: "Unsupported activity operation." }, { status: 400 });

@@ -1,0 +1,166 @@
+import { getD1 } from "../../../db";
+import { addLocalDays, isLocalDate, parseAdvancement, parseCadence } from "../../schedule-model";
+import { apiFailure, ensureAgentSchema, queueActivitySetup, requestIdentity, safeId } from "../agent-store";
+import { applyOccurrenceAction } from "../schedule-actions";
+import { resolveDay } from "../schedule-store";
+
+const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
+
+function text(value: unknown, maximum: number) {
+  return typeof value === "string" ? value.trim().slice(0, maximum) : "";
+}
+
+function duration(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(480, Math.max(5, Math.round(value))) : null;
+}
+
+async function routineFor(userId: string) {
+  return getD1().prepare(`
+    SELECT id, schedule_revision AS revision, start_minutes AS startMinutes
+    FROM routine_templates WHERE user_id = ? ORDER BY created_at LIMIT 1
+  `).bind(userId).first<{ id: string; revision: number; startMinutes: number }>();
+}
+
+export async function GET(request: Request) {
+  const userId = requestIdentity(request);
+  if (!userId) return Response.json({ error: "Sign in to load activities." }, { status: 401 });
+  try {
+    const db = getD1();
+    const activities = await db.prepare(`
+      SELECT id, client_key AS clientKey, title, category, icon, color
+      FROM activities WHERE user_id = ? ORDER BY title
+    `).bind(userId).all();
+    const variants = await db.prepare(`
+      SELECT id, activity_id AS activityId, client_key AS clientKey, name,
+             description, default_duration_minutes AS defaultDurationMinutes, position
+      FROM activity_variants
+      WHERE user_id = ? AND archived_at IS NULL
+      ORDER BY activity_id, position
+    `).bind(userId).all();
+    return Response.json({ activities: activities.results, variants: variants.results });
+  } catch (error) {
+    return apiFailure(error);
+  }
+}
+
+export async function POST(request: Request) {
+  const userId = requestIdentity(request);
+  if (!userId) return Response.json({ error: "Sign in to change activities." }, { status: 401 });
+  try {
+    const payload = await request.json() as Record<string, unknown>;
+    const mode = text(payload.mode, 40) || "create";
+    const db = getD1();
+    const routine = await routineFor(userId);
+    if (!routine) return Response.json({ error: "Your routine is not ready yet." }, { status: 409 });
+
+    if (mode === "update") {
+      const clientKey = text(payload.activityId, 160);
+      const title = text(payload.title, 60);
+      const category = text(payload.category, 40);
+      if (!clientKey || !title || !CATEGORIES.has(category)) return Response.json({ error: "A valid name and category are required." }, { status: 400 });
+      const result = await db.prepare(`
+        UPDATE activities
+        SET title = ?, category = ?, color = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND client_key = ?
+      `).bind(title, category, text(payload.color, 20), userId, clientKey).run();
+      if (!result.meta.changes) return Response.json({ error: "Activity not found." }, { status: 404 });
+      return Response.json({ updated: true });
+    }
+
+    if (mode === "create-variant" || mode === "update-variant" || mode === "archive-variant") {
+      const activityId = text(payload.activityId, 200);
+      const activity = await db.prepare(`SELECT id FROM activities WHERE user_id = ? AND (id = ? OR client_key = ?) LIMIT 1`)
+        .bind(userId, activityId, activityId).first<{ id: string }>();
+      if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
+      if (mode === "archive-variant") {
+        const variantId = text(payload.variantId, 200);
+        await db.prepare(`UPDATE activity_variants SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND activity_id = ?`)
+          .bind(variantId, userId, activity.id).run();
+        return Response.json({ archived: true });
+      }
+      const name = text(payload.name, 60);
+      const description = text(payload.description, 240) || null;
+      const defaultDuration = payload.defaultDurationMinutes === null || payload.defaultDurationMinutes === undefined ? null : duration(payload.defaultDurationMinutes);
+      if (!name || payload.defaultDurationMinutes !== null && payload.defaultDurationMinutes !== undefined && defaultDuration === null) {
+        return Response.json({ error: "A valid variant name is required." }, { status: 400 });
+      }
+      if (mode === "update-variant") {
+        const variantId = text(payload.variantId, 200);
+        const result = await db.prepare(`
+          UPDATE activity_variants
+          SET name = ?, description = ?, default_duration_minutes = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND user_id = ? AND activity_id = ?
+        `).bind(name, description, defaultDuration, variantId, userId, activity.id).run();
+        if (!result.meta.changes) return Response.json({ error: "Variant not found." }, { status: 404 });
+        return Response.json({ updated: true, variantId });
+      }
+      const count = await db.prepare(`SELECT COUNT(*) AS count FROM activity_variants WHERE activity_id = ?`).bind(activity.id).first<{ count: number }>();
+      const clientKey = text(payload.clientKey, 160) || `variant-${crypto.randomUUID()}`;
+      const variantId = `variant:${safeId(userId)}:${safeId(activity.id)}:${safeId(clientKey)}`;
+      await db.prepare(`
+        INSERT INTO activity_variants
+          (id, user_id, activity_id, client_key, name, description, default_duration_minutes, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(variantId, userId, activity.id, clientKey, name, description, defaultDuration, count?.count ?? 0).run();
+      return Response.json({ created: true, variantId });
+    }
+
+    const title = text(payload.title, 60);
+    const category = text(payload.category, 40);
+    const activityDuration = duration(payload.duration);
+    const date = isLocalDate(payload.date) ? payload.date : null;
+    if (!title || !CATEGORIES.has(category) || activityDuration === null) return Response.json({ error: "A valid name, category, and duration are required." }, { status: 400 });
+    const clientKey = text(payload.clientKey, 160) || `custom-${crypto.randomUUID()}`;
+    const activityId = `activity:${safeId(userId)}:${safeId(clientKey)}`;
+    const icon = text(payload.icon, 8) || "✦";
+    const color = /^#[0-9a-f]{6}$/i.test(text(payload.color, 20)) ? text(payload.color, 20) : "#a8c96d";
+    const schedule = payload.schedule && typeof payload.schedule === "object" ? payload.schedule as Record<string, unknown> : { kind: "daily" };
+    const includeToday = payload.includeToday !== false;
+    const cadence = schedule.kind === "none" ? null : parseCadence(schedule.kind === "daily" ? { kind: "daily" } : schedule);
+    const advancement = schedule.kind === "none" ? null : parseAdvancement(payload.advancement ?? { kind: "calendar" });
+    const requestedEffectiveDate = isLocalDate(payload.effectiveDate) ? payload.effectiveDate : date;
+    const effectiveDate = requestedEffectiveDate && !includeToday && requestedEffectiveDate === date ? addLocalDays(requestedEffectiveDate, 1) : requestedEffectiveDate;
+    if (schedule.kind !== "none" && (!cadence || !advancement || !effectiveDate)) {
+      return Response.json({ error: "That schedule is not valid." }, { status: 400 });
+    }
+    await db.prepare(`
+      INSERT INTO activities (id, user_id, client_key, title, category, icon, color)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(activityId, userId, clientKey, title, category, icon, color).run();
+
+    if (schedule.kind !== "none") {
+      const positionRow = await db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS position FROM schedule_patterns WHERE routine_id = ? AND archived_at IS NULL`)
+        .bind(routine.id).first<{ position: number }>();
+      const patternId = `schedule-pattern:${safeId(userId)}:${safeId(clientKey)}`;
+      const stepId = `schedule-step:${safeId(userId)}:${safeId(clientKey)}:0`;
+      await db.batch([
+        db.prepare(`
+          INSERT INTO schedule_patterns
+            (id, user_id, routine_id, client_key, name, position, cadence_json,
+             advancement_json, anchor_date, initial_step_position, effective_date, revision)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1)
+        `).bind(patternId, userId, routine.id, clientKey, title, positionRow?.position ?? 0, JSON.stringify(cadence), JSON.stringify(advancement), effectiveDate, effectiveDate),
+        db.prepare(`
+          INSERT INTO schedule_pattern_steps
+            (id, pattern_id, activity_id, position, duration_minutes)
+          VALUES (?, ?, ?, 0, ?)
+        `).bind(stepId, patternId, activityId, activityDuration),
+        db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id),
+      ]);
+      if (date && includeToday) await resolveDay(userId, date, routine.id, `plan:${safeId(userId)}:${date}`, routine.startMinutes);
+    } else if (includeToday && date) {
+      await applyOccurrenceAction(userId, {
+        type: "add_occurrence",
+        activityId,
+        date,
+        durationMinutes: activityDuration,
+        idempotencyKey: `create-activity:${clientKey}:${date}`,
+      }, { source: "user", actor: userId });
+    }
+    await ensureAgentSchema();
+    await queueActivitySetup(userId, { id: activityId, clientKey, title, category, icon, color });
+    return Response.json({ created: true, activity: { id: activityId, clientKey, title, category, icon, color } });
+  } catch (error) {
+    return apiFailure(error);
+  }
+}

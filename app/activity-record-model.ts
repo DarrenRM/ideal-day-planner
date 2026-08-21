@@ -24,7 +24,7 @@ export type ActivityRecord = {
   key: string;
   type: ActivityRecordType;
   title: string;
-  scope: "activity" | "day";
+  scope: "activity" | "day" | "variant";
   scopeDate: string | null;
   version: number;
   data: Record<string, unknown>;
@@ -38,7 +38,7 @@ export type RecordAction =
         key: string;
         type: ActivityRecordType;
         title: string;
-        scope?: "activity" | "day";
+        scope?: "activity" | "day" | "variant";
         scopeDate?: string | null;
         data: Record<string, unknown>;
       };
@@ -359,7 +359,7 @@ export function validateRecordActions(value: unknown, planDate?: string | null):
     if (!key || !type || !title) return [];
     const data = validateData(type, record.data);
     if (!data) return [];
-    const scope = record.scope === "day" ? "day" as const : "activity" as const;
+    const scope = record.scope === "day" ? "day" as const : record.scope === "variant" ? "variant" as const : "activity" as const;
     const requestedDate = boundedString(record.scopeDate, 10);
     const scopeDate = scope === "day" && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || planDate || "") ? (requestedDate || planDate || null) : null;
     if (scope === "day" && !scopeDate) return [];
@@ -380,7 +380,7 @@ export function parseActivityRecord(row: {
       key: row.recordKey,
       type: row.recordType as ActivityRecordType,
       title: row.title,
-      scope: row.scope === "day" ? "day" : "activity",
+      scope: row.scope === "day" ? "day" : row.scope === "variant" ? "variant" : "activity",
       scopeDate: row.scopeDate,
       version: row.version,
       data,

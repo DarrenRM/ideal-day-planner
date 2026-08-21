@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `time_zone` text DEFAULT 'America/Phoenix' NOT NULL;

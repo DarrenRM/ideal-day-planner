@@ -1,0 +1,3 @@
+DROP INDEX `activity_records_user_activity_key_unique`;--> statement-breakpoint
+CREATE UNIQUE INDEX `activity_records_user_activity_base_key_unique` ON `activity_records` (`user_id`,`activity_id`,`record_key`) WHERE "activity_records"."activity_variant_id" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `activity_records_user_activity_variant_key_unique` ON `activity_records` (`user_id`,`activity_id`,`activity_variant_id`,`record_key`) WHERE "activity_records"."activity_variant_id" IS NOT NULL;

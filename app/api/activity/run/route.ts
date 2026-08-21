@@ -1,4 +1,5 @@
 import { getD1 } from "../../../../db";
+import { parseAdvancement } from "../../../schedule-model";
 import { apiFailure, ensureAgentSchema, findActivity, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
 
 function validDate(value: unknown) {
@@ -11,6 +12,67 @@ function boundedSeconds(value: unknown, allowZero = false) {
   return rounded >= (allowZero ? 0 : 1) && rounded <= 24 * 60 * 60 ? rounded : null;
 }
 
+type DayItem = {
+  id: string;
+  activityId: string;
+  clientKey: string;
+  activityVariantId: string | null;
+  schedulePatternId: string | null;
+  completedAt: string | null;
+  skippedAt: string | null;
+  duration: number;
+  dayTimelineEnabled: number;
+};
+
+async function completionAdvancementStatements(userId: string, item: DayItem, outcome: "completed" | "skipped") {
+  if (!item.schedulePatternId) return [];
+  const db = getD1();
+  const pattern = await db.prepare(`
+    SELECT advancement_json AS advancementJson,
+           initial_step_position AS initialStepPosition,
+           (SELECT COUNT(*) FROM schedule_pattern_steps WHERE pattern_id = schedule_patterns.id) AS stepCount
+    FROM schedule_patterns
+    WHERE id = ? AND user_id = ? AND archived_at IS NULL
+  `).bind(item.schedulePatternId, userId).first<{ advancementJson: string; initialStepPosition: number; stepCount: number }>();
+  if (!pattern || pattern.stepCount < 1) return [];
+  let advancement = null;
+  try {
+    advancement = parseAdvancement(JSON.parse(pattern.advancementJson));
+  } catch {
+    return [];
+  }
+  if (advancement?.kind !== "completion" || outcome === "skipped" && !advancement.advanceOnSkip) return [];
+  return [
+    db.prepare(`
+      INSERT OR IGNORE INTO schedule_pattern_state
+        (pattern_id, current_step_position, revision)
+      VALUES (?, ?, 1)
+    `).bind(item.schedulePatternId, pattern.initialStepPosition),
+    db.prepare(`
+      UPDATE schedule_pattern_state
+      SET current_step_position = (current_step_position + 1) % ?,
+          last_advanced_daily_plan_item_id = ?, revision = revision + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE pattern_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM schedule_action_events
+          WHERE user_id = ? AND idempotency_key = ?
+        )
+    `).bind(pattern.stepCount, item.id, item.schedulePatternId, userId, `pattern-advance:${item.id}`),
+    db.prepare(`
+      INSERT OR IGNORE INTO schedule_action_events
+        (id, user_id, action_type, action_json, source, actor, idempotency_key)
+      VALUES (?, ?, 'advance_pattern', ?, 'user', ?, ?)
+    `).bind(
+      `schedule-event:${safeId(userId)}:pattern-advance:${safeId(item.id)}`,
+      userId,
+      JSON.stringify({ patternId: item.schedulePatternId, occurrenceId: item.id, outcome }),
+      userId,
+      `pattern-advance:${item.id}`,
+    ),
+  ];
+}
+
 export async function POST(request: Request) {
   const userId = requestIdentity(request);
   if (!userId) return Response.json({ error: "Sign in to record this activity." }, { status: 401 });
@@ -19,65 +81,73 @@ export async function POST(request: Request) {
     const payload = await request.json() as Record<string, unknown>;
     const mode = payload.mode;
     const clientKey = typeof payload.activityId === "string" ? payload.activityId.trim().slice(0, 160) : "";
+    const occurrenceId = typeof payload.occurrenceId === "string" ? payload.occurrenceId.trim().slice(0, 240) : "";
     const date = validDate(payload.date);
-    if (!clientKey || !date) return Response.json({ error: "An activity and local date are required." }, { status: 400 });
+    if ((!clientKey && !occurrenceId) || !date) return Response.json({ error: "An occurrence and local date are required." }, { status: 400 });
 
     await ensureAgentSchema();
-    const activity = await findActivity(userId, clientKey);
-    if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
     const db = getD1();
-    const dayItem = await db.prepare(`
-      SELECT dpi.id, dpi.duration, COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled
+    const item = await db.prepare(`
+      SELECT dpi.id, dpi.activity_id AS activityId, dpi.client_key AS clientKey,
+             dpi.activity_variant_id AS activityVariantId,
+             dpi.schedule_pattern_id AS schedulePatternId,
+             dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt,
+             dpi.duration, COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled
       FROM daily_plan_items dpi
       JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
       LEFT JOIN settings s ON s.user_id = dp.user_id
-      WHERE dp.user_id = ? AND dp.plan_date = ? AND dpi.activity_id = ? AND dpi.removed_at IS NULL
+      WHERE dp.user_id = ? AND dp.plan_date = ?
+        AND (${occurrenceId ? "dpi.id = ?" : "dpi.client_key = ?"})
+        AND dpi.removed_at IS NULL
       LIMIT 1
-    `).bind(userId, date, activity.id).first<{ id: string; duration: number; dayTimelineEnabled: number }>();
-    if (!dayItem) return Response.json({ error: "This activity is not scheduled for that day." }, { status: 404 });
+    `).bind(userId, date, occurrenceId || clientKey).first<DayItem>();
+    if (!item) return Response.json({ error: "This occurrence is not scheduled for that day." }, { status: 404 });
+    const dayItem = item;
+    const activity = await findActivity(userId, item.clientKey);
+    if (!activity || activity.id !== item.activityId) return Response.json({ error: "Activity not found." }, { status: 404 });
+    const runId = `activity-run:${safeId(userId)}:${safeId(item.id)}`;
 
-    const runId = `activity-run:${safeId(userId)}:${safeId(activity.clientKey)}:${date}`;
     if (mode === "skip" || mode === "unskip") {
       const skipped = mode === "skip";
-      await db.batch([
+      const statements = [
         db.prepare(`
           UPDATE daily_plan_items
-          SET skipped_at = ${skipped ? "CURRENT_TIMESTAMP" : "NULL"}, completed_at = NULL, updated_at = CURRENT_TIMESTAMP
+          SET skipped_at = ${skipped ? "CURRENT_TIMESTAMP" : "NULL"}, completed_at = NULL,
+              revision = revision + 1, updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `).bind(dayItem.id),
+        `).bind(item.id),
         db.prepare(`
           INSERT INTO activity_runs
-            (id, user_id, activity_id, daily_plan_item_id, plan_date, status,
-             allotted_duration_seconds, planned_duration_seconds)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(user_id, activity_id, plan_date) DO UPDATE SET
-            daily_plan_item_id = excluded.daily_plan_item_id,
-            status = excluded.status,
-            actual_elapsed_seconds = NULL,
-            timer_mode = NULL,
-            timer_component_id = NULL,
-            started_at = NULL,
-            completed_at = NULL,
-            details_json = NULL,
+            (id, user_id, activity_id, activity_variant_id, daily_plan_item_id, plan_date,
+             status, allotted_duration_seconds, planned_duration_seconds)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(daily_plan_item_id) WHERE daily_plan_item_id IS NOT NULL DO UPDATE SET
+            activity_variant_id = excluded.activity_variant_id, status = excluded.status,
+            actual_elapsed_seconds = NULL, timer_mode = NULL, timer_component_id = NULL,
+            started_at = NULL, completed_at = NULL, details_json = NULL,
             updated_at = CURRENT_TIMESTAMP
         `).bind(
-          runId, userId, activity.id, dayItem.id, date, skipped ? "skipped" : "planned",
-          dayItem.dayTimelineEnabled ? dayItem.duration * 60 : null,
-          dayItem.dayTimelineEnabled ? dayItem.duration * 60 : null,
+          runId, userId, activity.id, item.activityVariantId, item.id, date,
+          skipped ? "skipped" : "planned",
+          item.dayTimelineEnabled ? item.duration * 60 : null,
+          item.dayTimelineEnabled ? item.duration * 60 : null,
         ),
-      ]);
+      ];
+      if (skipped && !item.skippedAt) statements.push(...await completionAdvancementStatements(userId, item, "skipped"));
+      await db.batch(statements);
       return Response.json({ skipped, skippedAt: skipped ? new Date().toISOString() : null, runId });
     }
 
     if (mode === "reopen") {
       await db.batch([
-        db.prepare("UPDATE daily_plan_items SET completed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(dayItem.id),
+        db.prepare("UPDATE daily_plan_items SET completed_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(item.id),
         db.prepare("UPDATE activity_runs SET status = 'reopened', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").bind(runId, userId),
       ]);
       return Response.json({ completed: false, runId });
     }
 
     if (mode !== "complete") return Response.json({ error: "Unsupported run operation." }, { status: 400 });
+    if (item.completedAt) return Response.json({ completed: true, completedAt: item.completedAt, run: { id: runId }, idempotent: true });
 
     const timing = payload.timing && typeof payload.timing === "object" ? payload.timing as Record<string, unknown> : null;
     const allottedDurationSeconds = dayItem.dayTimelineEnabled ? dayItem.duration * 60 : null;
@@ -86,7 +156,7 @@ export async function POST(request: Request) {
     const timerMode = timing?.mode === "timer" || timing?.mode === "countdown" ? timing.mode : null;
     const timerComponentId = typeof timing?.componentId === "string" ? timing.componentId.trim().slice(0, 64) : null;
     const startedAt = typeof timing?.startedAt === "string" && !Number.isNaN(Date.parse(timing.startedAt)) ? timing.startedAt : null;
-    const recordVersions = (await readActivityRecords(activity.id, date)).map((record) => ({
+    const recordVersions = (await readActivityRecords(activity.id, date, item.activityVariantId)).map((record) => ({
       key: record.key,
       type: record.type,
       version: record.version,
@@ -95,44 +165,41 @@ export async function POST(request: Request) {
       ...(timerMode ? { timingSource: "workspace", timerMode, timerComponentId } : {}),
       recordVersions,
     });
-
-    await db.batch([
-      db.prepare("UPDATE daily_plan_items SET completed_at = CURRENT_TIMESTAMP, skipped_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(dayItem.id),
+    const statements = [
+      db.prepare(`
+        UPDATE daily_plan_items
+        SET completed_at = CURRENT_TIMESTAMP, skipped_at = NULL,
+            revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND completed_at IS NULL
+      `).bind(item.id),
       db.prepare(`
         INSERT INTO activity_runs
-          (id, user_id, activity_id, daily_plan_item_id, plan_date, status,
-           allotted_duration_seconds, planned_duration_seconds, actual_elapsed_seconds,
-           timer_mode, timer_component_id, started_at, completed_at, details_json)
-        VALUES (?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-        ON CONFLICT(user_id, activity_id, plan_date) DO UPDATE SET
-          daily_plan_item_id = excluded.daily_plan_item_id,
-          status = 'completed',
+          (id, user_id, activity_id, activity_variant_id, daily_plan_item_id, plan_date,
+           status, allotted_duration_seconds, planned_duration_seconds,
+           actual_elapsed_seconds, timer_mode, timer_component_id, started_at,
+           completed_at, details_json)
+        VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+        ON CONFLICT(daily_plan_item_id) WHERE daily_plan_item_id IS NOT NULL DO UPDATE SET
+          activity_variant_id = excluded.activity_variant_id, status = 'completed',
           allotted_duration_seconds = excluded.allotted_duration_seconds,
           planned_duration_seconds = excluded.planned_duration_seconds,
           actual_elapsed_seconds = excluded.actual_elapsed_seconds,
-          timer_mode = excluded.timer_mode,
-          timer_component_id = excluded.timer_component_id,
-          started_at = excluded.started_at,
-          completed_at = CURRENT_TIMESTAMP,
-          details_json = excluded.details_json,
-          updated_at = CURRENT_TIMESTAMP
+          timer_mode = excluded.timer_mode, timer_component_id = excluded.timer_component_id,
+          started_at = excluded.started_at, completed_at = CURRENT_TIMESTAMP,
+          details_json = excluded.details_json, updated_at = CURRENT_TIMESTAMP
       `).bind(
-        runId, userId, activity.id, dayItem.id, date,
+        runId, userId, activity.id, item.activityVariantId, item.id, date,
         allottedDurationSeconds, plannedDurationSeconds, actualElapsedSeconds,
         timerMode, timerComponentId, startedAt, detailsJson,
       ),
-    ]);
+      ...await completionAdvancementStatements(userId, item, "completed"),
+    ];
+    await db.batch(statements);
 
     return Response.json({
       completed: true,
       completedAt: new Date().toISOString(),
-      run: {
-        id: runId,
-        allottedDurationSeconds,
-        plannedDurationSeconds,
-        actualElapsedSeconds,
-        timerMode,
-      },
+      run: { id: runId, allottedDurationSeconds, plannedDurationSeconds, actualElapsedSeconds, timerMode },
     });
   } catch (error) {
     return apiFailure(error);

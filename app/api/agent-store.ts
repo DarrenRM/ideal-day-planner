@@ -37,13 +37,13 @@ export async function ensureAgentSchema() {
       db.prepare(`CREATE TABLE IF NOT EXISTS conversations (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
-        activity_id text NOT NULL,
+        scope_type text DEFAULT 'activity' NOT NULL,
+        activity_id text,
         created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
       )`),
-      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS conversations_user_activity_unique ON conversations (user_id, activity_id)"),
       db.prepare("CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations (user_id)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS conversation_messages (
         id text PRIMARY KEY NOT NULL,
@@ -73,7 +73,8 @@ export async function ensureAgentSchema() {
       db.prepare(`CREATE TABLE IF NOT EXISTS agent_jobs (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
-        activity_id text NOT NULL,
+        scope_type text DEFAULT 'activity' NOT NULL,
+        activity_id text,
         conversation_id text NOT NULL,
         kind text NOT NULL,
         idempotency_key text NOT NULL,
@@ -118,13 +119,14 @@ export async function ensureAgentSchema() {
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
         activity_id text NOT NULL,
+        activity_variant_id text,
         current_revision_id text,
         created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
+        FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_variant_id) REFERENCES activity_variants(id) ON DELETE CASCADE
       )`),
-      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_workspaces_user_activity_unique ON activity_workspaces (user_id, activity_id)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS activity_profiles (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
@@ -143,6 +145,7 @@ export async function ensureAgentSchema() {
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
         activity_id text NOT NULL,
+        activity_variant_id text,
         daily_plan_item_id text,
         plan_date text NOT NULL,
         status text DEFAULT 'completed' NOT NULL,
@@ -158,14 +161,16 @@ export async function ensureAgentSchema() {
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_variant_id) REFERENCES activity_variants(id) ON DELETE SET NULL,
         FOREIGN KEY (daily_plan_item_id) REFERENCES daily_plan_items(id) ON DELETE SET NULL
       )`),
-      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_runs_user_activity_date_unique ON activity_runs (user_id, activity_id, plan_date)"),
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_runs_daily_plan_item_unique ON activity_runs (daily_plan_item_id) WHERE daily_plan_item_id IS NOT NULL"),
       db.prepare("CREATE INDEX IF NOT EXISTS activity_runs_activity_date_idx ON activity_runs (activity_id, plan_date)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS activity_records (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
         activity_id text NOT NULL,
+        activity_variant_id text,
         record_key text NOT NULL,
         record_type text NOT NULL,
         title text NOT NULL,
@@ -179,9 +184,11 @@ export async function ensureAgentSchema() {
         created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE
+        FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_variant_id) REFERENCES activity_variants(id) ON DELETE CASCADE
       )`),
-      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_records_user_activity_key_unique ON activity_records (user_id, activity_id, record_key)"),
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_records_user_activity_base_key_unique ON activity_records (user_id, activity_id, record_key) WHERE activity_variant_id IS NULL"),
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_records_user_activity_variant_key_unique ON activity_records (user_id, activity_id, activity_variant_id, record_key) WHERE activity_variant_id IS NOT NULL"),
       db.prepare("CREATE INDEX IF NOT EXISTS activity_records_activity_scope_idx ON activity_records (activity_id, scope, scope_date)"),
       db.prepare("CREATE INDEX IF NOT EXISTS activity_records_activity_type_idx ON activity_records (activity_id, record_type)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS activity_record_revisions (
@@ -231,12 +238,28 @@ export async function ensureAgentSchema() {
         await db.prepare("UPDATE activity_visits SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL").run();
       }
       const jobColumns = await db.prepare("PRAGMA table_info(agent_jobs)").all<{ name: string }>();
+      if (!jobColumns.results.some((column) => column.name === "scope_type")) {
+        await db.prepare("ALTER TABLE agent_jobs ADD COLUMN scope_type text DEFAULT 'activity' NOT NULL").run();
+      }
       if (!jobColumns.results.some((column) => column.name === "progress_title")) {
         await db.prepare("ALTER TABLE agent_jobs ADD COLUMN progress_title text").run();
       }
       if (!jobColumns.results.some((column) => column.name === "progress_detail")) {
         await db.prepare("ALTER TABLE agent_jobs ADD COLUMN progress_detail text").run();
       }
+      const conversationColumns = await db.prepare("PRAGMA table_info(conversations)").all<{ name: string }>();
+      if (!conversationColumns.results.some((column) => column.name === "scope_type")) {
+        await db.prepare("ALTER TABLE conversations ADD COLUMN scope_type text DEFAULT 'activity' NOT NULL").run();
+      }
+      await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS conversations_user_activity_unique ON conversations (user_id, activity_id) WHERE scope_type = 'activity'").run();
+      await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS conversations_user_global_unique ON conversations (user_id) WHERE scope_type = 'global'").run();
+      const workspaceColumns = await db.prepare("PRAGMA table_info(activity_workspaces)").all<{ name: string }>();
+      if (!workspaceColumns.results.some((column) => column.name === "activity_variant_id")) {
+        await db.prepare("ALTER TABLE activity_workspaces ADD COLUMN activity_variant_id text REFERENCES activity_variants(id)").run();
+      }
+      await db.prepare("DROP INDEX IF EXISTS activity_workspaces_user_activity_unique").run();
+      await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_workspaces_user_activity_base_unique ON activity_workspaces (user_id, activity_id) WHERE activity_variant_id IS NULL").run();
+      await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_workspaces_user_activity_variant_unique ON activity_workspaces (user_id, activity_id, activity_variant_id) WHERE activity_variant_id IS NOT NULL").run();
     }).catch((error) => {
       schemaPromise = null;
       throw error;
@@ -261,6 +284,42 @@ export async function ensureConversation(userId: string, activity: ActivityRecor
     VALUES (?, ?, ?)
   `).bind(conversationId, userId, activity.id).run();
   return conversationId;
+}
+
+export async function ensureGlobalConversation(userId: string) {
+  const db = getD1();
+  const conversationId = `conversation:${safeId(userId)}:global`;
+  await db.prepare(`
+    INSERT OR IGNORE INTO conversations (id, user_id, scope_type, activity_id)
+    VALUES (?, ?, 'global', NULL)
+  `).bind(conversationId, userId).run();
+  return conversationId;
+}
+
+export async function readGlobalConversationState(conversationId: string, userId: string) {
+  const db = getD1();
+  const activeJob = await db.prepare(`
+    SELECT status, kind, progress_title AS progressTitle, progress_detail AS progressDetail
+    FROM agent_jobs
+    WHERE conversation_id = ? AND scope_type = 'global'
+      AND status IN ('queued', 'leased', 'running', 'retryable_failure')
+    ORDER BY created_at DESC LIMIT 1
+  `).bind(conversationId).first();
+  const onlineWorker = await db.prepare(`SELECT id FROM agent_workers WHERE last_seen_at >= datetime('now', '-20 seconds') LIMIT 1`).first();
+  const proposals = await db.prepare(`
+    SELECT id, status, document_json AS documentJson, created_at AS createdAt
+    FROM schedule_proposals
+    WHERE user_id = ? AND conversation_id = ? AND status IN ('draft', 'awaiting_clarification', 'ready')
+    ORDER BY created_at DESC LIMIT 20
+  `).bind(userId, conversationId).all<{ id: string; status: string; documentJson: string; createdAt: string }>();
+  return {
+    messages: await readConversationMessages(conversationId),
+    activeJob: activeJob ?? null,
+    agentOnline: Boolean(onlineWorker),
+    proposals: proposals.results.flatMap((proposal) => {
+      try { return [{ id: proposal.id, status: proposal.status, document: JSON.parse(proposal.documentJson), createdAt: proposal.createdAt }]; } catch { return []; }
+    }),
+  };
 }
 
 export async function readConversationMessages(conversationId: string) {
@@ -371,15 +430,15 @@ export async function markActivitySetupAnswered(activityId: string) {
   `).bind(activityId).run();
 }
 
-export async function readActivityWorkspace(activityId: string) {
+async function readWorkspaceLayer(activityId: string, activityVariantId: string | null) {
   const row = await getD1().prepare(`
     SELECT aw.current_revision_id AS revisionId, wr.revision_number AS revisionNumber,
            wr.document_json AS documentJson
     FROM activity_workspaces aw
     LEFT JOIN workspace_revisions wr ON wr.id = aw.current_revision_id
-    WHERE aw.activity_id = ?
+    WHERE aw.activity_id = ? AND ${activityVariantId ? "aw.activity_variant_id = ?" : "aw.activity_variant_id IS NULL"}
     LIMIT 1
-  `).bind(activityId).first<WorkspaceRecord>();
+  `).bind(...(activityVariantId ? [activityId, activityVariantId] : [activityId])).first<WorkspaceRecord>();
   return {
     revisionId: row?.revisionId ?? null,
     revisionNumber: row?.revisionNumber ?? 0,
@@ -387,15 +446,34 @@ export async function readActivityWorkspace(activityId: string) {
   };
 }
 
+export async function readActivityWorkspace(activityId: string, activityVariantId?: string | null) {
+  const base = await readWorkspaceLayer(activityId, null);
+  if (!activityVariantId) return base;
+  const overlay = await readWorkspaceLayer(activityId, activityVariantId);
+  const components = [...base.document.components];
+  for (const component of overlay.document.components) {
+    const index = components.findIndex((candidate) => candidate.id === component.id);
+    if (index >= 0) components[index] = component;
+    else components.push(component);
+  }
+  return {
+    revisionId: overlay.revisionId ?? base.revisionId,
+    revisionNumber: Math.max(base.revisionNumber, overlay.revisionNumber),
+    document: { version: 1 as const, components: components.slice(0, 20) },
+    layers: { base, overlay },
+  };
+}
+
 export async function persistWorkspaceActions(input: {
   userId: string;
   activityId: string;
+  activityVariantId?: string | null;
   agentJobId: string;
   actions: WorkspaceAction[];
 }) {
-  if (!input.actions.length) return readActivityWorkspace(input.activityId);
+  if (!input.actions.length) return readActivityWorkspace(input.activityId, input.activityVariantId);
   const db = getD1();
-  const workspaceId = `workspace:${safeId(input.userId)}:${safeId(input.activityId)}`;
+  const workspaceId = `workspace:${safeId(input.userId)}:${safeId(input.activityId)}${input.activityVariantId ? `:variant:${safeId(input.activityVariantId)}` : ""}`;
   const revisionId = `workspace-revision:${safeId(input.agentJobId)}`;
   const existingRevision = await db.prepare(`
     SELECT revision_number AS revisionNumber, document_json AS documentJson
@@ -405,14 +483,14 @@ export async function persistWorkspaceActions(input: {
     return { revisionId, revisionNumber: existingRevision.revisionNumber, document: parseWorkspaceDocument(existingRevision.documentJson) };
   }
 
-  const current = await readActivityWorkspace(input.activityId);
+  const current = await readWorkspaceLayer(input.activityId, input.activityVariantId ?? null);
   const nextDocument = mergeWorkspaceActions(current.document, input.actions);
   const revisionNumber = current.revisionNumber + 1;
   await db.batch([
     db.prepare(`
-      INSERT OR IGNORE INTO activity_workspaces (id, user_id, activity_id)
-      VALUES (?, ?, ?)
-    `).bind(workspaceId, input.userId, input.activityId),
+      INSERT OR IGNORE INTO activity_workspaces (id, user_id, activity_id, activity_variant_id)
+      VALUES (?, ?, ?, ?)
+    `).bind(workspaceId, input.userId, input.activityId, input.activityVariantId ?? null),
     db.prepare(`
       INSERT OR IGNORE INTO workspace_revisions
         (id, workspace_id, revision_number, document_json, source_agent_job_id)
@@ -439,16 +517,20 @@ type ActivityRecordRow = {
   updatedAt: string;
 };
 
-export async function readActivityRecords(activityId: string, planDate?: string | null): Promise<PersistedActivityRecord[]> {
+export async function readActivityRecords(activityId: string, planDate?: string | null, activityVariantId?: string | null): Promise<PersistedActivityRecord[]> {
   const result = await getD1().prepare(`
     SELECT id, record_key AS recordKey, record_type AS recordType, title, scope,
            scope_date AS scopeDate, version, payload_json AS payloadJson, updated_at AS updatedAt
     FROM activity_records
     WHERE activity_id = ? AND archived_at IS NULL
-      AND (scope = 'activity' OR (scope = 'day' AND scope_date = ?))
+      AND (
+        scope = 'activity'
+        OR (scope = 'day' AND scope_date = ?)
+        OR (scope = 'variant' AND activity_variant_id = ?)
+      )
     ORDER BY created_at ASC, id ASC
     LIMIT 200
-  `).bind(activityId, planDate ?? "").all<ActivityRecordRow>();
+  `).bind(activityId, planDate ?? "", activityVariantId ?? "").all<ActivityRecordRow>();
   return result.results.flatMap((row) => {
     const record = parseActivityRecord(row);
     return record ? [record] : [];
@@ -458,6 +540,7 @@ export async function readActivityRecords(activityId: string, planDate?: string 
 export async function persistRecordActions(input: {
   userId: string;
   activityId: string;
+  activityVariantId?: string | null;
   actionId: string;
   actions: RecordAction[];
   sourceMessageId?: string | null;
@@ -468,36 +551,47 @@ export async function persistRecordActions(input: {
     if (action.op === "remove") {
       await db.prepare(`
         UPDATE activity_records SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ? AND activity_id = ? AND record_key = ? AND archived_at IS NULL
-      `).bind(input.userId, input.activityId, action.recordKey).run();
+        WHERE user_id = ? AND activity_id = ? AND record_key = ?
+          AND ${input.activityVariantId ? "activity_variant_id = ?" : "activity_variant_id IS NULL"}
+          AND archived_at IS NULL
+      `).bind(...(input.activityVariantId
+        ? [input.userId, input.activityId, action.recordKey, input.activityVariantId]
+        : [input.userId, input.activityId, action.recordKey])).run();
       continue;
     }
 
-    const recordId = `activity-record:${safeId(input.userId)}:${safeId(input.activityId)}:${safeId(action.record.key)}`;
+    const variantId = action.record.scope === "variant" ? input.activityVariantId ?? null : null;
+    if (action.record.scope === "variant" && !variantId) throw new Error("A variant record requires an active variant.");
+    const recordId = `activity-record:${safeId(input.userId)}:${safeId(input.activityId)}${variantId ? `:variant:${safeId(variantId)}` : ""}:${safeId(action.record.key)}`;
     const revisionId = `activity-record-revision:${safeId(input.actionId)}:${safeId(action.record.key)}`;
     const existingRevision = await db.prepare("SELECT id FROM activity_record_revisions WHERE id = ?")
       .bind(revisionId).first<{ id: string }>();
     if (existingRevision) continue;
     const current = await db.prepare(`
       SELECT version FROM activity_records
-      WHERE user_id = ? AND activity_id = ? AND record_key = ? LIMIT 1
-    `).bind(input.userId, input.activityId, action.record.key).first<{ version: number }>();
+      WHERE user_id = ? AND activity_id = ? AND record_key = ?
+        AND ${variantId ? "activity_variant_id = ?" : "activity_variant_id IS NULL"}
+      LIMIT 1
+    `).bind(...(variantId
+      ? [input.userId, input.activityId, action.record.key, variantId]
+      : [input.userId, input.activityId, action.record.key])).first<{ version: number }>();
     const nextVersion = (current?.version ?? 0) + 1;
     const payloadJson = JSON.stringify(action.record.data);
     await db.batch([
       db.prepare(`
         INSERT INTO activity_records
-          (id, user_id, activity_id, record_key, record_type, title, scope, scope_date,
+          (id, user_id, activity_id, activity_variant_id, record_key, record_type, title, scope, scope_date,
            payload_json, version, source_message_id, source_agent_job_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, activity_id, record_key) DO UPDATE SET
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(${variantId ? "user_id, activity_id, activity_variant_id, record_key" : "user_id, activity_id, record_key"})
+        WHERE activity_variant_id IS ${variantId ? "NOT " : ""}NULL DO UPDATE SET
           record_type = excluded.record_type, title = excluded.title, scope = excluded.scope,
           scope_date = excluded.scope_date, payload_json = excluded.payload_json,
           version = excluded.version, source_message_id = excluded.source_message_id,
           source_agent_job_id = excluded.source_agent_job_id, archived_at = NULL,
           updated_at = CURRENT_TIMESTAMP
       `).bind(
-        recordId, input.userId, input.activityId, action.record.key, action.record.type,
+        recordId, input.userId, input.activityId, variantId, action.record.key, action.record.type,
         action.record.title, action.record.scope ?? "activity", action.record.scopeDate ?? null,
         payloadJson, nextVersion, input.sourceMessageId ?? null, input.sourceAgentJobId ?? null,
       ),
@@ -526,8 +620,9 @@ export async function applyUserRecordMutation(input: {
   operation: string;
   payload: Record<string, unknown>;
   planDate?: string | null;
+  activityVariantId?: string | null;
 }) {
-  const records = await readActivityRecords(input.activityId, input.planDate);
+  const records = await readActivityRecords(input.activityId, input.planDate, input.activityVariantId);
   const record = records.find((entry) => entry.key === input.recordKey);
   if (!record) throw new Error("That activity information is no longer available.");
   const data = structuredClone(record.data);
@@ -589,11 +684,11 @@ export async function applyUserRecordMutation(input: {
     scopeDate: record.scopeDate, data,
   } }], input.planDate);
   if (!actions.length) throw new Error("The updated information did not pass validation.");
-  await persistRecordActions({ userId: input.userId, activityId: input.activityId, actionId: input.actionId, actions });
-  return readActivityRecords(input.activityId, input.planDate);
+  await persistRecordActions({ userId: input.userId, activityId: input.activityId, activityVariantId: input.activityVariantId, actionId: input.actionId, actions });
+  return readActivityRecords(input.activityId, input.planDate, input.activityVariantId);
 }
 
-export async function readConversationState(conversationId: string, planDate?: string | null) {
+export async function readConversationState(conversationId: string, planDate?: string | null, activityVariantId?: string | null) {
   const db = getD1();
   const conversation = await db.prepare("SELECT activity_id AS activityId FROM conversations WHERE id = ?")
     .bind(conversationId).first<{ activityId: string }>();
@@ -609,8 +704,8 @@ export async function readConversationState(conversationId: string, planDate?: s
     WHERE last_seen_at >= datetime('now', '-20 seconds')
     LIMIT 1
   `).first<{ id: string }>();
-  const workspace = conversation ? await readActivityWorkspace(conversation.activityId) : { revisionId: null, revisionNumber: 0, document: EMPTY_WORKSPACE };
-  const records = conversation ? await readActivityRecords(conversation.activityId, planDate) : [];
+  const workspace = conversation ? await readActivityWorkspace(conversation.activityId, activityVariantId) : { revisionId: null, revisionNumber: 0, document: EMPTY_WORKSPACE };
+  const records = conversation ? await readActivityRecords(conversation.activityId, planDate, activityVariantId) : [];
   const recentRuns = conversation
     ? (await db.prepare(`
         SELECT plan_date AS planDate, status, completed_at AS completedAt
@@ -620,7 +715,19 @@ export async function readConversationState(conversationId: string, planDate?: s
         LIMIT 90
       `).bind(conversation.activityId).all<{ planDate: string; status: string; completedAt: string | null }>()).results
     : [];
-  return { messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null, agentOnline: Boolean(onlineWorker), workspace, records, recentRuns };
+  const proposals = await db.prepare(`
+    SELECT id, status, document_json AS documentJson, created_at AS createdAt
+    FROM schedule_proposals
+    WHERE conversation_id = ? AND status IN ('draft', 'awaiting_clarification', 'ready')
+    ORDER BY created_at DESC LIMIT 10
+  `).bind(conversationId).all<{ id: string; status: string; documentJson: string; createdAt: string }>();
+  return {
+    messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null,
+    agentOnline: Boolean(onlineWorker), workspace, records, recentRuns,
+    proposals: proposals.results.flatMap((proposal) => {
+      try { return [{ id: proposal.id, status: proposal.status, document: JSON.parse(proposal.documentJson), createdAt: proposal.createdAt }]; } catch { return []; }
+    }),
+  };
 }
 
 export function apiFailure(error: unknown) {

@@ -1,0 +1,249 @@
+import { getD1 } from "../../db";
+import {
+  parseAdvancement,
+  parseCadence,
+  resolvePattern,
+  type PatternState,
+  type SchedulePattern,
+  type ScheduleStep,
+} from "../schedule-model";
+import { safeId } from "./agent-store";
+
+export type ResolvedDayItem = {
+  id: string;
+  occurrenceId: string;
+  occurrenceKey: string;
+  activityId: string;
+  activityVariantId: string | null;
+  title: string;
+  variantName: string | null;
+  displayLabel: string | null;
+  displayTitle: string;
+  duration: number;
+  category: string;
+  icon: string;
+  color: string;
+  position: number;
+  completedAt: string | null;
+  skippedAt: string | null;
+  revision: number;
+};
+
+type PatternRow = {
+  id: string;
+  name: string;
+  position: number;
+  cadenceJson: string;
+  advancementJson: string;
+  anchorDate: string;
+  initialStepPosition: number;
+  effectiveDate: string;
+  endDate: string | null;
+  revision: number;
+  currentStepPosition: number | null;
+};
+
+type StepRow = {
+  id: string;
+  patternId: string;
+  activityId: string;
+  activityVariantId: string | null;
+  position: number;
+  durationMinutes: number;
+  displayLabelOverride: string | null;
+};
+
+function parseJson(value: string) {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+export function derivedDisplayTitle(title: string, variantName: string | null, label: string | null) {
+  const suffix = label?.trim() || variantName?.trim();
+  return suffix ? `${title} — ${suffix}` : title;
+}
+
+export async function ensureDefaultSchedule(userId: string, routineId: string) {
+  const db = getD1();
+  const count = await db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM schedule_patterns
+    WHERE user_id = ? AND routine_id = ? AND archived_at IS NULL
+  `).bind(userId, routineId).first<{ count: number }>();
+  if ((count?.count ?? 0) > 0) return;
+
+  const legacy = await db.prepare(`
+    SELECT ri.id, ri.activity_id AS activityId, ri.position, ri.duration,
+           ri.created_at AS createdAt, ri.updated_at AS updatedAt,
+           a.client_key AS clientKey, a.title
+    FROM routine_items ri
+    JOIN activities a ON a.id = ri.activity_id
+    WHERE ri.routine_id = ? AND a.user_id = ?
+    ORDER BY ri.position
+  `).bind(routineId, userId).all<{
+    id: string;
+    activityId: string;
+    position: number;
+    duration: number;
+    createdAt: string;
+    updatedAt: string;
+    clientKey: string;
+    title: string;
+  }>();
+  if (!legacy.results.length) return;
+
+  const statements = legacy.results.flatMap((item) => {
+    const patternId = `schedule-pattern:${item.id}`;
+    return [
+      db.prepare(`
+        INSERT OR IGNORE INTO schedule_patterns
+          (id, user_id, routine_id, client_key, name, position, cadence_json,
+           advancement_json, anchor_date, initial_step_position, effective_date,
+           revision, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, '{"kind":"daily"}', '{"kind":"calendar"}',
+                '1970-01-01', 0, '1970-01-01', 1, ?, ?)
+      `).bind(patternId, userId, routineId, `legacy-${item.position}-${item.clientKey}`, item.title, item.position, item.createdAt, item.updatedAt),
+      db.prepare(`
+        INSERT OR IGNORE INTO schedule_pattern_steps
+          (id, pattern_id, activity_id, position, duration_minutes, created_at, updated_at)
+        VALUES (?, ?, ?, 0, ?, ?, ?)
+      `).bind(`schedule-step:${item.id}`, patternId, item.activityId, item.duration, item.createdAt, item.updatedAt),
+    ];
+  });
+  await db.batch(statements);
+}
+
+export async function readSchedulePatterns(userId: string, routineId: string): Promise<Array<{ pattern: SchedulePattern; state: PatternState | null }>> {
+  const db = getD1();
+  const patterns = await db.prepare(`
+    SELECT sp.id, sp.name, sp.position, sp.cadence_json AS cadenceJson,
+           sp.advancement_json AS advancementJson, sp.anchor_date AS anchorDate,
+           sp.initial_step_position AS initialStepPosition,
+           sp.effective_date AS effectiveDate, sp.end_date AS endDate,
+           sp.revision, sps.current_step_position AS currentStepPosition
+    FROM schedule_patterns sp
+    LEFT JOIN schedule_pattern_state sps ON sps.pattern_id = sp.id
+    WHERE sp.user_id = ? AND sp.routine_id = ? AND sp.archived_at IS NULL
+    ORDER BY sp.position, sp.id
+  `).bind(userId, routineId).all<PatternRow>();
+  const steps = await db.prepare(`
+    SELECT s.id, s.pattern_id AS patternId, s.activity_id AS activityId,
+           s.activity_variant_id AS activityVariantId, s.position,
+           s.duration_minutes AS durationMinutes,
+           s.display_label_override AS displayLabelOverride
+    FROM schedule_pattern_steps s
+    JOIN schedule_patterns p ON p.id = s.pattern_id
+    WHERE p.user_id = ? AND p.routine_id = ? AND p.archived_at IS NULL
+    ORDER BY p.position, s.position
+  `).bind(userId, routineId).all<StepRow>();
+  const byPattern = new Map<string, ScheduleStep[]>();
+  for (const step of steps.results) {
+    const list = byPattern.get(step.patternId) ?? [];
+    list.push(step);
+    byPattern.set(step.patternId, list);
+  }
+
+  return patterns.results.flatMap((row) => {
+    const cadence = parseCadence(parseJson(row.cadenceJson));
+    const advancement = parseAdvancement(parseJson(row.advancementJson));
+    const patternSteps = byPattern.get(row.id) ?? [];
+    if (!cadence || !advancement || !patternSteps.length) return [];
+    return [{
+      pattern: {
+        id: row.id,
+        name: row.name,
+        position: row.position,
+        cadence,
+        advancement,
+        anchorDate: row.anchorDate,
+        initialStepPosition: row.initialStepPosition,
+        effectiveDate: row.effectiveDate,
+        endDate: row.endDate,
+        revision: row.revision,
+        steps: patternSteps,
+      },
+      state: row.currentStepPosition === null ? null : { currentStepPosition: row.currentStepPosition },
+    }];
+  });
+}
+
+export async function resolveDay(userId: string, date: string, routineId: string, planId: string, startMinutes: number) {
+  const db = getD1();
+  await ensureDefaultSchedule(userId, routineId);
+  await db.prepare(`
+    INSERT OR IGNORE INTO daily_plans (id, user_id, plan_date, template_id, start_minutes)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(planId, userId, date, routineId, startMinutes).run();
+
+  const patterns = await readSchedulePatterns(userId, routineId);
+  const emissions = patterns.flatMap(({ pattern, state }) => {
+    const resolved = resolvePattern(pattern, date, state);
+    return resolved ? [{ pattern, resolved }] : [];
+  });
+  if (emissions.length) {
+    const activityIds = [...new Set(emissions.map(({ resolved }) => resolved.step.activityId))];
+    const placeholders = activityIds.map(() => "?").join(", ");
+    const activities = await db.prepare(`
+      SELECT id, client_key AS clientKey, title, category, icon, color
+      FROM activities
+      WHERE user_id = ? AND id IN (${placeholders})
+    `).bind(userId, ...activityIds).all<{ id: string; clientKey: string; title: string; category: string; icon: string; color: string }>();
+    const activityMap = new Map(activities.results.map((activity) => [activity.id, activity]));
+    const variantIds = [...new Set(emissions.flatMap(({ resolved }) => resolved.step.activityVariantId ? [resolved.step.activityVariantId] : []))];
+    const variants = variantIds.length
+      ? await db.prepare(`
+          SELECT id, activity_id AS activityId, name
+          FROM activity_variants
+          WHERE user_id = ? AND archived_at IS NULL AND id IN (${variantIds.map(() => "?").join(", ")})
+        `).bind(userId, ...variantIds).all<{ id: string; activityId: string; name: string }>()
+      : { results: [] as Array<{ id: string; activityId: string; name: string }> };
+    const variantMap = new Map(variants.results.map((variant) => [variant.id, variant]));
+    const statements = emissions.flatMap(({ pattern, resolved }) => {
+      const activity = activityMap.get(resolved.step.activityId);
+      if (!activity) return [];
+      const variant = resolved.step.activityVariantId ? variantMap.get(resolved.step.activityVariantId) : null;
+      if (resolved.step.activityVariantId && (!variant || variant.activityId !== activity.id)) return [];
+      const occurrenceId = `day-item:${safeId(userId)}:${date}:${safeId(resolved.occurrenceKey)}`;
+      return [db.prepare(`
+        INSERT OR IGNORE INTO daily_plan_items
+          (id, daily_plan_id, activity_id, occurrence_key, schedule_pattern_id,
+           schedule_pattern_step_id, activity_variant_id, client_key, title,
+           variant_name_snapshot, display_label_override, category, icon, color,
+           position, duration, source_date, revision)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      `).bind(
+        occurrenceId, planId, activity.id, resolved.occurrenceKey, pattern.id,
+        resolved.step.id, variant?.id ?? null, activity.clientKey, activity.title,
+        variant?.name ?? null, resolved.step.displayLabelOverride, activity.category,
+        activity.icon, activity.color, pattern.position, resolved.step.durationMinutes, date,
+      )];
+    });
+    if (statements.length) await db.batch(statements);
+  }
+}
+
+export async function readResolvedDay(userId: string, planId: string) {
+  const result = await getD1().prepare(`
+    SELECT dpi.id AS occurrenceId, dpi.occurrence_key AS occurrenceKey,
+           dpi.client_key AS activityId, dpi.title,
+           dpi.activity_variant_id AS activityVariantId,
+           dpi.variant_name_snapshot AS variantName,
+           dpi.display_label_override AS displayLabel,
+           dpi.duration, dpi.category, dpi.icon, dpi.color, dpi.position,
+           dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt,
+           dpi.revision
+    FROM daily_plan_items dpi
+    JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+    WHERE dpi.daily_plan_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
+    ORDER BY dpi.position, dpi.created_at, dpi.id
+  `).bind(planId, userId).all<Omit<ResolvedDayItem, "id" | "displayTitle">>();
+  return result.results.map((item) => ({
+    ...item,
+    id: item.occurrenceId,
+    occurrenceKey: item.occurrenceKey || `legacy:${item.occurrenceId}`,
+    displayTitle: derivedDisplayTitle(item.title, item.variantName, item.displayLabel),
+  }));
+}

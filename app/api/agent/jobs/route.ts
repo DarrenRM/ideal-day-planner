@@ -15,6 +15,9 @@ import {
 } from "../../agent-store";
 import { hasUsefulActivityRecordData, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
 import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
+import { localDateInTimeZone, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
+import { applyOccurrenceAction } from "../../schedule-actions";
+import { readSchedulePatterns } from "../../schedule-store";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
 
@@ -25,12 +28,36 @@ function messageRequestsResearch(value: string | null | undefined) {
 type LeasedJob = {
   id: string;
   userId: string;
-  activityId: string;
+  scopeType: "activity" | "global";
+  activityId: string | null;
   conversationId: string;
-  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh";
+  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "global_message";
   sourceMessageId: string | null;
   attempts: number;
 };
+
+type VisitContextEnvelope = {
+  occurrence: { id?: string; activityVariantId?: string | null } | null;
+  activityContext: Record<string, unknown> | null;
+};
+
+function parseVisitContext(value: string | null | undefined): VisitContextEnvelope {
+  if (!value) return { occurrence: null, activityContext: null };
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { occurrence: null, activityContext: null };
+    const record = parsed as Record<string, unknown>;
+    const occurrence = record.occurrence && typeof record.occurrence === "object" && !Array.isArray(record.occurrence)
+      ? record.occurrence as VisitContextEnvelope["occurrence"]
+      : null;
+    const nestedContext = record.activityContext && typeof record.activityContext === "object" && !Array.isArray(record.activityContext)
+      ? record.activityContext as Record<string, unknown>
+      : null;
+    return { occurrence, activityContext: nestedContext ?? record };
+  } catch {
+    return { occurrence: null, activityContext: null };
+  }
+}
 
 async function tokensMatch(expected: string, supplied: string) {
   const encoder = new TextEncoder();
@@ -102,13 +129,13 @@ export async function GET(request: Request) {
       LIMIT 10
     `).run();
     const candidate = await db.prepare(`
-      SELECT id, user_id AS userId, activity_id AS activityId, conversation_id AS conversationId,
+      SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId, conversation_id AS conversationId,
              kind, source_message_id AS sourceMessageId, attempts
       FROM agent_jobs
       WHERE status = 'queued'
          OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
          OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
-      ORDER BY CASE kind WHEN 'user_message' THEN 0 ELSE 1 END, created_at ASC, rowid ASC
+      ORDER BY CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 ELSE 1 END, created_at ASC, rowid ASC
       LIMIT 1
     `).first<LeasedJob>();
     if (!candidate) return new Response(null, { status: 204 });
@@ -127,6 +154,65 @@ export async function GET(request: Request) {
     `).bind(leaseToken, workerId, candidate.id).run();
     if (!(leased.meta.changes ?? 0)) return new Response(null, { status: 204 });
     claimedJob = { id: candidate.id, leaseToken };
+
+    if (candidate.scopeType === "global") {
+      const routine = await db.prepare(`
+        SELECT id, schedule_revision AS revision, start_minutes AS startMinutes
+        FROM routine_templates WHERE user_id = ? ORDER BY created_at LIMIT 1
+      `).bind(candidate.userId).first<{ id: string; revision: number; startMinutes: number }>();
+      if (!routine) throw new Error("Global Luna could not find the user's routine.");
+      const setting = await db.prepare(`
+        SELECT time_zone AS timeZone, day_timeline_enabled AS dayTimelineEnabled
+        FROM settings WHERE user_id = ?
+      `).bind(candidate.userId).first<{ timeZone: string; dayTimelineEnabled: number }>();
+      const timeZone = setting?.timeZone || "America/Phoenix";
+      const localDate = localDateInTimeZone(new Date(), timeZone);
+      const [activities, variants, today, pendingProposals, patterns, messages, sourceActivity] = await Promise.all([
+        db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE user_id = ? ORDER BY title`).bind(candidate.userId).all(),
+        db.prepare(`SELECT id, activity_id AS activityId, name, description, default_duration_minutes AS defaultDurationMinutes FROM activity_variants WHERE user_id = ? AND archived_at IS NULL ORDER BY activity_id, position`).bind(candidate.userId).all(),
+        db.prepare(`
+          SELECT dpi.id AS occurrenceId, dpi.activity_id AS activityId,
+                 dpi.activity_variant_id AS activityVariantId, dpi.title,
+                 dpi.variant_name_snapshot AS variantName, dpi.duration, dpi.position,
+                 dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt
+          FROM daily_plan_items dpi JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+          WHERE dp.user_id = ? AND dp.plan_date = ? AND dpi.removed_at IS NULL
+          ORDER BY dpi.position
+        `).bind(candidate.userId, localDate).all(),
+        db.prepare(`SELECT id, status, document_json AS documentJson FROM schedule_proposals WHERE user_id = ? AND status IN ('draft', 'awaiting_clarification', 'ready') ORDER BY created_at DESC LIMIT 5`).bind(candidate.userId).all(),
+        readSchedulePatterns(candidate.userId, routine.id),
+        readConversationMessages(candidate.conversationId),
+        candidate.activityId
+          ? db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE id = ? AND user_id = ?`).bind(candidate.activityId, candidate.userId).first()
+          : Promise.resolve(null),
+      ]);
+      const sourceMessage = candidate.sourceMessageId ? messages.find((message) => message.id === candidate.sourceMessageId) ?? null : null;
+      await db.prepare("UPDATE agent_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND lease_token = ?")
+        .bind(candidate.id, leaseToken).run();
+      return Response.json({
+        job: { ...candidate, leaseToken, attempts: candidate.attempts + 1 },
+        runtimeSessionId: null,
+        context: {
+          scope: "global",
+          timeZone,
+          localDate,
+          settings: { dayTimelineEnabled: Boolean(setting?.dayTimelineEnabled) },
+          routine: { revision: routine.revision, startMinutes: routine.startMinutes },
+          activities: activities.results,
+          variants: variants.results,
+          patterns: patterns.map(({ pattern, state }) => ({ ...pattern, state })),
+          today: today.results,
+          pendingProposals: pendingProposals.results.flatMap((proposal) => {
+            try { return [{ ...proposal, document: JSON.parse(String(proposal.documentJson)) }]; } catch { return []; }
+          }),
+          recentMessages: messages.slice(-30),
+          sourceMessage,
+          sourceActivity,
+        },
+      });
+    }
+
+    if (!candidate.activityId) throw new Error("An activity job is missing its activity.");
 
     const activity = await db.prepare(`
       SELECT client_key AS clientKey, title, category
@@ -155,11 +241,12 @@ export async function GET(request: Request) {
       ORDER BY created_at DESC
       LIMIT 1
     `).bind(candidate.activityId, candidate.userId).first<{ contextJson: string | null }>();
-    let activityContext = null;
-    try { activityContext = visit?.contextJson ? JSON.parse(visit.contextJson) : null; } catch { activityContext = null; }
+    const visitContext = parseVisitContext(visit?.contextJson);
+    const activityContext = visitContext.activityContext;
+    const activityVariantId = visitContext.occurrence?.activityVariantId ?? null;
     const messages = await readConversationMessages(candidate.conversationId);
-    const workspace = await readActivityWorkspace(candidate.activityId);
-    const records = await readActivityRecords(candidate.activityId, schedule?.planDate ?? null);
+    const workspace = await readActivityWorkspace(candidate.activityId, activityVariantId);
+    const records = await readActivityRecords(candidate.activityId, schedule?.planDate ?? null, activityVariantId);
     const runs = await db.prepare(`
       SELECT plan_date AS planDate, status, allotted_duration_seconds AS allottedDurationSeconds,
              planned_duration_seconds AS plannedDurationSeconds, actual_elapsed_seconds AS actualElapsedSeconds,
@@ -185,6 +272,8 @@ export async function GET(request: Request) {
           duration: schedule.dayTimelineEnabled ? schedule.duration : null,
         } : null,
         activityContext,
+        occurrence: visitContext.occurrence,
+        activityVariantId,
         workspace,
         records,
         recentRuns: runs.results,
@@ -244,13 +333,14 @@ export async function POST(request: Request) {
     const leaseToken = typeof payload.leaseToken === "string" ? payload.leaseToken : "";
     if (!jobId || !leaseToken) return Response.json({ error: "A job and lease token are required." }, { status: 400 });
     const job = await db.prepare(`
-      SELECT id, user_id AS userId, activity_id AS activityId, conversation_id AS conversationId,
+      SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId, conversation_id AS conversationId,
              kind, attempts, source_message_id AS sourceMessageId
       FROM agent_jobs WHERE id = ? AND lease_token = ? AND status = 'running'
     `).bind(jobId, leaseToken).first<{
       id: string;
       userId: string;
-      activityId: string;
+      scopeType: "activity" | "global";
+      activityId: string | null;
       conversationId: string;
       kind: LeasedJob["kind"];
       attempts: number;
@@ -282,6 +372,72 @@ export async function POST(request: Request) {
       const usesReplyFirstProtocol = job.kind === "user_message" && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
+      if (job.scopeType === "global") {
+        const followUpSource = payload.followUpQuestion && typeof payload.followUpQuestion === "object" ? payload.followUpQuestion as Record<string, unknown> : null;
+        const followUpBody = typeof followUpSource?.body === "string" ? followUpSource.body.trim().slice(0, 4000) : "";
+        const proposal = payload.scheduleProposal === null || payload.scheduleProposal === undefined ? null : parseScheduleProposal(payload.scheduleProposal);
+        if (payload.scheduleProposal && !proposal) return Response.json({ error: "The schedule proposal did not pass validation." }, { status: 400 });
+        const occurrenceSource = Array.isArray(payload.occurrenceActions) ? payload.occurrenceActions.slice(0, 20) : [];
+        const occurrenceActions = occurrenceSource.map(parseOccurrenceAction);
+        if (occurrenceActions.includes(null)) return Response.json({ error: "A day action did not pass validation." }, { status: 400 });
+        if (occurrenceActions.some((action) => action?.type === "set_status" && action.status === "completed")) {
+          return Response.json({ error: "Luna cannot mark an activity complete." }, { status: 400 });
+        }
+        if (proposal) {
+          const routine = await db.prepare(`
+            SELECT schedule_revision AS revision FROM routine_templates
+            WHERE user_id = ? ORDER BY created_at LIMIT 1
+          `).bind(job.userId).first<{ revision: number }>();
+          if (!routine || routine.revision !== proposal.baseRevision) {
+            return Response.json({ error: "The schedule changed while Luna was preparing this proposal. Please ask her to refresh it." }, { status: 409 });
+          }
+        }
+        if (!response && !followUpBody && !proposal && !occurrenceActions.length) {
+          return Response.json({ error: "Global Luna must respond, clarify, propose, or make one permitted day change." }, { status: 400 });
+        }
+        for (const action of occurrenceActions) {
+          await applyOccurrenceAction(job.userId, action, {
+            source: "luna",
+            actor: "Luna",
+            conversationId: job.conversationId,
+            sourceMessageId: job.sourceMessageId,
+            sourceAgentJobId: job.id,
+          });
+        }
+        const proposalId = proposal ? `schedule-proposal:${safeId(job.id)}` : null;
+        if (proposal && proposalId) {
+          await db.prepare(`
+            INSERT OR IGNORE INTO schedule_proposals
+              (id, user_id, conversation_id, source_message_id, source_agent_job_id,
+               status, base_revision, document_json)
+            VALUES (?, ?, ?, ?, ?, 'ready', ?, ?)
+          `).bind(proposalId, job.userId, job.conversationId, job.sourceMessageId, job.id, proposal.baseRevision, JSON.stringify(proposal)).run();
+        }
+        const finalResponse = followUpBody || response;
+        const messageId = finalResponse ? `agent-message:${safeId(jobId)}` : null;
+        const statements = [];
+        if (finalResponse && messageId) statements.push(db.prepare(`
+          INSERT OR IGNORE INTO conversation_messages
+            (id, conversation_id, role, body, source, agent_job_id)
+          VALUES (?, ?, 'luna', ?, 'agent', ?)
+        `).bind(messageId, job.conversationId, finalResponse, jobId));
+        statements.push(
+          db.prepare(`
+            INSERT INTO agent_session_bindings (id, conversation_id, runtime, runtime_session_id)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(conversation_id, runtime) DO UPDATE SET runtime_session_id = excluded.runtime_session_id, updated_at = CURRENT_TIMESTAMP
+          `).bind(`agent-binding:${safeId(job.conversationId)}:${safeId(HERMES_RUNTIME)}`, job.conversationId, HERMES_RUNTIME, runtimeSessionId),
+          db.prepare(`
+            UPDATE agent_jobs SET status = 'succeeded', lease_token = NULL, lease_owner = NULL,
+              lease_expires_at = NULL, error = NULL, progress_title = NULL,
+              progress_detail = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND lease_token = ?
+          `).bind(jobId, leaseToken),
+        );
+        await db.batch(statements);
+        return Response.json({ completed: true, messageId, proposalId, occurrenceActionsApplied: occurrenceActions.length });
+      }
+      if (!job.activityId) return Response.json({ error: "An activity job is missing its activity." }, { status: 409 });
       const schedule = await db.prepare(`
         SELECT dpi.duration, dp.plan_date AS planDate, a.title AS activityTitle,
                COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled
@@ -295,6 +451,11 @@ export async function POST(request: Request) {
       `).bind(job.activityId, job.userId).first<{ duration: number; planDate: string; activityTitle: string; dayTimelineEnabled: number }>();
       const timelineEnabled = Boolean(schedule?.dayTimelineEnabled);
       const plannedDurationMinutes = timelineEnabled ? schedule?.duration : undefined;
+      const latestVisit = await db.prepare(`
+        SELECT context_json AS contextJson FROM activity_visits
+        WHERE activity_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1
+      `).bind(job.activityId, job.userId).first<{ contextJson: string | null }>();
+      const activityVariantId = parseVisitContext(latestVisit?.contextJson).occurrence?.activityVariantId ?? null;
       const workspaceActions = validateWorkspaceActions(usesReplyFirstProtocol ? [] : payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
       const recordActions = validateRecordActions(usesReplyFirstProtocol ? [] : payload.recordActions, schedule?.planDate ?? null).filter((action) => (
         action.op === "remove" || hasUsefulActivityRecordData(action.record, {
@@ -302,7 +463,7 @@ export async function POST(request: Request) {
           plannedDurationMinutes,
         })
       ));
-      const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null);
+      const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);
       const availableRecords = new Map<string, ActivityRecordContent>(existingRecords.map((record) => [record.key, record]));
       for (const action of recordActions) {
         if (action.op === "remove") availableRecords.delete(action.recordKey);
@@ -326,6 +487,7 @@ export async function POST(request: Request) {
       await persistRecordActions({
         userId: job.userId,
         activityId: job.activityId,
+        activityVariantId,
         actionId: jobId,
         actions: recordActions,
         sourceMessageId: job.kind === "user_message" || job.kind === "workspace_refresh" ? job.sourceMessageId : null,
@@ -334,6 +496,7 @@ export async function POST(request: Request) {
       const workspace = await persistWorkspaceActions({
         userId: job.userId,
         activityId: job.activityId,
+        activityVariantId,
         agentJobId: jobId,
         actions: safeWorkspaceActions,
       });
