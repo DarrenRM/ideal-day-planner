@@ -99,6 +99,8 @@ async function readDay(userId: string, date: string) {
   const { planId } = ids(userId, date);
   const plan = await db.prepare(`
     SELECT dp.start_minutes AS startMinutes, dp.started_at AS startedAt,
+           dp.highlight_status AS highlightStatus, dp.highlight_body AS highlightBody,
+           dp.highlight_kind AS highlightKind, dp.highlight_revision AS highlightRevision,
            COALESCE(rt.start_minutes, 480) AS preferredStartMinutes,
            COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled,
            COALESCE(s.pull_forward_after_early_completion, 0) AS pullForwardAfterEarlyCompletion
@@ -106,7 +108,7 @@ async function readDay(userId: string, date: string) {
     LEFT JOIN routine_templates rt ON rt.id = dp.template_id
     LEFT JOIN settings s ON s.user_id = dp.user_id
     WHERE dp.id = ? AND dp.user_id = ?
-  `).bind(planId, userId).first<{ startMinutes: number; startedAt: string | null; preferredStartMinutes: number; dayTimelineEnabled: number; pullForwardAfterEarlyCompletion: number }>();
+  `).bind(planId, userId).first<{ startMinutes: number; startedAt: string | null; highlightStatus: string; highlightBody: string | null; highlightKind: string | null; highlightRevision: number; preferredStartMinutes: number; dayTimelineEnabled: number; pullForwardAfterEarlyCompletion: number }>();
   if (!plan) return null;
 
   return {
@@ -114,6 +116,12 @@ async function readDay(userId: string, date: string) {
     startMinutes: plan.startMinutes,
     preferredStartMinutes: plan.preferredStartMinutes,
     startedAt: plan.startedAt,
+    highlight: {
+      status: plan.highlightStatus,
+      body: plan.highlightBody,
+      kind: plan.highlightKind,
+      revision: plan.highlightRevision,
+    },
     settings: {
       dayTimelineEnabled: Boolean(plan.dayTimelineEnabled),
       pullForwardAfterEarlyCompletion: Boolean(plan.pullForwardAfterEarlyCompletion),
@@ -156,6 +164,8 @@ async function resetToday(userId: string, date: string) {
             480
           ),
           started_at = NULL,
+          highlight_status = 'idle', highlight_body = NULL, highlight_kind = NULL,
+          highlight_revision = highlight_revision + 1,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `).bind(planId, userId),
@@ -176,6 +186,13 @@ async function resetToday(userId: string, date: string) {
           updated_at = CURRENT_TIMESTAMP
       WHERE user_id = ? AND plan_date = ?
     `).bind(userId, date),
+    db.prepare(`
+      UPDATE agent_jobs
+      SET status = 'succeeded', lease_token = NULL, lease_owner = NULL,
+          lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND day_plan_id = ? AND kind = 'day_highlight'
+        AND status IN ('queued', 'leased', 'running', 'retryable_failure')
+    `).bind(userId, planId),
   ]);
   return readDay(userId, date);
 }
@@ -295,6 +312,7 @@ export async function GET(request: Request) {
   if (!date) return Response.json({ error: "A valid local date is required." }, { status: 400 });
 
   try {
+    await ensureAgentSchema();
     const templateId = await ensureAccount(userId, date);
     if (!await hasTemplateItems(userId, templateId)) {
       const row = await getD1().prepare(`
@@ -329,6 +347,7 @@ export async function POST(request: Request) {
   if (!date) return Response.json({ error: "A valid local date is required." }, { status: 400 });
 
   try {
+    await ensureAgentSchema();
     const payload = await request.json() as { mode?: unknown; items?: unknown; startMinutes?: unknown; currentMinutes?: unknown };
     const templateId = await ensureAccount(userId, date);
     if (payload.mode === "start-day") {

@@ -32,8 +32,10 @@ type LeasedJob = {
   scopeType: "activity" | "global";
   activityId: string | null;
   activityVariantId: string | null;
+  dayPlanId: string | null;
+  dayRevision: number | null;
   conversationId: string;
-  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message";
+  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message" | "day_highlight";
   sourceMessageId: string | null;
   attempts: number;
 };
@@ -132,13 +134,14 @@ export async function GET(request: Request) {
     `).run();
     const candidate = await db.prepare(`
       SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
-             activity_variant_id AS activityVariantId, conversation_id AS conversationId,
+             activity_variant_id AS activityVariantId, day_plan_id AS dayPlanId,
+             day_revision AS dayRevision, conversation_id AS conversationId,
              kind, source_message_id AS sourceMessageId, attempts
       FROM agent_jobs
       WHERE status = 'queued'
          OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
          OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
-      ORDER BY CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 ELSE 1 END, created_at ASC, rowid ASC
+      ORDER BY CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'day_highlight' THEN 1 ELSE 2 END, created_at ASC, rowid ASC
       LIMIT 1
     `).first<LeasedJob>();
     if (!candidate) return new Response(null, { status: 204 });
@@ -157,6 +160,68 @@ export async function GET(request: Request) {
     `).bind(leaseToken, workerId, candidate.id).run();
     if (!(leased.meta.changes ?? 0)) return new Response(null, { status: 204 });
     claimedJob = { id: candidate.id, leaseToken };
+
+    if (candidate.kind === "day_highlight") {
+      if (!candidate.dayPlanId || candidate.dayRevision === null) throw new Error("A day-highlight job is missing its day revision.");
+      const plan = await db.prepare(`
+        SELECT plan_date AS planDate, highlight_revision AS highlightRevision
+        FROM daily_plans WHERE id = ? AND user_id = ?
+      `).bind(candidate.dayPlanId, candidate.userId).first<{ planDate: string; highlightRevision: number }>();
+      if (!plan || plan.highlightRevision !== candidate.dayRevision) {
+        await db.prepare(`
+          UPDATE agent_jobs SET status = 'succeeded', lease_token = NULL, lease_owner = NULL,
+            lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND lease_token = ?
+        `).bind(candidate.id, leaseToken).run();
+        return new Response(null, { status: 204 });
+      }
+      const [today, recentDays, recentRuns] = await Promise.all([
+        db.prepare(`
+          SELECT dpi.id AS occurrenceId, dpi.activity_id AS activityId, dpi.title,
+                 dpi.variant_name_snapshot AS variantName, dpi.category, dpi.duration,
+                 dpi.position, dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt
+          FROM daily_plan_items dpi
+          WHERE dpi.daily_plan_id = ? AND dpi.removed_at IS NULL
+          ORDER BY dpi.position
+        `).bind(candidate.dayPlanId).all(),
+        db.prepare(`
+          SELECT dp.plan_date AS planDate,
+                 SUM(CASE WHEN dpi.completed_at IS NOT NULL THEN 1 ELSE 0 END) AS completedCount,
+                 SUM(CASE WHEN dpi.skipped_at IS NOT NULL THEN 1 ELSE 0 END) AS skippedCount,
+                 COUNT(*) AS activityCount
+          FROM daily_plans dp
+          JOIN daily_plan_items dpi ON dpi.daily_plan_id = dp.id AND dpi.removed_at IS NULL
+          WHERE dp.user_id = ? AND dp.plan_date <= ? AND dp.plan_date >= date(?, '-20 days')
+          GROUP BY dp.id, dp.plan_date
+          ORDER BY dp.plan_date DESC
+        `).bind(candidate.userId, plan.planDate, plan.planDate).all(),
+        db.prepare(`
+          SELECT ar.plan_date AS planDate, a.title, a.category, ar.status,
+                 ar.planned_duration_seconds AS plannedDurationSeconds,
+                 ar.actual_elapsed_seconds AS actualElapsedSeconds,
+                 ar.completed_at AS completedAt
+          FROM activity_runs ar JOIN activities a ON a.id = ar.activity_id
+          WHERE ar.user_id = ? AND ar.plan_date <= ? AND ar.plan_date >= date(?, '-20 days')
+            AND ar.status = 'completed'
+          ORDER BY ar.completed_at DESC LIMIT 80
+        `).bind(candidate.userId, plan.planDate, plan.planDate).all(),
+      ]);
+      await db.batch([
+        db.prepare("UPDATE agent_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND lease_token = ?").bind(candidate.id, leaseToken),
+        db.prepare("UPDATE daily_plans SET highlight_status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND highlight_revision = ?").bind(candidate.dayPlanId, candidate.dayRevision),
+      ]);
+      return Response.json({
+        job: { ...candidate, leaseToken, attempts: candidate.attempts + 1 },
+        runtimeSessionId: null,
+        context: {
+          scope: "day_highlight",
+          localDate: plan.planDate,
+          today: today.results,
+          recentDays: recentDays.results,
+          recentRuns: recentRuns.results,
+        },
+      });
+    }
 
     if (candidate.scopeType === "global") {
       const routine = await db.prepare(`
@@ -349,7 +414,8 @@ export async function POST(request: Request) {
     if (!jobId || !leaseToken) return Response.json({ error: "A job and lease token are required." }, { status: 400 });
     const job = await db.prepare(`
       SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
-             activity_variant_id AS activityVariantId, conversation_id AS conversationId,
+             activity_variant_id AS activityVariantId, day_plan_id AS dayPlanId,
+             day_revision AS dayRevision, conversation_id AS conversationId,
              kind, attempts, source_message_id AS sourceMessageId
       FROM agent_jobs WHERE id = ? AND lease_token = ? AND status = 'running'
     `).bind(jobId, leaseToken).first<{
@@ -358,6 +424,8 @@ export async function POST(request: Request) {
       scopeType: "activity" | "global";
       activityId: string | null;
       activityVariantId: string | null;
+      dayPlanId: string | null;
+      dayRevision: number | null;
       conversationId: string;
       kind: LeasedJob["kind"];
       attempts: number;
@@ -389,6 +457,35 @@ export async function POST(request: Request) {
       const usesReplyFirstProtocol = job.kind === "user_message" && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
+      if (job.kind === "day_highlight") {
+        if (!job.dayPlanId || job.dayRevision === null) return Response.json({ error: "The day highlight lost its day revision." }, { status: 409 });
+        const highlightSource = payload.dayHighlight && typeof payload.dayHighlight === "object" && !Array.isArray(payload.dayHighlight)
+          ? payload.dayHighlight as Record<string, unknown>
+          : null;
+        const body = typeof highlightSource?.body === "string" ? highlightSource.body.trim().slice(0, 180) : "";
+        const allowedKinds = new Set(["streak", "milestone", "momentum", "effort", "comeback", "personal_best", "completion"]);
+        const kind = typeof highlightSource?.kind === "string" && allowedKinds.has(highlightSource.kind) ? highlightSource.kind : null;
+        const bindingId = `agent-binding:${safeId(job.conversationId)}:${safeId(HERMES_RUNTIME)}`;
+        await db.batch([
+          db.prepare(`
+            UPDATE daily_plans
+            SET highlight_status = ?, highlight_body = ?, highlight_kind = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ? AND highlight_revision = ?
+          `).bind(body ? "ready" : "quiet", body || null, body ? kind : null, job.dayPlanId, job.userId, job.dayRevision),
+          db.prepare(`
+            INSERT INTO agent_session_bindings (id, conversation_id, runtime, runtime_session_id)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(conversation_id, runtime) DO UPDATE SET runtime_session_id = excluded.runtime_session_id, updated_at = CURRENT_TIMESTAMP
+          `).bind(bindingId, job.conversationId, HERMES_RUNTIME, runtimeSessionId),
+          db.prepare(`
+            UPDATE agent_jobs SET status = 'succeeded', lease_token = NULL, lease_owner = NULL,
+              lease_expires_at = NULL, error = NULL, progress_title = NULL,
+              progress_detail = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND lease_token = ?
+          `).bind(jobId, leaseToken),
+        ]);
+        return Response.json({ completed: true, highlighted: Boolean(body) });
+      }
       if (job.scopeType === "global") {
         const followUpSource = payload.followUpQuestion && typeof payload.followUpQuestion === "object" ? payload.followUpQuestion as Record<string, unknown> : null;
         const followUpBody = typeof followUpSource?.body === "string" ? followUpSource.body.trim().slice(0, 4000) : "";
@@ -586,6 +683,12 @@ export async function POST(request: Request) {
             error = ?, progress_title = NULL, progress_detail = NULL, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND lease_token = ?
       `).bind(nextStatus, error, jobId, leaseToken).run();
+      if (job.kind === "day_highlight" && job.dayPlanId && job.dayRevision !== null) {
+        await db.prepare(`
+          UPDATE daily_plans SET highlight_status = 'queued', updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND user_id = ? AND highlight_revision = ?
+        `).bind(job.dayPlanId, job.userId, job.dayRevision).run();
+      }
       return Response.json({ completed: false, status: nextStatus });
     }
 

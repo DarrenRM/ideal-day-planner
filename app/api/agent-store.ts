@@ -77,6 +77,9 @@ export async function ensureAgentSchema() {
         user_id text NOT NULL,
         scope_type text DEFAULT 'activity' NOT NULL,
         activity_id text,
+        activity_variant_id text,
+        day_plan_id text,
+        day_revision integer,
         conversation_id text NOT NULL,
         kind text NOT NULL,
         idempotency_key text NOT NULL,
@@ -94,6 +97,8 @@ export async function ensureAgentSchema() {
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_variant_id) REFERENCES activity_variants(id) ON DELETE SET NULL,
+        FOREIGN KEY (day_plan_id) REFERENCES daily_plans(id) ON DELETE CASCADE,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       )`),
       db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS agent_jobs_user_idempotency_unique ON agent_jobs (user_id, idempotency_key)"),
@@ -252,6 +257,25 @@ export async function ensureAgentSchema() {
       if (!jobColumns.results.some((column) => column.name === "activity_variant_id")) {
         await db.prepare("ALTER TABLE agent_jobs ADD COLUMN activity_variant_id text REFERENCES activity_variants(id) ON DELETE SET NULL").run();
       }
+      if (!jobColumns.results.some((column) => column.name === "day_plan_id")) {
+        await db.prepare("ALTER TABLE agent_jobs ADD COLUMN day_plan_id text REFERENCES daily_plans(id) ON DELETE CASCADE").run();
+      }
+      if (!jobColumns.results.some((column) => column.name === "day_revision")) {
+        await db.prepare("ALTER TABLE agent_jobs ADD COLUMN day_revision integer").run();
+      }
+      const dayPlanColumns = await db.prepare("PRAGMA table_info(daily_plans)").all<{ name: string }>();
+      if (!dayPlanColumns.results.some((column) => column.name === "highlight_status")) {
+        await db.prepare("ALTER TABLE daily_plans ADD COLUMN highlight_status text DEFAULT 'idle' NOT NULL").run();
+      }
+      if (!dayPlanColumns.results.some((column) => column.name === "highlight_body")) {
+        await db.prepare("ALTER TABLE daily_plans ADD COLUMN highlight_body text").run();
+      }
+      if (!dayPlanColumns.results.some((column) => column.name === "highlight_kind")) {
+        await db.prepare("ALTER TABLE daily_plans ADD COLUMN highlight_kind text").run();
+      }
+      if (!dayPlanColumns.results.some((column) => column.name === "highlight_revision")) {
+        await db.prepare("ALTER TABLE daily_plans ADD COLUMN highlight_revision integer DEFAULT 0 NOT NULL").run();
+      }
       const conversationColumns = await db.prepare("PRAGMA table_info(conversations)").all<{ name: string }>();
       if (!conversationColumns.results.some((column) => column.name === "scope_type")) {
         await db.prepare("ALTER TABLE conversations ADD COLUMN scope_type text DEFAULT 'activity' NOT NULL").run();
@@ -301,12 +325,58 @@ export async function ensureGlobalConversation(userId: string) {
   return conversationId;
 }
 
+export type DayHighlightState = {
+  status: "idle" | "queued" | "running" | "ready" | "quiet";
+  body: string | null;
+  kind: string | null;
+  revision: number;
+};
+
+export async function queueDayHighlight(userId: string, dayPlanId: string): Promise<DayHighlightState> {
+  await ensureAgentSchema();
+  const db = getD1();
+  const completed = await db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM daily_plan_items
+    WHERE daily_plan_id = ? AND completed_at IS NOT NULL AND removed_at IS NULL
+  `).bind(dayPlanId).first<{ count: number }>();
+  const revisionRow = await db.prepare(`
+    UPDATE daily_plans
+    SET highlight_revision = highlight_revision + 1,
+        highlight_status = ?, highlight_body = NULL, highlight_kind = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND user_id = ?
+    RETURNING highlight_revision AS revision
+  `).bind((completed?.count ?? 0) > 0 ? "queued" : "quiet", dayPlanId, userId).first<{ revision: number }>();
+  const revision = revisionRow?.revision ?? 0;
+  if ((completed?.count ?? 0) < 1) return { status: "quiet", body: null, kind: null, revision };
+
+  const conversationId = await ensureGlobalConversation(userId);
+  const jobId = `agent-job:${safeId(userId)}:day-highlight:${safeId(dayPlanId)}:${revision}`;
+  await db.batch([
+    db.prepare(`
+      UPDATE agent_jobs
+      SET status = 'succeeded', lease_token = NULL, lease_owner = NULL,
+          lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND kind = 'day_highlight' AND day_plan_id = ?
+        AND status IN ('queued', 'retryable_failure')
+    `).bind(userId, dayPlanId),
+    db.prepare(`
+      INSERT OR IGNORE INTO agent_jobs
+        (id, user_id, scope_type, day_plan_id, day_revision, conversation_id, kind, idempotency_key)
+      VALUES (?, ?, 'global', ?, ?, ?, 'day_highlight', ?)
+    `).bind(jobId, userId, dayPlanId, revision, conversationId, `day-highlight:${dayPlanId}:${revision}`),
+  ]);
+  return { status: "queued", body: null, kind: null, revision };
+}
+
 export async function readGlobalConversationState(conversationId: string, userId: string) {
   const db = getD1();
   const activeJob = await db.prepare(`
     SELECT status, kind, progress_title AS progressTitle, progress_detail AS progressDetail
     FROM agent_jobs
     WHERE conversation_id = ? AND scope_type = 'global'
+      AND kind <> 'day_highlight'
       AND status IN ('queued', 'leased', 'running', 'retryable_failure')
     ORDER BY created_at DESC LIMIT 1
   `).bind(conversationId).first();

@@ -27,7 +27,7 @@ Today’s activity list is the home screen. Activities are the primary context b
 - Create a dated “today” plan from the idealized template on the first app open each day.
 - Treat today as the default edit target. The user or agent updates the underlying template only when that target is explicitly requested.
 - Allow activities to be added, edited, deleted, reordered, completed, skipped for today, and opened into their Luna-backed workspace.
-- Keep checklist order stable as activities are completed or skipped; status changes do not rearrange the list when clock scheduling is off.
+- Keep unfinished checklist order stable. Completed activities leave the working list for the compact Highlights panel; skipped activities remain in place and reversible.
 - Put durable product preferences in a Settings modal opened by a gear beside the development tools.
 - Keep timers and countdowns available as ordinary activity components in either day mode. They measure real use only when the person starts them.
 
@@ -60,7 +60,8 @@ Completion has two affordances:
 
 Completion changes today’s execution view:
 
-- An activity completed early moves into the passed/completed section above the Now line.
+- After its completion feedback settles, an activity moves into the compact Highlights panel above the working list. The panel shows the completed count and every completed activity as an icon grid, and expands into completion history.
+- Luna may add one short day highlight only when the stored evidence supports a real streak, milestone, completion cluster, substantial effort, comeback, or personal best. Ordinary progress gets no canned narrative.
 - By default, later activities keep their existing planned times; completing early does not pull the remaining schedule forward.
 - Marking it incomplete again leaves it above the Now line as unfinished/overdue rather than automatically reinserting it into the future schedule.
 - The user can drag that unfinished activity back into a later position when desired.

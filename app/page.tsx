@@ -53,6 +53,12 @@ type ConversationJob = {
   progressDetail?: string | null;
 };
 type ActivityRunSummary = { planDate: string; status: string; completedAt?: string | null };
+type DayHighlight = {
+  status: "idle" | "queued" | "running" | "ready" | "quiet";
+  body: string | null;
+  kind: string | null;
+  revision: number;
+};
 type ConversationState = {
   messages: ConversationMessage[];
   activeJob: ConversationJob | null;
@@ -71,6 +77,7 @@ const STORAGE_KEY = "idealized-day-items-v1";
 const DELETED_KEY = "idealized-day-deleted-v1";
 const MIGRATION_KEY = "idealized-day-d1-imported-v1";
 const DEV_TIME_KEY = "idealized-day-dev-time-v1";
+const EMPTY_DAY_HIGHLIGHT: DayHighlight = { status: "idle", body: null, kind: null, revision: 0 };
 
 const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-walk", title: "Walk in sun", detail: "Easy pace · outdoor light", duration: 30, category: "Light", icon: "☼", color: "#e8b75f" },
@@ -1033,6 +1040,78 @@ function localDateKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+function normalizeDayHighlight(value: unknown): DayHighlight {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return EMPTY_DAY_HIGHLIGHT;
+  const candidate = value as Record<string, unknown>;
+  const status = ["idle", "queued", "running", "ready", "quiet"].includes(String(candidate.status))
+    ? candidate.status as DayHighlight["status"]
+    : "idle";
+  return {
+    status,
+    body: typeof candidate.body === "string" && candidate.body.trim() ? candidate.body.trim().slice(0, 180) : null,
+    kind: typeof candidate.kind === "string" && candidate.kind.trim() ? candidate.kind.trim().slice(0, 40) : null,
+    revision: typeof candidate.revision === "number" && Number.isFinite(candidate.revision) ? candidate.revision : 0,
+  };
+}
+
+function completionTimeLabel(value: string | null | undefined) {
+  if (!value) return "Completed today";
+  const date = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) return "Completed today";
+  return `Completed at ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date)}`;
+}
+
+function DayHighlights({
+  completedItems,
+  totalActivities,
+  highlight,
+  celebratingActivityId,
+  onOpenActivity,
+}: {
+  completedItems: ScheduledItem[];
+  totalActivities: number;
+  highlight: DayHighlight;
+  celebratingActivityId: string | null;
+  onOpenActivity: (item: ScheduledItem, bounds: DOMRect) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const progress = totalActivities ? Math.min(100, (completedItems.length / totalActivities) * 100) : 0;
+  const isReviewing = highlight.status === "queued" || highlight.status === "running";
+  const history = [...completedItems].sort((left, right) => (storedTimestampMillis(right.completedAt) ?? 0) - (storedTimestampMillis(left.completedAt) ?? 0));
+
+  return (
+    <section className={`day-highlights ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
+      <button className="day-highlights-overview" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
+        <span className={`day-highlights-count ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
+          <strong>{completedItems.length}</strong><span>done</span>
+        </span>
+        <span className="day-highlights-copy">
+          <strong id="day-highlights-title">Highlights</strong>
+          {highlight.body ? <span>{highlight.body}</span> : null}
+          {isReviewing ? <span className="day-highlight-thinking" aria-label="Luna is reviewing today’s progress"><i /><i /><i /></span> : null}
+        </span>
+        <span className="day-highlights-icon-grid" aria-label={`${completedItems.length} completed activities`}>
+          {completedItems.map((item) => {
+            const ActivityIcon = activityIconFor(item);
+            return <span className={`day-highlight-icon ${celebratingActivityId === item.id ? "is-new" : ""}`} key={item.id} style={{ "--highlight-color": CATEGORY_META[item.category].color } as CSSProperties} title={activityDisplayTitle(item)}><ActivityIcon aria-hidden="true" size={17} strokeWidth={2} /></span>;
+          })}
+        </span>
+        <ChevronDown className="day-highlights-chevron" aria-hidden="true" size={18} />
+      </button>
+      {isOpen ? <div className="day-highlights-history" aria-label="Completed activities">
+        {history.map((item) => {
+          const ActivityIcon = activityIconFor(item);
+          return <button key={item.id} type="button" onClick={(event) => onOpenActivity(item, event.currentTarget.getBoundingClientRect())}>
+            <span className="day-highlight-history-icon" style={{ "--highlight-color": CATEGORY_META[item.category].color } as CSSProperties}><ActivityIcon aria-hidden="true" size={17} /></span>
+            <span><strong>{activityDisplayTitle(item)}</strong><small>{completionTimeLabel(item.completedAt)} · {item.duration} minutes</small></span>
+            <Check aria-hidden="true" size={17} />
+          </button>;
+        })}
+      </div> : null}
+    </section>
+  );
+}
+
 function readLegacyRoutine() {
   let nextItems = INITIAL_ITEMS;
   try {
@@ -1161,6 +1240,7 @@ export default function Home() {
   const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [daySettings, setDaySettings] = useState<DaySettings>(DEFAULT_DAY_SETTINGS);
+  const [dayHighlight, setDayHighlight] = useState<DayHighlight>(EMPTY_DAY_HIGHLIGHT);
   const [settingsSaveState, setSettingsSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [resetTodayState, setResetTodayState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [mobileResetActivity, setMobileResetActivity] = useState<{ id: string; state: "confirming" | "resetting" | "error" } | null>(null);
@@ -1239,7 +1319,7 @@ export default function Home() {
           return;
         }
         if (!response.ok) throw new Error(`Could not load the saved day (${response.status}).`);
-        let day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; settings?: unknown; needsImport: boolean };
+        let day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; settings?: unknown; highlight?: unknown; needsImport: boolean };
 
         if (day.needsImport) {
           const legacyItems = readLegacyRoutine();
@@ -1261,6 +1341,7 @@ export default function Home() {
         setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
         setDayStartedAt(day.startedAt ?? null);
         setDaySettings(normalizeDaySettings(day.settings));
+        setDayHighlight(normalizeDayHighlight(day.highlight));
         setHasLoaded(true);
         setSaveState("saved");
       } catch {
@@ -1276,6 +1357,30 @@ export default function Home() {
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasLoaded || dayHighlight.status !== "queued" && dayHighlight.status !== "running") return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/day/highlight?date=${localDateKey()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("Highlight refresh failed.");
+        const result = await response.json() as { highlight?: unknown };
+        if (cancelled) return;
+        const next = normalizeDayHighlight(result.highlight);
+        setDayHighlight(next);
+        if (next.status === "queued" || next.status === "running") timer = setTimeout(poll, 1_800);
+      } catch {
+        if (!cancelled) timer = setTimeout(poll, 5_000);
+      }
+    };
+    timer = setTimeout(poll, 900);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [dayHighlight.revision, dayHighlight.status, hasLoaded]);
 
   useEffect(() => {
     if (!isSettingsOpen) return;
@@ -1437,31 +1542,22 @@ export default function Home() {
     ? scheduledItems.filter((item) => item.completedAt || item.skippedAt || item.end <= displayedMinutes).map((item) => item.id)
     : []), [displayedMinutes, isDayStarted, scheduledItems, timelineEnabled]);
   const displayedScheduledItems = useMemo(() => {
+    const visibleItems = scheduledItems.filter((item) => !completedIds.has(item.id) || settlingCompletedIds.has(item.id) || selectedActivityId === item.id);
     if (timelineEnabled && isDayStarted) {
       return [
-        ...scheduledItems.filter((item) => passedItemIds.has(item.id)),
-        ...scheduledItems.filter((item) => !passedItemIds.has(item.id)),
+        ...visibleItems.filter((item) => passedItemIds.has(item.id)),
+        ...visibleItems.filter((item) => !passedItemIds.has(item.id)),
       ];
     }
-
-    const originalOrder = new Map(scheduledItems.map((item, index) => [item.id, index]));
-    const isSettledComplete = (item: ScheduledItem) => completedIds.has(item.id) && !settlingCompletedIds.has(item.id);
-    const completed = scheduledItems
-      .filter(isSettledComplete)
-      .sort((left, right) => {
-        const leftTimestamp = storedTimestampMillis(left.completedAt);
-        const rightTimestamp = storedTimestampMillis(right.completedAt);
-        if (leftTimestamp !== null && rightTimestamp !== null && leftTimestamp !== rightTimestamp) return leftTimestamp - rightTimestamp;
-        if (leftTimestamp === null && rightTimestamp !== null) return -1;
-        if (leftTimestamp !== null && rightTimestamp === null) return 1;
-        return (originalOrder.get(left.id) ?? 0) - (originalOrder.get(right.id) ?? 0);
-      });
-    return [
-      ...completed,
-      ...scheduledItems.filter((item) => !isSettledComplete(item)),
-    ];
-  }, [completedIds, isDayStarted, passedItemIds, scheduledItems, settlingCompletedIds, timelineEnabled]);
-  const nowLineIndex = timelineEnabled && isDayStarted ? passedItemIds.size : null;
+    return visibleItems;
+  }, [completedIds, isDayStarted, passedItemIds, scheduledItems, selectedActivityId, settlingCompletedIds, timelineEnabled]);
+  const settledCompletedItems = useMemo(() => scheduledItems
+    .filter((item) => completedIds.has(item.id) && !settlingCompletedIds.has(item.id))
+    .sort((left, right) => (storedTimestampMillis(left.completedAt) ?? 0) - (storedTimestampMillis(right.completedAt) ?? 0)),
+  [completedIds, scheduledItems, settlingCompletedIds]);
+  const nowLineIndex = timelineEnabled && isDayStarted
+    ? displayedScheduledItems.filter((item) => passedItemIds.has(item.id)).length
+    : null;
 
   useLayoutEffect(() => {
     const before = activityListPositionSnapshot.current;
@@ -1546,10 +1642,11 @@ export default function Home() {
     try {
       const response = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Today could not be refreshed.");
-      const day = await response.json() as { items: unknown };
+      const day = await response.json() as { items: unknown; highlight?: unknown };
       const refreshedItems = hydrateStoredItems(day.items);
       setItems(refreshedItems);
       setCompletedIds(new Set(refreshedItems.filter((item) => item.completedAt).map((item) => item.id)));
+      setDayHighlight(normalizeDayHighlight(day.highlight));
       setSaveState("saved");
     } catch {
       setSaveState("retrying");
@@ -1566,13 +1663,14 @@ export default function Home() {
         body: JSON.stringify({ mode: "start-day", currentMinutes: displayedMinutes }),
       });
       if (!response.ok) throw new Error("The day could not be started.");
-      const day = await response.json() as { items: unknown; startMinutes: number; startedAt: string; preferredStartMinutes?: number };
+      const day = await response.json() as { items: unknown; startMinutes: number; startedAt: string; preferredStartMinutes?: number; highlight?: unknown };
       const launchedItems = hydrateStoredItems(day.items);
       setItems(launchedItems);
       setCompletedIds(new Set(launchedItems.filter((item) => item.completedAt).map((item) => item.id)));
       setStartMinutes(day.startMinutes);
       setPreferredStartMinutes(day.preferredStartMinutes ?? preferredStartMinutes);
       setDayStartedAt(day.startedAt);
+      setDayHighlight(normalizeDayHighlight(day.highlight));
       setStartConversationActivityId(launchedItems.find((item) => !item.completedAt && !item.skippedAt)?.id ?? null);
       setSelectedActivityId(null);
       setDismissedClockActivityId(null);
@@ -1599,6 +1697,7 @@ export default function Home() {
       resetActivityTimingState(resetItems.map((item) => item.id));
       setItems(resetItems);
       setCompletedIds(new Set());
+      setDayHighlight(EMPTY_DAY_HIGHLIGHT);
       setStartMinutes(day.startMinutes);
       setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
       setDayStartedAt(day.startedAt ?? null);
@@ -1974,6 +2073,8 @@ export default function Home() {
       setItems((current) => current.map((candidate) => candidate.id === item.id
         ? { ...candidate, completedAt: null, skippedAt: null }
         : candidate));
+      const stillCompleted = items.some((candidate) => candidate.id !== item.id && Boolean(candidate.completedAt));
+      setDayHighlight((current) => ({ status: stillCompleted ? "queued" : "quiet", body: null, kind: null, revision: current.revision + 1 }));
       setActivityResetVersions((current) => ({ ...current, [item.id]: (current[item.id] ?? 0) + 1 }));
       setMobileActivityMenuId(null);
       setMobileResetActivity(null);
@@ -2143,15 +2244,16 @@ export default function Home() {
     }, 1_600);
   }
 
-  function collapseCompletedActivity(id: string, destinationIndex: number, nextId: string | null) {
+  function collapseCompletedActivity(id: string, nextId: string | null) {
     clearMobileActivityTransitionTimer();
     const origin = mobileActivityOriginRef.current;
-    const destination = mobileActivitySlotRectsRef.current[destinationIndex] ?? origin;
 
-    if (origin?.id === id && destination && canAnimateMobileActivity()) {
-      setMobileActivityTransition({ ...destination, id, phase: "closing" });
+    if (origin?.id === id && canAnimateMobileActivity()) {
+      setMobileActivityTransition({ ...origin, id, phase: "closing" });
       mobileActivityTransitionTimer.current = setTimeout(() => {
+        captureActivityListPositions();
         setSelectedActivityId((current) => current === id ? null : current);
+        removeSettlingCompletion(id);
         setMobileActivityTransition(null);
         mobileActivityOriginRef.current = null;
         mobileActivitySlotRectsRef.current = [];
@@ -2161,7 +2263,9 @@ export default function Home() {
       return;
     }
 
+    captureActivityListPositions();
     setSelectedActivityId((current) => current === id ? null : current);
+    removeSettlingCompletion(id);
     setMobileActivityTransition(null);
     mobileActivityOriginRef.current = null;
     mobileActivitySlotRectsRef.current = [];
@@ -2179,17 +2283,28 @@ export default function Home() {
       }
       removeSettlingCompletion(id);
       toggleComplete(id, null);
+      const stillCompleted = items.some((item) => item.id !== id && Boolean(item.completedAt));
+      setDayHighlight((current) => ({ status: stillCompleted ? "queued" : "quiet", body: null, kind: null, revision: current.revision + 1 }));
       return;
     }
 
     const nextId = nextIncompleteActivityId(id);
-    const completedDestinationIndex = displayedScheduledItems.filter((item) => completedIds.has(item.id) && !settlingCompletedIds.has(item.id)).length;
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const shouldAnimatePlacement = !collapseAfterCelebration && !prefersReducedMotion && (!timelineEnabled || !isDayStarted);
+    const shouldAnimatePlacement = !collapseAfterCelebration && !prefersReducedMotion;
     if (collapseAfterCelebration) setSelectedActivityId(id);
-    if (shouldAnimatePlacement) scheduleCompletedActivityPlacement(id);
-    else removeSettlingCompletion(id);
+    if (collapseAfterCelebration) setSettlingCompletedIds((current) => new Set(current).add(id));
+    else if (shouldAnimatePlacement) scheduleCompletedActivityPlacement(id);
+    else {
+      setSettlingCompletedIds((current) => new Set(current).add(id));
+      const timer = setTimeout(() => {
+        captureActivityListPositions();
+        removeSettlingCompletion(id);
+        completionPlacementTimers.current.delete(id);
+      }, 360);
+      completionPlacementTimers.current.set(id, timer);
+    }
     toggleComplete(id, completedAt);
+    setDayHighlight((current) => ({ status: "queued", body: null, kind: null, revision: current.revision + 1 }));
     celebrateCompletion(id);
 
     if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
@@ -2198,7 +2313,7 @@ export default function Home() {
       : collapseAfterCelebration ? 780 : shouldAnimatePlacement ? 1_080 : 760;
     completionHandoffTimer.current = setTimeout(() => {
       if (collapseAfterCelebration) {
-        collapseCompletedActivity(id, completedDestinationIndex, nextId);
+        collapseCompletedActivity(id, nextId);
         return;
       }
       if (nextId) cueNextActivity(nextId);
@@ -2264,11 +2379,15 @@ export default function Home() {
     if (!skippedAt) {
       clearSkipMotion(id);
       applySkipState(id, null);
+      const hasCompleted = items.some((item) => Boolean(item.completedAt));
+      setDayHighlight((current) => ({ status: hasCompleted ? "queued" : "quiet", body: null, kind: null, revision: current.revision + 1 }));
       return;
     }
 
     const nextId = nextIncompleteActivityId(id);
     applySkipState(id, skippedAt);
+    const hasOtherCompletion = items.some((item) => item.id !== id && Boolean(item.completedAt));
+    setDayHighlight((current) => ({ status: hasOtherCompletion ? "queued" : "quiet", body: null, kind: null, revision: current.revision + 1 }));
     if (skipMotionStartedActivityRef.current !== id) beginSkipMotion(id);
     if (!collapseAfterMotion) return;
 
@@ -2622,7 +2741,15 @@ export default function Home() {
             ) : null}
 
             <div className="schedule" aria-label="Idealized day schedule">
-              {hasLoaded ? <>{displayedScheduledItems.map((item, displayIndex) => {
+              {hasLoaded ? <>
+              {settledCompletedItems.length ? <DayHighlights
+                celebratingActivityId={celebratingActivityId}
+                completedItems={settledCompletedItems}
+                highlight={dayHighlight}
+                totalActivities={activeItemCount}
+                onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
+              /> : null}
+              {displayedScheduledItems.map((item, displayIndex) => {
                 const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);
                 const isDragging = draggingId === item.id;
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";

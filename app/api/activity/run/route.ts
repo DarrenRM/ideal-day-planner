@@ -1,6 +1,6 @@
 import { getD1 } from "../../../../db";
 import { parseAdvancement } from "../../../schedule-model";
-import { apiFailure, ensureAgentSchema, findActivity, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
+import { apiFailure, ensureAgentSchema, findActivity, queueDayHighlight, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
 
 function validDate(value: unknown) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
@@ -14,6 +14,7 @@ function boundedSeconds(value: unknown, allowZero = false) {
 
 type DayItem = {
   id: string;
+  dayPlanId: string;
   activityId: string;
   clientKey: string;
   activityVariantId: string | null;
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
     const db = getD1();
     const item = await db.prepare(`
       SELECT dpi.id, dpi.activity_id AS activityId, dpi.client_key AS clientKey,
+             dp.id AS dayPlanId,
              dpi.activity_variant_id AS activityVariantId,
              dpi.schedule_pattern_id AS schedulePatternId,
              dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt,
@@ -135,7 +137,11 @@ export async function POST(request: Request) {
       ];
       if (skipped && !item.skippedAt) statements.push(...await completionAdvancementStatements(userId, item, "skipped"));
       await db.batch(statements);
-      return Response.json({ skipped, skippedAt: skipped ? new Date().toISOString() : null, runId });
+      const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
+        console.error("Could not refresh the day highlight after changing a skip.", error);
+        return null;
+      });
+      return Response.json({ skipped, skippedAt: skipped ? new Date().toISOString() : null, runId, highlight });
     }
 
     if (mode === "reopen") {
@@ -143,7 +149,11 @@ export async function POST(request: Request) {
         db.prepare("UPDATE daily_plan_items SET completed_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(item.id),
         db.prepare("UPDATE activity_runs SET status = 'reopened', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").bind(runId, userId),
       ]);
-      return Response.json({ completed: false, runId });
+      const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
+        console.error("Could not refresh the day highlight after reopening an activity.", error);
+        return null;
+      });
+      return Response.json({ completed: false, runId, highlight });
     }
 
     if (mode !== "complete") return Response.json({ error: "Unsupported run operation." }, { status: 400 });
@@ -195,11 +205,16 @@ export async function POST(request: Request) {
       ...await completionAdvancementStatements(userId, item, "completed"),
     ];
     await db.batch(statements);
+    const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
+      console.error("Could not queue the day highlight after completion.", error);
+      return null;
+    });
 
     return Response.json({
       completed: true,
       completedAt: new Date().toISOString(),
       run: { id: runId, allottedDurationSeconds, plannedDurationSeconds, actualElapsedSeconds, timerMode },
+      highlight,
     });
   } catch (error) {
     return apiFailure(error);

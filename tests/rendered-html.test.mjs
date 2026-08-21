@@ -58,7 +58,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /\/api\/occurrences/);
   assert.match(page, /MIGRATION_KEY/);
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
-  assert.match(page, /hasLoaded \? <>\{displayedScheduledItems\.map/);
+  assert.match(page, /hasLoaded \? <>[\s\S]*displayedScheduledItems\.map/);
+  assert.match(page, /<DayHighlights/);
   assert.match(page, /draggable/);
   assert.match(page, /onDrop/);
   assert.match(page, /DropTarget/);
@@ -258,8 +259,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /scheduledItems[\s\S]*?\.find\(\(item\) => item\.id !== excludedId/);
   assert.doesNotMatch(page, /remainingInDayOrder/);
   assert.match(page, /collapseAfterCelebration \? 780 : shouldAnimatePlacement \? 1_080 : 760/);
-  assert.match(page, /collapseCompletedActivity\(id, completedDestinationIndex, nextId\)/);
-  assert.match(page, /\.\.\.completed,[\s\S]*?scheduledItems\.filter\(\(item\) => !isSettledComplete\(item\)\)/);
+  assert.match(page, /collapseCompletedActivity\(id, nextId\)/);
+  assert.match(page, /visibleItems = scheduledItems\.filter\(\(item\) => !completedIds\.has\(item\.id\)/);
+  assert.match(page, /settledCompletedItems/);
+  assert.match(css, /@keyframes day-highlight-icon-land/);
   assert.match(page, /function cueNextActivity/);
   assert.match(page, /window\.scrollBy\(\{/);
   assert.match(page, /nextActivityCueId === item\.id \? "is-next-cue"/);
@@ -488,7 +491,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /mode === "heartbeat"/);
   assert.match(jobRoute, /mode === "progress"/);
   assert.match(jobRoute, /progress_title/);
-  assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 ELSE 1 END/);
+  assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'day_highlight' THEN 1 ELSE 2 END/);
   assert.match(jobRoute, /ORDER BY created_at DESC/);
   assert.match(jobRoute, /Could not release an incomplete agent lease/);
   assert.match(jobRoute, /activityContext/);

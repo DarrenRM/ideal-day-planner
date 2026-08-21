@@ -108,6 +108,9 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 ## Completion motion
 
 - Completion feedback begins on press instead of waiting for persistence: sweep a restrained lime-to-gold highlight across a closed activity or the shared header of an expanded activity, briefly pop the checkmark, then settle into the normal Done state.
+- After that feedback settles, a completed activity leaves the working checklist and lands as its category-colored icon in the compact Highlights panel. The panel count and icon may settle/pop, but the remaining checklist must reflow calmly and preserve the next-activity cue.
+- Highlights shows every completed activity as a compact icon grid and expands into readable completion history. It is a progress surface, not a second stack of full activity cards; skipped activities remain in the checklist.
+- Luna highlight copy is optional and earned. Show a concrete, evidence-backed streak, milestone, completion cluster, effort, comeback, or personal best; when nothing is genuinely notable, keep the count and icon grid without fallback encouragement.
 - Keep the celebration under 720ms, non-blocking, and free of layout movement. Under reduced motion, replace travel and scaling with a short highlight fade.
 - Skip uses a separate, quieter status motion: a neutral 250–350ms sweep and small skip-icon settle, never the celebratory lime-to-gold treatment. A skipped card remains readable and stays in its checklist position rather than joining completed activities.
 - When Skip is used from an expanded activity, finish the status motion, collapse back to the list, and gently cue the next unfinished activity. Under reduced motion, use a short neutral fade before the same handoff.

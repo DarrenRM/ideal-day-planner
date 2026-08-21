@@ -17,7 +17,7 @@ const heartbeatIntervalMs = 5_000;
 
 const lunaInstructions = `You are Luna inside Ideal Day, a personal activity companion.
 Return exactly one JSON object with this shape and no markdown or surrounding prose:
-{"message": string|null, "workspaceFollowup": boolean, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[], "followUpQuestion": {"body":string}|null, "scheduleProposal": ScheduleProposal|null, "occurrenceActions": OccurrenceAction[]}
+{"message": string|null, "workspaceFollowup": boolean, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[], "followUpQuestion": {"body":string}|null, "scheduleProposal": ScheduleProposal|null, "occurrenceActions": OccurrenceAction[], "dayHighlight": {"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}
 
 Speak naturally to the person about their activity, intentions, progress, and today—not about software. Never mention events, context packets, databases, records, blank states, components, rendering, tools, or internal reasoning in message.
 
@@ -29,6 +29,12 @@ Site-wide scheduling behavior:
 - Only a clear, reversible, single-occurrence change may use occurrenceActions. Never guess an occurrence, date, scope, destination, or collision policy.
 - Do not optimize or rearrange the person's routine unless explicitly asked.
 - A proposal summary and message should explain the human-visible result, not implementation details.
+
+Day-highlight behavior:
+- A day_highlight job is a silent editorial review, not a conversation. Return message:null, no actions, and either one evidence-backed dayHighlight or null.
+- Highlight only something concretely notable in the supplied data: a real streak, a full-day or category milestone, at least five completions, several completions close together, unusually substantial measured effort, a return after a meaningful gap, or a supported personal best.
+- Never manufacture a sentiment, compliment ordinary participation, list generic categories, or write vague encouragement such as “you showed up.” If the evidence is ordinary, return dayHighlight:null.
+- Write one crisp human sentence of at most 18 words. Name the actual achievement and use numbers when they make it clearer.
 
 Activity-setup behavior:
 - An activity_setup job happens once when an activity is created or materially renamed. Design a useful initial workspace from approved components and decide whether one setup question would unlock a concrete durable improvement.
@@ -175,6 +181,14 @@ function compactRecords(records) {
 }
 
 function eventPrompt(job) {
+  if (job.job.kind === "day_highlight" || job.context.scope === "day_highlight") {
+    return `Review today's completed activities and decide whether one thing is genuinely worth surfacing as a highlight. This is editorial judgment, not encouragement. Use only supplied evidence. A fast cluster requires timestamps that actually support it; a streak requires consecutive prior days; a personal best requires comparable run measurements. Return dayHighlight:null when nothing clears that bar.
+
+Date: ${job.context.localDate}
+Today's activities and outcomes: ${JSON.stringify(job.context.today || [])}
+Recent day totals: ${JSON.stringify(job.context.recentDays || [])}
+Recent measured completed runs: ${JSON.stringify(job.context.recentRuns || [])}`;
+  }
   if (job.context.scope === "global" || job.job.kind === "global_message") {
     return `The user has spoken to Luna about their day or schedule. Respond naturally and compile only safe, typed scheduling work. Recurring changes require a proposal and confirmation. If one essential choice is missing, ask exactly one useful clarification instead. A clear reversible change to one known occurrence may be emitted as an occurrence action. Never mutate the routine merely because you notice an optimization.
 
@@ -233,10 +247,15 @@ function parseAgentResult(content) {
     : null;
   const scheduleProposal = parsed.scheduleProposal && typeof parsed.scheduleProposal === "object" ? parsed.scheduleProposal : null;
   const occurrenceActions = Array.isArray(parsed.occurrenceActions) ? parsed.occurrenceActions : [];
-  return { message, workspaceFollowup, recordActions, workspaceActions, followUpQuestion, scheduleProposal, occurrenceActions };
+  const dayHighlight = parsed.dayHighlight && typeof parsed.dayHighlight === "object" && !Array.isArray(parsed.dayHighlight)
+    && typeof parsed.dayHighlight.body === "string" && parsed.dayHighlight.body.trim()
+    ? { body: parsed.dayHighlight.body.trim(), kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
+    : null;
+  return { message, workspaceFollowup, recordActions, workspaceActions, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
 }
 
 function visibleProgress(leased) {
+  if (leased.job.kind === "day_highlight") return null;
   if (leased.job.kind === "global_message") {
     return {
       title: "Luna is working on your day",
@@ -301,6 +320,7 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       followUpQuestion: agentResult.followUpQuestion,
       scheduleProposal: agentResult.scheduleProposal,
       occurrenceActions: agentResult.occurrenceActions,
+      dayHighlight: agentResult.dayHighlight,
     }),
   });
 }
@@ -336,7 +356,7 @@ async function runJob(key, leased) {
     body: JSON.stringify({
       message: eventPrompt(leased),
       instructions: lunaInstructions,
-      ...(leased.job.kind === "user_message" ? { model_options: { reasoning_effort: "low" } } : {}),
+      ...(leased.job.kind === "user_message" || leased.job.kind === "day_highlight" ? { model_options: { reasoning_effort: "low" } } : {}),
     }),
   });
   const content = result?.message?.content;

@@ -5,6 +5,7 @@ import {
   ensureConversation,
   findActivity,
   queueActivitySetup,
+  queueDayHighlight,
   readConversationState,
   requestIdentity,
 } from "../../agent-store";
@@ -49,6 +50,12 @@ export async function POST(request: Request) {
         )
       `).bind(activity.id, userId, date),
     ]);
+
+    const dayPlan = await db.prepare("SELECT id FROM daily_plans WHERE user_id = ? AND plan_date = ?")
+      .bind(userId, date).first<{ id: string }>();
+    if (dayPlan) await queueDayHighlight(userId, dayPlan.id).catch((error) => {
+      console.error("Could not refresh the day highlight after resetting an activity.", error);
+    });
 
     await queueActivitySetup(userId, activity);
     const conversationId = await ensureConversation(userId, activity);
