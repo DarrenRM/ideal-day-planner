@@ -1095,6 +1095,7 @@ export default function Home() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
   const [pendingActivityIds, setPendingActivityIds] = useState<Set<string>>(() => new Set());
   const [celebratingActivityId, setCelebratingActivityId] = useState<string | null>(null);
+  const [settlingCompletedIds, setSettlingCompletedIds] = useState<Set<string>>(() => new Set());
   const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
   const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1103,11 +1104,15 @@ export default function Home() {
   const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionCelebrationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionHandoffTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const completionPlacementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const nextActivityCueTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const activityListPositionSnapshot = useRef<Map<string, { left: number; top: number }> | null>(null);
+  const activityReorderAnimations = useRef<Animation[]>([]);
   const mobileActivityTransitionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mobileActivityOriginRef = useRef<MobileActivityTransition | null>(null);
   const touchDragRef = useRef<TouchDrag | null>(null);
-  const suppressActivityClickUntilRef = useRef(0);
+  const suppressActivityClickRef = useRef(false);
+  const suppressActivityClickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const skipNextSave = useRef(true);
 
   useEffect(() => {
@@ -1335,9 +1340,12 @@ export default function Home() {
     if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
     if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
     if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
+    completionPlacementTimers.current.forEach((timer) => clearTimeout(timer));
+    activityReorderAnimations.current.forEach((animation) => animation.cancel());
     if (nextActivityCueTimer.current) clearTimeout(nextActivityCueTimer.current);
     if (mobileActivityTransitionTimer.current) clearTimeout(mobileActivityTransitionTimer.current);
     if (touchDragRef.current) clearTimeout(touchDragRef.current.timer);
+    if (suppressActivityClickTimer.current) clearTimeout(suppressActivityClickTimer.current);
   }, []);
 
   const completedBeforeLaunchIds = useMemo(() => {
@@ -1350,13 +1358,11 @@ export default function Home() {
   }, [dayStartedAt, items]);
 
   const scheduledItems = useMemo(() => {
-    let cursor = startMinutes;
-    return items.map<ScheduledItem>((item) => {
+    return items.reduce<{ cursor: number; scheduled: ScheduledItem[] }>((state, item) => {
       const consumesScheduleTime = !item.skippedAt && !completedBeforeLaunchIds.has(item.id);
-      const scheduled = { ...item, start: cursor, end: cursor + (consumesScheduleTime ? item.duration : 0) };
-      cursor = scheduled.end;
-      return scheduled;
-    });
+      const scheduled = { ...item, start: state.cursor, end: state.cursor + (consumesScheduleTime ? item.duration : 0) };
+      return { cursor: scheduled.end, scheduled: [...state.scheduled, scheduled] };
+    }, { cursor: startMinutes, scheduled: [] }).scheduled;
   }, [completedBeforeLaunchIds, items, startMinutes]);
 
   const totalMinutes = useMemo(
@@ -1383,13 +1389,57 @@ export default function Home() {
   const passedItemIds = useMemo(() => new Set(timelineEnabled && isDayStarted
     ? scheduledItems.filter((item) => item.completedAt || item.skippedAt || item.end <= displayedMinutes).map((item) => item.id)
     : []), [displayedMinutes, isDayStarted, scheduledItems, timelineEnabled]);
-  const displayedScheduledItems = useMemo(() => timelineEnabled && isDayStarted
-    ? [
+  const displayedScheduledItems = useMemo(() => {
+    if (timelineEnabled && isDayStarted) {
+      return [
         ...scheduledItems.filter((item) => passedItemIds.has(item.id)),
         ...scheduledItems.filter((item) => !passedItemIds.has(item.id)),
-      ]
-    : scheduledItems, [isDayStarted, passedItemIds, scheduledItems, timelineEnabled]);
+      ];
+    }
+
+    const originalOrder = new Map(scheduledItems.map((item, index) => [item.id, index]));
+    const isSettledComplete = (item: ScheduledItem) => completedIds.has(item.id) && !settlingCompletedIds.has(item.id);
+    const completed = scheduledItems
+      .filter(isSettledComplete)
+      .sort((left, right) => {
+        const leftTimestamp = storedTimestampMillis(left.completedAt);
+        const rightTimestamp = storedTimestampMillis(right.completedAt);
+        if (leftTimestamp !== null && rightTimestamp !== null && leftTimestamp !== rightTimestamp) return leftTimestamp - rightTimestamp;
+        if (leftTimestamp === null && rightTimestamp !== null) return -1;
+        if (leftTimestamp !== null && rightTimestamp === null) return 1;
+        return (originalOrder.get(left.id) ?? 0) - (originalOrder.get(right.id) ?? 0);
+      });
+    return [
+      ...completed,
+      ...scheduledItems.filter((item) => !isSettledComplete(item)),
+    ];
+  }, [completedIds, isDayStarted, passedItemIds, scheduledItems, settlingCompletedIds, timelineEnabled]);
   const nowLineIndex = timelineEnabled && isDayStarted ? passedItemIds.size : null;
+
+  useLayoutEffect(() => {
+    const before = activityListPositionSnapshot.current;
+    if (!before) return;
+    activityListPositionSnapshot.current = null;
+
+    const animations: Animation[] = [];
+    document.querySelectorAll<HTMLElement>(".routine-row[data-activity-id]").forEach((row) => {
+      const id = row.dataset.activityId;
+      const previous = id ? before.get(id) : null;
+      if (!previous) return;
+      const current = row.getBoundingClientRect();
+      const deltaX = previous.left - current.left;
+      const deltaY = previous.top - current.top;
+      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+      animations.push(row.animate([
+        { transform: `translate(${deltaX}px, ${deltaY}px)` },
+        { transform: "translate(0, 0)" },
+      ], {
+        duration: 440,
+        easing: "cubic-bezier(.2, .78, .24, 1)",
+      }));
+    });
+    activityReorderAnimations.current = animations;
+  }, [displayedScheduledItems]);
 
   useEffect(() => {
     if (!expandedActivityId || !window.matchMedia("(max-width: 680px)").matches) return;
@@ -1667,7 +1717,12 @@ export default function Home() {
     if (drag.active) {
       const target = moveItemOnRelease ? touchDropTarget(clientX, clientY, drag.sourceId) : null;
       if (target) moveItem(drag.sourceId, target.id, target.position);
-      suppressActivityClickUntilRef.current = Date.now() + 500;
+      suppressActivityClickRef.current = true;
+      if (suppressActivityClickTimer.current) clearTimeout(suppressActivityClickTimer.current);
+      suppressActivityClickTimer.current = setTimeout(() => {
+        suppressActivityClickRef.current = false;
+        suppressActivityClickTimer.current = undefined;
+      }, 500);
     }
     touchDragRef.current = null;
     setDraggingId(null);
@@ -1865,14 +1920,43 @@ export default function Home() {
     }, 1_150);
   }
 
+  function captureActivityListPositions() {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    activityReorderAnimations.current.forEach((animation) => animation.cancel());
+    activityReorderAnimations.current = [];
+    activityListPositionSnapshot.current = new Map(
+      Array.from(document.querySelectorAll<HTMLElement>(".routine-row[data-activity-id]")).flatMap((row) => {
+        const id = row.dataset.activityId;
+        if (!id) return [];
+        const bounds = row.getBoundingClientRect();
+        return [[id, { left: bounds.left, top: bounds.top }] as const];
+      }),
+    );
+  }
+
+  function removeSettlingCompletion(id: string) {
+    setSettlingCompletedIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function scheduleCompletedActivityPlacement(id: string) {
+    const existingTimer = completionPlacementTimers.current.get(id);
+    if (existingTimer) clearTimeout(existingTimer);
+    setSettlingCompletedIds((current) => new Set(current).add(id));
+    const timer = setTimeout(() => {
+      captureActivityListPositions();
+      removeSettlingCompletion(id);
+      completionPlacementTimers.current.delete(id);
+    }, 560);
+    completionPlacementTimers.current.set(id, timer);
+  }
+
   function nextIncompleteActivityId(completedId: string) {
-    const completedIndex = displayedScheduledItems.findIndex((item) => item.id === completedId);
-    if (completedIndex < 0) return null;
-    const remainingInDayOrder = [
-      ...displayedScheduledItems.slice(completedIndex + 1),
-      ...displayedScheduledItems.slice(0, completedIndex),
-    ];
-    return remainingInDayOrder
+    return scheduledItems
       .find((item) => item.id !== completedId && !item.completedAt && !item.skippedAt && !completedIds.has(item.id))
       ?.id ?? null;
   }
@@ -1904,20 +1988,31 @@ export default function Home() {
 
   function handleCompletionSaved(id: string, completedAt: string | null, collapseAfterCelebration: boolean) {
     if (!completedAt) {
+      const placementTimer = completionPlacementTimers.current.get(id);
+      if (placementTimer) {
+        clearTimeout(placementTimer);
+        completionPlacementTimers.current.delete(id);
+      } else {
+        captureActivityListPositions();
+      }
+      removeSettlingCompletion(id);
       toggleComplete(id, null);
       return;
     }
 
     const nextId = nextIncompleteActivityId(id);
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const shouldAnimatePlacement = !collapseAfterCelebration && !prefersReducedMotion && (!timelineEnabled || !isDayStarted);
     if (collapseAfterCelebration) setSelectedActivityId(id);
+    if (shouldAnimatePlacement) scheduleCompletedActivityPlacement(id);
+    else removeSettlingCompletion(id);
     toggleComplete(id, completedAt);
     celebrateCompletion(id);
 
     if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const handoffDelay = prefersReducedMotion
       ? collapseAfterCelebration ? 420 : 240
-      : collapseAfterCelebration ? 1_000 : 760;
+      : collapseAfterCelebration ? 1_000 : shouldAnimatePlacement ? 1_080 : 760;
     completionHandoffTimer.current = setTimeout(() => {
       if (collapseAfterCelebration) {
         setSelectedActivityId((current) => current === id ? null : current);
@@ -2321,7 +2416,7 @@ export default function Home() {
                           onPointerMove={handleActivityPointerMove}
                           onPointerUp={handleActivityPointerUp}
                           onClick={(event) => {
-                            if (Date.now() < suppressActivityClickUntilRef.current || transitionGeometry) return;
+                            if (suppressActivityClickRef.current || transitionGeometry) return;
                             if (isExpanded) collapseActivity();
                             else openActivity(item.id, event.currentTarget.closest<HTMLElement>(".routine-card")?.getBoundingClientRect());
                           }}

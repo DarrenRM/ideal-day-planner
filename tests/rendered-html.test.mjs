@@ -242,7 +242,14 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /onCompletionIntent/);
   assert.match(page, /function handleCompletionSaved/);
   assert.match(page, /if \(collapseAfterCelebration\) setSelectedActivityId\(id\);[\s\S]*?toggleComplete\(id, completedAt\);[\s\S]*?celebrateCompletion\(id\);/);
-  assert.match(page, /collapseAfterCelebration \? 1_000 : 760/);
+  assert.match(page, /function scheduleCompletedActivityPlacement/);
+  assert.match(page, /setSettlingCompletedIds/);
+  assert.match(page, /}, 560\);/);
+  assert.match(page, /duration: 440/);
+  assert.match(page, /scheduledItems[\s\S]*?\.find\(\(item\) => item\.id !== completedId/);
+  assert.doesNotMatch(page, /remainingInDayOrder/);
+  assert.match(page, /collapseAfterCelebration \? 1_000 : shouldAnimatePlacement \? 1_080 : 760/);
+  assert.match(page, /\.\.\.completed,[\s\S]*?scheduledItems\.filter\(\(item\) => !isSettledComplete\(item\)\)/);
   assert.match(page, /function cueNextActivity/);
   assert.match(page, /window\.scrollBy\(\{/);
   assert.match(page, /nextActivityCueId === item\.id \? "is-next-cue"/);
