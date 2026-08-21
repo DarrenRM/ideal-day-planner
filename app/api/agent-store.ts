@@ -1,5 +1,6 @@
 import { getD1 } from "../../db";
 import { parseActivityRecord, validateRecordActions, type ActivityRecord as PersistedActivityRecord, type RecordAction } from "../activity-record-model";
+import { activitySetupKey, activitySetupKeyMatches } from "../activity-setup-policy";
 import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type WorkspaceAction, type WorkspaceDocument } from "../workspace-model";
 
 export type ActivityRecord = {
@@ -301,10 +302,6 @@ export type ActivitySetupProfile = {
   setupQuestionMessageId: string | null;
 };
 
-function activitySetupKey(activity: ActivityRecord) {
-  return safeId(`workspace-catalog-v2:${activity.title.trim().toLowerCase()}:${activity.category.trim().toLowerCase()}`).slice(0, 180);
-}
-
 export async function readActivitySetupProfile(activityId: string) {
   return getD1().prepare(`
     SELECT setup_status AS setupStatus, setup_key AS setupKey,
@@ -318,7 +315,16 @@ export async function queueActivitySetup(userId: string, activity: ActivityRecor
   const db = getD1();
   const setupKey = activitySetupKey(activity);
   const profile = await readActivitySetupProfile(activity.id);
-  if (profile?.setupKey === setupKey) return profile;
+  if (profile && activitySetupKeyMatches(profile.setupKey, activity)) {
+    if (profile.setupKey !== setupKey) {
+      await db.prepare(`
+        UPDATE activity_profiles
+        SET setup_key = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE activity_id = ?
+      `).bind(setupKey, activity.id).run();
+    }
+    return { ...profile, setupKey };
+  }
 
   const conversationId = await ensureConversation(userId, activity);
   const jobId = `agent-job:${safeId(userId)}:setup:${safeId(activity.clientKey)}:${setupKey}`;
