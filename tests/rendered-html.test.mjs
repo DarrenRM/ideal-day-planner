@@ -386,10 +386,11 @@ test("keeps the routine data and interactions in the page", async () => {
 });
 
 test("keeps universal scheduling behind typed, auditable boundaries", async () => {
-  const [model, store, occurrenceRoute, proposalService, lunaRoute, manager, migration] = await Promise.all([
+  const [model, store, occurrenceRoute, occurrenceActions, proposalService, lunaRoute, manager, migration] = await Promise.all([
     readFile(new URL("../app/schedule-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/occurrences/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/schedule-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule-proposal-service.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/luna/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/schedule-manager.tsx", import.meta.url), "utf8"),
@@ -400,10 +401,11 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(model, /type: "set_activity"/);
   assert.match(store, /INSERT OR IGNORE INTO daily_plan_items/);
   assert.match(store, /occurrenceKey/);
-  assert.match(occurrenceRoute, /parseOccurrenceAction/);
+  assert.match(occurrenceRoute, /applyOccurrenceAction/);
+  assert.match(occurrenceActions, /parseOccurrenceAction/);
   assert.match(proposalService, /schedule_action_events/);
   assert.match(proposalService, /stale_revision/);
-  assert.match(lunaRoute, /scope_type = 'global'/);
+  assert.match(lunaRoute, /ensureGlobalConversation/);
   assert.match(manager, /Manage schedule/);
   assert.match(manager, /Starts with/);
   assert.match(manager, /Begins/);
