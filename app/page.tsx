@@ -2487,6 +2487,8 @@ export default function Home() {
                   } : {}),
                 } as CSSProperties;
                 const ActivityIcon = activityIconFor(item);
+                const ItemIcon = isSkipped ? SkipForward : isComplete ? Check : ActivityIcon;
+                const itemIconState = isSkipped ? "is-skipped" : isComplete ? "is-complete" : "";
 
                 return (
                   <Fragment key={item.id}>
@@ -2540,6 +2542,7 @@ export default function Home() {
                         </>
                       ) : (
                         <button
+                          aria-label={`${item.title}${isSkipped ? ", skipped today" : isComplete ? ", done" : ""}`}
                           aria-expanded={isExpanded}
                           aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                           className="item-copy"
@@ -2560,13 +2563,11 @@ export default function Home() {
                           }}
                         >
                           <div className="item-title">
-                            <span className="activity-title-icon" aria-hidden="true"><ActivityIcon size={18} strokeWidth={1.9} /></span>
+                            <span className={`activity-title-icon ${itemIconState}`} aria-hidden="true"><ItemIcon size={18} strokeWidth={isComplete ? 2.4 : 1.9} /></span>
                             <h3>{item.title}</h3>
                           </div>
                           <div className="item-state">
                             {activityState === "current" ? <span className="now-chip">Now</span> : null}
-                            {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
-                            {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
                           </div>
                           <div className="item-meta">
                             {dayMode.showClockState ? <div className="mobile-time-label" aria-hidden="true">{isSkipped
@@ -2577,8 +2578,6 @@ export default function Home() {
                             <span className="category-chip">{item.category}</span>
                             <div className="mobile-item-state">
                               {activityState === "current" ? <span className="now-chip">Now</span> : null}
-                              {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
-                              {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
                             </div>
                           </div>
                         </button>
@@ -2671,8 +2670,6 @@ export default function Home() {
                               <span className="category-chip">{item.category}</span>
                               <div className="mobile-item-state">
                                 {activityState === "current" ? <span className="now-chip">Now</span> : null}
-                                {activityState === "complete" ? <span className="complete-chip"><Check aria-hidden="true" size={10} /> Done</span> : null}
-                                {activityState === "skipped" ? <span className="skipped-chip"><SkipForward aria-hidden="true" size={10} /> Skipped</span> : null}
                               </div>
                             </>}
                             item={item}

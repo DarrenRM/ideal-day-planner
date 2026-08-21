@@ -229,7 +229,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /--type-label: \.75rem/);
   assert.match(css, /--type-body: \.875rem/);
   assert.match(css, /--type-body-lg: 1rem/);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip \{[^}]*font-size: var\(--type-micro\);[^}]*font-weight: 590;[^}]*height: 18px;[^}]*letter-spacing: \.055em;[^}]*line-height: 16px;[^}]*padding: 0 6px/s);
+  assert.match(css, /\.now-chip, \.category-chip \{[^}]*font-size: var\(--type-micro\);[^}]*font-weight: 590;[^}]*height: 18px;[^}]*letter-spacing: \.055em;[^}]*line-height: 16px;[^}]*padding: 0 6px/s);
   assert.match(css, /\.add-block-form/);
   assert.match(css, /\.planner-menu-popover/);
   assert.match(css, /\.planner-menu-trigger/);
@@ -324,7 +324,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.delete-item-button/);
   assert.match(css, /\.routine-row > \.time-label \{ display: none; \}/);
   assert.match(css, /\.mobile-time-label/);
-  assert.match(css, /\.now-chip, \.complete-chip, \.skipped-chip, \.category-chip .*line-height: 16px; padding: 0 6px/);
+  assert.match(css, /\.now-chip, \.category-chip .*line-height: 16px; padding: 0 6px/);
   assert.doesNotMatch(css, /\.now-chip[^\n]*padding: 1px 6px 0/);
   assert.match(css, /\.duration-value \{[^}]*min-width: 78px/s);
   assert.match(css, /\.duration-control input \{[^}]*field-sizing: content;[^}]*min-width: 1ch;/s);
@@ -345,7 +345,12 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /function activityIconFor/);
   assert.match(page, /CATEGORY_ICONS: Record<Category, LucideIcon>/);
   assert.match(page, /"--item-color": CATEGORY_META\[item\.category\]\.color/);
-  assert.match(page, /className="activity-title-icon"/);
+  assert.match(page, /const ItemIcon = isSkipped \? SkipForward : isComplete \? Check : ActivityIcon/);
+  assert.match(page, /className=\{`activity-title-icon \$\{itemIconState\}`\}/);
+  assert.match(css, /\.activity-title-icon\.is-complete \{ color: var\(--accent-bright\); \}/);
+  assert.match(css, /\.activity-title-icon\.is-skipped \{ color: #7d8782; \}/);
+  assert.doesNotMatch(page, /className="complete-chip"/);
+  assert.doesNotMatch(page, /className="skipped-chip"/);
   assert.doesNotMatch(page, /className="item-icon"/);
   assert.doesNotMatch(css, /\.drag-button/);
   assert.match(css, /\.item-title \{[^}]*padding-right: 76px/s);
