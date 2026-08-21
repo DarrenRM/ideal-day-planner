@@ -27,6 +27,14 @@ type RoutineItem = {
 type ScheduledItem = RoutineItem & { start: number; end: number };
 type DropTarget = { id: string; position: "before" | "after" };
 type TouchDrag = { active: boolean; pointerId: number; sourceId: string; startX: number; startY: number; timer: ReturnType<typeof setTimeout> };
+type MobileActivityTransition = {
+  id: string;
+  phase: "opening" | "closing";
+  top: number;
+  left: number;
+  right: number;
+  height: number;
+};
 type ConversationMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string; pending?: boolean };
 type ConversationJob = {
   status: "queued" | "leased" | "running" | "retryable_failure";
@@ -1081,6 +1089,7 @@ export default function Home() {
   const [realMinutes, setRealMinutes] = useState(minutesNow);
   const [fakeMinutes, setFakeMinutes] = useState<number | null>(DEFAULT_DEV_MINUTES);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [mobileActivityTransition, setMobileActivityTransition] = useState<MobileActivityTransition | null>(null);
   const [startConversationActivityId, setStartConversationActivityId] = useState<string | null>(null);
   const [dismissedClockActivityId, setDismissedClockActivityId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
@@ -1095,6 +1104,8 @@ export default function Home() {
   const completionCelebrationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionHandoffTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const nextActivityCueTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mobileActivityTransitionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mobileActivityOriginRef = useRef<MobileActivityTransition | null>(null);
   const touchDragRef = useRef<TouchDrag | null>(null);
   const suppressActivityClickUntilRef = useRef(0);
   const skipNextSave = useRef(true);
@@ -1325,6 +1336,7 @@ export default function Home() {
     if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
     if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
     if (nextActivityCueTimer.current) clearTimeout(nextActivityCueTimer.current);
+    if (mobileActivityTransitionTimer.current) clearTimeout(mobileActivityTransitionTimer.current);
     if (touchDragRef.current) clearTimeout(touchDragRef.current.timer);
   }, []);
 
@@ -1772,16 +1784,65 @@ export default function Home() {
     }
   }
 
-  function openActivity(id: string) {
+  function canAnimateMobileActivity() {
+    return window.matchMedia("(max-width: 680px)").matches
+      && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function clearMobileActivityTransitionTimer() {
+    if (!mobileActivityTransitionTimer.current) return;
+    clearTimeout(mobileActivityTransitionTimer.current);
+    mobileActivityTransitionTimer.current = undefined;
+  }
+
+  function openActivity(id: string, origin?: DOMRect) {
     setMobileActivityMenuId(null);
     setStartConversationActivityId(null);
+    clearMobileActivityTransitionTimer();
+
+    if (origin && canAnimateMobileActivity()) {
+      const geometry: MobileActivityTransition = {
+        id,
+        phase: "opening",
+        top: Math.max(0, origin.top),
+        left: Math.max(0, origin.left),
+        right: Math.max(0, window.innerWidth - origin.right),
+        height: Math.max(1, origin.height),
+      };
+      mobileActivityOriginRef.current = geometry;
+      setMobileActivityTransition(geometry);
+      mobileActivityTransitionTimer.current = setTimeout(() => {
+        setMobileActivityTransition((current) => current?.id === id ? null : current);
+        mobileActivityTransitionTimer.current = undefined;
+      }, 340);
+    } else {
+      mobileActivityOriginRef.current = null;
+      setMobileActivityTransition(null);
+    }
+
     setSelectedActivityId(id);
     setDismissedClockActivityId(null);
   }
 
   function collapseActivity() {
     setMobileActivityMenuId(null);
-    setSelectedActivityId(null);
+    clearMobileActivityTransitionTimer();
+
+    const origin = mobileActivityOriginRef.current;
+    if (selectedActivityId && origin?.id === selectedActivityId && canAnimateMobileActivity()) {
+      const id = selectedActivityId;
+      setMobileActivityTransition({ ...origin, phase: "closing" });
+      mobileActivityTransitionTimer.current = setTimeout(() => {
+        setSelectedActivityId((current) => current === id ? null : current);
+        setMobileActivityTransition(null);
+        mobileActivityOriginRef.current = null;
+        mobileActivityTransitionTimer.current = undefined;
+      }, 280);
+    } else {
+      setSelectedActivityId(null);
+      setMobileActivityTransition(null);
+      mobileActivityOriginRef.current = null;
+    }
     if (clockCurrentItem) setDismissedClockActivityId(clockCurrentItem.id);
   }
 
@@ -2184,7 +2245,16 @@ export default function Home() {
                 const isSkipped = Boolean(item.skippedAt);
                 const isPending = pendingActivityIds.has(item.id);
                 const activityState = isSkipped ? "skipped" : isComplete ? "complete" : !timelineEnabled || !isDayStarted ? "planned" : item.end <= displayedMinutes ? "past" : item.start > displayedMinutes ? "upcoming" : "current";
-                const itemStyle = { "--item-color": CATEGORY_META[item.category].color } as CSSProperties;
+                const transitionGeometry = mobileActivityTransition?.id === item.id ? mobileActivityTransition : null;
+                const itemStyle = {
+                  "--item-color": CATEGORY_META[item.category].color,
+                  ...(transitionGeometry ? {
+                    "--activity-origin-top": `${transitionGeometry.top}px`,
+                    "--activity-origin-left": `${transitionGeometry.left}px`,
+                    "--activity-origin-right": `${transitionGeometry.right}px`,
+                    "--activity-origin-height": `${transitionGeometry.height}px`,
+                  } : {}),
+                } as CSSProperties;
                 const ActivityIcon = activityIconFor(item);
 
                 return (
@@ -2210,7 +2280,7 @@ export default function Home() {
                         ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                         : <strong className="sequence-label">Queued</strong>}</div> : null}
 
-                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""}`}>
+                    <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${transitionGeometry ? `is-mobile-${transitionGeometry.phase}` : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""}`}>
                       {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
                       {isEditing ? (
                         <>
@@ -2250,10 +2320,10 @@ export default function Home() {
                           onPointerDown={(event) => handleActivityPointerDown(event, item.id)}
                           onPointerMove={handleActivityPointerMove}
                           onPointerUp={handleActivityPointerUp}
-                          onClick={() => {
-                          if (Date.now() < suppressActivityClickUntilRef.current) return;
-                          if (isExpanded) collapseActivity();
-                          else openActivity(item.id);
+                          onClick={(event) => {
+                            if (Date.now() < suppressActivityClickUntilRef.current || transitionGeometry) return;
+                            if (isExpanded) collapseActivity();
+                            else openActivity(item.id, event.currentTarget.closest<HTMLElement>(".routine-card")?.getBoundingClientRect());
                           }}
                         >
                           <div className="item-title">

@@ -766,6 +766,12 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-row.is-skipped .routine-card .item-controls > .duration-control .duration-adjustments { display: none; }
   .routine-row:has(.routine-card.is-expanded) { z-index: 100; }
   .routine-card.is-expanded { background: #101416; border: 0; border-radius: 0; bottom: 0; box-shadow: none; display: grid; gap: 0; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; inset-inline: 0; margin: 0; max-width: none; padding: 0; position: fixed; top: 0; width: 100%; z-index: 100; }
+  .routine-card.is-expanded.is-mobile-opening,
+  .routine-card.is-expanded.is-mobile-closing { will-change: clip-path, transform; }
+  .routine-card.is-expanded.is-mobile-opening { animation: mobile-activity-open 320ms cubic-bezier(.2, .78, .24, 1) both; }
+  .routine-card.is-expanded.is-mobile-closing { animation: mobile-activity-close 260ms cubic-bezier(.4, 0, .22, 1) both; pointer-events: none; }
+  .routine-card.is-expanded.is-mobile-opening .activity-expansion { animation: mobile-activity-content-in 320ms ease-out both; }
+  .routine-card.is-expanded.is-mobile-closing .activity-expansion { animation: mobile-activity-content-out 160ms ease-in both; }
   .routine-card.is-expanded .item-copy { background: #151a1d; border-bottom: 1px solid #293033; gap: 6px 8px; grid-column: 1 / -1; grid-row: 1; grid-template-rows: 32px 32px; min-height: 86px; padding: max(8px, env(safe-area-inset-top)) 12px 8px 16px; }
   .routine-card.is-expanded .completion-sweep { height: max(86px, calc(78px + env(safe-area-inset-top))); }
   .routine-card.is-expanded .item-title { padding-right: 76px; }
@@ -824,6 +830,42 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .finish-row { grid-template-columns: 52px 1fr; }
   .summary-rail { grid-template-columns: 1fr; }
   .local-note { grid-column: 1; }
+
+  @keyframes mobile-activity-open {
+    from {
+      border-radius: 12px;
+      clip-path: inset(0 calc(var(--activity-origin-left) + var(--activity-origin-right)) calc(100% - var(--activity-origin-height)) 0 round 12px);
+      transform: translate(var(--activity-origin-left), var(--activity-origin-top));
+    }
+    to {
+      border-radius: 0;
+      clip-path: inset(0 0 0 0 round 0);
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes mobile-activity-close {
+    from {
+      border-radius: 0;
+      clip-path: inset(0 0 0 0 round 0);
+      transform: translateY(0);
+    }
+    to {
+      border-radius: 12px;
+      clip-path: inset(0 calc(var(--activity-origin-left) + var(--activity-origin-right)) calc(100% - var(--activity-origin-height)) 0 round 12px);
+      transform: translate(var(--activity-origin-left), var(--activity-origin-top));
+    }
+  }
+
+  @keyframes mobile-activity-content-in {
+    0%, 48% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes mobile-activity-content-out {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(6px); }
+  }
 }
 
 @media (max-width: 430px) {
@@ -863,6 +905,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .streak-step.is-waiting .streak-dot, .streak-step.is-waiting small, .routine-card.is-celebrating .streak-step.is-latest .streak-dot, .routine-card.is-celebrating .streak-step.is-latest .streak-dot::after { animation: none; }
   .routine-row.is-next-cue .routine-card:not(.is-expanded) { animation: none; border-color: color-mix(in srgb, var(--item-color) 58%, #30383b); box-shadow: 0 0 0 1px color-mix(in srgb, var(--item-color) 20%, transparent); }
   .routine-row.is-next-cue .routine-card:not(.is-expanded)::before { animation: none; opacity: .9; transform: scaleY(1); }
+  .routine-card.is-mobile-opening, .routine-card.is-mobile-closing, .routine-card.is-mobile-opening .activity-expansion, .routine-card.is-mobile-closing .activity-expansion { animation: none; }
   @keyframes completion-celebration-fade { 0%, 100% { opacity: 0; } 35% { opacity: .45; } }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
   .schedule-loading-row, .shape-loading-row, .activity-opening-progress::after { animation: none; }

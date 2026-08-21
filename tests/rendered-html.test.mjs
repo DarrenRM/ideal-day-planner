@@ -205,6 +205,15 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.routine-card\.is-expanded \{ background: #101416;[^}]*margin: 0;[^}]*padding: 0;[^}]*position: fixed;/);
   assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*gap: 6px 8px;[^}]*grid-template-rows: 32px 32px;[^}]*min-height: 86px;[^}]*padding: max\(8px, env\(safe-area-inset-top\)\) 12px 8px 16px;/);
   assert.match(css, /\.routine-row:has\(\.routine-card\.is-expanded\) \{ padding: 0; \}/);
+  assert.match(page, /type MobileActivityTransition/);
+  assert.match(page, /getBoundingClientRect\(\)/);
+  assert.match(page, /is-mobile-\$\{transitionGeometry\.phase\}/);
+  assert.match(page, /prefers-reduced-motion: reduce/);
+  assert.match(css, /@keyframes mobile-activity-open/);
+  assert.match(css, /@keyframes mobile-activity-close/);
+  assert.match(css, /@keyframes mobile-activity-content-in/);
+  assert.match(css, /transform: translate\(var\(--activity-origin-left\), var\(--activity-origin-top\)\)/);
+  assert.match(css, /\.routine-card\.is-expanded\.is-mobile-opening \.activity-expansion/);
   assert.match(css, /is-drawer-collapsed/);
   assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
   assert.match(css, /\.activity-conversation\.has-workspace-peek \{ top: 96px; \}/);
