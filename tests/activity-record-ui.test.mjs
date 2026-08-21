@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { formatActivityRecordDate } from "../app/activity-record-format.ts";
+import { parseActivityRecord } from "../app/activity-record-model.ts";
 
 test("formats record dates for people without narrow machine-date strings", () => {
   const today = new Date(2026, 7, 20, 12);
@@ -35,4 +36,36 @@ test("renders history as its own responsive recap rather than a timeline grid", 
   assert.match(component, /formatActivityRecordDate\(entry\.date\)/);
   assert.match(css, /\.record-history-entry time \{[^}]*white-space: nowrap/s);
   assert.doesNotMatch(css, /\.record-history-list \.timeline-entry/);
+});
+
+test("keeps product cards focused on identity instead of generated subfields", async () => {
+  const component = await readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8");
+  const productRenderer = component.match(/function ProductRecord[\s\S]*?\n}/)?.[0] || "";
+  assert.match(productRenderer, /<small>\{kindLabel\}<\/small>/);
+  assert.doesNotMatch(productRenderer, /usefulFields|record-field-grid/);
+
+  const record = parseActivityRecord({
+    id: "product-1",
+    recordKey: "hair-serum",
+    recordType: "product",
+    title: "Hair serum",
+    scope: "activity",
+    scopeDate: null,
+    version: 1,
+    payloadJson: JSON.stringify({
+      kind: "product",
+      name: "LL-01",
+      manufacturer: "Lumen Lab",
+      variant: "Hair serum",
+      fields: [{ label: "Use", value: "Daily" }],
+    }),
+    updatedAt: "2026-08-20T12:00:00Z",
+  });
+  assert.deepEqual(record?.data, {
+    kind: "product",
+    name: "LL-01",
+    manufacturer: "Lumen Lab",
+    variant: "Hair serum",
+    notes: "",
+  });
 });

@@ -9,8 +9,8 @@ const expected = [
   "attention", "resources", "timer", "countdown",
 ];
 
-test("the production catalog contains every approved v2 component exactly once", () => {
-  assert.equal(CATALOG_VERSION, "workspace-catalog-v2");
+test("the production catalog contains every approved v3 component exactly once", () => {
+  assert.equal(CATALOG_VERSION, "workspace-catalog-v3");
   const types = COMPONENT_CATALOG.map(([type]) => type);
   assert.deepEqual(types, expected);
   assert.equal(new Set(types).size, types.length);
@@ -33,7 +33,9 @@ test("product records distinguish products from devices", async () => {
     readFile(new URL("../app/activity-record-model.ts", import.meta.url), "utf8"),
   ]);
   assert.match(catalogSource, /kind\(product\|device\)/);
+  assert.doesNotMatch(COMPONENT_CATALOG.find(([type]) => type === "product")?.[2] || "", /fields/);
   assert.match(recordModelSource, /kind: source\.kind === "device" \? "device" : "product"/);
+  assert.doesNotMatch(recordModelSource.match(/if \(type === "product"\)[\s\S]*?\n\s{2}}/)?.[0] || "", /fields:/);
 });
 
 test("recipe hints cover the live activity families without treating schedule duration as intent", () => {

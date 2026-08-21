@@ -27,6 +27,9 @@ test("the bridge bypasses the slow conversational pass and the server recovers m
   assert.match(bridge, /workspaceFollowup: true/);
   assert.match(bridge, /model_options: \{ reasoning_effort: "low" \}/);
   assert.match(bridge, /Do not leave a learned product name, device, usage direction, routine step, or protocol only in the conversational message/);
+  assert.match(bridge, /create one product record and card for each named item/);
+  assert.match(bridge, /one shared adherence streak, one combined routine\/protocol, and one combined resources area/);
+  assert.match(bridge, /never emit fields or usage subfields/);
   assert.match(route, /'agent-job:workspace-recovery:' \|\| source\.id/);
   assert.match(route, /payload\.workspaceFollowup === true \|\| messageRequestsResearch\(sourceMessage\?\.body\)/);
   assert.match(bridge, /sendHeartbeat\(leased\)/);

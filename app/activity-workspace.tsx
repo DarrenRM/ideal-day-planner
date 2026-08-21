@@ -326,11 +326,11 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak;
   const orderedItems = orderWorkspaceDisplayItems([
     ...visibleComponents.map((component) => ({
-      displayRole: (component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
+      displayRole: (component.type === "adherence" ? "streak" : component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
       id: component.id,
       component,
     })),
-    ...(showStarterStreak ? [{ displayRole: "starter" as const, id: "starter-streak", component: null }] : []),
+    ...(showStarterStreak ? [{ displayRole: "streak" as const, id: "starter-streak", component: null }] : []),
   ]);
   if (!hasVisibleWorkspace && !workState && !recordError) return null;
   return (

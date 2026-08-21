@@ -4,34 +4,34 @@ import { orderWorkspaceDisplayItems } from "../app/workspace-order.ts";
 
 const item = (id, displayRole) => ({ id, displayRole });
 
-test("keeps a primary surface first, countdowns second, and resources last", () => {
+test("keeps a streak first, countdowns second, the primary surface next, and resources last", () => {
   const ordered = orderWorkspaceDisplayItems([
     item("primary", "primary"),
     item("resource-one", "resource"),
     item("support", "primary"),
     item("countdown", "countdown"),
-    item("starter", "starter"),
+    item("streak", "streak"),
     item("resource-two", "resource"),
   ]);
 
   assert.deepEqual(ordered.map(({ id }) => id), [
-    "primary",
+    "streak",
     "countdown",
+    "primary",
     "support",
-    "starter",
     "resource-one",
     "resource-two",
   ]);
 });
 
-test("uses the starter streak as the first surface when no primary component exists", () => {
+test("uses the streak as the first surface when no primary component exists", () => {
   const ordered = orderWorkspaceDisplayItems([
     item("resource", "resource"),
     item("countdown", "countdown"),
-    item("starter", "starter"),
+    item("streak", "streak"),
   ]);
 
-  assert.deepEqual(ordered.map(({ id }) => id), ["starter", "countdown", "resource"]);
+  assert.deepEqual(ordered.map(({ id }) => id), ["streak", "countdown", "resource"]);
 });
 
 test("does not manufacture an empty first slot for a standalone countdown", () => {

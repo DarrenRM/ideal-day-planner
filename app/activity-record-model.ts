@@ -174,11 +174,6 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
       manufacturer: boundedString(source.manufacturer, 160),
       variant: boundedString(source.variant, 200),
       notes: boundedString(source.notes, 800),
-      fields: objectArray(source.fields, 20, (entry) => {
-        const label = boundedString(entry.label, 100);
-        const fieldValue = boundedString(entry.value, 400);
-        return label && fieldValue ? { label, value: fieldValue } : null;
-      }),
     };
   }
 

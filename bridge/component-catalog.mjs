@@ -1,8 +1,8 @@
-export const CATALOG_VERSION = "workspace-catalog-v2";
+export const CATALOG_VERSION = "workspace-catalog-v3";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
-  ["product", "A named product or device", "kind(product|device), name, manufacturer, variant, notes, fields[{label,value}]"],
+  ["product", "One named product or device identity card", "kind(product|device), name, manufacturer, variant, notes"],
   ["protocol", "Repeatable ordered instructions", "summary, steps[{id,label,note,completed}]"],
   ["checklist", "Repeatable actions to check during the current activity", "items[{id,label,detail,completed}]"],
   ["item_list", "Open shopping, queue, inventory, or supply items", "items[{id,label,detail,completed,urgency,source}]"],
@@ -24,7 +24,7 @@ export const COMPONENT_CATALOG = [
 export const ACTIVITY_RECIPES = [
   "Strength session: workout; optionally comparison/history/metric. Never replace sets and targets with a prose routine.",
   "Cardio session: goal or summary plus quick_log/metric/history; timer or countdown only when modality or user intent makes time useful.",
-  "Product/device care: product plus protocol; optionally adherence/timeline/attention. Timed devices may also use countdown.",
+  "Product/device care: one product record per named product or device, plus one shared protocol; optionally one shared adherence/timeline/attention area. Timed devices may also use countdown.",
   "Body routine: protocol or checklist plus goal; optionally quick_log/history and a deliberately chosen timer.",
   "Meal/supplement routine: protocol/checklist/product or item_list; no timer merely because it occupies schedule time.",
   "Supply manager: item_list plus history; preserve urgency and source.",
