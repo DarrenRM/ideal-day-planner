@@ -1152,6 +1152,7 @@ export default function Home() {
   const [draftIntervalDays, setDraftIntervalDays] = useState(2);
   const [draftIncludeToday, setDraftIncludeToday] = useState(true);
   const [draftLunaRequest, setDraftLunaRequest] = useState("");
+  const [draftSetupRequest, setDraftSetupRequest] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
@@ -1680,6 +1681,7 @@ export default function Home() {
     };
     setSaveState("saving");
     try {
+      const setupRequest = [draftSetupRequest.trim(), draftScheduleKind === "luna" ? `Schedule request: ${draftLunaRequest.trim() || `Help me decide how ${item.title} should fit into my routine. Ask me one useful question if you need to.`}` : ""].filter(Boolean).join("\n\n");
       const response = await fetch("/api/activities", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1699,6 +1701,7 @@ export default function Home() {
                 ? { kind: "daily" }
                 : { kind: "none" },
           includeToday: draftIncludeToday,
+          setupRequest,
         }),
       });
       const created = await response.json() as { activity?: { id: string; title: string }; error?: string };
@@ -1706,23 +1709,15 @@ export default function Home() {
       const dayResponse = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
       if (!dayResponse.ok) throw new Error("The new activity could not be loaded.");
       const day = await dayResponse.json() as { items: unknown };
-      setItems(hydrateStoredItems(day.items));
+      const nextItems = hydrateStoredItems(day.items);
+      setItems(nextItems);
       setSaveState("saved");
       if (draftScheduleKind === "sequence") {
         setScheduleManagerActivityId(created.activity?.id || clientKey);
         setIsScheduleManagerOpen(true);
       }
-      if (draftScheduleKind === "luna") {
-        const request = draftLunaRequest.trim() || `Help me decide how ${item.title} should fit into my routine. Ask me one useful question if you need to.`;
-        const lunaMessage = `I just added ${item.title} (${created.activity?.id || clientKey}). ${request}`;
-        const lunaResponse = await fetch("/api/luna", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ body: lunaMessage, messageId: crypto.randomUUID() }),
-        });
-        setGlobalLunaDraft(lunaResponse.ok ? "" : lunaMessage);
-        setIsGlobalLunaOpen(true);
-      }
+      const createdItem = nextItems.find((candidate) => candidate.activityId === created.activity?.id || candidate.activityId === clientKey);
+      if (createdItem && setupRequest) setSelectedActivityId(createdItem.id);
     } catch {
       setSaveState("retrying");
       return;
@@ -1734,6 +1729,7 @@ export default function Home() {
     setDraftIntervalDays(2);
     setDraftIncludeToday(true);
     setDraftLunaRequest("");
+    setDraftSetupRequest("");
     setIsAdding(false);
   }
 
@@ -2596,10 +2592,14 @@ export default function Home() {
                 {draftScheduleKind === "weekdays" ? <fieldset className="add-weekday-picker"><legend>Days</legend>{["S", "M", "T", "W", "T", "F", "S"].map((label, day) => <label key={`${label}-${day}`}><input checked={draftWeekdays.includes(day)} type="checkbox" onChange={() => setDraftWeekdays((current) => current.includes(day) ? current.length > 1 ? current.filter((value) => value !== day) : current : [...current, day].sort())} /><span>{label}</span></label>)}</fieldset> : null}
                 {draftScheduleKind === "interval_days" ? <div className="add-field"><label htmlFor="block-interval">Every</label><span className="add-interval-field"><input id="block-interval" max="365" min="1" type="number" value={draftIntervalDays} onChange={(event) => setDraftIntervalDays(Math.max(1, event.target.valueAsNumber || 1))} /> days</span></div> : null}
                 {draftScheduleKind === "luna" ? <div className="add-field add-luna-request"><label htmlFor="block-luna-request">What should Luna help arrange?</label><textarea id="block-luna-request" maxLength={1000} placeholder="For example: alternate this with Cardio on weekdays" value={draftLunaRequest} onChange={(event) => setDraftLunaRequest(event.target.value)} /></div> : null}
+                <details className="add-setup-details" open={Boolean(draftSetupRequest)}>
+                  <summary>Set this up with Luna</summary>
+                  <div className="add-field add-luna-request"><label htmlFor="block-setup-request">Product link or details</label><textarea id="block-setup-request" maxLength={4000} placeholder="Paste a product link, describe what you want this to help with, or leave it for later." value={draftSetupRequest} onChange={(event) => setDraftSetupRequest(event.target.value)} /></div>
+                </details>
                 <label className="add-include-today"><input checked={draftIncludeToday} type="checkbox" onChange={(event) => setDraftIncludeToday(event.target.checked)} /><span>Include today</span></label>
                 <div className="add-form-actions">
                   <button className="cancel-add-button" type="button" onClick={() => setIsAdding(false)}>Cancel</button>
-                  <button className="confirm-add-button" disabled={!draftTitle.trim()} type="submit">Add</button>
+                  <button className="confirm-add-button" disabled={!draftTitle.trim()} type="submit">{draftSetupRequest.trim() || draftScheduleKind === "luna" ? "Add & Set Up" : "Add"}</button>
                 </div>
               </form>
             ) : null}

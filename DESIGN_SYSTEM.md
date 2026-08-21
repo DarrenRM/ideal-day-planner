@@ -97,7 +97,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 
 ## Scheduling surfaces
 
-- Add Activity keeps simple scheduling compact: no schedule, every day, selected weekdays, every N days, create a sequence, or describe it to Luna. Saving the activity itself is immediate and never waits for Luna.
+- Add Activity keeps simple scheduling compact: no schedule, every day, selected weekdays, every N days, create a sequence, or describe it to Luna. A separate progressive `Set this up with Luna` disclosure accepts a product link or useful context without forcing the person into schedule language. Saving the activity itself is immediate and never waits for Luna.
 - Manage Schedule presents one card per recurring pattern. Each card shows the name, plain-language cadence, sequence, advancement policy, effective date, and a short upcoming preview. Never expose cursor, occurrence-key, or revision terminology.
 - The sequence editor uses app-owned controls for cadence, start/end dates, advancement, initial step, activity/variant choice, duration, optional display label, ordering, and preview. A one-step pattern must still feel simple.
 - A resolved variant is part of the activity identity for that occurrence. Prefer `Activity — Variant` on one line; on constrained mobile widths retain the activity title and place the variant on a subordinate line rather than shrinking either below its type role.
@@ -115,6 +115,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 ## Activity workspace components
 
 - Components use the shared workspace header, card, field, list, action, empty, loading, and error patterns.
+- A recurring step is absent when it is not due; never show a disabled placeholder for the off day. Equipment is a compact shared reference, an activity event is a concise dated recap, and a session choice uses whole-row 44px controls. An intentional workout open choice must look actionable and purposeful rather than incomplete.
 - Luna chooses and fills approved components; she does not choose fonts, spacing, colors, arbitrary HTML, or one-off visual systems.
 - Render a component only when it has enough supported information to be useful. Ask for missing information first when the component would otherwise be a hollow shell.
 - Preserve stable component anatomy across activities while allowing the data and combination of components to fit the activity.

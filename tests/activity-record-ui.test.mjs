@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { formatActivityRecordDate } from "../app/activity-record-format.ts";
-import { parseActivityRecord } from "../app/activity-record-model.ts";
+import { parseActivityRecord, recurringStepIsDue } from "../app/activity-record-model.ts";
 
 test("formats record dates for people without narrow machine-date strings", () => {
   const today = new Date(2026, 7, 20, 12);
@@ -74,4 +74,29 @@ test("lets the mobile activity row receive bottom-half taps around the duration 
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*pointer-events: none;/s);
   assert.match(css, /\.routine-card \.item-controls > \.duration-control button \{[^}]*pointer-events: auto;/s);
+});
+
+test("renders reusable cadence, equipment, mode, event, and open-workout states", async () => {
+  const component = await readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8");
+  assert.match(component, /function RecurringStepRecord/);
+  assert.match(component, /function ActivityEventRecord/);
+  assert.match(component, /function EquipmentRecord/);
+  assert.match(component, /function SessionChoiceRecord/);
+  assert.match(component, /workout-open-choices/);
+});
+
+test("normalizes recurring substeps and only exposes them on due dates", () => {
+  const record = parseActivityRecord({
+    id: "roller-step", recordKey: "weekly-roller", recordType: "recurring_step",
+    title: "Grooming roller", scope: "activity", scopeDate: null, version: 1,
+    payloadJson: JSON.stringify({
+      label: "Use the grooming roller", note: "Once weekly", anchorDate: "2026-08-21",
+      cadence: { kind: "weekly", every: 1 }, completedDates: ["2026-08-21"],
+    }),
+    updatedAt: "2026-08-21T12:00:00Z",
+  });
+  assert.ok(record);
+  assert.equal(recurringStepIsDue(record, "2026-08-21"), true);
+  assert.equal(recurringStepIsDue(record, "2026-08-22"), false);
+  assert.equal(recurringStepIsDue(record, "2026-08-28"), true);
 });

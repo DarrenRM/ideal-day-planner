@@ -1,8 +1,10 @@
 import { getD1 } from "../../../db";
 import { addLocalDays, isLocalDate, parseAdvancement, parseCadence } from "../../schedule-model";
-import { apiFailure, ensureAgentSchema, queueActivitySetup, requestIdentity, safeId } from "../agent-store";
+import { apiFailure, ensureAgentSchema, ensureConversation, queueActivitySetup, requestIdentity, safeId } from "../agent-store";
+import { activityMessageJobStatements } from "../activity-message-jobs";
 import { applyOccurrenceAction } from "../schedule-actions";
 import { resolveDay } from "../schedule-store";
+import { activitySetupKey } from "../../activity-setup-policy";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 
@@ -115,6 +117,7 @@ export async function POST(request: Request) {
     const icon = text(payload.icon, 8) || "✦";
     const color = /^#[0-9a-f]{6}$/i.test(text(payload.color, 20)) ? text(payload.color, 20) : "#a8c96d";
     const schedule = payload.schedule && typeof payload.schedule === "object" ? payload.schedule as Record<string, unknown> : { kind: "daily" };
+    const setupRequest = text(payload.setupRequest, 4000);
     const includeToday = payload.includeToday !== false;
     const cadence = schedule.kind === "none" ? null : parseCadence(schedule.kind === "daily" ? { kind: "daily" } : schedule);
     const advancement = schedule.kind === "none" ? null : parseAdvancement(payload.advancement ?? { kind: "calendar" });
@@ -158,8 +161,33 @@ export async function POST(request: Request) {
       }, { source: "user", actor: userId });
     }
     await ensureAgentSchema();
-    await queueActivitySetup(userId, { id: activityId, clientKey, title, category, icon, color });
-    return Response.json({ created: true, activity: { id: activityId, clientKey, title, category, icon, color } });
+    const activity = { id: activityId, clientKey, title, category, icon, color };
+    if (setupRequest) {
+      const conversationId = await ensureConversation(userId, activity);
+      const clientMessageId = `setup-${crypto.randomUUID()}`;
+      const messageId = `message:${safeId(userId)}:${safeId(clientMessageId)}`;
+      await db.batch([
+        db.prepare(`
+          INSERT INTO activity_profiles (id, user_id, activity_id, setup_status, setup_key)
+          VALUES (?, ?, ?, 'preparing', ?)
+          ON CONFLICT(user_id, activity_id) DO UPDATE SET
+            setup_status = 'preparing', setup_key = excluded.setup_key,
+            setup_question_message_id = NULL, assessed_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(`activity-profile:${safeId(userId)}:${safeId(clientKey)}`, userId, activityId, activitySetupKey(activity)),
+        db.prepare(`
+          INSERT OR IGNORE INTO conversation_messages (id, conversation_id, role, body, source)
+          VALUES (?, ?, 'user', ?, 'user')
+        `).bind(messageId, conversationId, setupRequest),
+        ...activityMessageJobStatements({
+          userId, activityId, conversationId, sourceMessageId: messageId,
+          clientMessageId, body: setupRequest,
+        }),
+      ]);
+    } else {
+      await queueActivitySetup(userId, activity);
+    }
+    return Response.json({ created: true, activity });
   } catch (error) {
     return apiFailure(error);
   }

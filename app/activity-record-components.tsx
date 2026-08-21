@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, ExternalLink, Package, Plus, Sparkles, Target, TrendingUp } from "lucide-react";
+import { AlertTriangle, CalendarCheck, Check, ExternalLink, Package, Plus, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
@@ -17,6 +17,7 @@ type Exercise = {
   id: string; name: string; note?: string; targetSets?: number | null; targetReps?: string;
   targetLoad?: string; lastPerformance?: string; completed?: boolean; completedDates?: string[]; sets?: ExerciseSet[];
 };
+type OpenChoice = { id: string; label: string; guidance?: string; equipment?: string[] };
 
 function localDateKey() { return new Date().toLocaleDateString("en-CA"); }
 function completedToday(entry: { completed?: boolean; completedDates?: string[] }) { return entry.completedDates?.includes(localDateKey()) ?? entry.completed === true; }
@@ -87,7 +88,7 @@ function ItemListRecord({ record, onMutate }: Props) {
 }
 
 function WorkoutRecord({ record, onMutate }: Props) {
-  const data = record.data as { focus?: string; exercises?: Exercise[] };
+  const data = record.data as { focus?: string; exercises?: Exercise[]; openChoices?: OpenChoice[] };
   const [drafts, setDrafts] = useState<Record<string, { load: string; reps: string }>>({});
   const [saving, setSaving] = useState<string | null>(null);
   async function addSet(exercise: Exercise) {
@@ -112,7 +113,40 @@ function WorkoutRecord({ record, onMutate }: Props) {
         {todaySets.length ? <div className="logged-sets">{todaySets.map((set, index) => <span key={set.id}><Check size={10} /> Set {index + 1}: {[set.load, set.reps !== null && set.reps !== undefined ? `${set.reps} reps` : ""].filter(Boolean).join(" × ")}</span>)}</div> : null}
         <div className="set-logger"><label>Weight<input inputMode="decimal" placeholder="—" value={draft.load} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, load: event.target.value } }))} /></label><span className="set-symbol">×</span><label>Reps<input inputMode="numeric" min="0" type="number" placeholder="—" value={draft.reps} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, reps: event.target.value } }))} /></label><button disabled={!draft.reps || saving === exercise.id} type="button" onClick={() => void addSet(exercise)}><Plus size={11} /> Log set</button></div>
       </article>;
-    })}</div> : <EmptyLine>Add exercises as you decide what belongs in this session.</EmptyLine>}
+    })}</div> : null}
+    {data.openChoices?.length ? <div className="workout-open-choices">{data.openChoices.map((choice) => <article key={choice.id}><span><Plus size={13} /></span><div><strong>{choice.label}</strong>{choice.guidance ? <p>{choice.guidance}</p> : null}{choice.equipment?.length ? <small>{choice.equipment.join(" · ")}</small> : null}</div></article>)}</div> : null}
+  </section>;
+}
+
+function RecurringStepRecord({ record, onMutate }: Props) {
+  const data = record.data as { label: string; note?: string; completedDates?: string[]; cadence?: { kind?: string; every?: number; weekdays?: number[] } };
+  const complete = data.completedDates?.includes(localDateKey()) ?? false;
+  const cadence = data.cadence?.kind === "weekly" ? data.cadence.every === 1 ? "Weekly" : `Every ${data.cadence.every} weeks`
+    : data.cadence?.kind === "interval_days" ? `Every ${data.cadence.every} days` : "Selected days";
+  return <section className="workspace-block recurring-step-record"><Heading eyebrow={cadence} title={record.title} icon={<CalendarCheck size={15} />} />
+    <button className={complete ? "is-complete" : ""} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{complete ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button>
+  </section>;
+}
+
+function ActivityEventRecord({ record }: { record: ActivityRecord }) {
+  const data = record.data as { entries?: Array<{ id: string; date: string; label: string; detail?: string }> };
+  return <section className="workspace-block activity-event-record"><Heading eyebrow="Recent activity" title={record.title} />
+    <div>{data.entries?.slice(-5).reverse().map((entry) => <article key={entry.id}><time>{formatActivityRecordDate(entry.date)}</time><p><strong>{entry.label}</strong>{entry.detail ? <small>{entry.detail}</small> : null}</p></article>)}</div>
+  </section>;
+}
+
+function EquipmentRecord({ record }: { record: ActivityRecord }) {
+  const data = record.data as { items?: Array<{ id: string; name: string; kind?: string; location?: string; status?: string; note?: string }> };
+  return <section className="workspace-block equipment-record"><Heading eyebrow="Available equipment" title={record.title} icon={<Wrench size={15} />} />
+    <div>{data.items?.map((item) => <article key={item.id}><div><strong>{item.name}</strong>{[item.kind, item.location].filter(Boolean).length ? <small>{[item.kind, item.location].filter(Boolean).join(" · ")}</small> : null}</div>{item.status ? <span>{item.status}</span> : null}</article>)}</div>
+  </section>;
+}
+
+function SessionChoiceRecord({ record, onMutate }: Props) {
+  const data = record.data as { prompt?: string; options?: Array<{ id: string; label: string; detail?: string }>; selections?: Array<{ date: string; optionId: string }> };
+  const selected = data.selections?.find((entry) => entry.date === localDateKey())?.optionId;
+  return <section className="workspace-block session-choice-record"><Heading eyebrow="Today" title={record.title} />
+    {data.prompt ? <p>{data.prompt}</p> : null}<div>{data.options?.map((option) => <button aria-pressed={selected === option.id} className={selected === option.id ? "is-selected" : ""} key={option.id} type="button" onClick={() => void onMutate(record.key, "select_session_choice", { optionId: option.id })}><span>{selected === option.id ? <Check size={12} /> : null}</span><div><strong>{option.label}</strong>{option.detail ? <small>{option.detail}</small> : null}</div></button>)}</div>
   </section>;
 }
 
@@ -198,6 +232,10 @@ export function ActivityRecordComponent(props: Props) {
   if (record.type === "protocol") return <ProtocolRecord {...props} />;
   if (record.type === "checklist" || record.type === "item_list") return <ItemListRecord {...props} />;
   if (record.type === "workout") return <WorkoutRecord {...props} />;
+  if (record.type === "recurring_step") return <RecurringStepRecord {...props} />;
+  if (record.type === "activity_event") return <ActivityEventRecord record={record} />;
+  if (record.type === "equipment") return <EquipmentRecord record={record} />;
+  if (record.type === "session_choice") return <SessionChoiceRecord {...props} />;
   if (record.type === "quick_log") return <QuickLogRecord {...props} />;
   if (record.type === "history" || record.type === "timeline") return <HistoryRecord record={record} />;
   if (record.type === "comparison") return <ComparisonRecord record={record} />;

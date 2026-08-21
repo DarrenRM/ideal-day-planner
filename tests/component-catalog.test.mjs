@@ -4,13 +4,14 @@ import test from "node:test";
 import { ACTIVITY_RECIPES, CATALOG_VERSION, COMPONENT_CATALOG, activityRecipeHint } from "../bridge/component-catalog.mjs";
 
 const expected = [
-  "summary", "product", "protocol", "checklist", "item_list", "workout", "quick_log",
+  "summary", "product", "protocol", "checklist", "item_list", "workout",
+  "recurring_step", "activity_event", "equipment", "session_choice", "quick_log",
   "history", "comparison", "metric", "trend", "adherence", "timeline", "goal",
   "attention", "resources", "timer", "countdown",
 ];
 
-test("the production catalog contains every approved v3 component exactly once", () => {
-  assert.equal(CATALOG_VERSION, "workspace-catalog-v3");
+test("the production catalog contains every approved v4 component exactly once", () => {
+  assert.equal(CATALOG_VERSION, "workspace-catalog-v4");
   const types = COMPONENT_CATALOG.map(([type]) => type);
   assert.deepEqual(types, expected);
   assert.equal(new Set(types).size, types.length);

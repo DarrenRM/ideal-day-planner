@@ -1,4 +1,4 @@
-export type AgentJobKind = "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "global_message";
+export type AgentJobKind = "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message";
 
 export type AgentSurfaceState = {
   hasConversationJob: boolean;
@@ -15,7 +15,7 @@ export function agentSurfaceState(kind: AgentJobKind | null | undefined): AgentS
     return { hasConversationJob: true, hasWorkspaceJob: false };
   }
 
-  if (kind === "workspace_refresh") {
+  if (kind === "workspace_refresh" || kind === "variant_setup") {
     return { hasConversationJob: false, hasWorkspaceJob: true };
   }
 

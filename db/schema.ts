@@ -212,6 +212,7 @@ export const agentJobs = sqliteTable("agent_jobs", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   scopeType: text("scope_type").notNull().default("activity"),
   activityId: text("activity_id").references(() => activities.id, { onDelete: "cascade" }),
+  activityVariantId: text("activity_variant_id").references(() => activityVariants.id, { onDelete: "set null" }),
   conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
   kind: text("kind").notNull(),
   idempotencyKey: text("idempotency_key").notNull(),

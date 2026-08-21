@@ -170,14 +170,34 @@ export async function applyScheduleProposal(userId: string, proposalId: string) 
       `).bind(createdActivityIds.get(`proposal:${action.clientKey}`), userId, action.clientKey, action.title, action.category, style.icon, style.color));
     } else if (action.type === "create_variant") {
       const activityId = resolveActivityId(action.activityId);
+      const activity = activityMeta.get(activityId)!;
+      const variantId = createdVariantIds.get(`proposal:${action.clientKey}`)!;
+      const conversationId = `conversation:${safeId(userId)}:${safeId(activity.clientKey)}`;
       statements.push(db.prepare(`
         INSERT INTO activity_variants
           (id, user_id, activity_id, client_key, name, description, default_duration_minutes, position)
         VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(position) + 1 FROM activity_variants WHERE activity_id = ?), 0))
       `).bind(
-        createdVariantIds.get(`proposal:${action.clientKey}`), userId, activityId, action.clientKey,
+        variantId, userId, activityId, action.clientKey,
         action.name, action.description ?? null, action.defaultDurationMinutes ?? null, activityId,
       ));
+      statements.push(
+        db.prepare(`
+          INSERT OR IGNORE INTO conversations (id, user_id, scope_type, activity_id)
+          VALUES (?, ?, 'activity', ?)
+        `).bind(conversationId, userId, activityId),
+        db.prepare(`
+          INSERT OR IGNORE INTO agent_jobs
+            (id, user_id, scope_type, activity_id, activity_variant_id, conversation_id,
+             kind, idempotency_key, source_message_id)
+          VALUES (?, ?, 'activity', ?, ?, ?, 'variant_setup', ?, ?)
+        `).bind(
+          `agent-job:${safeId(userId)}:variant-setup:${safeId(variantId)}`,
+          userId, activityId, variantId, conversationId,
+          `variant-setup:${proposalId}:${action.clientKey}`,
+          proposalRow.sourceMessageId,
+        ),
+      );
     } else if (action.type === "update_variant") {
       statements.push(db.prepare(`
         UPDATE activity_variants SET

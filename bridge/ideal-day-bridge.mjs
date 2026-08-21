@@ -23,6 +23,7 @@ Speak naturally to the person about their activity, intentions, progress, and to
 
 Site-wide scheduling behavior:
 - In a global_message job, act as a conversational compiler for the supplied activity catalog, variants, routine patterns, and dated occurrences. Never emit recordActions or workspaceActions there.
+- A message that begins inside an activity may also have an activity job. Own only its schedule facet here; do not repeat the activity acknowledgement or product/routine work. When you can return a proposal, use message:null so the proposal card is the response.
 - Answer ordinary questions conversationally. For an ambiguous scheduling request, return one concise followUpQuestion and make no scheduleProposal or occurrenceActions.
 - Any recurring, multi-day, activity-creation, variant-creation, or pattern change must be a ScheduleProposal and must not be applied immediately. Use the exact owned IDs and current routine revision from context.
 - Only a clear, reversible, single-occurrence change may use occurrenceActions. Never guess an occurrence, date, scope, destination, or collision policy.
@@ -36,9 +37,12 @@ Activity-setup behavior:
 - Cardio with no user-supplied description must ask what kind of cardio the person does and what matters to track, even if a countdown already exists; a generic timer is not personalized setup. Stretch or yoga with no user-supplied routine or goal must ask whether there is an existing routine or a goal/body area to shape one around. Device-based care such as red light with no answered device/protocol detail must ask which device and protocol are used.
 - A fully specified, low-choice action such as a brief named visualization at a chin-up bar may need no setup question. Use message:null when no durable decision is genuinely useful.
 - Add an initial component only when it is already useful with the facts available. Asking a setup question and creating an empty shell are mutually exclusive: when the answer is needed, ask the question and emit no placeholder record or component.
-- Never create an empty or generic record. A checklist or item list needs at least one meaningful item; a workout needs at least one named exercise; a protocol needs a meaningful summary or step; a product needs its actual name; a history, comparison, adherence, timeline, or resources component needs an entry; a metric or trend needs an observed value, target, or entry; and a summary must contain user-specific information beyond the activity name, category, or scheduled duration.
+- Never create an empty or generic record. A checklist or item list needs at least one meaningful item; a workout needs at least one named exercise or one explicitly intentional open choice; a protocol needs a meaningful summary or step; a product needs its actual name; a history, comparison, adherence, timeline, activity event, equipment, or resources component needs an entry; a session choice needs real named options; a recurring step needs a supported cadence and action; a metric or trend needs an observed value, target, or entry; and a summary must contain user-specific information beyond the activity name, category, or scheduled duration.
 - Every product record must choose exactly kind:"product" or kind:"device" so its visible label is the binary Product or Device—not a manufacturer, category, or product name. Product records have only name, manufacturer, variant, and concise notes; never emit fields or usage subfields. Put repeatable use directions in one shared protocol for the activity.
 - When an activity uses multiple products or devices, create one product record and card for each named item. Do not duplicate the rest of the workspace for each item: keep one shared adherence streak, one combined routine/protocol, and one combined resources area, updating their existing stable keys as the routine grows.
+- A substep that happens less often than its parent activity belongs in recurring_step; do not change the parent activity cadence. Record “used today” as an activity_event when it is not equivalent to completing the whole activity.
+- Keep equipment shared at activity scope unless it truly changes by variant. In a workout, represent a deliberately undecided gym exercise with openChoices instead of inventing an exercise or showing an incomplete card.
+- For a multi-mode product or device, use session_choice when the user just chooses a mode today. Use schedule variants only when named modes are intentionally rotated by a recurring rule.
 - Adherence/streak belongs first whenever present. Countdown belongs immediately after it when both exist. Pinned resources always belong last.
 - Do not use an attention, summary, protocol, goal, or routine component to say that details are missing, unknown, needed, or not yet specified. Ask the person naturally in conversation and leave the workspace absent.
 - Treat timers and countdowns as ordinary optional components—not privileged defaults. A scheduled duration is a planning budget, not evidence that the person should watch a clock while doing the activity.
@@ -65,7 +69,7 @@ Web research:
 - If research fails or the authoritative answer is unclear, say that plainly. Never claim that you lack web access merely because you have not used the tool.
 
 RecordAction is one of:
-{"op":"upsert","record":{"key":"stable-kebab-key","type":"catalog-record-type","title":"...","scope":"activity|day","data":{...}}}
+{"op":"upsert","record":{"key":"stable-kebab-key","type":"catalog-record-type","title":"...","scope":"activity|day|variant","data":{...}}}
 {"op":"remove","recordKey":"stable-kebab-key"}
 
 WorkspaceAction is one of:
@@ -183,6 +187,9 @@ Owned variants: ${JSON.stringify(job.context.variants || [])}
 Current schedule patterns: ${JSON.stringify(job.context.patterns || [])}
 Today's occurrences: ${JSON.stringify(job.context.today || [])}
 Source activity, when this request began inside one: ${JSON.stringify(job.context.sourceActivity || null)}
+Source activity variant: ${job.context.sourceActivityVariantId || "None"}
+Source activity records: ${compactRecords(job.context.sourceActivityRecords)}
+Source activity workspace: ${compactWorkspace(job.context.sourceActivityWorkspace)}
 Pending proposals: ${JSON.stringify(job.context.pendingProposals || [])}
 Recent global conversation:
 ${compactConversation(job.context.recentMessages)}
@@ -202,6 +209,9 @@ ${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "workspace_refresh") {
     return `Bring the lasting activity space up to date from the conversation. Set workspaceFollowup:false. Emit actions for useful, clearly supported information that is not already represented. Preserve existing useful workspace content and stable keys. When a richer record-backed component replaces a legacy inline routine, remove only that duplicate routine. A URL in the triggering message counts as a request to inspect that source. If the triggering user message requested research, verification, or supplied a URL, perform the web research now and return one concise, natural message with the useful findings while also saving every clearly supported durable detail. Do not leave a learned product name, device, usage direction, routine step, or protocol only in the conversational message: upsert the appropriate records and visible workspace components in the same result. For product or device care, a supported named product plus supported use directions should normally produce a product component and a protocol component. Add a pinned resource last when an authoritative source is worth returning to. Otherwise remain silent with message:null so workspace maintenance does not create conversational spam.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}`;
+  }
+  if (job.job.kind === "variant_setup") {
+    return `A schedule proposal has just created this activity variant. Build the useful variant-specific workspace now from the confirmed request. Put shared products, devices, equipment, goals, and sources at activity scope; put the session plan or protocol that changes with this variant at variant scope. Never ask a duplicate question and never create placeholders. Remain silent unless one essential choice still blocks a useful result.\n\n${shared}\n\nOriginal confirmed request:\n${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "activity_setup") {
     return `Prepare this activity for future use. Choose safe initial workspace components and ask at most one high-value setup question only when its answer will enable a named durable improvement. This is the setup decision; do not defer it to a later open.\n\n${shared}`;
@@ -240,10 +250,16 @@ function visibleProgress(leased) {
       detail: "Choosing what will be useful each time you return.",
     };
   }
-  if (leased.job.kind !== "workspace_refresh") return null;
+  if (leased.job.kind !== "workspace_refresh" && leased.job.kind !== "variant_setup") return null;
 
   const sourceMessage = leased.context.sourceMessage?.body || "";
   const requestedResearch = userMessageRequestsResearch(sourceMessage);
+  if (leased.job.kind === "variant_setup") {
+    return {
+      title: `Preparing ${activityTitle}`,
+      detail: "Building the confirmed version of this activity.",
+    };
+  }
   return requestedResearch
     ? {
         title: `Researching ${activityTitle}`,

@@ -29,6 +29,15 @@ test("accepts components with immediately useful content", () => {
   assert.equal(hasUsefulActivityRecordData(record("workout", "Leg day", {
     exercises: [{ id: "lunges", name: "Walking lunges" }],
   })), true);
+  assert.equal(hasUsefulActivityRecordData(record("workout", "Gym choice", {
+    exercises: [], openChoices: [{ id: "gym-choice", label: "Choose one machine at the gym" }],
+  })), true);
+  assert.equal(hasUsefulActivityRecordData(record("recurring_step", "Grooming roller", {
+    label: "Use the grooming roller", cadence: { kind: "weekly", every: 1 }, anchorDate: "2026-08-21",
+  })), true);
+  assert.equal(hasUsefulActivityRecordData(record("equipment", "Equipment", {
+    items: [{ id: "dumbbells", name: "Dumbbells" }],
+  })), true);
   assert.equal(hasUsefulActivityRecordData(record("summary", "Cardio plan", {
     summary: "Use the rowing machine and track distance.",
     fields: [],

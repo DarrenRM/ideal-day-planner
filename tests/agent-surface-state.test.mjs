@@ -15,6 +15,10 @@ test("shows workspace progress only for durable workspace refreshes", () => {
     hasConversationJob: false,
     hasWorkspaceJob: true,
   });
+  assert.deepEqual(agentSurfaceState("variant_setup"), {
+    hasConversationJob: false,
+    hasWorkspaceJob: true,
+  });
 });
 
 test("keeps user replies in conversation and legacy opens idle", () => {

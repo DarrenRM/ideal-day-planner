@@ -3,6 +3,7 @@ import { getD1 } from "../../../../db";
 import {
   apiFailure,
   completeActivitySetup,
+  completeRequestedActivitySetup,
   ensureAgentSchema,
   isLocalBridgeRequest,
   markActivitySetupAnswered,
@@ -30,8 +31,9 @@ type LeasedJob = {
   userId: string;
   scopeType: "activity" | "global";
   activityId: string | null;
+  activityVariantId: string | null;
   conversationId: string;
-  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "global_message";
+  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message";
   sourceMessageId: string | null;
   attempts: number;
 };
@@ -102,9 +104,9 @@ export async function GET(request: Request) {
     `).bind(workerId, HERMES_RUNTIME).run();
     await db.prepare(`
       INSERT OR IGNORE INTO agent_jobs
-        (id, user_id, activity_id, conversation_id, kind, idempotency_key, source_message_id)
+        (id, user_id, activity_id, activity_variant_id, conversation_id, kind, idempotency_key, source_message_id)
       SELECT 'agent-job:workspace-recovery:' || source.id,
-             source.user_id, source.activity_id, source.conversation_id,
+             source.user_id, source.activity_id, source.activity_variant_id, source.conversation_id,
              'workspace_refresh', 'workspace-recovery:' || source.id, source.source_message_id
       FROM agent_jobs source
       JOIN conversation_messages message ON message.id = source.source_message_id
@@ -129,7 +131,8 @@ export async function GET(request: Request) {
       LIMIT 10
     `).run();
     const candidate = await db.prepare(`
-      SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId, conversation_id AS conversationId,
+      SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
+             activity_variant_id AS activityVariantId, conversation_id AS conversationId,
              kind, source_message_id AS sourceMessageId, attempts
       FROM agent_jobs
       WHERE status = 'queued'
@@ -167,7 +170,7 @@ export async function GET(request: Request) {
       `).bind(candidate.userId).first<{ timeZone: string; dayTimelineEnabled: number }>();
       const timeZone = setting?.timeZone || "America/Phoenix";
       const localDate = localDateInTimeZone(new Date(), timeZone);
-      const [activities, variants, today, pendingProposals, patterns, messages, sourceActivity] = await Promise.all([
+      const [activities, variants, today, pendingProposals, patterns, messages, sourceActivity, sourceRecords, sourceWorkspace] = await Promise.all([
         db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE user_id = ? ORDER BY title`).bind(candidate.userId).all(),
         db.prepare(`SELECT id, activity_id AS activityId, name, description, default_duration_minutes AS defaultDurationMinutes FROM activity_variants WHERE user_id = ? AND archived_at IS NULL ORDER BY activity_id, position`).bind(candidate.userId).all(),
         db.prepare(`
@@ -185,6 +188,8 @@ export async function GET(request: Request) {
         candidate.activityId
           ? db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE id = ? AND user_id = ?`).bind(candidate.activityId, candidate.userId).first()
           : Promise.resolve(null),
+        candidate.activityId ? readActivityRecords(candidate.activityId, localDate, candidate.activityVariantId) : Promise.resolve([]),
+        candidate.activityId ? readActivityWorkspace(candidate.activityId, candidate.activityVariantId) : Promise.resolve(null),
       ]);
       const sourceMessage = candidate.sourceMessageId ? messages.find((message) => message.id === candidate.sourceMessageId) ?? null : null;
       await db.prepare("UPDATE agent_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND lease_token = ?")
@@ -208,6 +213,9 @@ export async function GET(request: Request) {
           recentMessages: messages.slice(-30),
           sourceMessage,
           sourceActivity,
+          sourceActivityVariantId: candidate.activityVariantId,
+          sourceActivityRecords: sourceRecords,
+          sourceActivityWorkspace: sourceWorkspace,
         },
       });
     }
@@ -243,7 +251,7 @@ export async function GET(request: Request) {
     `).bind(candidate.activityId, candidate.userId).first<{ contextJson: string | null }>();
     const visitContext = parseVisitContext(visit?.contextJson);
     const activityContext = visitContext.activityContext;
-    const activityVariantId = visitContext.occurrence?.activityVariantId ?? null;
+    const activityVariantId = candidate.activityVariantId ?? visitContext.occurrence?.activityVariantId ?? null;
     const messages = await readConversationMessages(candidate.conversationId);
     const workspace = await readActivityWorkspace(candidate.activityId, activityVariantId);
     const records = await readActivityRecords(candidate.activityId, schedule?.planDate ?? null, activityVariantId);
@@ -255,7 +263,14 @@ export async function GET(request: Request) {
       ORDER BY plan_date DESC LIMIT 20
     `).bind(candidate.activityId, candidate.userId).all();
     const sourceMessage = candidate.sourceMessageId
-      ? messages.find((message) => message.id === candidate.sourceMessageId) ?? null
+      ? messages.find((message) => message.id === candidate.sourceMessageId)
+        ?? await db.prepare(`
+          SELECT message.id, message.role AS author, message.body, message.created_at AS createdAt
+          FROM conversation_messages message
+          JOIN conversations conversation ON conversation.id = message.conversation_id
+          WHERE message.id = ? AND conversation.user_id = ? LIMIT 1
+        `).bind(candidate.sourceMessageId, candidate.userId).first<{ id: string; author: "user" | "luna"; body: string; createdAt: string }>()
+        ?? null
       : null;
 
     await db.prepare("UPDATE agent_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND lease_token = ?")
@@ -333,7 +348,8 @@ export async function POST(request: Request) {
     const leaseToken = typeof payload.leaseToken === "string" ? payload.leaseToken : "";
     if (!jobId || !leaseToken) return Response.json({ error: "A job and lease token are required." }, { status: 400 });
     const job = await db.prepare(`
-      SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId, conversation_id AS conversationId,
+      SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
+             activity_variant_id AS activityVariantId, conversation_id AS conversationId,
              kind, attempts, source_message_id AS sourceMessageId
       FROM agent_jobs WHERE id = ? AND lease_token = ? AND status = 'running'
     `).bind(jobId, leaseToken).first<{
@@ -341,6 +357,7 @@ export async function POST(request: Request) {
       userId: string;
       scopeType: "activity" | "global";
       activityId: string | null;
+      activityVariantId: string | null;
       conversationId: string;
       kind: LeasedJob["kind"];
       attempts: number;
@@ -455,7 +472,7 @@ export async function POST(request: Request) {
         SELECT context_json AS contextJson FROM activity_visits
         WHERE activity_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1
       `).bind(job.activityId, job.userId).first<{ contextJson: string | null }>();
-      const activityVariantId = parseVisitContext(latestVisit?.contextJson).occurrence?.activityVariantId ?? null;
+      const activityVariantId = job.activityVariantId ?? parseVisitContext(latestVisit?.contextJson).occurrence?.activityVariantId ?? null;
       const workspaceActions = validateWorkspaceActions(usesReplyFirstProtocol ? [] : payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
       const recordActions = validateRecordActions(usesReplyFirstProtocol ? [] : payload.recordActions, schedule?.planDate ?? null).filter((action) => (
         action.op === "remove" || hasUsefulActivityRecordData(action.record, {
@@ -523,9 +540,9 @@ export async function POST(request: Request) {
         const followupJobId = `agent-job:${safeId(job.userId)}:workspace:${safeId(job.id)}`;
         statements.push(db.prepare(`
           INSERT OR IGNORE INTO agent_jobs
-            (id, user_id, activity_id, conversation_id, kind, idempotency_key, source_message_id)
-          VALUES (?, ?, ?, ?, 'workspace_refresh', ?, ?)
-        `).bind(followupJobId, job.userId, job.activityId, job.conversationId, `workspace-refresh:${job.id}`, job.sourceMessageId));
+            (id, user_id, activity_id, activity_variant_id, conversation_id, kind, idempotency_key, source_message_id)
+          VALUES (?, ?, ?, ?, ?, 'workspace_refresh', ?, ?)
+        `).bind(followupJobId, job.userId, job.activityId, activityVariantId, job.conversationId, `workspace-refresh:${job.id}`, job.sourceMessageId));
       }
       statements.push(
         db.prepare(`
@@ -553,6 +570,9 @@ export async function POST(request: Request) {
         });
       } else if ((job.kind === "user_message" || job.kind === "workspace_refresh") && hasUsefulWorkspaceContent) {
         await markActivitySetupAnswered(job.activityId);
+      }
+      if (job.kind === "workspace_refresh" || (job.kind === "user_message" && !workspaceFollowup)) {
+        await completeRequestedActivitySetup(job.activityId, hasUsefulWorkspaceContent);
       }
       return Response.json({ completed: true, messageId, workspaceFollowup, workspace, recordActionsApplied: recordActions.length });
     }

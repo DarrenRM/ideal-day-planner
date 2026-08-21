@@ -9,6 +9,7 @@ import {
   requestIdentity,
   safeId,
 } from "../agent-store";
+import { activityMessageJobStatements } from "../activity-message-jobs";
 
 function clientActivityKey(request: Request) {
   const value = new URL(request.url).searchParams.get("activityId")?.trim() ?? "";
@@ -17,10 +18,6 @@ function clientActivityKey(request: Request) {
 
 function validDate(value: unknown) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-}
-
-function messageHasScheduleIntent(value: string) {
-  return /\b(?:schedule|reschedule|recurr|every\s+(?:other|day|week)|weekdays?|monday|tuesday|wednesday|thursday|friday|saturday|sunday|alternate|rotate|rotation|move\s+(?:this|it|all|every)|next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|future\s+(?:session|occurrence|day))\b/i.test(value);
 }
 
 async function occurrenceContext(userId: string, occurrenceId: unknown, date: string | null, activityId: string) {
@@ -125,20 +122,16 @@ export async function POST(request: Request) {
       const date = requestDate;
       if (!body || !clientMessageId) return Response.json({ error: "A message and message ID are required." }, { status: 400 });
       const messageId = `message:${safeId(userId)}:${safeId(clientMessageId)}`;
-      const idempotencyKey = `user-message:${messageId}`;
-      const jobId = `agent-job:${safeId(userId)}:message:${safeId(clientMessageId)}`;
-      const scheduleIntent = messageHasScheduleIntent(body);
       await db.batch([
         db.prepare(`
           INSERT OR IGNORE INTO conversation_messages
             (id, conversation_id, role, body, source)
           VALUES (?, ?, 'user', ?, 'user')
         `).bind(messageId, conversationId, body),
-        db.prepare(`
-          INSERT OR IGNORE INTO agent_jobs
-            (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key, source_message_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(jobId, userId, scheduleIntent ? "global" : "activity", activity.id, conversationId, scheduleIntent ? "global_message" : "user_message", idempotencyKey, messageId),
+        ...activityMessageJobStatements({
+          userId, activityId: activity.id, activityVariantId: occurrence?.activityVariantId,
+          conversationId, sourceMessageId: messageId, clientMessageId, body,
+        }),
       ]);
       return Response.json({ conversationId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) }, { status: 202 });
     }

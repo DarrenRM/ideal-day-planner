@@ -550,6 +550,33 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .workout-session-record > .workspace-block-heading, .workout-session-record > .record-description, .workout-session-record > .record-empty-line { margin-left: 11px; margin-right: 11px; }
 .workout-session-record > .workspace-block-heading { margin-top: 11px; }
 .workout-exercises { display: grid; }
+.workout-open-choices { display: grid; gap: 10px; margin: 12px 11px 11px; }
+.workout-open-choices article { display: flex; gap: 12px; align-items: flex-start; padding: 13px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--surface-soft); }
+.workout-open-choices article > span { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--accent); }
+.workout-open-choices strong, .workout-open-choices small { display: block; }
+.workout-open-choices p { margin: 4px 0; color: var(--muted); }
+.recurring-step-record > button,
+.session-choice-record > div > button { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 10px 0; color: var(--text); text-align: left; background: none; border: 0; }
+.recurring-step-record > button > span,
+.session-choice-record > div > button > span { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; border: 1px solid var(--border-strong); border-radius: 50%; }
+.recurring-step-record > button.is-complete > span,
+.session-choice-record > div > button.is-selected > span { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.recurring-step-record strong, .recurring-step-record small,
+.session-choice-record strong, .session-choice-record small { display: block; }
+.recurring-step-record small, .session-choice-record small { margin-top: 3px; color: var(--muted); }
+.session-choice-record > p { margin: 0 0 6px; color: var(--muted); }
+.session-choice-record > div > button + button { border-top: 1px solid var(--border); }
+.activity-event-record > div { display: grid; }
+.activity-event-record article { display: grid; grid-template-columns: minmax(72px, auto) 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.activity-event-record time { color: var(--muted); white-space: nowrap; }
+.activity-event-record p { margin: 0; }
+.activity-event-record p strong, .activity-event-record p small { display: block; }
+.activity-event-record p small { margin-top: 3px; color: var(--muted); }
+.equipment-record > div { display: grid; }
+.equipment-record article { display: flex; justify-content: space-between; gap: 12px; align-items: center; min-height: 48px; padding: 8px 0; border-top: 1px solid var(--border); }
+.equipment-record article strong, .equipment-record article small { display: block; }
+.equipment-record article small { margin-top: 2px; color: var(--muted); }
+.equipment-record article > span { color: var(--muted); text-transform: capitalize; }
 .exercise-card { border-top: 1px solid #242b2e; padding: 11px; }
 .exercise-card > header { align-items: center; display: grid; gap: 8px; grid-template-columns: 15px minmax(0, 1fr); }
 .exercise-card > header > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -1088,6 +1115,9 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .activity-schedule-proposal button:last-child { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 800; }
 .add-luna-request { grid-column: 1 / -1; }
 .add-luna-request textarea { background: #0b1012; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); font: inherit; min-height: 82px; padding: 10px; resize: vertical; width: 100%; }
+.add-setup-details { grid-column: 1 / -1; border-top: 1px solid var(--border); padding-top: 10px; }
+.add-setup-details summary { min-height: 40px; display: flex; align-items: center; color: var(--accent); cursor: pointer; font-weight: 700; }
+.add-setup-details[open] summary { margin-bottom: 8px; }
 .sequence-variant-field { display: grid; grid-template-columns: 1fr auto; }
 .sequence-variant-field > span { grid-column: 1 / -1; }
 .sequence-variant-field > button { background: transparent; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: var(--type-caption); padding: 0 0 0 8px; }

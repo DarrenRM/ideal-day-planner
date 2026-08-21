@@ -1,0 +1,1 @@
+ALTER TABLE `agent_jobs` ADD `activity_variant_id` text REFERENCES activity_variants(id);

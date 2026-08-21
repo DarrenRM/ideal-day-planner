@@ -1,4 +1,4 @@
-export const CATALOG_VERSION = "workspace-catalog-v3";
+export const CATALOG_VERSION = "workspace-catalog-v4";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
@@ -6,7 +6,11 @@ export const COMPONENT_CATALOG = [
   ["protocol", "Repeatable ordered instructions", "summary, steps[{id,label,note,completed}]"],
   ["checklist", "Repeatable actions to check during the current activity", "items[{id,label,detail,completed}]"],
   ["item_list", "Open shopping, queue, inventory, or supply items", "items[{id,label,detail,completed,urgency,source}]"],
-  ["workout", "Exercise plan plus targets and completed sets", "focus, exercises[{id,name,note,targetSets,targetReps,targetLoad,lastPerformance,completed,sets[{id,load,reps,effort,completedAt}]}]"],
+  ["workout", "Exercise plan plus targets, completed sets, and intentional open exercise slots", "focus, exercises[{id,name,note,targetSets,targetReps,targetLoad,lastPerformance,completed,sets[{id,load,reps,effort,completedAt}]}], openChoices[{id,label,guidance,equipment[]}]"],
+  ["recurring_step", "A substep with its own cadence inside a broader activity; it is only visible when due", "label,note,itemKey,anchorDate,cadence{kind(weekly|interval_days|weekdays),every?,weekdays?},completedDates[]"],
+  ["activity_event", "Dated activity facts that do not imply the whole occurrence was completed", "entries[{id,date,label,detail,itemKey}]"],
+  ["equipment", "Durable available or preferred equipment shared across activity variants", "items[{id,name,kind,location,status(available|preferred|unknown),note}]"],
+  ["session_choice", "A small set of modes or options selected for today's session when full schedule variants are unnecessary", "prompt,options[{id,label,detail}],selections[{id,date,optionId}]"],
   ["quick_log", "A compact repeated entry form", "fields[{id,label,unit,input}], entries[{id,values[{field,value}],note,createdAt}]"],
   ["history", "Read-only dated recaps when a more structured tracker does not fit", "entries[{id,title,detail,date,value,tone}]"],
   ["comparison", "Previous-versus-current values", "entries[{id,label,previous,current,change}]"],
@@ -22,9 +26,9 @@ export const COMPONENT_CATALOG = [
 ];
 
 export const ACTIVITY_RECIPES = [
-  "Strength session: workout; optionally comparison/history/metric. Never replace sets and targets with a prose routine.",
+  "Strength session: workout plus an activity-scoped equipment record when known; optionally comparison/history/metric. Use workout openChoices for a purposeful gym-selected slot. Never invent an exercise just to fill one.",
   "Cardio session: goal or summary plus quick_log/metric/history; timer or countdown only when modality or user intent makes time useful.",
-  "Product/device care: one product record per named product or device, plus one shared protocol; optionally one shared adherence/timeline/attention area. Timed devices may also use countdown.",
+  "Product/device care: one product record per named product or device, plus one shared protocol; optionally one shared adherence/timeline/attention area. Use recurring_step when one tool is only due on some days, activity_event for a dated use, and session_choice for modes that do not need schedule variants. Timed devices may also use countdown.",
   "Body routine: protocol or checklist plus goal; optionally quick_log/history and a deliberately chosen timer.",
   "Meal/supplement routine: protocol/checklist/product or item_list; no timer merely because it occupies schedule time.",
   "Supply manager: item_list plus history; preserve urgency and source.",

@@ -39,6 +39,7 @@ export async function ensureAgentSchema() {
         user_id text NOT NULL,
         scope_type text DEFAULT 'activity' NOT NULL,
         activity_id text,
+        activity_variant_id text,
         created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -66,6 +67,7 @@ export async function ensureAgentSchema() {
         created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_variant_id) REFERENCES activity_variants(id) ON DELETE SET NULL,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       )`),
       db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_visits_user_client_unique ON activity_visits (user_id, client_visit_id)"),
@@ -247,6 +249,9 @@ export async function ensureAgentSchema() {
       if (!jobColumns.results.some((column) => column.name === "progress_detail")) {
         await db.prepare("ALTER TABLE agent_jobs ADD COLUMN progress_detail text").run();
       }
+      if (!jobColumns.results.some((column) => column.name === "activity_variant_id")) {
+        await db.prepare("ALTER TABLE agent_jobs ADD COLUMN activity_variant_id text REFERENCES activity_variants(id) ON DELETE SET NULL").run();
+      }
       const conversationColumns = await db.prepare("PRAGMA table_info(conversations)").all<{ name: string }>();
       if (!conversationColumns.results.some((column) => column.name === "scope_type")) {
         await db.prepare("ALTER TABLE conversations ADD COLUMN scope_type text DEFAULT 'activity' NOT NULL").run();
@@ -426,8 +431,16 @@ export async function markActivitySetupAnswered(activityId: string) {
   await getD1().prepare(`
     UPDATE activity_profiles
     SET setup_status = 'ready', updated_at = CURRENT_TIMESTAMP
-    WHERE activity_id = ? AND setup_status = 'question_pending'
+    WHERE activity_id = ? AND setup_status IN ('preparing', 'question_pending')
   `).bind(activityId).run();
+}
+
+export async function completeRequestedActivitySetup(activityId: string, hasUsefulWorkspaceContent: boolean) {
+  await getD1().prepare(`
+    UPDATE activity_profiles
+    SET setup_status = ?, assessed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE activity_id = ? AND setup_status = 'preparing'
+  `).bind(hasUsefulWorkspaceContent ? "ready" : "unnecessary", activityId).run();
 }
 
 async function readWorkspaceLayer(activityId: string, activityVariantId: string | null) {
@@ -627,7 +640,19 @@ export async function applyUserRecordMutation(input: {
   if (!record) throw new Error("That activity information is no longer available.");
   const data = structuredClone(record.data);
 
-  if (input.operation === "toggle_item") {
+  if (input.operation === "toggle_recurring_step" && record.type === "recurring_step") {
+    const date = input.planDate;
+    if (!date) throw new Error("A date is required.");
+    const completedDates = Array.isArray(data.completedDates) ? data.completedDates.filter((entry): entry is string => typeof entry === "string") : [];
+    data.completedDates = completedDates.includes(date) ? completedDates.filter((entry) => entry !== date) : [...completedDates, date];
+  } else if (input.operation === "select_session_choice" && record.type === "session_choice") {
+    const date = input.planDate;
+    const optionId = typeof input.payload.optionId === "string" ? input.payload.optionId : "";
+    const options = Array.isArray(data.options) ? data.options as Array<Record<string, unknown>> : [];
+    if (!date || !options.some((option) => option.id === optionId)) throw new Error("Choose an available option.");
+    const selections = Array.isArray(data.selections) ? data.selections as Array<Record<string, unknown>> : [];
+    data.selections = [...selections.filter((entry) => entry.date !== date), { id: `choice-${date}`, date, optionId }];
+  } else if (input.operation === "toggle_item") {
     const itemId = typeof input.payload.itemId === "string" ? input.payload.itemId : "";
     const collection = record.type === "protocol" ? "steps" : record.type === "workout" ? "exercises" : "items";
     const items = Array.isArray(data[collection]) ? data[collection] as unknown[] : [];

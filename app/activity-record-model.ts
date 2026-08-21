@@ -5,6 +5,10 @@ export const ACTIVITY_RECORD_TYPES = [
   "checklist",
   "item_list",
   "workout",
+  "recurring_step",
+  "activity_event",
+  "equipment",
+  "session_choice",
   "quick_log",
   "history",
   "comparison",
@@ -139,7 +143,11 @@ export function hasUsefulActivityRecordData(record: ActivityRecordContent, conte
   if (record.type === "product") return Boolean(normalizedText(data.name));
   if (record.type === "protocol") return Boolean((!isPlaceholderActivityText(data.summary) && normalizedText(data.summary)) || nonEmptyArray(data.steps));
   if (record.type === "checklist" || record.type === "item_list") return nonEmptyArray(data.items);
-  if (record.type === "workout") return nonEmptyArray(data.exercises);
+  if (record.type === "workout") return nonEmptyArray(data.exercises) || nonEmptyArray(data.openChoices);
+  if (record.type === "recurring_step") return Boolean(normalizedText(data.label) && data.cadence && typeof data.cadence === "object");
+  if (record.type === "activity_event") return nonEmptyArray(data.entries);
+  if (record.type === "equipment") return nonEmptyArray(data.items);
+  if (record.type === "session_choice") return nonEmptyArray(data.options);
   if (record.type === "quick_log") return nonEmptyArray(data.fields);
   if (record.type === "history" || record.type === "timeline" || record.type === "comparison" || record.type === "adherence" || record.type === "resources") return nonEmptyArray(data.entries);
   if (record.type === "metric" || record.type === "trend") {
@@ -230,6 +238,74 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
             completedAt: boundedString(set.completedAt, 40),
           })),
         };
+      }),
+      openChoices: objectArray(source.openChoices, 12, (entry, index) => {
+        const label = boundedString(entry.label, 160);
+        return label ? {
+          id: itemId(entry.id, index), label,
+          guidance: boundedString(entry.guidance, 400),
+          equipment: stringArray(entry.equipment, 20, 100),
+        } : null;
+      }),
+    };
+  }
+
+  if (type === "recurring_step") {
+    const label = boundedString(source.label, 240);
+    const cadenceSource = source.cadence && typeof source.cadence === "object" && !Array.isArray(source.cadence)
+      ? source.cadence as Record<string, unknown> : null;
+    const anchorDate = boundedString(source.anchorDate, 10);
+    if (!label || !cadenceSource || !/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) return null;
+    const cadence = cadenceSource.kind === "weekly"
+      ? { kind: "weekly", every: Math.max(1, Math.min(52, Math.round(boundedNumber(cadenceSource.every, 1, 52) ?? 1))) }
+      : cadenceSource.kind === "interval_days"
+        ? { kind: "interval_days", every: Math.max(1, Math.min(365, Math.round(boundedNumber(cadenceSource.every, 1, 365) ?? 1))) }
+        : cadenceSource.kind === "weekdays" && Array.isArray(cadenceSource.weekdays)
+          ? { kind: "weekdays", weekdays: [...new Set(cadenceSource.weekdays.map((day) => boundedNumber(day, 0, 6)).filter((day): day is number => day !== null).map(Math.round))].sort() }
+          : null;
+    if (!cadence || (cadence.kind === "weekdays" && !cadence.weekdays?.length)) return null;
+    return {
+      label, note: boundedString(source.note, 500), cadence, anchorDate,
+      itemKey: stableKey(source.itemKey),
+      completedDates: stringArray(source.completedDates, 730, 10).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
+    };
+  }
+
+  if (type === "activity_event") {
+    return { entries: objectArray(source.entries, 200, (entry, index) => {
+      const label = boundedString(entry.label, 200);
+      const date = boundedString(entry.date, 10);
+      return label && /^\d{4}-\d{2}-\d{2}$/.test(date) ? {
+        id: itemId(entry.id, index), date, label,
+        detail: boundedString(entry.detail, 500), itemKey: stableKey(entry.itemKey),
+      } : null;
+    }) };
+  }
+
+  if (type === "equipment") {
+    return { items: objectArray(source.items, 100, (entry, index) => {
+      const name = boundedString(entry.name, 160);
+      return name ? {
+        id: itemId(entry.id, index), name, kind: boundedString(entry.kind, 80),
+        location: boundedString(entry.location, 120),
+        status: ["available", "preferred", "unknown"].includes(String(entry.status)) ? String(entry.status) : "available",
+        note: boundedString(entry.note, 300),
+      } : null;
+    }) };
+  }
+
+  if (type === "session_choice") {
+    const options = objectArray(source.options, 20, (entry, index) => {
+      const label = boundedString(entry.label, 120);
+      return label ? { id: itemId(entry.id, index), label, detail: boundedString(entry.detail, 300) } : null;
+    });
+    if (!options.length) return null;
+    return {
+      prompt: boundedString(source.prompt, 180), options,
+      selections: objectArray(source.selections, 366, (entry, index) => {
+        const date = boundedString(entry.date, 10);
+        const optionId = stableKey(entry.optionId);
+        return /^\d{4}-\d{2}-\d{2}$/.test(date) && optionId ? { id: itemId(entry.id, index), date, optionId } : null;
       }),
     };
   }
@@ -389,4 +465,18 @@ export function parseActivityRecord(row: {
   } catch {
     return null;
   }
+}
+
+export function recurringStepIsDue(record: ActivityRecordContent, date = new Date().toLocaleDateString("en-CA")) {
+  if (record.type !== "recurring_step") return true;
+  const data = record.data as { anchorDate?: string; cadence?: { kind?: string; every?: number; weekdays?: number[] } };
+  if (!data.anchorDate || !data.cadence || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const start = new Date(`${data.anchorDate}T12:00:00Z`);
+  const target = new Date(`${date}T12:00:00Z`);
+  const days = Math.floor((target.getTime() - start.getTime()) / 86_400_000);
+  if (days < 0) return false;
+  if (data.cadence.kind === "weekly") return days % (7 * Math.max(1, data.cadence.every ?? 1)) === 0;
+  if (data.cadence.kind === "interval_days") return days % Math.max(1, data.cadence.every ?? 1) === 0;
+  if (data.cadence.kind === "weekdays") return (data.cadence.weekdays ?? []).includes(target.getUTCDay());
+  return false;
 }
