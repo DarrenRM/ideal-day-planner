@@ -3,18 +3,27 @@
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BedDouble, BicepsFlexed, Brain, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
+import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import { agentSurfaceState, type AgentJobKind } from "./agent-surface-state";
 import { dayModePolicy, DEFAULT_DAY_SETTINGS, normalizeDaySettings, type DaySettings } from "./day-settings";
 import { useMobileConversationDrawer } from "./use-mobile-conversation-drawer";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
+import { ScheduleManager } from "./schedule-manager";
+import { GlobalLuna } from "./global-luna";
+import { OccurrenceEditor } from "./occurrence-editor";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
 type RoutineItem = {
   id: string;
+  occurrenceId?: string;
+  activityId?: string;
+  activityVariantId?: string | null;
+  variantName?: string | null;
+  displayLabel?: string | null;
+  displayTitle?: string;
   title: string;
   detail: string;
   duration: number;
@@ -51,7 +60,9 @@ type ConversationState = {
   workspace: { revisionId: string | null; revisionNumber: number; document: WorkspaceDocument };
   records: ActivityRecord[];
   recentRuns: ActivityRunSummary[];
+  proposals?: ActivityScheduleProposal[];
 };
+type ActivityScheduleProposal = { id: string; status: string; createdAt: string; document: { summary: string; effectiveDate: string; impact: { todayChanges: number; futurePatternChanges: number } } };
 
 const START_MINUTES = 8 * 60;
 const DEFAULT_DEV_MINUTES = 7 * 60 + 30;
@@ -125,6 +136,10 @@ function activityIconFor(item: Pick<RoutineItem, "title" | "category">): LucideI
   if (/resupply|shop|grocery/.test(title)) return ShoppingBasket;
   if (/build|create|make/.test(title)) return Hammer;
   return CATEGORY_ICONS[item.category];
+}
+
+function activityDisplayTitle(item: Pick<RoutineItem, "title" | "variantName" | "displayLabel" | "displayTitle">) {
+  return item.displayTitle || (item.displayLabel || item.variantName ? `${item.title} — ${item.displayLabel || item.variantName}` : item.title);
 }
 
 function isCategory(value: unknown): value is Category {
@@ -420,9 +435,10 @@ type ActivityWorkbenchProps = {
   onRemove: () => void;
   onAdjustDuration: (delta: number) => void;
   onSetDuration: (value: number) => void;
+  onChangeToday: () => void;
 };
 
-function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -439,6 +455,8 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const [isFooterMenuOpen, setIsFooterMenuOpen] = useState(false);
   const [resetActivityState, setResetActivityState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [recentRuns, setRecentRuns] = useState<ActivityRunSummary[]>([]);
+  const [scheduleProposals, setScheduleProposals] = useState<ActivityScheduleProposal[]>([]);
+  const [proposalBusy, setProposalBusy] = useState<string | null>(null);
   const sendingRef = useRef(false);
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
@@ -476,7 +494,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
   const conversationDrawer = useMobileConversationDrawer({
-    activityId: item.id,
+    activityId: item.activityId ?? item.id,
     canCollapse: showWorkspace,
     contentReady: connectionState !== "joining",
     hasConversationJob,
@@ -550,6 +568,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setWorkspace(state.workspace.document);
       setRecords(state.records ?? []);
       setRecentRuns(state.recentRuns ?? []);
+      setScheduleProposals(state.proposals ?? []);
       setConnectionState("ready");
     }
 
@@ -558,7 +577,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         const response = await fetch("/api/activity", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ mode: "open", activityId: item.id, date: localDateKey(), visitId }),
+          body: JSON.stringify({ mode: "open", activityId: item.activityId ?? item.id, occurrenceId: item.occurrenceId ?? item.id, activityVariantId: item.activityVariantId, date: localDateKey(), visitId }),
         });
         if (!response.ok) throw new Error("Luna could not join this activity yet.");
         const state = await response.json() as ConversationState;
@@ -576,7 +595,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     async function refreshConversation() {
       if (sendingRef.current) return;
       try {
-        const response = await fetch(`/api/activity?activityId=${encodeURIComponent(item.id)}&date=${localDateKey()}`, { cache: "no-store" });
+        const response = await fetch(`/api/activity?activityId=${encodeURIComponent(item.activityId ?? item.id)}&occurrenceId=${encodeURIComponent(item.occurrenceId ?? item.id)}&date=${localDateKey()}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Conversation refresh failed.");
         const state = await response.json() as ConversationState;
         applyConversationState(state);
@@ -600,7 +619,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       refreshConversationRef.current = () => {};
       if (refreshTimer) window.clearTimeout(refreshTimer);
     };
-  }, [item.id]);
+  }, [item.activityId, item.activityVariantId, item.id, item.occurrenceId]);
 
   useLayoutEffect(() => {
     const previousTop = conversationAnchorTopRef.current;
@@ -684,7 +703,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       const response = await fetch("/api/activity", {
         method: "POST",
         headers: { "content-type": "application/json" },
-          body: JSON.stringify({ mode: "message", activityId: item.id, body, messageId: clientMessageId, date: localDateKey() }),
+          body: JSON.stringify({ mode: "message", activityId: item.activityId ?? item.id, occurrenceId: item.occurrenceId ?? item.id, activityVariantId: item.activityVariantId, body, messageId: clientMessageId, date: localDateKey() }),
       });
       if (!response.ok) throw new Error("Message could not be saved.");
       const state = await response.json() as ConversationState;
@@ -694,6 +713,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setWorkspace(state.workspace.document);
       setRecords(state.records ?? []);
       setRecentRuns(state.recentRuns ?? []);
+      setScheduleProposals(state.proposals ?? []);
       workspaceSignatureRef.current = conversationWorkspaceSignature(state);
       hasAppliedConversationStateRef.current = true;
       setWorkspaceReadyLabel(null);
@@ -729,13 +749,32 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     }
   }
 
+  async function updateScheduleProposal(proposalId: string, mode: "confirm" | "dismiss") {
+    if (proposalBusy) return;
+    setProposalBusy(proposalId);
+    try {
+      const response = await fetch("/api/schedule/proposals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ proposalId, mode }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "That schedule change could not be saved.");
+      setScheduleProposals((current) => current.filter((proposal) => proposal.id !== proposalId));
+    } catch {
+      setConnectionState("error");
+    } finally {
+      setProposalBusy(null);
+    }
+  }
+
   async function mutateRecord(recordKey: string, operation: string, payload: Record<string, unknown>) {
     setRecordError(null);
     try {
       const response = await fetch("/api/activity/record", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ activityId: item.id, recordKey, operation, payload, actionId: window.crypto.randomUUID(), date: localDateKey() }),
+        body: JSON.stringify({ activityId: item.activityId ?? item.id, activityVariantId: item.activityVariantId, recordKey, operation, payload, actionId: window.crypto.randomUUID(), date: localDateKey() }),
       });
       const result = await response.json() as { records?: ActivityRecord[]; error?: string };
       if (!response.ok || !result.records) throw new Error(result.error || "That change could not be saved.");
@@ -758,7 +797,8 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           mode: isComplete ? "reopen" : "complete",
-          activityId: item.id,
+          activityId: item.activityId ?? item.id,
+          occurrenceId: item.occurrenceId ?? item.id,
           date: localDateKey(),
           timing,
         }),
@@ -798,7 +838,8 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           mode: isSkipped ? "unskip" : "skip",
-          activityId: item.id,
+          activityId: item.activityId ?? item.id,
+          occurrenceId: item.occurrenceId ?? item.id,
           date: localDateKey(),
         }),
       });
@@ -820,11 +861,11 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       const response = await fetch("/api/activity/reset", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ activityId: item.id, date: localDateKey() }),
+        body: JSON.stringify({ activityId: item.activityId ?? item.id, date: localDateKey() }),
       });
       const state = await response.json() as ConversationState & { error?: string };
       if (!response.ok) throw new Error(state.error || "This activity could not be reset.");
-      resetActivityTimingState([item.id]);
+      resetActivityTimingState([item.occurrenceId ?? item.id]);
       onComplete(null);
       onSkip(null);
       setMessages(state.messages ?? []);
@@ -833,6 +874,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setWorkspace(state.workspace?.document ?? EMPTY_WORKSPACE);
       setRecords(state.records ?? []);
       setRecentRuns(state.recentRuns ?? []);
+      setScheduleProposals(state.proposals ?? []);
       workspaceSignatureRef.current = conversationWorkspaceSignature(state);
       hasAppliedConversationStateRef.current = true;
       setWorkspaceReadyLabel(null);
@@ -894,6 +936,14 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                 </div>
               </Fragment>
             ))}
+            {scheduleProposals.map((proposal) => (
+              <article className="activity-schedule-proposal" key={proposal.id}>
+                <span><CalendarDays aria-hidden="true" size={14} /> Schedule proposal</span>
+                <strong>{proposal.document.summary}</strong>
+                <small>Begins {proposal.document.effectiveDate}</small>
+                <div><button type="button" onClick={() => void updateScheduleProposal(proposal.id, "dismiss")}>Dismiss</button><button type="button" onClick={() => setDraft(`Please revise proposal ${proposal.id}: `)}>Revise</button><button disabled={proposalBusy === proposal.id} type="button" onClick={() => void updateScheduleProposal(proposal.id, "confirm")}>Confirm</button></div>
+              </article>
+            ))}
             {workspaceReadyLabel ? (
               <button className="workspace-ready-notice" type="button" onClick={viewWorkspaceUpdate}>
                 <Sparkles aria-hidden="true" size={14} />
@@ -949,6 +999,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                   </div>
                 ) : (
                   <>
+                    <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onChangeToday(); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onEdit(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                     <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setResetActivityState("confirming")}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
                     <button className="activity-remove-menu-action" role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onRemove(); }}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
@@ -1086,12 +1137,21 @@ export default function Home() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [databaseReady, setDatabaseReady] = useState(false);
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "retrying">("loading");
   const [isAdding, setIsAdding] = useState(false);
+  const [isScheduleManagerOpen, setIsScheduleManagerOpen] = useState(false);
+  const [scheduleManagerActivityId, setScheduleManagerActivityId] = useState<string | null>(null);
+  const [isGlobalLunaOpen, setIsGlobalLunaOpen] = useState(false);
+  const [globalLunaDraft, setGlobalLunaDraft] = useState("");
+  const [occurrenceEditorItem, setOccurrenceEditorItem] = useState<RoutineItem | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDuration, setDraftDuration] = useState(15);
   const [draftCategory, setDraftCategory] = useState<Category>("Care");
+  const [draftScheduleKind, setDraftScheduleKind] = useState<"none" | "daily" | "weekdays" | "interval_days" | "sequence" | "luna">("daily");
+  const [draftWeekdays, setDraftWeekdays] = useState([1, 2, 3, 4, 5]);
+  const [draftIntervalDays, setDraftIntervalDays] = useState(2);
+  const [draftIncludeToday, setDraftIncludeToday] = useState(true);
+  const [draftLunaRequest, setDraftLunaRequest] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
@@ -1116,11 +1176,9 @@ export default function Home() {
   const [skippingActivityId, setSkippingActivityId] = useState<string | null>(null);
   const [settlingCompletedIds, setSettlingCompletedIds] = useState<Set<string>>(() => new Set());
   const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
-  const [templateSaveState, setTemplateSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const menuRef = useRef<HTMLDivElement>(null);
   const devMenuRef = useRef<HTMLDivElement>(null);
   const settingsCloseRef = useRef<HTMLButtonElement>(null);
-  const templateSaveResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionCelebrationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const completionHandoffTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const skipMotionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -1138,7 +1196,6 @@ export default function Home() {
   const touchDragRef = useRef<TouchDrag | null>(null);
   const suppressActivityClickRef = useRef(false);
   const suppressActivityClickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const skipNextSave = useRef(true);
 
   useEffect(() => {
     const timer = window.setInterval(() => setRealMinutes(minutesNow()), 30_000);
@@ -1196,7 +1253,6 @@ export default function Home() {
         }
 
         if (cancelled) return;
-        skipNextSave.current = true;
         const loadedItems = hydrateStoredItems(day.items);
         setItems(loadedItems);
         setCompletedIds(new Set(loadedItems.filter((item) => item.completedAt).map((item) => item.id)));
@@ -1204,7 +1260,6 @@ export default function Home() {
         setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
         setDayStartedAt(day.startedAt ?? null);
         setDaySettings(normalizeDaySettings(day.settings));
-        setDatabaseReady(true);
         setHasLoaded(true);
         setSaveState("saved");
       } catch {
@@ -1236,41 +1291,6 @@ export default function Home() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isSettingsOpen]);
-
-  useEffect(() => {
-    if (!databaseReady) return;
-    if (skipNextSave.current) {
-      skipNextSave.current = false;
-      return;
-    }
-
-    let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    const endpoint = `/api/day?date=${localDateKey()}`;
-    async function save() {
-      try {
-        setSaveState("saving");
-        const response = await fetch(endpoint, {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ items, startMinutes }),
-        });
-        if (!response.ok) throw new Error(`Could not save the day (${response.status}).`);
-        if (!cancelled) setSaveState("saved");
-      } catch {
-        if (cancelled) return;
-        setSaveState("retrying");
-        retryTimer = setTimeout(save, 3000);
-      }
-    }
-
-    const saveTimer = setTimeout(() => void save(), 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(saveTimer);
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, [databaseReady, items, startMinutes]);
 
   useEffect(() => {
     if (!editingId) return;
@@ -1362,7 +1382,6 @@ export default function Home() {
   }, [isDevMenuOpen]);
 
   useEffect(() => () => {
-    if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
     if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
     if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
     if (skipMotionTimer.current) clearTimeout(skipMotionTimer.current);
@@ -1522,6 +1541,20 @@ export default function Home() {
     }
   }
 
+  async function reloadToday() {
+    try {
+      const response = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Today could not be refreshed.");
+      const day = await response.json() as { items: unknown };
+      const refreshedItems = hydrateStoredItems(day.items);
+      setItems(refreshedItems);
+      setCompletedIds(new Set(refreshedItems.filter((item) => item.completedAt).map((item) => item.id)));
+      setSaveState("saved");
+    } catch {
+      setSaveState("retrying");
+    }
+  }
+
   async function startDay() {
     if (isStartingDay || isDayStarted) return;
     setIsStartingDay(true);
@@ -1534,7 +1567,6 @@ export default function Home() {
       if (!response.ok) throw new Error("The day could not be started.");
       const day = await response.json() as { items: unknown; startMinutes: number; startedAt: string; preferredStartMinutes?: number };
       const launchedItems = hydrateStoredItems(day.items);
-      skipNextSave.current = true;
       setItems(launchedItems);
       setCompletedIds(new Set(launchedItems.filter((item) => item.completedAt).map((item) => item.id)));
       setStartMinutes(day.startMinutes);
@@ -1564,7 +1596,6 @@ export default function Home() {
       const day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null };
       const resetItems = hydrateStoredItems(day.items);
       resetActivityTimingState(resetItems.map((item) => item.id));
-      skipNextSave.current = true;
       setItems(resetItems);
       setCompletedIds(new Set());
       setStartMinutes(day.startMinutes);
@@ -1583,10 +1614,43 @@ export default function Home() {
     }
   }
 
+  async function persistOccurrenceAction(action: Record<string, unknown>) {
+    setSaveState("saving");
+    try {
+      const response = await fetch("/api/occurrences", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: { ...action, idempotencyKey: window.crypto.randomUUID() } }),
+      });
+      if (!response.ok) throw new Error("The day change could not be saved.");
+      setSaveState("saved");
+      return true;
+    } catch {
+      setSaveState("retrying");
+      return false;
+    }
+  }
+
+  async function persistOccurrenceActions(actions: Array<Record<string, unknown>>) {
+    setSaveState("saving");
+    try {
+      const response = await fetch("/api/occurrences", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actions: actions.map((action) => ({ ...action, idempotencyKey: window.crypto.randomUUID() })) }),
+      });
+      if (!response.ok) throw new Error("The day order could not be saved.");
+      setSaveState("saved");
+    } catch {
+      setSaveState("retrying");
+    }
+  }
+
   function setDuration(id: string, value: number) {
     if (!Number.isFinite(value)) return;
     const duration = Math.min(480, Math.max(1, Math.round(value)));
     setItems((current) => current.map((item) => item.id === id ? { ...item, duration } : item));
+    void persistOccurrenceAction({ type: "set_duration", occurrenceId: id, durationMinutes: Math.max(5, duration) });
   }
 
   function adjustDuration(id: string, delta: number) {
@@ -1598,44 +1662,79 @@ export default function Home() {
     setDuration(id, Math.max(5, duration));
   }
 
-  function addItem(event: FormEvent<HTMLFormElement>) {
+  async function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = draftTitle.trim();
     if (!title) return;
     const meta = CATEGORY_META[draftCategory];
+    const clientKey = `custom-${window.crypto.randomUUID()}`;
     const item: RoutineItem = {
-      id: `custom-${window.crypto.randomUUID()}`,
+      id: clientKey,
+      activityId: clientKey,
+      occurrenceId: clientKey,
       title: title.slice(0, 60),
       detail: "Custom block",
       duration: normalizeActivityDuration(draftDuration),
       category: draftCategory,
       ...meta,
     };
-    setItems((current) => [...current, item]);
-    setDraftTitle("");
-    setDraftDuration(15);
-    setIsAdding(false);
-  }
-
-  async function saveTodayAsTemplate() {
-    if (templateSaveState === "saving") return;
-    if (templateSaveResetTimer.current) clearTimeout(templateSaveResetTimer.current);
-    setTemplateSaveState("saving");
+    setSaveState("saving");
     try {
-      const response = await fetch(`/api/day?date=${localDateKey()}`, {
+      const response = await fetch("/api/activities", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "save-template" }),
+        body: JSON.stringify({
+          clientKey,
+          title: item.title,
+          category: item.category,
+          duration: item.duration,
+          icon: item.icon,
+          color: item.color,
+          date: localDateKey(),
+          schedule: draftScheduleKind === "weekdays"
+            ? { kind: "weekdays", weekdays: draftWeekdays, intervalWeeks: 1 }
+            : draftScheduleKind === "interval_days"
+              ? { kind: "interval_days", every: draftIntervalDays, anchorDate: localDateKey() }
+              : draftScheduleKind === "daily"
+                ? { kind: "daily" }
+                : { kind: "none" },
+          includeToday: draftIncludeToday,
+        }),
       });
-      if (!response.ok) throw new Error(`Could not save the default template (${response.status}).`);
-      setTemplateSaveState("saved");
-      templateSaveResetTimer.current = setTimeout(() => {
-        setIsMenuOpen(false);
-        setTemplateSaveState("idle");
-      }, 1400);
+      const created = await response.json() as { activity?: { id: string; title: string }; error?: string };
+      if (!response.ok) throw new Error(created.error || "The activity could not be created.");
+      const dayResponse = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
+      if (!dayResponse.ok) throw new Error("The new activity could not be loaded.");
+      const day = await dayResponse.json() as { items: unknown };
+      setItems(hydrateStoredItems(day.items));
+      setSaveState("saved");
+      if (draftScheduleKind === "sequence") {
+        setScheduleManagerActivityId(created.activity?.id || clientKey);
+        setIsScheduleManagerOpen(true);
+      }
+      if (draftScheduleKind === "luna") {
+        const request = draftLunaRequest.trim() || `Help me decide how ${item.title} should fit into my routine. Ask me one useful question if you need to.`;
+        const lunaMessage = `I just added ${item.title} (${created.activity?.id || clientKey}). ${request}`;
+        const lunaResponse = await fetch("/api/luna", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ body: lunaMessage, messageId: crypto.randomUUID() }),
+        });
+        setGlobalLunaDraft(lunaResponse.ok ? "" : lunaMessage);
+        setIsGlobalLunaOpen(true);
+      }
     } catch {
-      setTemplateSaveState("error");
+      setSaveState("retrying");
+      return;
     }
+    setDraftTitle("");
+    setDraftDuration(15);
+    setDraftScheduleKind("daily");
+    setDraftWeekdays([1, 2, 3, 4, 5]);
+    setDraftIntervalDays(2);
+    setDraftIncludeToday(true);
+    setDraftLunaRequest("");
+    setIsAdding(false);
   }
 
   function removeItem(id: string) {
@@ -1648,6 +1747,7 @@ export default function Home() {
       return next;
     });
     setItems((current) => current.filter((item) => item.id !== id));
+    void persistOccurrenceAction({ type: "set_status", occurrenceId: id, status: "removed" });
   }
 
   function startEditing(item: RoutineItem) {
@@ -1667,6 +1767,7 @@ export default function Home() {
     event.preventDefault();
     const title = editTitle.trim();
     if (!editingId || !title) return;
+    const editingItem = items.find((item) => item.id === editingId);
     setItems((current) => current.map((item) => {
       if (item.id !== editingId) return item;
       const categoryChanged = item.category !== editCategory;
@@ -1678,6 +1779,23 @@ export default function Home() {
         icon: categoryChanged && item.id.startsWith("custom-") ? CATEGORY_META[editCategory].icon : item.icon,
       };
     }));
+    if (editingItem) {
+      setSaveState("saving");
+      void fetch("/api/activities", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: "update",
+          activityId: editingItem.activityId ?? editingItem.id,
+          title: title.slice(0, 60),
+          category: editCategory,
+          color: CATEGORY_META[editCategory].color,
+        }),
+      }).then((response) => {
+        if (!response.ok) throw new Error("Activity update failed.");
+        setSaveState("saved");
+      }).catch(() => setSaveState("retrying"));
+    }
     cancelEditing();
   }
 
@@ -1690,6 +1808,7 @@ export default function Home() {
       const [moved] = next.splice(sourceIndex, 1);
       const targetIndex = next.findIndex((item) => item.id === targetId);
       next.splice(position === "after" ? targetIndex + 1 : targetIndex, 0, moved);
+      void persistOccurrenceActions(next.map((item, index) => ({ type: "move_within_day", occurrenceId: item.id, position: index })));
       return next;
     });
   }
@@ -1701,6 +1820,7 @@ export default function Home() {
       if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
       const next = [...current];
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      void persistOccurrenceActions(next.map((item, position) => ({ type: "move_within_day", occurrenceId: item.id, position })));
       return next;
     });
   }
@@ -1845,11 +1965,11 @@ export default function Home() {
       const response = await fetch("/api/activity/reset", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ activityId: item.id, date: localDateKey() }),
+        body: JSON.stringify({ activityId: item.activityId ?? item.id, date: localDateKey() }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "This activity could not be reset.");
-      resetActivityTimingState([item.id]);
+      resetActivityTimingState([item.occurrenceId ?? item.id]);
       setCompletedIds((current) => {
         const next = new Set(current);
         next.delete(item.id);
@@ -2174,7 +2294,7 @@ export default function Home() {
       const response = await fetch("/api/activity/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode, activityId: item.id, date: localDateKey(), timing: null }),
+        body: JSON.stringify({ mode, activityId: item.activityId ?? item.id, occurrenceId: item.occurrenceId ?? item.id, date: localDateKey(), timing: null }),
       });
       if (!response.ok) throw new Error("Activity status could not be saved.");
       if (mode === "complete" || mode === "reopen") {
@@ -2206,6 +2326,14 @@ export default function Home() {
         </div>
         <div className="header-actions">
           <div className={`save-state save-state-${saveState}`}><span /> {{ loading: "Loading your day", saving: "Saving", saved: "Saved to your day", retrying: "Offline · retrying" }[saveState]}</div>
+          <button
+            aria-expanded={isGlobalLunaOpen}
+            aria-haspopup="dialog"
+            aria-label="Talk with Luna"
+            className="luna-shell-trigger"
+            type="button"
+            onClick={() => { setIsDevMenuOpen(false); setIsSettingsOpen(false); setIsGlobalLunaOpen(true); }}
+          ><Sparkles aria-hidden="true" size={17} strokeWidth={1.8} /><span>Luna</span></button>
           <button
             aria-expanded={isSettingsOpen}
             aria-haspopup="dialog"
@@ -2332,6 +2460,27 @@ export default function Home() {
         </div>
       ) : null}
 
+      <ScheduleManager
+        initialActivityId={scheduleManagerActivityId}
+        open={isScheduleManagerOpen}
+        onAskLuna={(draft) => { setIsScheduleManagerOpen(false); setScheduleManagerActivityId(null); setGlobalLunaDraft(draft); setIsGlobalLunaOpen(true); }}
+        onClose={() => { setIsScheduleManagerOpen(false); setScheduleManagerActivityId(null); }}
+        onSaved={() => void reloadToday()}
+      />
+      {isGlobalLunaOpen ? <GlobalLuna
+        initialDraft={globalLunaDraft}
+        open={isGlobalLunaOpen}
+        onClose={() => setIsGlobalLunaOpen(false)}
+        onDraftConsumed={() => setGlobalLunaDraft("")}
+        onScheduleChanged={() => { void reloadToday(); }}
+      /> : null}
+      <OccurrenceEditor
+        item={occurrenceEditorItem}
+        onClose={() => setOccurrenceEditorItem(null)}
+        onFuture={() => { setOccurrenceEditorItem(null); setScheduleManagerActivityId(null); setIsScheduleManagerOpen(true); }}
+        onSaved={() => { void reloadToday(); }}
+      />
+
       <div className="page-shell">
         <section className="hero" aria-labelledby="page-title">
           <div className="hero-copy">
@@ -2379,18 +2528,11 @@ export default function Home() {
                   ><MoreHorizontal aria-hidden="true" size={16} strokeWidth={1.8} /></button>
                   {isMenuOpen ? (
                     <div className="planner-menu-popover" role="menu">
-                      <p className="planner-menu-label">Template</p>
-                      <button
-                        className="planner-menu-item"
-                        disabled={templateSaveState === "saving" || templateSaveState === "saved"}
-                        role="menuitem"
-                        type="button"
-                        onClick={() => void saveTodayAsTemplate()}
-                      >
-                        {templateSaveState === "saved" ? <Check aria-hidden="true" size={15} strokeWidth={2} /> : null}
-                        <span>{templateSaveState === "saving" ? "Saving template…" : templateSaveState === "saved" ? "Default template saved" : templateSaveState === "error" ? "Try saving again" : "Save today as default template"}</span>
+                      <p className="planner-menu-label">Routine</p>
+                      <button className="planner-menu-item" role="menuitem" type="button" onClick={() => { setIsMenuOpen(false); setScheduleManagerActivityId(null); setIsScheduleManagerOpen(true); }}>
+                        <CalendarDays aria-hidden="true" size={15} strokeWidth={1.8} />
+                        <span>Manage schedule</span>
                       </button>
-                      {templateSaveState === "error" ? <p className="planner-menu-error" role="status">Couldn’t save. Try again.</p> : null}
                     </div>
                   ) : null}
                 </div>
@@ -2417,7 +2559,7 @@ export default function Home() {
                     value={draftTitle}
                   />
                 </div>
-                {timelineEnabled ? <div className="add-field">
+                <div className="add-field">
                   <label htmlFor="block-duration">Minutes</label>
                   <input
                     id="block-duration"
@@ -2430,7 +2572,7 @@ export default function Home() {
                     type="number"
                     value={draftDuration}
                   />
-                </div> : null}
+                </div>
                 <div className="add-field">
                   <label htmlFor="block-category">Category</label>
                   <CategoryPicker
@@ -2440,6 +2582,21 @@ export default function Home() {
                     value={draftCategory}
                   />
                 </div>
+                <div className="add-field add-schedule-field">
+                  <label htmlFor="block-schedule">Schedule</label>
+                  <select id="block-schedule" value={draftScheduleKind} onChange={(event) => setDraftScheduleKind(event.target.value as typeof draftScheduleKind)}>
+                    <option value="none">No recurring schedule</option>
+                    <option value="daily">Every day</option>
+                    <option value="weekdays">Selected weekdays</option>
+                    <option value="interval_days">Every N days</option>
+                    <option value="sequence">Create a sequence</option>
+                    <option value="luna">Describe it to Luna</option>
+                  </select>
+                </div>
+                {draftScheduleKind === "weekdays" ? <fieldset className="add-weekday-picker"><legend>Days</legend>{["S", "M", "T", "W", "T", "F", "S"].map((label, day) => <label key={`${label}-${day}`}><input checked={draftWeekdays.includes(day)} type="checkbox" onChange={() => setDraftWeekdays((current) => current.includes(day) ? current.length > 1 ? current.filter((value) => value !== day) : current : [...current, day].sort())} /><span>{label}</span></label>)}</fieldset> : null}
+                {draftScheduleKind === "interval_days" ? <div className="add-field"><label htmlFor="block-interval">Every</label><span className="add-interval-field"><input id="block-interval" max="365" min="1" type="number" value={draftIntervalDays} onChange={(event) => setDraftIntervalDays(Math.max(1, event.target.valueAsNumber || 1))} /> days</span></div> : null}
+                {draftScheduleKind === "luna" ? <div className="add-field add-luna-request"><label htmlFor="block-luna-request">What should Luna help arrange?</label><textarea id="block-luna-request" maxLength={1000} placeholder="For example: alternate this with Cardio on weekdays" value={draftLunaRequest} onChange={(event) => setDraftLunaRequest(event.target.value)} /></div> : null}
+                <label className="add-include-today"><input checked={draftIncludeToday} type="checkbox" onChange={(event) => setDraftIncludeToday(event.target.checked)} /><span>Include today</span></label>
                 <div className="add-form-actions">
                   <button className="cancel-add-button" type="button" onClick={() => setIsAdding(false)}>Cancel</button>
                   <button className="confirm-add-button" disabled={!draftTitle.trim()} type="submit">Add</button>
@@ -2564,7 +2721,7 @@ export default function Home() {
                         >
                           <div className="item-title">
                             <span className={`activity-title-icon ${itemIconState}`} aria-hidden="true"><ItemIcon size={18} strokeWidth={isComplete ? 2.4 : 1.9} /></span>
-                            <h3>{item.title}</h3>
+                            <h3>{activityDisplayTitle(item)}</h3>
                           </div>
                           <div className="item-state">
                             {activityState === "current" ? <span className="now-chip">Now</span> : null}
@@ -2585,6 +2742,12 @@ export default function Home() {
 
                       {isExpanded ? <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /></button> : null}
                       <div className="item-controls">
+                          <button
+                            className="edit-item-button desktop-row-action"
+                            type="button"
+                            aria-label={`Change ${item.title} for today`}
+                            onClick={() => setOccurrenceEditorItem(item)}
+                          ><CalendarDays aria-hidden="true" size={14} strokeWidth={1.8} /></button>
                           <button
                             className="edit-item-button desktop-row-action"
                             type="button"
@@ -2635,6 +2798,7 @@ export default function Home() {
                                   </div>
                                 ) : <>
                                   <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
+                                  <button role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
                                   <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>
                                   <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
                                   <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
@@ -2694,6 +2858,7 @@ export default function Home() {
                           onEdit={() => startEditing(item)}
                           onRemove={() => removeItem(item.id)}
                           onSetDuration={(value) => setDuration(item.id, value)}
+                          onChangeToday={() => setOccurrenceEditorItem(item)}
                         />
                       ) : null}
 

@@ -51,10 +51,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /\/api\/day\?date=/);
   assert.match(page, /needsImport/);
   assert.match(page, /method: "PUT"/);
-  assert.match(page, /saveTodayAsTemplate/);
-  assert.match(page, /Save today as default template/);
-  assert.match(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /save-template/);
+  assert.doesNotMatch(page, /saveTodayAsTemplate|Save today as default template/);
+  assert.doesNotMatch(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /save-template/);
   assert.match(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /restore-template/);
+  assert.match(page, /<ScheduleManager/);
+  assert.match(page, /\/api\/occurrences/);
   assert.match(page, /MIGRATION_KEY/);
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
   assert.match(page, /hasLoaded \? <>\{displayedScheduledItems\.map/);
@@ -384,6 +385,33 @@ test("keeps the routine data and interactions in the page", async () => {
   }
 });
 
+test("keeps universal scheduling behind typed, auditable boundaries", async () => {
+  const [model, store, occurrenceRoute, proposalService, lunaRoute, manager, migration] = await Promise.all([
+    readFile(new URL("../app/schedule-model.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/schedule-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/occurrences/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/schedule-proposal-service.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/luna/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/schedule-manager.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0011_faulty_human_robot.sql", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(model, /type ScheduleCadence/);
+  assert.match(model, /type: "set_activity"/);
+  assert.match(store, /INSERT OR IGNORE INTO daily_plan_items/);
+  assert.match(store, /occurrenceKey/);
+  assert.match(occurrenceRoute, /parseOccurrenceAction/);
+  assert.match(proposalService, /schedule_action_events/);
+  assert.match(proposalService, /stale_revision/);
+  assert.match(lunaRoute, /scope_type = 'global'/);
+  assert.match(manager, /Manage schedule/);
+  assert.match(manager, /Starts with/);
+  assert.match(manager, /Begins/);
+  assert.match(migration, /INSERT INTO `schedule_patterns`/);
+  assert.match(migration, /DROP INDEX `activity_runs_user_activity_date_unique`/);
+  assert.match(migration, /CREATE UNIQUE INDEX `daily_plan_items_plan_occurrence_key_unique`/);
+});
+
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
   const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, settingsRoute, jobRoute, store, workspaceModel, bridge, startup, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -449,7 +477,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(settingsRoute, /UPDATE settings/);
   assert.match(settingsRoute, /day_timeline_enabled/);
   assert.match(dayRoute, /prepareActivitySetups/);
-  assert.match(dayRoute, /completed_at AS completedAt/);
+  assert.match(dayRoute, /readResolvedDay/);
   assert.match(jobRoute, /lease_expires_at/);
   assert.match(jobRoute, /status = 'retryable_failure' AND updated_at < datetime\('now', '-1 minute'\)/);
   assert.match(jobRoute, /request\.headers\.get\("origin"\)/);
@@ -458,7 +486,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /mode === "heartbeat"/);
   assert.match(jobRoute, /mode === "progress"/);
   assert.match(jobRoute, /progress_title/);
-  assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 ELSE 1 END/);
+  assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 ELSE 1 END/);
   assert.match(jobRoute, /ORDER BY created_at DESC/);
   assert.match(jobRoute, /Could not release an incomplete agent lease/);
   assert.match(jobRoute, /activityContext/);

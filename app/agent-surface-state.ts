@@ -1,4 +1,4 @@
-export type AgentJobKind = "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh";
+export type AgentJobKind = "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "global_message";
 
 export type AgentSurfaceState = {
   hasConversationJob: boolean;
@@ -11,7 +11,7 @@ const IDLE_SURFACES: AgentSurfaceState = {
 };
 
 export function agentSurfaceState(kind: AgentJobKind | null | undefined): AgentSurfaceState {
-  if (kind === "activity_setup" || kind === "user_message") {
+  if (kind === "activity_setup" || kind === "user_message" || kind === "global_message") {
     return { hasConversationJob: true, hasWorkspaceJob: false };
   }
 

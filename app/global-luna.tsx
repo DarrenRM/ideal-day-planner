@@ -1,0 +1,191 @@
+"use client";
+
+import { Check, Send, Sparkles, X } from "lucide-react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+
+type LunaMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string };
+type LunaProposal = {
+  id: string;
+  status: string;
+  createdAt: string;
+  document: {
+    summary: string;
+    effectiveDate: string;
+    impact: { todayChanges: number; futurePatternChanges: number };
+    actions: Array<{ type: string; pattern?: { name?: string; cadence?: { kind?: string }; steps?: unknown[] } }>;
+  };
+};
+type LunaState = {
+  messages: LunaMessage[];
+  activeJob: { status: string; progressTitle?: string | null; progressDetail?: string | null } | null;
+  agentOnline: boolean;
+  proposals: LunaProposal[];
+};
+
+const EMPTY_STATE: LunaState = { messages: [], activeJob: null, agentOnline: false, proposals: [] };
+
+function formatMessageTime(value: string) {
+  const date = new Date(value.replace(" ", "T") + (value.endsWith("Z") ? "" : "Z"));
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function proposalDetail(proposal: LunaProposal) {
+  const pattern = proposal.document.actions.find((action) => action.pattern)?.pattern;
+  const pieces = [pattern?.name, pattern?.cadence?.kind?.replaceAll("_", " "), pattern?.steps?.length ? `${pattern.steps.length} step${pattern.steps.length === 1 ? "" : "s"}` : null];
+  return pieces.filter(Boolean).join(" · ");
+}
+
+function formatProposalDate(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+
+export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onScheduleChanged }: {
+  open: boolean;
+  initialDraft: string;
+  onDraftConsumed: () => void;
+  onClose: () => void;
+  onScheduleChanged: () => void;
+}) {
+  const [state, setState] = useState<LunaState>(EMPTY_STATE);
+  const [draft, setDraft] = useState(initialDraft);
+  const [sending, setSending] = useState(false);
+  const [proposalBusy, setProposalBusy] = useState<string | null>(null);
+  const [revisionId, setRevisionId] = useState<string | null>(null);
+  const [revisionText, setRevisionText] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+
+  async function load() {
+    const response = await fetch("/api/luna", { cache: "no-store" });
+    const result = await response.json() as LunaState & { error?: string };
+    if (!response.ok) throw new Error(result.error || "Luna could not connect.");
+    setState(result);
+    return result;
+  }
+
+  const hasActiveJob = Boolean(state.activeJob);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    async function refresh() {
+      const response = await fetch("/api/luna", { cache: "no-store" });
+      const result = await response.json() as LunaState & { error?: string };
+      if (!cancelled && response.ok) setState(result);
+    }
+    const initialTimer = window.setTimeout(() => void refresh().catch(() => undefined), 0);
+    const timer = window.setInterval(() => void refresh().catch(() => undefined), hasActiveJob ? 900 : 3000);
+    return () => { cancelled = true; window.clearTimeout(initialTimer); window.clearInterval(timer); };
+  }, [hasActiveJob, open]);
+
+  useEffect(() => {
+    if (!open || !initialDraft) return;
+    onDraftConsumed();
+    const timer = window.setTimeout(() => composerRef.current?.focus(), 50);
+    return () => window.clearTimeout(timer);
+  }, [initialDraft, onDraftConsumed, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const frame = window.requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; });
+    const escape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", escape);
+    return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", escape); };
+  }, [open, state.messages.length, state.activeJob, state.proposals.length, onClose]);
+
+  async function send(event: FormEvent) {
+    event.preventDefault();
+    const body = draft.trim();
+    if (!body || sending) return;
+    const optimistic: LunaMessage = { id: `pending-${crypto.randomUUID()}`, author: "user", body, createdAt: new Date().toISOString() };
+    setState((current) => ({ ...current, messages: [...current.messages, optimistic] }));
+    setDraft("");
+    setSending(true);
+    try {
+      const response = await fetch("/api/luna", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body, messageId: crypto.randomUUID() }),
+      });
+      const result = await response.json() as LunaState & { error?: string };
+      if (!response.ok) throw new Error(result.error || "That message did not send.");
+      setState(result);
+    } catch {
+      setDraft(body);
+      await load().catch(() => undefined);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function proposalAction(proposalId: string, mode: "confirm" | "dismiss" | "revise") {
+    if (proposalBusy) return;
+    setProposalBusy(proposalId);
+    try {
+      const response = await fetch("/api/schedule/proposals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ proposalId, mode, ...(mode === "revise" ? { body: revisionText } : {}) }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "That proposal could not be updated.");
+      setRevisionId(null);
+      setRevisionText("");
+      await load();
+      if (mode === "confirm") onScheduleChanged();
+    } finally {
+      setProposalBusy(null);
+    }
+  }
+
+  if (!open) return null;
+  return (
+    <div className="global-luna-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section aria-label="Talk with Luna" aria-modal="true" className="global-luna-sheet" role="dialog">
+        <header className="global-luna-header">
+          <div className="global-luna-heading"><span><Sparkles aria-hidden="true" size={18} /></span><div><strong>Luna</strong><small><i className={state.agentOnline ? "is-online" : ""} />{state.agentOnline ? "Connected" : "Will catch up"}</small></div></div>
+          <button aria-label="Close Luna" type="button" onClick={onClose}><X aria-hidden="true" size={20} /></button>
+        </header>
+        <div className="global-luna-scroll" ref={scrollRef}>
+          {!state.messages.length ? (
+            <div className="global-luna-welcome"><Sparkles aria-hidden="true" size={22} /><h2>Shape your day with Luna</h2><p>Ask about your routine, create a rotation, or move something to another day.</p></div>
+          ) : null}
+          {state.messages.map((message) => (
+            <article className={`global-luna-message is-${message.author}`} key={message.id}>
+              <p>{message.body}</p><time>{formatMessageTime(message.createdAt)}</time>
+            </article>
+          ))}
+          {state.activeJob ? (
+            <div className="global-luna-working" role="status"><span className="luna-thinking-dots"><i /><i /><i /></span><div><strong>{state.activeJob.progressTitle || "Luna is thinking"}</strong><small>{state.activeJob.progressDetail || "Making sense of your request."}</small></div></div>
+          ) : null}
+          {state.proposals.map((proposal) => (
+            <article className="schedule-proposal-card" key={proposal.id}>
+              <div className="schedule-proposal-kicker"><Sparkles aria-hidden="true" size={14} /> Schedule proposal</div>
+              <h3>{proposal.document.summary}</h3>
+              {proposalDetail(proposal) ? <p>{proposalDetail(proposal)}</p> : null}
+              <dl><div><dt>Begins</dt><dd>{formatProposalDate(proposal.document.effectiveDate)}</dd></div><div><dt>Today</dt><dd>{proposal.document.impact.todayChanges ? `${proposal.document.impact.todayChanges} change${proposal.document.impact.todayChanges === 1 ? "" : "s"}` : "No changes"}</dd></div><div><dt>Future</dt><dd>{proposal.document.impact.futurePatternChanges ? `${proposal.document.impact.futurePatternChanges} change${proposal.document.impact.futurePatternChanges === 1 ? "" : "s"}` : "No changes"}</dd></div></dl>
+              {revisionId === proposal.id ? (
+                <form className="schedule-proposal-revise" onSubmit={(event) => { event.preventDefault(); void proposalAction(proposal.id, "revise"); }}>
+                  <label htmlFor={`revise-${proposal.id}`}>What should Luna change?</label>
+                  <textarea id={`revise-${proposal.id}`} value={revisionText} onChange={(event) => setRevisionText(event.target.value)} />
+                  <div><button type="button" onClick={() => setRevisionId(null)}>Cancel</button><button disabled={!revisionText.trim() || proposalBusy === proposal.id} type="submit">Send revision</button></div>
+                </form>
+              ) : (
+                <div className="schedule-proposal-actions">
+                  <button type="button" onClick={() => void proposalAction(proposal.id, "dismiss")}>Dismiss</button>
+                  <button type="button" onClick={() => setRevisionId(proposal.id)}>Revise</button>
+                  <button className="is-primary" disabled={proposalBusy === proposal.id} type="button" onClick={() => void proposalAction(proposal.id, "confirm")}><Check aria-hidden="true" size={15} /> Confirm</button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+        <form className="global-luna-composer" onSubmit={send}>
+          <textarea aria-label="Message Luna" placeholder="Ask Luna about your day…" ref={composerRef} rows={2} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
+          <button aria-label="Send message" disabled={!draft.trim() || sending} type="submit"><Send aria-hidden="true" size={18} /></button>
+        </form>
+      </section>
+    </div>
+  );
+}
