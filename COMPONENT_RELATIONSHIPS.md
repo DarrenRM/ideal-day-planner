@@ -16,7 +16,7 @@ A product or device record is a subject root. Its `subjectKey` is its own record
 
 The renderer may nest only explicitly owned `protocol` and `resources` records inside a matching product/device card. It must not infer ownership from adjacency, titles, card count, or there being one product. Resources are always the last nested section.
 
-Adherence stays first at activity level, countdown stays second, and recurrence, history, equipment, choices, and other activity-level records remain independent cards unless their component contract explicitly introduces subject composition later.
+Adherence stays first at activity level. Due recurring steps come directly beneath it, followed by countdowns and primary content; Resources remain last. Recurrence, history, equipment, choices, and other activity-level records remain independent cards unless their component contract explicitly introduces subject composition later.
 
 ## Moving a subject
 

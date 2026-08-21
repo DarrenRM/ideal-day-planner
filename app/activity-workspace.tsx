@@ -347,7 +347,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak;
   const orderedItems = orderWorkspaceDisplayItems([
     ...visibleComponents.filter((component) => !nestedComponentIds.has(component.id)).map((component) => ({
-      displayRole: (component.type === "adherence" ? "streak" : component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
+      displayRole: (component.type === "adherence" ? "streak" : component.type === "recurring_step" ? "recurring" : component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
       id: component.id,
       component,
     })),

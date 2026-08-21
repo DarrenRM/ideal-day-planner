@@ -119,6 +119,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 
 - Components use the shared workspace header, card, field, list, action, empty, loading, and error patterns.
 - A recurring step is absent when it is not due; never show a disabled placeholder for the off day. Equipment is a compact shared reference, an activity event is a concise dated recap, and a session choice uses whole-row 44px controls. An intentional workout open choice must look actionable and purposeful rather than incomplete.
+- Due recurring steps sit directly beneath adherence/streak content and before countdowns or the main activity cards. This keeps infrequent, today-relevant actions near the top instead of burying them beneath reference material.
 - Luna chooses and fills approved components; she does not choose fonts, spacing, colors, arbitrary HTML, or one-off visual systems.
 - Render a component only when it has enough supported information to be useful. Ask for missing information first when the component would otherwise be a hollow shell.
 - Preserve stable component anatomy across activities while allowing the data and combination of components to fit the activity.
