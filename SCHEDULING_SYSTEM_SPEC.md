@@ -1,6 +1,6 @@
 # Universal Scheduling, Activity Variants, and Global Luna
 
-Status: detailed implementation scope for review, not yet implemented  
+Status: implemented, migrated, deployed, and verified in production  
 Scope owner: `PRODUCT_SPEC.md` remains the product source of truth; this file is the detailed implementation contract for scheduling, variants, and site-wide Luna.  
 Last scoped: 2026-08-21
 
@@ -768,26 +768,26 @@ These scenarios must pass through the universal model without special-case activ
 
 Mark an item complete only after implementation and verification, not when code is merely drafted.
 
-- [ ] Pure scheduling language and validators implemented.
-- [ ] Cadence and sequence resolver fully tested.
-- [ ] D1 migration generated, inspected, and applied locally.
-- [ ] Existing routine preserved as one-step patterns.
-- [ ] Daily occurrence identity supports duplicate activities per date.
-- [ ] Today edits no longer overwrite durable activity definitions.
-- [ ] Activity variants and variant-scoped records implemented.
-- [ ] Variant-aware shared/overlay workspaces implemented.
-- [ ] Derived occurrence titles implemented responsively.
-- [ ] Manual simple schedule UI implemented.
-- [ ] Manual sequence editor and upcoming preview implemented.
-- [ ] Manage Schedule implemented.
-- [ ] Narrow occurrence mutation APIs replace whole-day writes.
-- [ ] Global Luna conversation and app-shell entry implemented.
-- [ ] Durable clarification and proposal lifecycle implemented.
-- [ ] Typed schedule and occurrence actions implemented and audited.
-- [ ] Add Activity can hand a scheduling request to global Luna.
-- [ ] Activity Luna can route schedule requests through the same service.
-- [ ] Product, design-system, agent, and smart-flow docs updated.
-- [ ] Full automated test suite passes.
-- [ ] Lint and production build pass.
-- [ ] Production migration and deployment complete.
-- [ ] Focused desktop/mobile production verification passes.
+- [x] Pure scheduling language and validators implemented.
+- [x] Cadence and sequence resolver fully tested.
+- [x] D1 migration generated, inspected, and applied locally.
+- [x] Existing routine preserved as one-step patterns.
+- [x] Daily occurrence identity supports duplicate activities per date.
+- [x] Today edits no longer overwrite durable activity definitions.
+- [x] Activity variants and variant-scoped records implemented.
+- [x] Variant-aware shared/overlay workspaces implemented.
+- [x] Derived occurrence titles implemented responsively.
+- [x] Manual simple schedule UI implemented.
+- [x] Manual sequence editor and upcoming preview implemented.
+- [x] Manage Schedule implemented.
+- [x] Narrow occurrence mutation APIs replace whole-day writes.
+- [x] Global Luna conversation and app-shell entry implemented.
+- [x] Durable clarification and proposal lifecycle implemented.
+- [x] Typed schedule and occurrence actions implemented and audited.
+- [x] Add Activity can hand a scheduling request to global Luna.
+- [x] Activity Luna can route schedule requests through the same service.
+- [x] Product, design-system, agent, and smart-flow docs updated.
+- [x] Full automated test suite passes.
+- [x] Lint and production build pass.
+- [x] Production migration and deployment complete.
+- [x] Focused desktop/mobile production verification passes.
