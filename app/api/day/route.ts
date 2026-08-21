@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { ensureAgentSchema, findActivity, queueActivitySetup } from "../agent-store";
+import { ensureAgentSchema, findActivity, queueActivitySetup, queueDayHighlightIfIdle } from "../agent-store";
 import { ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
@@ -111,12 +111,17 @@ async function readDay(userId: string, date: string) {
   `).bind(planId, userId).first<{ startMinutes: number; startedAt: string | null; highlightStatus: string; highlightBody: string | null; highlightKind: string | null; highlightRevision: number; preferredStartMinutes: number; dayTimelineEnabled: number; pullForwardAfterEarlyCompletion: number }>();
   if (!plan) return null;
 
+  const items = await readResolvedDay(userId, planId);
+  const queuedHighlight = plan.highlightStatus === "idle" && items.some((item) => item.completedAt)
+    ? await queueDayHighlightIfIdle(userId, planId)
+    : null;
+
   return {
-    items: await readResolvedDay(userId, planId),
+    items,
     startMinutes: plan.startMinutes,
     preferredStartMinutes: plan.preferredStartMinutes,
     startedAt: plan.startedAt,
-    highlight: {
+    highlight: queuedHighlight ?? {
       status: plan.highlightStatus,
       body: plan.highlightBody,
       kind: plan.highlightKind,

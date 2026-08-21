@@ -52,8 +52,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /needsImport/);
   assert.match(page, /method: "PUT"/);
   assert.doesNotMatch(page, /saveTodayAsTemplate|Save today as default template/);
-  assert.doesNotMatch(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /save-template/);
-  assert.match(await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"), /restore-template/);
+  const dayRoute = await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(dayRoute, /save-template/);
+  assert.match(dayRoute, /restore-template/);
+  assert.match(dayRoute, /queueDayHighlightIfIdle/);
   assert.match(page, /<ScheduleManager/);
   assert.match(page, /\/api\/occurrences/);
   assert.match(page, /MIGRATION_KEY/);
@@ -263,6 +265,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /visibleItems = scheduledItems\.filter\(\(item\) => !completedIds\.has\(item\.id\)/);
   assert.match(page, /settledCompletedItems/);
   assert.match(css, /@keyframes day-highlight-icon-land/);
+  assert.doesNotMatch(css, /\.day-highlight-icon::after/);
+  assert.match(css, /\.day-highlights-copy > strong[^}]*text-transform: uppercase/);
   assert.match(page, /function cueNextActivity/);
   assert.match(page, /window\.scrollBy\(\{/);
   assert.match(page, /nextActivityCueId === item\.id \? "is-next-cue"/);

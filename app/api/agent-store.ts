@@ -370,6 +370,49 @@ export async function queueDayHighlight(userId: string, dayPlanId: string): Prom
   return { status: "queued", body: null, kind: null, revision };
 }
 
+export async function queueDayHighlightIfIdle(userId: string, dayPlanId: string): Promise<DayHighlightState | null> {
+  await ensureAgentSchema();
+  const db = getD1();
+  const plan = await db.prepare(`
+    SELECT highlight_status AS status, highlight_revision AS revision,
+           EXISTS(
+             SELECT 1 FROM daily_plan_items
+             WHERE daily_plan_id = daily_plans.id
+               AND completed_at IS NOT NULL AND removed_at IS NULL
+           ) AS hasCompleted
+    FROM daily_plans
+    WHERE id = ? AND user_id = ?
+  `).bind(dayPlanId, userId).first<{ status: DayHighlightState["status"]; revision: number; hasCompleted: number }>();
+  if (!plan || plan.status !== "idle" || !plan.hasCompleted) return null;
+
+  const conversationId = await ensureGlobalConversation(userId);
+  const revision = plan.revision + 1;
+  const claimed = await db.prepare(`
+    UPDATE daily_plans
+    SET highlight_revision = ?, highlight_status = 'queued',
+        highlight_body = NULL, highlight_kind = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND user_id = ? AND highlight_status = 'idle' AND highlight_revision = ?
+    RETURNING highlight_revision AS revision
+  `).bind(revision, dayPlanId, userId, plan.revision).first<{ revision: number }>();
+  if (!claimed) return null;
+
+  const jobId = `agent-job:${safeId(userId)}:day-highlight:${safeId(dayPlanId)}:${revision}`;
+  try {
+    await db.prepare(`
+      INSERT OR IGNORE INTO agent_jobs
+        (id, user_id, scope_type, day_plan_id, day_revision, conversation_id, kind, idempotency_key)
+      VALUES (?, ?, 'global', ?, ?, ?, 'day_highlight', ?)
+    `).bind(jobId, userId, dayPlanId, revision, conversationId, `day-highlight:${dayPlanId}:${revision}`).run();
+  } catch (error) {
+    await db.prepare(`
+      UPDATE daily_plans SET highlight_status = 'idle', updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ? AND highlight_revision = ? AND highlight_status = 'queued'
+    `).bind(dayPlanId, userId, revision).run();
+    throw error;
+  }
+  return { status: "queued", body: null, kind: null, revision };
+}
+
 export async function readGlobalConversationState(conversationId: string, userId: string) {
   const db = getD1();
   const activeJob = await db.prepare(`
