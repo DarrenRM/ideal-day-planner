@@ -222,12 +222,22 @@ export async function POST(request: Request) {
     if (mode === "heartbeat") {
       const workerId = typeof payload.workerId === "string" ? payload.workerId.trim().slice(0, 120) : "";
       if (!workerId) return Response.json({ error: "A worker is required." }, { status: 400 });
-      await db.prepare(`
-        INSERT INTO agent_workers (id, runtime, last_seen_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(id) DO UPDATE SET
-          runtime = excluded.runtime, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-      `).bind(workerId, HERMES_RUNTIME).run();
+      const heartbeatJobId = typeof payload.jobId === "string" ? payload.jobId : "";
+      const heartbeatLeaseToken = typeof payload.leaseToken === "string" ? payload.leaseToken : "";
+      const statements = [db.prepare(`
+          INSERT INTO agent_workers (id, runtime, last_seen_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET
+            runtime = excluded.runtime, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        `).bind(workerId, HERMES_RUNTIME)];
+      if (heartbeatJobId && heartbeatLeaseToken) {
+        statements.push(db.prepare(`
+          UPDATE agent_jobs
+          SET lease_expires_at = datetime('now', '+3 minutes'), updated_at = CURRENT_TIMESTAMP
+          WHERE id = ? AND lease_token = ? AND lease_owner = ? AND status = 'running'
+        `).bind(heartbeatJobId, heartbeatLeaseToken, workerId));
+      }
+      await db.batch(statements);
       return Response.json({ online: true });
     }
     const jobId = typeof payload.jobId === "string" ? payload.jobId : "";

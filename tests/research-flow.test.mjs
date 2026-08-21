@@ -29,4 +29,6 @@ test("the bridge bypasses the slow conversational pass and the server recovers m
   assert.match(bridge, /Do not leave a learned product name, device, usage direction, routine step, or protocol only in the conversational message/);
   assert.match(route, /'agent-job:workspace-recovery:' \|\| source\.id/);
   assert.match(route, /payload\.workspaceFollowup === true \|\| messageRequestsResearch\(sourceMessage\?\.body\)/);
+  assert.match(bridge, /sendHeartbeat\(leased\)/);
+  assert.match(route, /SET lease_expires_at = datetime\('now', '\+3 minutes'\)/);
 });

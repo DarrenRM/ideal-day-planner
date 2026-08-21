@@ -208,11 +208,16 @@ function visibleProgress(leased) {
       };
 }
 
-function sendHeartbeat() {
+function sendHeartbeat(leased) {
   return requestAppJson("/api/agent/jobs", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ mode: "heartbeat", workerId }),
+    body: JSON.stringify({
+      mode: "heartbeat",
+      workerId,
+      jobId: leased?.job?.id,
+      leaseToken: leased?.job?.leaseToken,
+    }),
   });
 }
 
@@ -279,7 +284,7 @@ async function runJobWithHeartbeat(key, leased) {
   const heartbeatTimer = setInterval(() => {
     if (heartbeatInFlight) return;
     heartbeatInFlight = true;
-    void sendHeartbeat()
+    void sendHeartbeat(leased)
       .catch((error) => console.error("Bridge heartbeat failed:", error instanceof Error ? error.message : String(error)))
       .finally(() => { heartbeatInFlight = false; });
   }, heartbeatIntervalMs);
