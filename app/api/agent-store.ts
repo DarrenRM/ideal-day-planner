@@ -375,17 +375,16 @@ export async function queueDayHighlightIfNeeded(userId: string, dayPlanId: strin
   const db = getD1();
   const plan = await db.prepare(`
     SELECT highlight_status AS status, highlight_body AS body, highlight_revision AS revision,
-           EXISTS(
-             SELECT 1 FROM daily_plan_items
-             WHERE daily_plan_id = daily_plans.id
-               AND completed_at IS NOT NULL AND removed_at IS NULL
-           ) AS hasCompleted
+           (SELECT COUNT(*) FROM daily_plan_items
+            WHERE daily_plan_id = daily_plans.id
+              AND completed_at IS NOT NULL AND removed_at IS NULL) AS completedCount
     FROM daily_plans
     WHERE id = ? AND user_id = ?
-  `).bind(dayPlanId, userId).first<{ status: DayHighlightState["status"]; body: string | null; revision: number; hasCompleted: number }>();
+  `).bind(dayPlanId, userId).first<{ status: DayHighlightState["status"]; body: string | null; revision: number; completedCount: number }>();
   const needsFirstReview = plan?.status === "idle";
   const needsCompactRewrite = plan?.status === "ready" && (plan.body?.length ?? 0) > 72;
-  if (!plan || !plan.hasCompleted || (!needsFirstReview && !needsCompactRewrite)) return null;
+  const needsCountFallback = plan?.status === "quiet" && (plan.completedCount ?? 0) >= 5;
+  if (!plan || !plan.completedCount || (!needsFirstReview && !needsCompactRewrite && !needsCountFallback)) return null;
 
   const conversationId = await ensureGlobalConversation(userId);
   const revision = plan.revision + 1;
@@ -394,7 +393,13 @@ export async function queueDayHighlightIfNeeded(userId: string, dayPlanId: strin
     SET highlight_revision = ?, highlight_status = 'queued',
         highlight_body = NULL, highlight_kind = NULL, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND user_id = ? AND highlight_revision = ?
-      AND (highlight_status = 'idle' OR (highlight_status = 'ready' AND length(COALESCE(highlight_body, '')) > 72))
+      AND (highlight_status = 'idle'
+        OR (highlight_status = 'ready' AND length(COALESCE(highlight_body, '')) > 72)
+        OR (highlight_status = 'quiet' AND (
+          SELECT COUNT(*) FROM daily_plan_items
+          WHERE daily_plan_id = daily_plans.id
+            AND completed_at IS NOT NULL AND removed_at IS NULL
+        ) >= 5))
     RETURNING highlight_revision AS revision
   `).bind(revision, dayPlanId, userId, plan.revision).first<{ revision: number }>();
   if (!claimed) return null;

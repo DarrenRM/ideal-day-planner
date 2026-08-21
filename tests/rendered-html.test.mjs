@@ -498,6 +498,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /mode === "progress"/);
   assert.match(jobRoute, /progress_title/);
   assert.match(jobRoute, /highlightSource\.body\.trim\(\)\.slice\(0, 80\)/);
+  assert.match(jobRoute, /completed\?\.count \?\? 0\) >= 5/);
   assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'day_highlight' THEN 1 ELSE 2 END/);
   assert.match(jobRoute, /ORDER BY created_at DESC/);
   assert.match(jobRoute, /Could not release an incomplete agent lease/);
@@ -538,6 +539,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /Activity-setup behavior/);
   assert.match(bridge, /Choose exactly one dominant fact, not an overview/);
   assert.match(bridge, /at most 10 words and 64 characters/);
+  assert.match(bridge, /Five or more completions always clears the highlight bar/);
   assert.match(bridge, /compactDayHighlightBody/);
   assert.match(bridge, /Cardio with no user-supplied description must ask/);
   assert.match(bridge, /A scheduled duration is a planning budget, not evidence/);

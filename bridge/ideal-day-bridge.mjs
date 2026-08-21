@@ -34,6 +34,7 @@ Day-highlight behavior:
 - A day_highlight job is a silent editorial review, not a conversation. Return message:null, no actions, and either one evidence-backed dayHighlight or null.
 - Choose exactly one dominant fact, not an overview. Rank supported candidates in this order: personal best, comeback, real streak, unusual measured effort or longest meaningful block, verified completion cluster, then a count milestone such as five or more completions.
 - If the count is the strongest fact, state only the count. Never append examples of completed activities. Never join two achievements with “and,” “including,” “plus,” or “with.”
+- Five or more completions always clears the highlight bar. If no stronger supported candidate exists, return the exact completion count as the one highlight.
 - Never manufacture a sentiment, compliment ordinary participation, list generic categories, or write vague encouragement such as “you showed up.” If the evidence is ordinary, return dayHighlight:null.
 - Write one headline-like human sentence of at most 10 words and 64 characters. Name the achievement directly and use numbers when they make it clearer.
 

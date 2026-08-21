@@ -462,9 +462,16 @@ export async function POST(request: Request) {
         const highlightSource = payload.dayHighlight && typeof payload.dayHighlight === "object" && !Array.isArray(payload.dayHighlight)
           ? payload.dayHighlight as Record<string, unknown>
           : null;
-        const body = typeof highlightSource?.body === "string" ? highlightSource.body.trim().slice(0, 80) : "";
+        const suppliedBody = typeof highlightSource?.body === "string" ? highlightSource.body.trim().slice(0, 80) : "";
+        const completed = suppliedBody ? null : await db.prepare(`
+          SELECT COUNT(*) AS count FROM daily_plan_items
+          WHERE daily_plan_id = ? AND completed_at IS NOT NULL AND removed_at IS NULL
+        `).bind(job.dayPlanId).first<{ count: number }>();
+        const body = (suppliedBody || (completed?.count ?? 0) >= 5)
+          ? suppliedBody || `${completed?.count} activities completed today.`
+          : "";
         const allowedKinds = new Set(["streak", "milestone", "momentum", "effort", "comeback", "personal_best", "completion"]);
-        const kind = typeof highlightSource?.kind === "string" && allowedKinds.has(highlightSource.kind) ? highlightSource.kind : null;
+        const kind = suppliedBody && typeof highlightSource?.kind === "string" && allowedKinds.has(highlightSource.kind) ? highlightSource.kind : body ? "completion" : null;
         const bindingId = `agent-binding:${safeId(job.conversationId)}:${safeId(HERMES_RUNTIME)}`;
         await db.batch([
           db.prepare(`
