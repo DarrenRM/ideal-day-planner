@@ -20,7 +20,7 @@ export const COMPONENT_CATALOG = [
   ["timeline", "Progress, milestones, or scheduled comparisons", "entries[{id,title,detail,date,value,tone}]"],
   ["goal", "A durable outcome and progress", "statement,current,target,unit,note"],
   ["attention", "A real warning, decision, or unresolved issue", "body,tone(info|warning|important),actions[]"],
-  ["resources", "Authoritative links", "optional subjectKey; entries[{id,label,url,note}]"],
+  ["resources", "Authoritative links", "subjectKey for item-owned sources; entries[{id,label,url,note,itemKey}]"],
   ["timer", "Count-up elapsed time", "No record; workspace component only"],
   ["countdown", "Visible time remaining", "No record; workspace component only"],
 ];

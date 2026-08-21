@@ -412,7 +412,14 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
       entries: objectArray(source.entries, 40, (entry, index) => {
         const label = boundedString(entry.label, 180);
         const url = safeUrl(entry.url);
-        return label && url ? { id: itemId(entry.id, index), label, url, note: boundedString(entry.note, 300) } : null;
+        const itemKeyValue = stableKey(entry.itemKey);
+        return label && url ? {
+          id: itemId(entry.id, index),
+          label,
+          url,
+          note: boundedString(entry.note, 300),
+          ...(itemKeyValue ? { itemKey: itemKeyValue } : {}),
+        } : null;
       }),
     };
   }

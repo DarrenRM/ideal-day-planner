@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { ensureAgentSchema, findActivity, queueActivitySetup, queueDayHighlightIfNeeded } from "../agent-store";
+import { ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded } from "../agent-store";
 import { ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
@@ -319,6 +319,7 @@ export async function GET(request: Request) {
   try {
     await ensureAgentSchema();
     const templateId = await ensureAccount(userId, date);
+    await migrateLegacyProductOwnership(userId);
     if (!await hasTemplateItems(userId, templateId)) {
       const row = await getD1().prepare(`
         SELECT COALESCE(day_timeline_enabled, 0) AS dayTimelineEnabled,

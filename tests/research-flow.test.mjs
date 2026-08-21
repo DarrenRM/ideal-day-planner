@@ -32,6 +32,7 @@ test("the bridge bypasses the slow conversational pass and the server recovers m
   assert.match(bridge, /Do not leave a learned product, device, cadence, usage event, direction, or protocol only in conversation/);
   assert.match(bridge, /create one product record and card for each named item/);
   assert.match(bridge, /Put item-specific directions and resources in records with that item's subjectKey/);
+  assert.match(bridge, /Every item-owned resource entry also uses that item's itemKey/);
   assert.match(bridge, /never emit fields or usage subfields/);
   assert.match(route, /'agent-job:workspace-recovery:' \|\| source\.id/);
   assert.match(route, /payload\.workspaceFollowup === true \|\| messageRequestsResearch\(sourceMessage\?\.body\)/);

@@ -915,6 +915,196 @@ export async function moveActivitySubject(input: {
   return moveActivityRecords({ ...input, recordKeys: plan.recordKeys });
 }
 
+const PRODUCT_SUBJECT_OWNERSHIP_MIGRATION = "product-subject-ownership-v1";
+
+function migratedRecordAction(
+  record: PersistedActivityRecord,
+  subjectKey: string,
+  options: { title?: string; data?: Record<string, unknown> } = {},
+): RecordAction {
+  return {
+    op: "upsert",
+    record: {
+      key: record.key,
+      subjectKey,
+      type: record.type,
+      title: options.title ?? record.title,
+      scope: record.scope,
+      scopeDate: record.scopeDate,
+      data: options.data ?? record.data,
+    },
+  };
+}
+
+function resourceEntries(record: PersistedActivityRecord | undefined) {
+  return Array.isArray(record?.data.entries)
+    ? record.data.entries.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object" && !Array.isArray(entry)))
+    : [];
+}
+
+/**
+ * One-time cleanup for records created before subject ownership became explicit.
+ * The mapping is deliberately isolated and versioned; runtime rendering never
+ * guesses ownership from titles, adjacency, or product count.
+ */
+export async function migrateLegacyProductOwnership(userId: string) {
+  const db = getD1();
+  const migrationId = `migration:${safeId(userId)}:${PRODUCT_SUBJECT_OWNERSHIP_MIGRATION}`;
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, PRODUCT_SUBJECT_OWNERSHIP_MIGRATION).first<{ id: string }>();
+  if (completed) return { applied: false };
+
+  const activities = await db.prepare(`
+    SELECT id, client_key AS clientKey FROM activities
+    WHERE user_id = ? AND client_key IN ('skin-routine', 'hair-serum')
+  `).bind(userId).all<{ id: string; clientKey: string }>();
+  const activityIds = new Map(activities.results.map((activity) => [activity.clientKey, activity.id]));
+  const skinActivityId = activityIds.get("skin-routine");
+  const hairActivityId = activityIds.get("hair-serum");
+
+  if (!skinActivityId || !hairActivityId) {
+    await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+      .bind(migrationId, userId, PRODUCT_SUBJECT_OWNERSHIP_MIGRATION).run();
+    return { applied: false };
+  }
+
+  const [skinRecords, hairRecords] = await Promise.all([
+    readActivityRecords(skinActivityId),
+    readActivityRecords(hairActivityId),
+  ]);
+  const skinByKey = new Map(skinRecords.map((record) => [record.key, record]));
+  const hairByKey = new Map(hairRecords.map((record) => [record.key, record]));
+  const beardResourceIds = new Set([
+    "kestrel-grooming-beard-roller",
+    "kestrel-grooming-beard-roller-guide",
+    "kestrel-grooming-beard-roller-cleaning",
+  ]);
+
+  const skinResources = skinByKey.get("castile-soap-references");
+  const existingBeardResources = hairByKey.get("beard-grooming-roller-resources");
+  const movedEntries = resourceEntries(skinResources)
+    .filter((entry) => beardResourceIds.has(String(entry.id)))
+    .map((entry) => ({ ...entry, itemKey: "beard-grooming-roller" }));
+  const retainedEntries = resourceEntries(skinResources)
+    .filter((entry) => !beardResourceIds.has(String(entry.id)))
+    .map((entry) => ({ ...entry, itemKey: "castile-soap" }));
+
+  if (movedEntries.length || existingBeardResources) {
+    const mergedEntries = new Map<string, Record<string, unknown>>();
+    for (const entry of [...resourceEntries(existingBeardResources), ...movedEntries]) {
+      const id = String(entry.id || "");
+      if (id) mergedEntries.set(id, { ...entry, itemKey: "beard-grooming-roller" });
+    }
+    const beardResources: PersistedActivityRecord = existingBeardResources ?? {
+      id: "migration-placeholder",
+      key: "beard-grooming-roller-resources",
+      subjectKey: "beard-grooming-roller",
+      type: "resources",
+      title: "Beard Grooming Roller Resources",
+      scope: "activity",
+      scopeDate: null,
+      version: 0,
+      data: {},
+      updatedAt: "",
+    };
+    await persistRecordActions({
+      userId,
+      activityId: hairActivityId,
+      actionId: `${migrationId}:beard-resources`,
+      actions: [migratedRecordAction(beardResources, "beard-grooming-roller", {
+        title: "Beard Grooming Roller Resources",
+        data: { entries: [...mergedEntries.values()] },
+      })],
+    });
+  }
+
+  const skinActions: RecordAction[] = [];
+  const castile = skinByKey.get("castile-soap");
+  if (castile) skinActions.push(migratedRecordAction(castile, "castile-soap"));
+  if (skinResources) {
+    skinActions.push(migratedRecordAction(skinResources, "castile-soap", {
+      title: "Castile Soap Resources",
+      data: { entries: retainedEntries },
+    }));
+  }
+  const beardHistory = skinByKey.get("beard-grooming-roller-use-history");
+  if (beardHistory) skinActions.push(migratedRecordAction(beardHistory, "beard-grooming-roller"));
+  if (skinActions.length) {
+    await persistRecordActions({
+      userId,
+      activityId: skinActivityId,
+      actionId: `${migrationId}:skin-links`,
+      actions: skinActions,
+    });
+  }
+
+  const hairOwners = new Map<string, { subjectKey: string; title?: string }>([
+    ["hair-ll-01", { subjectKey: "hair-ll-01" }],
+    ["hair-ll-01-reference", { subjectKey: "hair-ll-01", title: "Lumen Lab LL-01 Resources" }],
+    ["hair-ll-01-scalp-routine", { subjectKey: "hair-ll-01" }],
+    ["beard-grooming-roller", { subjectKey: "beard-grooming-roller" }],
+    ["skin-routine-protocol", { subjectKey: "beard-grooming-roller", title: "Beard Grooming Roller protocol" }],
+    ["beard-grooming-roller-weekly", { subjectKey: "beard-grooming-roller" }],
+  ]);
+  const hairActions = hairRecords.flatMap((record) => {
+    const owner = hairOwners.get(record.key);
+    if (!owner) return [];
+    const data = record.type === "resources"
+      ? { entries: resourceEntries(record).map((entry) => ({ ...entry, itemKey: owner.subjectKey })) }
+      : record.data;
+    return [migratedRecordAction(record, owner.subjectKey, { title: owner.title, data })];
+  });
+  if (hairActions.length) {
+    await persistRecordActions({
+      userId,
+      activityId: hairActivityId,
+      actionId: `${migrationId}:hair-links`,
+      actions: hairActions,
+    });
+  }
+
+  if (beardHistory) {
+    await moveActivityRecords({
+      userId,
+      sourceActivityId: skinActivityId,
+      targetActivityId: hairActivityId,
+      actionId: `${migrationId}:beard-history`,
+      recordKeys: [beardHistory.key],
+    });
+  }
+
+  await Promise.all([
+    persistWorkspaceActions({
+      userId,
+      activityId: skinActivityId,
+      agentJobId: `${migrationId}:skin-workspace`,
+      actions: skinResources ? [{
+        op: "upsert",
+        component: { id: "castile-soap-references", type: "resources", title: "Castile Soap Resources", recordKey: "castile-soap-references", presentation: "compact" },
+      }] : [],
+    }),
+    persistWorkspaceActions({
+      userId,
+      activityId: hairActivityId,
+      agentJobId: `${migrationId}:hair-workspace`,
+      actions: [
+        ...(hairByKey.has("hair-ll-01-reference") ? [{
+          op: "upsert" as const,
+          component: { id: "hair-ll-01-reference", type: "resources" as const, title: "Lumen Lab LL-01 Resources", recordKey: "hair-ll-01-reference", presentation: "compact" as const },
+        }] : []),
+        ...((movedEntries.length || existingBeardResources) ? [{
+          op: "upsert" as const,
+          component: { id: "beard-grooming-roller-resources", type: "resources" as const, title: "Beard Grooming Roller Resources", recordKey: "beard-grooming-roller-resources", presentation: "compact" as const },
+        }] : []),
+      ],
+    }),
+  ]);
+
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, PRODUCT_SUBJECT_OWNERSHIP_MIGRATION).run();
+  return { applied: true };
+}
+
 function asObject(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }

@@ -71,7 +71,7 @@ ${resultShape}
 This is durable activity design work. Set scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
 
 Hard extraction checklist for the latest message:
-1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device" and subjectKey equal to that product record's stable key. Give every record owned by that item the same subjectKey.
+1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device" and subjectKey equal to that product record's stable key. Give every record owned by that item the same subjectKey. Resource entries owned by an item also carry its itemKey; keep different subjects in separate resource records.
 2. An explicit cadence such as “once a week” requires a recurring_step unless it already exists.
 3. “Used today” requires an activity_event unless it means the whole activity was completed.
 4. User-stated facts are authoritative for their own routine. Source-derived facts require supplied research evidence or actual web research.
@@ -82,7 +82,7 @@ Hard extraction checklist for the latest message:
 Activity design rules:
 - Never create an empty, generic, or “details needed” record/component. Ask naturally and leave that area absent.
 - Every product record has only name, manufacturer, variant, concise notes, and the binary kind; never emit fields or usage subfields. Put repeatable directions in a shared protocol.
-- When an activity uses multiple products or devices, create one product record and card for each named item. Put item-specific directions and resources in records with that item's subjectKey so they compose inside its card and move with it. Keep adherence and genuinely activity-wide routines shared with no subjectKey; never combine unrelated products' resources into one ambiguous record.
+- When an activity uses multiple products or devices, create one product record and card for each named item. Put item-specific directions and resources in records with that item's subjectKey so they compose inside its card and move with it. Every item-owned resource entry also uses that item's itemKey. Keep adherence and genuinely activity-wide routines shared with no subjectKey; never combine unrelated products' resources into one ambiguous record.
 - A deliberately undecided workout exercise belongs in openChoices. Keep equipment at activity scope unless it truly varies by session variant.
 - Use session_choice for choosing a device mode today; use schedule variants only for an intentional recurring rotation.
 - Timers/countdowns are ordinary options, not defaults. Add one only when elapsed/remaining time is inherently useful or explicitly requested. Never default them for supplements, meals, showers, ordinary product application, or errands. A five-minute chin-up visualization and documented timed exposure are appropriate countdowns.

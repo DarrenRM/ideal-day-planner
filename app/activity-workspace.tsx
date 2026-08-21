@@ -333,8 +333,9 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     if (component.type !== "protocol" && component.type !== "resources") continue;
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
     if (!record) continue;
-    const owner = productComponents.find(({ record: product }) => record.subjectKey === product.key)
-      ?? (record.subjectKey === null && productComponents.length === 1 ? productComponents[0] : null);
+    // Product composition is semantic, not positional. Unowned legacy records stay
+    // independent until a migration or Luna assigns an explicit subject owner.
+    const owner = productComponents.find(({ record: product }) => record.subjectKey === product.key);
     if (!owner) continue;
     const supporting = nestedSupportingComponents.get(owner.record.key) ?? [];
     supporting.push(record);

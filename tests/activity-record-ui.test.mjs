@@ -54,6 +54,7 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.doesNotMatch(component, /Pinned resources/);
   assert.match(workspace, /nestedSupportingComponents/);
   assert.match(workspace, /record\.subjectKey === product\.key/);
+  assert.doesNotMatch(workspace, /productComponents\.length === 1/);
   assert.match(css, /\.product-heading \{[^}]*justify-content: space-between/s);
 
   const record = parseActivityRecord({
@@ -80,6 +81,31 @@ test("keeps product cards focused on identity instead of generated subfields", a
     variant: "Hair serum",
     notes: "",
   });
+});
+
+test("preserves explicit resource ownership at both record and entry level", () => {
+  const record = parseActivityRecord({
+    id: "resources-1",
+    recordKey: "roller-resources",
+    subjectKey: "beard-roller",
+    recordType: "resources",
+    title: "Beard roller resources",
+    scope: "activity",
+    scopeDate: null,
+    version: 1,
+    payloadJson: JSON.stringify({
+      entries: [{
+        id: "official-guide",
+        label: "Official guide",
+        url: "https://example.com/guide",
+        note: "Directions",
+        itemKey: "beard-roller",
+      }],
+    }),
+    updatedAt: "2026-08-21T12:00:00Z",
+  });
+  assert.equal(record?.subjectKey, "beard-roller");
+  assert.equal(record?.data.entries[0].itemKey, "beard-roller");
 });
 
 test("keeps mobile composer focus from changing footer layout and follows drawer geometry", async () => {
