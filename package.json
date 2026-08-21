@@ -10,12 +10,14 @@
     "build": "vinext build",
     "start": "vinext start",
     "bridge": "node bridge/ideal-day-bridge.mjs",
+    "eval:model-routing": "node --experimental-strip-types evals/compare-luna-models.mjs",
     "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
+    "jsonrepair": "^3.15.0",
     "lucide-react": "^0.468.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"

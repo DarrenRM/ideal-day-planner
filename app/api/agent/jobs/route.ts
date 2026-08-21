@@ -7,6 +7,7 @@ import {
   ensureAgentSchema,
   isLocalBridgeRequest,
   markActivitySetupAnswered,
+  moveActivityRecords,
   persistRecordActions,
   persistWorkspaceActions,
   readActivityRecords,
@@ -14,6 +15,7 @@ import {
   readConversationMessages,
   safeId,
 } from "../../agent-store";
+import { validateActivityMoveActions } from "../../../activity-transfer-model";
 import { hasUsefulActivityRecordData, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
 import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
 import { localDateInTimeZone, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
@@ -138,9 +140,11 @@ export async function GET(request: Request) {
              day_revision AS dayRevision, conversation_id AS conversationId,
              kind, source_message_id AS sourceMessageId, attempts
       FROM agent_jobs
-      WHERE status = 'queued'
-         OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
-         OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
+      WHERE attempts < 3 AND (
+        status = 'queued'
+        OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
+        OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
+      )
       ORDER BY CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'day_highlight' THEN 1 ELSE 2 END, created_at ASC, rowid ASC
       LIMIT 1
     `).first<LeasedJob>();
@@ -152,7 +156,7 @@ export async function GET(request: Request) {
       SET status = 'leased', lease_token = ?, lease_owner = ?, leased_at = CURRENT_TIMESTAMP,
           lease_expires_at = datetime('now', '+3 minutes'), attempts = attempts + 1,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND (
+      WHERE id = ? AND attempts < 3 AND (
         status = 'queued'
         OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
         OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
@@ -292,6 +296,10 @@ export async function GET(request: Request) {
       FROM activities
       WHERE id = ? AND user_id = ?
     `).bind(candidate.activityId, candidate.userId).first<{ clientKey: string; title: string; category: string }>();
+    const availableActivities = await db.prepare(`
+      SELECT id, client_key AS clientKey, title, category
+      FROM activities WHERE user_id = ? ORDER BY title
+    `).bind(candidate.userId).all();
     const schedule = await db.prepare(`
       SELECT dpi.duration, dp.plan_date AS planDate,
              COALESCE(s.day_timeline_enabled, 0) AS dayTimelineEnabled
@@ -346,6 +354,7 @@ export async function GET(request: Request) {
       runtimeSessionId: binding?.runtimeSessionId ?? null,
       context: {
         activity,
+        activities: availableActivities.results,
         schedule: schedule ? {
           planDate: schedule.planDate,
           timelineEnabled: Boolean(schedule.dayTimelineEnabled),
@@ -366,7 +375,7 @@ export async function GET(request: Request) {
       try {
         await getD1().prepare(`
           UPDATE agent_jobs
-          SET status = CASE WHEN attempts >= 5 THEN 'retryable_failure' ELSE 'queued' END,
+          SET status = CASE WHEN attempts >= 3 THEN 'failed' ELSE 'queued' END,
               lease_token = NULL, lease_owner = NULL, lease_expires_at = NULL,
               error = ?, updated_at = CURRENT_TIMESTAMP
           WHERE id = ? AND lease_token = ?
@@ -584,6 +593,20 @@ export async function POST(request: Request) {
           plannedDurationMinutes,
         })
       ));
+      const activityMoves = validateActivityMoveActions(usesReplyFirstProtocol ? [] : payload.activityMoves, job.activityId);
+      const movedKeys = new Set(activityMoves.flatMap((action) => action.recordKeys));
+      if (recordActions.some((action) => (action.op === "remove" ? movedKeys.has(action.recordKey) : movedKeys.has(action.record.key)))) {
+        return Response.json({ error: "A saved item cannot be edited and moved in the same update." }, { status: 400 });
+      }
+      for (const [index, action] of activityMoves.entries()) {
+        await moveActivityRecords({
+          userId: job.userId,
+          sourceActivityId: job.activityId,
+          targetActivityId: action.targetActivityId,
+          actionId: `${jobId}:activity-move:${index}`,
+          recordKeys: action.recordKeys,
+        });
+      }
       const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);
       const availableRecords = new Map<string, ActivityRecordContent>(existingRecords.map((record) => [record.key, record]));
       for (const action of recordActions) {
@@ -678,12 +701,19 @@ export async function POST(request: Request) {
       if (job.kind === "workspace_refresh" || (job.kind === "user_message" && !workspaceFollowup)) {
         await completeRequestedActivitySetup(job.activityId, hasUsefulWorkspaceContent);
       }
-      return Response.json({ completed: true, messageId, workspaceFollowup, workspace, recordActionsApplied: recordActions.length });
+      return Response.json({
+        completed: true,
+        messageId,
+        workspaceFollowup,
+        workspace,
+        recordActionsApplied: recordActions.length,
+        activityMovesApplied: activityMoves.length,
+      });
     }
 
     if (mode === "failure") {
       const error = typeof payload.error === "string" ? payload.error.trim().slice(0, 1000) : "Agent processing failed.";
-      const nextStatus = job.attempts >= 5 ? "retryable_failure" : "queued";
+      const nextStatus = job.attempts >= 3 ? "failed" : "queued";
       await db.prepare(`
         UPDATE agent_jobs
         SET status = ?, lease_token = NULL, lease_owner = NULL, lease_expires_at = NULL,

@@ -742,6 +742,126 @@ export async function persistRecordActions(input: {
   }
 }
 
+export async function moveActivityRecords(input: {
+  userId: string;
+  sourceActivityId: string;
+  targetActivityId: string;
+  actionId: string;
+  recordKeys: string[];
+}) {
+  const db = getD1();
+  const keys = [...new Set(input.recordKeys)].slice(0, 20);
+  if (!keys.length || input.sourceActivityId === input.targetActivityId) {
+    throw new Error("An activity move needs saved information and a different destination.");
+  }
+  const target = await db.prepare("SELECT id FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
+    .bind(input.targetActivityId, input.userId).first<{ id: string }>();
+  if (!target) throw new Error("The destination activity is no longer available.");
+
+  const placeholders = keys.map(() => "?").join(", ");
+  const sourceRecords = await db.prepare(`
+    SELECT id, record_key AS recordKey, activity_variant_id AS activityVariantId
+    FROM activity_records
+    WHERE user_id = ? AND activity_id = ? AND record_key IN (${placeholders}) AND archived_at IS NULL
+  `).bind(input.userId, input.sourceActivityId, ...keys).all<{ id: string; recordKey: string; activityVariantId: string | null }>();
+
+  if (sourceRecords.results.length !== keys.length) {
+    const targetRecords = await db.prepare(`
+      SELECT record_key AS recordKey FROM activity_records
+      WHERE user_id = ? AND activity_id = ? AND record_key IN (${placeholders}) AND archived_at IS NULL
+    `).bind(input.userId, input.targetActivityId, ...keys).all<{ recordKey: string }>();
+    if (sourceRecords.results.length === 0 && targetRecords.results.length === keys.length) {
+      return { movedRecords: keys.length, movedComponents: 0, alreadyApplied: true };
+    }
+    throw new Error("Some of the requested information is no longer saved in the source activity.");
+  }
+  if (sourceRecords.results.some((record) => record.activityVariantId)) {
+    throw new Error("Variant-specific information cannot be moved without choosing a destination variant.");
+  }
+  const destinationConflicts = await db.prepare(`
+    SELECT record_key AS recordKey FROM activity_records
+    WHERE user_id = ? AND activity_id = ? AND record_key IN (${placeholders})
+  `).bind(input.userId, input.targetActivityId, ...keys).all<{ recordKey: string }>();
+  if (destinationConflicts.results.length) {
+    throw new Error("The destination already has saved information with the same identity; merge it before moving.");
+  }
+
+  const [sourceWorkspace, targetWorkspace] = await Promise.all([
+    readWorkspaceLayer(input.sourceActivityId, null),
+    readWorkspaceLayer(input.targetActivityId, null),
+  ]);
+  const keySet = new Set(keys);
+  const movedComponents = sourceWorkspace.document.components.filter((component) => (
+    "recordKey" in component && component.recordKey && keySet.has(component.recordKey)
+  ));
+  const movedComponentIds = new Set(movedComponents.map((component) => component.id));
+  const targetCollision = targetWorkspace.document.components.find((component) => (
+    movedComponentIds.has(component.id)
+    && !movedComponents.some((moved) => moved.id === component.id && "recordKey" in component && component.recordKey === ("recordKey" in moved ? moved.recordKey : undefined))
+  ));
+  if (targetCollision) throw new Error(`The destination already uses the workspace slot “${targetCollision.id}”.`);
+
+  const statements = [];
+  for (const record of sourceRecords.results) {
+    statements.push(
+      db.prepare(`
+        UPDATE activity_records
+        SET activity_id = ?, activity_variant_id = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND activity_id = ? AND archived_at IS NULL
+      `).bind(input.targetActivityId, record.id, input.userId, input.sourceActivityId),
+      db.prepare("DELETE FROM record_relations WHERE record_id = ? AND activity_id = ? AND relation_type = 'primary'")
+        .bind(record.id, input.sourceActivityId),
+      db.prepare(`
+        INSERT OR IGNORE INTO record_relations (id, user_id, record_id, activity_id, relation_type)
+        VALUES (?, ?, ?, ?, 'primary')
+      `).bind(`record-relation:${safeId(record.id)}:${safeId(input.targetActivityId)}:primary`, input.userId, record.id, input.targetActivityId),
+    );
+  }
+
+  if (movedComponents.length) {
+    const sourceDocument = mergeWorkspaceActions(sourceWorkspace.document, movedComponents.map((component) => ({
+      op: "remove" as const,
+      componentId: component.id,
+    })));
+    const targetDocument = mergeWorkspaceActions(targetWorkspace.document, movedComponents.map((component) => ({
+      op: "upsert" as const,
+      component,
+    })));
+    const sourceWorkspaceId = `workspace:${safeId(input.userId)}:${safeId(input.sourceActivityId)}`;
+    const targetWorkspaceId = `workspace:${safeId(input.userId)}:${safeId(input.targetActivityId)}`;
+    const sourceRevisionId = `workspace-revision:${safeId(input.actionId)}:move-source`;
+    const targetRevisionId = `workspace-revision:${safeId(input.actionId)}:move-target`;
+    statements.push(
+      db.prepare("INSERT OR IGNORE INTO activity_workspaces (id, user_id, activity_id, activity_variant_id) VALUES (?, ?, ?, NULL)")
+        .bind(sourceWorkspaceId, input.userId, input.sourceActivityId),
+      db.prepare("INSERT OR IGNORE INTO activity_workspaces (id, user_id, activity_id, activity_variant_id) VALUES (?, ?, ?, NULL)")
+        .bind(targetWorkspaceId, input.userId, input.targetActivityId),
+      db.prepare(`
+        INSERT OR IGNORE INTO workspace_revisions
+          (id, workspace_id, revision_number, document_json, source_agent_job_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(sourceRevisionId, sourceWorkspaceId, sourceWorkspace.revisionNumber + 1, JSON.stringify(sourceDocument), input.actionId),
+      db.prepare(`
+        INSERT OR IGNORE INTO workspace_revisions
+          (id, workspace_id, revision_number, document_json, source_agent_job_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(targetRevisionId, targetWorkspaceId, targetWorkspace.revisionNumber + 1, JSON.stringify(targetDocument), input.actionId),
+      db.prepare("UPDATE activity_workspaces SET current_revision_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(sourceRevisionId, sourceWorkspaceId),
+      db.prepare("UPDATE activity_workspaces SET current_revision_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .bind(targetRevisionId, targetWorkspaceId),
+    );
+  }
+
+  statements.push(db.prepare(`
+    UPDATE activity_profiles SET setup_status = 'ready', assessed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ? AND activity_id = ?
+  `).bind(input.userId, input.targetActivityId));
+
+  await db.batch(statements);
+  return { movedRecords: sourceRecords.results.length, movedComponents: movedComponents.length, alreadyApplied: false };
+}
+
 function asObject(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }

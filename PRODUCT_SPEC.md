@@ -314,6 +314,8 @@ The production catalog implements `summary`, `product`, `protocol`, `checklist`,
 
 Data-backed components bind by stable record key to validated activity records. Workspace documents control selection, order, and presentation; they do not become the authoritative home of checkmarks, workout sets, measurements, products, or history. Activity records support activity, day, and variant scope, immutable revisions, provenance, and explicit activity relations. Interactive component actions pass through bounded application operations such as toggling a dated protocol or recurring step, selecting today’s session mode, adding a supply item, logging a workout set, adding a quick-log entry, or recording adherence.
 
+When the user says information was filed under the wrong activity, Luna may emit a bounded `activityMove` naming an owned destination activity and the exact durable record keys to relocate. The server verifies source ownership, destination ownership, key and component collisions, then atomically moves the records, their primary relations, and their bound workspace cards. Retries are idempotent. Luna asks one natural clarification if the destination or the intended subset is ambiguous. The original conversation does not move; it remains in the source activity as the historical audit trail.
+
 Implementation note (2026-08-21): the smart-flow coordination layer is defined in `SMART_FLOW_IMPLEMENTATION_PLAN.md` from the reusable scenario reviews in `SMART_FLOW_SCENARIO_REVIEWS.md`. Combined activity-and-schedule messages now retain both intents, variant setup runs after confirmed variant creation, and Add Activity can hand context directly into the activity conversation.
 
 Timer presentation and run history are separate concerns. Every started timer or countdown produces a timing snapshot that can be consumed when the activity is completed. A countdown is a display over an elapsed run clock rather than evidence that the allotted duration was actually performed. `Mark Complete` records actual elapsed time when a timer was used, timer mode and component identity, start time, and completion time. In Timeline mode it also records the allotted duration and the timer’s planned-duration snapshot; in checklist mode those planning fields remain absent unless the timer component itself supplied a fixed plan. If no timer was started, completion is still recorded but actual elapsed time remains unknown. Changing today’s duration before starting updates a Timeline-bound countdown; changing it after a run starts does not rewrite that run’s planned-duration snapshot.
@@ -418,7 +420,8 @@ flowchart LR
     APP --> JOBS["Agent runs and event stream"]
     JOBS --> BRIDGE["Dedicated agent host / bridge"]
     BRIDGE --> HERMES["Dedicated Ideal Day Hermes profile"]
-    HERMES --> LUNA["GPT-5.6 Luna · max · fast"]
+    HERMES --> LUNA["GPT-5.6 Luna · low · fast conversation"]
+    HERMES --> TERRA["GPT-5.6 Terra · low · standard durable work"]
     HERMES --> TOOLS["Narrow Ideal Day tools"]
     TOOLS --> APP
 ```
@@ -432,7 +435,7 @@ The first agent host will be the owner’s PC. A later host may be:
 
 The web app must save notes and remain usable while the PC agent is offline. Agent work queues durably and retries after the local bridge reconnects. Retries must be idempotent so reconnects cannot file the same message twice.
 
-There is no paid API fallback. If GPT-5.6 Luna cannot be reached through the ChatGPT subscription bridge, processing waits and retries later.
+There is no paid API fallback. If the selected GPT-5.6 route cannot be reached through the ChatGPT subscription bridge, processing waits and retries later within the bounded job-attempt policy.
 
 The browser never connects directly to Hermes. Production Sites and its D1 database are the source of truth. The PC bridge makes authenticated outbound HTTPS requests to lease durable production jobs, calls Hermes over localhost, relays bounded run progress, and commits only validated application mutations. No inbound localhost tunnel is required. A message is considered saved when D1 accepts it and processed only after its agent job reaches a terminal successful state; Hermes transport acknowledgements alone do not produce double checkmarks.
 
@@ -484,7 +487,7 @@ The broader Hermes evaluation must also test:
 1. Activity-scoped conversation continuity.
 2. Cross-activity retrieval.
 3. Typed writes with a visible audit trail.
-4. GPT-5.6 Luna with max reasoning and Fast mode through the ChatGPT subscription.
+4. The split model route through the ChatGPT subscription: Luna low + Fast for conversational acknowledgement and Terra low + standard for durable compilation.
 5. Recovery when the agent host is offline or a run is interrupted.
 
 Do not deepen product coupling to Hermes until these paths work. The MCP contract, durable queue, D1 records, and conversation model must remain portable to another agent runtime.
@@ -560,7 +563,7 @@ The Breakfast workspace does not repeat raw conversation turns in a “What Luna
 - [ ] Add app-owned read-only contextual retrieval beyond the bounded UI-spike snapshot.
 - [ ] Add proposed writes and explicit confirmation.
 
-Implementation note (2026-08-20): the universal-agent slice runs through the dedicated local `ideal-day` Hermes profile while the private Sites deployment and D1 remain authoritative. Activity creation, import, or material rename creates one idempotent setup blueprint job; ordinary opens only record visits and never invoke conversational judgment. Sending a message immediately shows conversational and workspace work states; active jobs poll promptly even across a stale heartbeat, while queued offline work shows a friendly catch-up state. Direct questions always receive a conversational answer, including when Luna also commits validated workspace actions in the same result. Ideal Day validates and commits those actions as versioned D1 workspace revisions. The Windows startup task supervises Hermes and an authenticated outbound production bridge. The profile runs GPT-5.6 Luna with max reasoning and Fast mode, is authenticated only over loopback, and exposes bounded web research to API-server sessions so Luna can use current manufacturer or primary sources when asked or materially useful. It exposes no terminal, filesystem, browser-control, or general app toolset, and the browser receives no Hermes credential. Cross-activity retrieval and broader typed records remain incomplete.
+Implementation note (2026-08-21): the universal-agent slice runs through the dedicated local `ideal-day` Hermes profile while the private Sites deployment and D1 remain authoritative. Activity creation, import, or material rename creates one idempotent setup blueprint job; ordinary opens only record visits and never invoke conversational judgment. Sending a message immediately shows conversational and workspace work states; active jobs poll promptly even across a stale heartbeat, while queued offline work shows a friendly catch-up state. Direct questions use Luna low + Fast; durable record/workspace work uses Terra low on the standard tier. Linked pages are safely fetched and cached before compilation, structured output receives bounded repair, and jobs stop after three failed attempts. Ideal Day validates and commits actions as versioned D1 revisions. Explicit cross-activity moves relocate selected records and matching cards atomically between owned activities while leaving conversation history in place. The Windows startup task supervises Hermes and an authenticated outbound production bridge. The profile is authenticated only over loopback and exposes no terminal, filesystem, browser-control, or general app toolset; the browser receives no Hermes credential.
 
 ### Phase 4 — trusted agent writes
 

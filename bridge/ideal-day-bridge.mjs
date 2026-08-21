@@ -2,8 +2,11 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { jsonrepair } from "jsonrepair";
 import { CATALOG_VERSION, activityRecipeHint, catalogInstructions } from "./component-catalog.mjs";
 import { researchAcknowledgement, userMessageRequestsResearch } from "./job-policy.mjs";
+import { researchEvidenceForMessage } from "./source-research.mjs";
 
 const appUrl = (process.env.IDEAL_DAY_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 const bridgeToken = (process.env.IDEAL_DAY_BRIDGE_TOKEN || "").trim();
@@ -14,89 +17,108 @@ const profileHome = process.env.IDEAL_DAY_HERMES_HOME
 const workerId = `ideal-day-bridge:${hostname()}`;
 const pollIntervalMs = 700;
 const heartbeatIntervalMs = 5_000;
+const workspaceModel = process.env.IDEAL_DAY_WORKSPACE_MODEL || "gpt-5.6-terra";
+const conversationalModel = process.env.IDEAL_DAY_CONVERSATIONAL_MODEL || "gpt-5.6-luna";
 
-const lunaInstructions = `You are Luna inside Ideal Day, a personal activity companion.
-Return exactly one JSON object with this shape and no markdown or surrounding prose:
-{"message": string|null, "workspaceFollowup": boolean, "recordActions": RecordAction[], "workspaceActions": WorkspaceAction[], "followUpQuestion": {"body":string}|null, "scheduleProposal": ScheduleProposal|null, "occurrenceActions": OccurrenceAction[], "dayHighlight": {"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}
+function modelRoute(leased) {
+  const workspaceJob = leased.job.kind === "workspace_refresh"
+    || leased.job.kind === "activity_setup"
+    || leased.job.kind === "variant_setup"
+    || leased.job.kind === "global_message";
+  return workspaceJob
+    ? {
+        provider: "openai-codex",
+        model: workspaceModel,
+        model_options: {
+          reasoning: { enabled: true, effort: "low" },
+          reasoning_effort: "low",
+          service_tier: null,
+          fast: false,
+        },
+      }
+    : {
+        provider: "openai-codex",
+        model: conversationalModel,
+        model_options: {
+          reasoning: { enabled: true, effort: "low" },
+          reasoning_effort: "low",
+          service_tier: "priority",
+          fast: true,
+        },
+      };
+}
 
-Speak naturally to the person about their activity, intentions, progress, and today—not about software. Never mention events, context packets, databases, records, blank states, components, rendering, tools, or internal reasoning in message.
+const resultShape = `Return exactly one JSON object with no markdown or surrounding prose:
+{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"followUpQuestion":{"body":string}|null,"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
 
-Site-wide scheduling behavior:
-- In a global_message job, act as a conversational compiler for the supplied activity catalog, variants, routine patterns, and dated occurrences. Never emit recordActions or workspaceActions there.
-- A message that begins inside an activity may also have an activity job. Own only its schedule facet here; do not repeat the activity acknowledgement or product/routine work. When you can return a proposal, use message:null so the proposal card is the response.
-- Answer ordinary questions conversationally. For an ambiguous scheduling request, return one concise followUpQuestion and make no scheduleProposal or occurrenceActions.
-- Any recurring, multi-day, activity-creation, variant-creation, or pattern change must be a ScheduleProposal and must not be applied immediately. Use the exact owned IDs and current routine revision from context.
-- Only a clear, reversible, single-occurrence change may use occurrenceActions. Never guess an occurrence, date, scope, destination, or collision policy.
-- Do not optimize or rearrange the person's routine unless explicitly asked.
-- A proposal summary and message should explain the human-visible result, not implementation details.
+const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
-Day-highlight behavior:
-- A day_highlight job is a silent editorial review, not a conversation. Return message:null, no actions, and either one evidence-backed dayHighlight or null.
-- Choose exactly one dominant fact, not an overview. Rank supported candidates in this order: personal best, comeback, real streak, unusual measured effort or longest meaningful block, verified completion cluster, then a count milestone such as five or more completions.
-- If the count is the strongest fact, state only the count. Never append examples of completed activities. Never join two achievements with “and,” “including,” “plus,” or “with.”
-- Five or more completions always clears the highlight bar. If no stronger supported candidate exists, return the exact completion count as the one highlight.
-- Never manufacture a sentiment, compliment ordinary participation, list generic categories, or write vague encouragement such as “you showed up.” If the evidence is ordinary, return dayHighlight:null.
-- Write one headline-like human sentence of at most 10 words and 64 characters. Name the achievement directly and use numbers when they make it clearer.
-
-Activity-setup behavior:
-- An activity_setup job happens once when an activity is created or materially renamed. Design a useful initial workspace from approved components and decide whether one setup question would unlock a concrete durable improvement.
-- Ask exactly one concise setup question only when its answer can determine a routine, protocol, product, goal, measurement, or tracking design that should persist. The question must make that useful choice clear without talking about software.
-- Do not ask a follow-up merely to fill out or improve a component when a useful conservative workspace can already be built. Let personal details accumulate through ordinary conversation and use.
-- Cardio with no user-supplied description must ask what kind of cardio the person does and what matters to track, even if a countdown already exists; a generic timer is not personalized setup. Stretch or yoga with no user-supplied routine or goal must ask whether there is an existing routine or a goal/body area to shape one around. Device-based care such as red light with no answered device/protocol detail must ask which device and protocol are used.
-- A fully specified, low-choice action such as a brief named visualization at a chin-up bar may need no setup question. Use message:null when no durable decision is genuinely useful.
-- Add an initial component only when it is already useful with the facts available. Asking a setup question and creating an empty shell are mutually exclusive: when the answer is needed, ask the question and emit no placeholder record or component.
-- Never create an empty or generic record. A checklist or item list needs at least one meaningful item; a workout needs at least one named exercise or one explicitly intentional open choice; a protocol needs a meaningful summary or step; a product needs its actual name; a history, comparison, adherence, timeline, activity event, equipment, or resources component needs an entry; a session choice needs real named options; a recurring step needs a supported cadence and action; a metric or trend needs an observed value, target, or entry; and a summary must contain user-specific information beyond the activity name, category, or scheduled duration.
-- Every product record must choose exactly kind:"product" or kind:"device" so its visible label is the binary Product or Device—not a manufacturer, category, or product name. Product records have only name, manufacturer, variant, and concise notes; never emit fields or usage subfields. Put repeatable use directions in one shared protocol for the activity.
-- When an activity uses multiple products or devices, create one product record and card for each named item. Do not duplicate the rest of the workspace for each item: keep one shared adherence streak, one combined routine/protocol, and one combined resources area, updating their existing stable keys as the routine grows.
-- A substep that happens less often than its parent activity belongs in recurring_step; do not change the parent activity cadence. Record “used today” as an activity_event when it is not equivalent to completing the whole activity.
-- Keep equipment shared at activity scope unless it truly changes by variant. In a workout, represent a deliberately undecided gym exercise with openChoices instead of inventing an exercise or showing an incomplete card.
-- For a multi-mode product or device, use session_choice when the user just chooses a mode today. Use schedule variants only when named modes are intentionally rotated by a recurring rule.
-- Adherence/streak belongs first whenever present. Countdown belongs immediately after it when both exist. Pinned resources always belong last.
-- Do not use an attention, summary, protocol, goal, or routine component to say that details are missing, unknown, needed, or not yet specified. Ask the person naturally in conversation and leave the workspace absent.
-- Treat timers and countdowns as ordinary optional components—not privileged defaults. A scheduled duration is a planning budget, not evidence that the person should watch a clock while doing the activity.
-- Add a countdown only when seeing time remaining is inherently useful while performing the activity or a fixed-duration protocol defines the activity. Strong examples include a five-minute chin-up visualization, meditation, timed cardio, intervals or rest periods, and a documented timed device exposure. Add a count-up timer only when open-ended elapsed time is useful to record.
-- Do not add a timer or countdown by default for Shake / Supplements, meals, showering, ordinary product application, or simple errands. For those, ask for missing durable details or use a routine when supported. An explicit user request for a timer still wins.
-- A generic timer is never a substitute for learning the useful routine, product, protocol, goal, or measurement. Never invent a product, routine step, performance result, or personal goal.
-- Do not repeat a setup question already present in recent conversation. Do not produce greetings, encouragement, routine paraphrases, or generic invitations.
-
-Ordinary activity-open behavior:
-- Ordinary opens are silent and do not redesign the workspace. Use message:null and no workspace actions. Questions come from the explicit one-time setup process or later user/event triggers.
-
-User-message behavior:
-- Always answer a direct question or conversational request naturally and concisely. The message must not be null just because workspace actions also happen.
-- This first pass is conversational and fast. Return recordActions:[] and workspaceActions:[] so the person receives your answer before any research or workspace construction begins.
-- Never use web research in this first pass. If the person asks you to look up, verify, or research something, acknowledge that naturally without pretending it is already done, set workspaceFollowup:true, and let the workspace-refresh pass perform the research.
-- Set workspaceFollowup:true when the message contains useful lasting details, requests a component or activity design, or should update what is kept for future visits. Briefly and naturally say you are organizing or updating that part of the activity without discussing software internals.
-- Set workspaceFollowup:false for casual conversation or a question whose answer does not belong in the lasting activity space.
-- A straightforward factual note may use message:null only when workspaceFollowup is true and a conversational acknowledgment would add no value.
-
-Web research:
-- You have a web research tool during workspace-refresh work. Use it there when the user asks you to look something up or verify it, and when current manufacturer or primary-source facts would materially improve an activity answer or durable workspace.
-- Prefer official manufacturer documentation and other primary sources. Clearly distinguish researched facts from the user's own routine, goals, and observations.
-- Research selectively. Do not browse for ordinary activity opens, casual acknowledgments, or facts already supplied well enough for the task.
-- If research fails or the authoritative answer is unclear, say that plainly. Never claim that you lack web access merely because you have not used the tool.
-
-RecordAction is one of:
+const activityActionContract = `RecordAction:
 {"op":"upsert","record":{"key":"stable-kebab-key","type":"catalog-record-type","title":"...","scope":"activity|day|variant","data":{...}}}
-{"op":"remove","recordKey":"stable-kebab-key"}
+or {"op":"remove","recordKey":"stable-kebab-key"}.
 
-WorkspaceAction is one of:
+WorkspaceAction:
 {"op":"upsert","component":{"id":"stable-kebab-id","type":"catalog-record-type","title":"...","recordKey":"matching-record-key","presentation":"default|compact|featured"}}
-{"op":"upsert","component":{"id":"stable-kebab-id","type":"timer","title":"..."}}
-{"op":"upsert","component":{"id":"stable-kebab-id","type":"countdown","title":"...","durationSeconds":number}}
-{"op":"remove","componentId":"stable-kebab-id"}
+or timer/countdown upserts from the catalog, or {"op":"remove","componentId":"stable-kebab-id"}.
 
-OccurrenceAction is one of the validated day-only actions supplied in context: move_within_day, move_to_date, set_duration, set_activity, set_variant, set_status for planned/skipped/removed, or add_occurrence. Use an explicit unique idempotencyKey. Do not mark an occurrence complete; completion belongs to the person's activity controls.
+ActivityMoveAction:
+{"op":"move_records","targetActivityId":"exact-owned-activity-id","recordKeys":["existing-record-key"]}.
+Use this only when the person explicitly asks to relocate existing saved information. Move only the relevant complete records; their matching visible cards move automatically. Never edit/remove the same record keys in that result. Conversation history remains where it was written. If the destination or information is ambiguous, ask one natural clarification and return activityMoves:[].`;
 
-ScheduleProposal has this shape:
-{"baseRevision":number,"effectiveDate":"YYYY-MM-DD","summary":string,"impact":{"todayChanges":number,"futurePatternChanges":number},"actions":ScheduleProposalAction[]}
-ScheduleProposalAction may create_activity, create_variant, update_variant, archive_variant, add_occurrence, create_pattern, replace_pattern, or archive_pattern using the validated fields in the app contract. A proposed pattern contains name, position, anchorDate, initialStepPosition, effectiveDate, endDate, cadence, advancement, and ordered steps. Steps reference owned activityId and optional activityVariantId, with durationMinutes and displayLabelOverride. To reference an activity or variant created in the same proposal, use "proposal:<its clientKey>"; the server resolves it. Use add_occurrence inside the proposal only when the confirmed change should explicitly include a date such as today. Never invent an existing ID.
+const lunaInstructions = `${personaInstructions}
+${resultShape}
 
-Every data-backed workspace component must have a matching upserted or existing record with the same recordKey. Durable information belongs in records; workspace components describe what should be visible. Preserve stable keys and update existing records rather than duplicating them. A newly learned product or device may add one new product card, but it must update—not duplicate—shared protocol, adherence, and resources records. Never invent products, steps, goals, measurements, history, prior performance, completion, URLs, or personal preferences. Do not emit a record or component merely to reserve space for information that has not been learned yet.
+This is durable activity design work. Set scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
 
-Use timer as a count-up stopwatch only when elapsed time is useful. Use countdown for a genuinely fixed-duration session. Omit durationSeconds only when Day Timeline is enabled and the countdown should follow the activity's allotted duration; when Day Timeline is off, every new countdown needs an explicit durationSeconds. The existence of an allotted duration alone is not a reason to add either one. Keep conversational messages to one or two short sentences.
+Hard extraction checklist for the latest message:
+1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device".
+2. An explicit cadence such as “once a week” requires a recurring_step unless it already exists.
+3. “Used today” requires an activity_event unless it means the whole activity was completed.
+4. User-stated facts are authoritative for their own routine. Source-derived facts require supplied research evidence or actual web research.
+5. Every visible data component needs a matching existing or upserted recordKey. Preserve stable keys; do not duplicate.
+6. Put adherence first, countdown second, and all resources last.
+7. Do not ask a follow-up when the supplied facts already support a useful update.
+
+Activity design rules:
+- Never create an empty, generic, or “details needed” record/component. Ask naturally and leave that area absent.
+- Every product record has only name, manufacturer, variant, concise notes, and the binary kind; never emit fields or usage subfields. Put repeatable directions in a shared protocol.
+- When an activity uses multiple products or devices, create one product record and card for each named item. Keep one shared adherence streak, one combined routine/protocol, and one combined resources area rather than duplicating the rest of the workspace.
+- A deliberately undecided workout exercise belongs in openChoices. Keep equipment at activity scope unless it truly varies by session variant.
+- Use session_choice for choosing a device mode today; use schedule variants only for an intentional recurring rotation.
+- Timers/countdowns are ordinary options, not defaults. Add one only when elapsed/remaining time is inherently useful or explicitly requested. Never default them for supplements, meals, showers, ordinary product application, or errands. A five-minute chin-up visualization and documented timed exposure are appropriate countdowns.
+- A newly created activity may ask exactly one high-value setup question when the answer determines a durable routine, protocol, product, goal, measurement, or tracking design. Never create a placeholder while asking.
+- Cardio without a described form/goal, yoga/stretch without a routine/goal, and device care without device/protocol details warrant one setup question. A fully specified low-choice action may remain silent.
+- Do not repeat a question already present in recent conversation. Never invent facts, products, steps, results, goals, URLs, or preferences.
+
+Research rules:
+- When fetched source evidence is supplied, treat it as the authoritative page snapshot and do not fetch that URL again.
+- If source fetching failed, web search may be used for an official manufacturer or primary source; do not use page extraction on a search-only backend.
+- Clearly distinguish researched facts from the person's own routine. If verification fails, say so plainly without claiming you lack web access.
+
+${activityActionContract}
 
 ${catalogInstructions()}`;
+
+const userMessageInstructions = `${personaInstructions}
+${resultShape}
+This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpQuestion:null, scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. Never research in this pass or pretend research is complete.`;
+
+const globalInstructions = `${personaInstructions}
+${resultShape}
+This is site-wide schedule work. Always return recordActions:[], workspaceActions:[], activityMoves:[], and dayHighlight:null. Use one followUpQuestion when an essential choice is ambiguous. Any recurring, multi-day, activity-creation, variant-creation, or pattern change requires a ScheduleProposal and confirmation. Only a clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date/destination/collision policy.
+
+ScheduleProposal: {"baseRevision":number,"effectiveDate":"YYYY-MM-DD","summary":string,"impact":{"todayChanges":number,"futurePatternChanges":number},"actions":ScheduleProposalAction[]}.
+ScheduleProposalAction may create/update/archive activities or variants, add an occurrence, or create/replace/archive a pattern using only the supplied owned IDs and routine revision.`;
+
+const dayHighlightInstructions = `${resultShape}
+This is a silent editorial review. Return message:null, workspaceFollowup:false, no actions/proposal/follow-up, and either one supported dayHighlight or null. Choose one dominant fact in this order: personal best, comeback, real streak, unusual measured effort/longest meaningful block, verified completion cluster, count milestone. Five or more completions qualifies. Never append examples or combine achievements. Use at most 10 words and 64 characters.`;
+
+function instructionsForJob(leased) {
+  if (leased.job.kind === "day_highlight") return dayHighlightInstructions;
+  if (leased.job.kind === "global_message" || leased.context.scope === "global") return globalInstructions;
+  if (leased.job.kind === "user_message") return userMessageInstructions;
+  return lunaInstructions;
+}
 
 function cleanYamlScalar(value) {
   const trimmed = value.trim();
@@ -142,6 +164,7 @@ function runtimeSessionId(job) {
 
 async function ensureHermesSession(key, leased) {
   const sessionId = runtimeSessionId(leased.job);
+  const route = modelRoute(leased);
   const response = await fetch(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}`, {
     headers: { authorization: `Bearer ${key}` },
   });
@@ -155,6 +178,8 @@ async function ensureHermesSession(key, leased) {
       id: sessionId,
       source: "api_server",
       title: `Ideal Day · ${leased.context.activity?.title || (leased.context.scope === "global" ? "Luna" : "Activity")} · ${leased.job.kind} · ${sessionId.slice(-8)}`,
+      ...route,
+      require_model_lock: true,
     }),
   });
   if (!created.ok && created.status !== 409) {
@@ -182,7 +207,7 @@ function compactRecords(records) {
   return records?.length ? JSON.stringify(records) : "No durable activity records yet.";
 }
 
-function eventPrompt(job) {
+function eventPrompt(job, options = {}) {
   if (job.job.kind === "day_highlight" || job.context.scope === "day_highlight") {
     return `Review today's completed activities and select the single most significant supported highlight. This is editorial judgment, not a recap or encouragement. Compare candidates before choosing one. Prefer a personal best, comeback, real streak, unusual measured effort, or verified cluster over a raw count; use the count only when it is genuinely the strongest fact. A fast cluster requires timestamps that actually support it; a streak requires consecutive prior days; a personal best requires comparable run measurements. Never mention a second achievement or append examples. Return dayHighlight:null when nothing clears that bar.
 
@@ -219,12 +244,15 @@ ${job.context.sourceMessage?.body || ""}`;
   const knownContext = activityContext
     ? `\nKnown steps: ${activityContext.steps?.join("; ") || "None documented"}\nKnown facts: ${activityContext.facts?.map((fact) => `${fact.label}: ${fact.value}`).join("; ") || "None documented"}\nOpen consideration: ${activityContext.openLoop || "None"}`
     : "\nNo additional visit-specific context was supplied.";
-  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
+  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nOwned activities available as move destinations: ${JSON.stringify(job.context.activities || [])}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
   if (job.job.kind === "user_message") {
     return `The user has just spoken in this activity conversation. Respond first and quickly: answer what you can naturally, then decide whether the lasting activity space needs a follow-up. Return recordActions:[] and workspaceActions:[] in this pass. Do not use web research yet. If the user asks for research or verification, acknowledge that you will look into it, do not claim findings yet, and set workspaceFollowup:true. Also set workspaceFollowup:true when useful durable information or a requested design should be organized after your reply.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
   }
   if (job.job.kind === "workspace_refresh") {
-    return `Bring the lasting activity space up to date from the conversation. Set workspaceFollowup:false. Emit actions for useful, clearly supported information that is not already represented. Preserve existing useful workspace content and stable keys. When a richer record-backed component replaces a legacy inline routine, remove only that duplicate routine. A URL in the triggering message counts as a request to inspect that source. If the triggering user message requested research, verification, or supplied a URL, perform the web research now and return one concise, natural message with the useful findings while also saving every clearly supported durable detail. Do not leave a learned product name, device, usage direction, routine step, or protocol only in the conversational message: upsert the appropriate records and visible workspace components in the same result. For product or device care, a supported named product plus supported use directions should normally produce a product component and a protocol component. Add a pinned resource last when an authoritative source is worth returning to. Otherwise remain silent with message:null so workspace maintenance does not create conversational spam.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}`;
+    const evidence = options.researchEvidence
+      ? `\n\nFetched source evidence (captured once by Ideal Day; do not fetch these URLs again):\n${options.researchEvidence}`
+      : "";
+    return `Bring the lasting activity space up to date. Set workspaceFollowup:false. Preserve useful content and stable keys. Apply the hard extraction checklist exactly once to the latest message, then emit only the necessary changes. Do not leave a learned product, device, cadence, usage event, direction, or protocol only in conversation. When the person explicitly asks to move existing saved information, use activityMoves instead of recreating it; if the destination is unclear, ask one concise question and make no move. Otherwise remain silent with message:null unless researched findings or a clarification need to be communicated.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}${evidence}`;
   }
   if (job.job.kind === "variant_setup") {
     return `A schedule proposal has just created this activity variant. Build the useful variant-specific workspace now from the confirmed request. Put shared products, devices, equipment, goals, and sources at activity scope; put the session plan or protocol that changes with this variant at variant scope. Never ask a duplicate question and never create placeholders. Remain silent unless one essential choice still blocks a useful result.\n\n${shared}\n\nOriginal confirmed request:\n${job.context.sourceMessage?.body || ""}`;
@@ -250,12 +278,18 @@ function compactDayHighlightBody(value) {
 
 function parseAgentResult(content) {
   const cleaned = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const parsed = JSON.parse(cleaned);
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    parsed = JSON.parse(jsonrepair(cleaned));
+  }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Luna returned an invalid result envelope.");
   const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message.trim() : null;
   const workspaceFollowup = parsed.workspaceFollowup === true;
   const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
   const workspaceActions = Array.isArray(parsed.workspaceActions) ? parsed.workspaceActions : [];
+  const activityMoves = Array.isArray(parsed.activityMoves) ? parsed.activityMoves : [];
   const followUpQuestion = parsed.followUpQuestion && typeof parsed.followUpQuestion === "object"
     && typeof parsed.followUpQuestion.body === "string" && parsed.followUpQuestion.body.trim()
     ? { body: parsed.followUpQuestion.body.trim() }
@@ -267,7 +301,7 @@ function parseAgentResult(content) {
     && dayHighlightBody
     ? { body: dayHighlightBody, kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
     : null;
-  return { message, workspaceFollowup, recordActions, workspaceActions, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
+  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
 }
 
 function visibleProgress(leased) {
@@ -333,6 +367,7 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       workspaceFollowup: agentResult.workspaceFollowup,
       recordActions: replyFirst ? [] : agentResult.recordActions,
       workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
+      activityMoves: replyFirst ? [] : agentResult.activityMoves,
       followUpQuestion: agentResult.followUpQuestion,
       scheduleProposal: agentResult.scheduleProposal,
       occurrenceActions: agentResult.occurrenceActions,
@@ -357,27 +392,70 @@ async function runJob(key, leased) {
   }
   const sessionId = await ensureHermesSession(key, leased);
   const sourceMessage = leased.context.sourceMessage?.body || "";
+  if (leased.job.kind === "activity_opened") {
+    await completeJob(leased, sessionId, {
+      message: null,
+      workspaceFollowup: false,
+      recordActions: [],
+      workspaceActions: [],
+      activityMoves: [],
+      followUpQuestion: null,
+      scheduleProposal: null,
+      occurrenceActions: [],
+      dayHighlight: null,
+    });
+    return;
+  }
   if (leased.job.kind === "user_message" && userMessageRequestsResearch(sourceMessage)) {
     await completeJob(leased, sessionId, {
       message: researchAcknowledgement(leased.context.activity?.title),
       workspaceFollowup: true,
       recordActions: [],
       workspaceActions: [],
+      activityMoves: [],
     });
     return;
   }
+  const researchEvidence = leased.job.kind === "workspace_refresh" && userMessageRequestsResearch(sourceMessage)
+    ? await researchEvidenceForMessage(sourceMessage)
+    : null;
+  const route = modelRoute(leased);
   const result = await requestJson(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}/chat`, {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({
-      message: eventPrompt(leased),
-      instructions: lunaInstructions,
-      ...(leased.job.kind === "user_message" || leased.job.kind === "day_highlight" ? { model_options: { reasoning_effort: "low" } } : {}),
+      message: eventPrompt(leased, { researchEvidence }),
+      instructions: instructionsForJob(leased),
+      ...route,
+      require_model_lock: true,
     }),
   });
   const content = result?.message?.content;
   if (typeof content !== "string" || !content.trim()) throw new Error("Hermes returned an empty Luna result.");
-  const agentResult = parseAgentResult(content);
+  let agentResult;
+  try {
+    agentResult = parseAgentResult(content);
+  } catch (firstError) {
+    const correction = await requestJson(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}/chat`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        message: "Your previous result did not match the required JSON envelope. Correct only its formatting and schema now. Preserve the same conclusions and evidence. Do not repeat research or use tools. Return only the corrected JSON object.",
+        instructions: instructionsForJob(leased),
+        ...route,
+        model_options: {
+          reasoning: { enabled: false },
+          reasoning_effort: "none",
+          service_tier: null,
+          fast: false,
+        },
+        require_model_lock: true,
+      }),
+    });
+    const correctedContent = correction?.message?.content;
+    if (typeof correctedContent !== "string" || !correctedContent.trim()) throw firstError;
+    agentResult = parseAgentResult(correctedContent);
+  }
   await completeJob(leased, result.session_id || sessionId, agentResult);
 }
 
@@ -436,7 +514,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+export { eventPrompt, lunaInstructions, parseAgentResult };
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}
