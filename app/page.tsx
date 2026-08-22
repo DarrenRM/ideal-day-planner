@@ -1212,9 +1212,9 @@ function DayHighlights({
   return (
     <section className={`day-highlights ${density} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
       <button className="day-highlights-overview" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        <span className={`day-highlights-count ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
+        {completedItems.length > 1 ? <span className={`day-highlights-count ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
           <strong>{completedItems.length}</strong><span>done</span>
-        </span>
+        </span> : null}
         <span className="day-highlights-copy">
           <strong id="day-highlights-title">Highlights</strong>
           {visibleCopy ? <span>{visibleCopy}</span> : null}

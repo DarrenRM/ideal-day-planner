@@ -288,7 +288,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .schedule-loading-row, .shape-loading-row { animation: loading-shimmer 1.3s ease-in-out infinite; background: linear-gradient(100deg, #12171a 20%, #192024 48%, #12171a 76%); background-size: 220% 100%; border: 1px solid #20272b; }
 .schedule-loading-row { border-radius: 10px; height: 60px; margin-left: 74px; }
 .shape-loading-row { border-radius: 5px; height: 28px; }
-.day-highlights { background: linear-gradient(135deg, rgba(17, 22, 24, .98), rgba(15, 19, 22, .98)); border: 1px solid rgba(181, 215, 125, .18); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025), 0 14px 38px rgba(0, 0, 0, .16); margin: 4px 0 14px 74px; overflow: hidden; position: relative; }
+.day-highlights { background: linear-gradient(135deg, rgba(17, 22, 24, .98), rgba(15, 19, 22, .98)); border: 1px solid rgba(181, 215, 125, .18); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025), 0 14px 38px rgba(0, 0, 0, .16); margin: 0 0 8px 74px; overflow: hidden; position: relative; }
 .is-checklist-mode .day-highlights { margin-left: 0; }
 .day-highlights::before { background: radial-gradient(circle at 8% 45%, rgba(181, 215, 125, .09), transparent 28%), radial-gradient(circle at 76% 30%, rgba(181, 126, 229, .07), transparent 38%); content: ""; inset: 0; pointer-events: none; position: absolute; }
 .day-highlights-overview { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 12px; grid-template-columns: 52px minmax(0, 1fr) minmax(116px, 180px) 14px; min-height: 78px; padding: 10px 12px; position: relative; text-align: left; width: 100%; z-index: 1; }
@@ -307,7 +307,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .day-highlight-icon { align-items: center; aspect-ratio: 1; background: color-mix(in srgb, var(--highlight-color) 17%, #111619); border: 1px solid color-mix(in srgb, var(--highlight-color) 34%, #30373a); border-radius: 8px; color: var(--highlight-color); display: inline-flex; justify-content: center; position: relative; }
 .day-highlights.is-sparse .day-highlights-icon-grid { grid-template-columns: repeat(var(--highlight-columns), 32px); }
 .day-highlights.is-sparse .day-highlight-icon { border-radius: 9px; width: 32px; }
-.day-highlights.is-single .day-highlights-overview { grid-template-columns: 52px minmax(0, 1fr) 38px 14px; }
+.day-highlights.is-single .day-highlights-overview { grid-template-columns: minmax(0, 1fr) 38px 14px; }
 .day-highlights.is-single .day-highlights-icon-grid { grid-template-columns: 38px; }
 .day-highlights.is-single .day-highlight-icon { border-radius: 10px; box-shadow: 0 0 18px color-mix(in srgb, var(--highlight-color) 16%, transparent); width: 38px; }
 .day-highlights.is-single .day-highlight-icon svg { height: 20px; width: 20px; }
@@ -1131,13 +1131,13 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .day-launch-copy > p:last-child { font-size: var(--type-body-sm); }
   .start-day-button { width: 100%; }
   .schedule { padding: 8px 0 16px; }
-  .day-highlights { margin: 6px 0 12px; }
-  .day-highlights-overview { gap: 10px; grid-template-columns: 50px minmax(0, 1fr) minmax(98px, 120px) 14px; min-height: 76px; padding: 8px 10px; }
+  .day-highlights { margin: 0 0 2px; }
+  .day-highlights-overview { gap: 10px; grid-template-columns: 50px minmax(0, 1fr) minmax(98px, 120px) 14px; min-height: 86px; padding: 8px 10px; }
   .day-highlights-count strong { font-size: 18px; }
   .day-highlights-icon-grid { gap: 5px; grid-template-columns: repeat(var(--highlight-mobile-columns, 4), 26px); }
   .day-highlights.is-sparse .day-highlights-icon-grid { grid-template-columns: repeat(var(--highlight-columns), 30px); }
   .day-highlights.is-sparse .day-highlight-icon { width: 30px; }
-  .day-highlights.is-single .day-highlights-overview { grid-template-columns: 50px minmax(0, 1fr) 38px 14px; }
+  .day-highlights.is-single .day-highlights-overview { grid-template-columns: minmax(0, 1fr) 38px 14px; }
   .day-highlights.is-single .day-highlights-icon-grid { grid-template-columns: 38px; }
   .day-highlights.is-single .day-highlight-icon { width: 38px; }
   .day-highlight-icon { border-radius: 7px; }
