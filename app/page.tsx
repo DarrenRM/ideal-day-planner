@@ -1205,21 +1205,21 @@ function DayHighlights({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const progress = totalActivities ? Math.min(100, (completedItems.length / totalActivities) * 100) : 0;
-  const isReviewing = highlight.status === "queued" || highlight.status === "running";
+  const density = completedItems.length === 1 ? "is-single" : completedItems.length <= 3 ? "is-sparse" : "";
+  const visibleCopy = highlight.body || (completedItems.length === 1 ? activityDisplayTitle(completedItems[0]) : null);
   const history = [...completedItems].sort((left, right) => (storedTimestampMillis(right.completedAt) ?? 0) - (storedTimestampMillis(left.completedAt) ?? 0));
 
   return (
-    <section className={`day-highlights ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
+    <section className={`day-highlights ${density} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
       <button className="day-highlights-overview" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
         <span className={`day-highlights-count ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
           <strong>{completedItems.length}</strong><span>done</span>
         </span>
         <span className="day-highlights-copy">
           <strong id="day-highlights-title">Highlights</strong>
-          {highlight.body ? <span>{highlight.body}</span> : null}
-          {isReviewing ? <span className="day-highlight-thinking" aria-label="Luna is reviewing today’s progress"><i /><i /><i /></span> : null}
+          {visibleCopy ? <span>{visibleCopy}</span> : null}
         </span>
-        <span className="day-highlights-icon-grid" aria-label={`${completedItems.length} completed activities`}>
+        <span className="day-highlights-icon-grid" aria-label={`${completedItems.length} completed activities`} style={{ "--highlight-columns": Math.min(completedItems.length, 6), "--highlight-mobile-columns": Math.min(completedItems.length, 4) } as CSSProperties}>
           {completedItems.map((item) => {
             const ActivityIcon = activityIconFor(item);
             return <span className={`day-highlight-icon ${celebratingActivityId === item.id ? "is-new" : ""}`} key={item.id} style={{ "--highlight-color": CATEGORY_META[item.category].color } as CSSProperties} title={activityDisplayTitle(item)}><ActivityIcon aria-hidden="true" size={17} strokeWidth={2} /></span>;

@@ -271,8 +271,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /@keyframes day-highlight-icon-land/);
   assert.doesNotMatch(css, /\.day-highlight-icon::after/);
   assert.match(css, /\.day-highlights-copy > strong[^}]*text-transform: uppercase/);
-  assert.match(css, /\.day-highlights-copy > span:not\(\.day-highlight-thinking\)[^}]*-webkit-line-clamp: 2/);
+  assert.match(css, /\.day-highlights-copy > span[^}]*-webkit-line-clamp: 2/);
   assert.match(css, /\.day-highlights-overview[^}]*min-height: 78px/);
+  assert.match(page, /completedItems\.length === 1 \? "is-single"/);
+  assert.match(page, /highlight\.body \|\| \(completedItems\.length === 1/);
+  assert.doesNotMatch(page, /day-highlight-thinking/);
   assert.match(page, /function cueNextActivity/);
   assert.match(page, /window\.scrollBy\(\{/);
   assert.match(page, /nextActivityCueId === item\.id \? "is-next-cue"/);
@@ -428,7 +431,7 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
 });
 
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
-  const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, settingsRoute, jobRoute, store, workspaceModel, bridge, startup, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
+  const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, settingsRoute, jobRoute, store, workspaceModel, bridge, startup, taskInstaller, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/reset/route.ts", import.meta.url), "utf8"),
@@ -440,6 +443,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
     readFile(new URL("../app/workspace-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
     readFile(new URL("../bridge/start-ideal-day.ps1", import.meta.url), "utf8"),
+    readFile(new URL("../bridge/install-ideal-day-task.ps1", import.meta.url), "utf8"),
     readFile(new URL("../AGENTS.md", import.meta.url), "utf8"),
     readFile(new URL("../PRODUCT_SPEC.md", import.meta.url), "utf8"),
     readFile(new URL("../SMART_FLOW_USER_TESTING.md", import.meta.url), "utf8"),
@@ -576,10 +580,14 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.doesNotMatch(bridge, /api[_-]?key\s*=\s*["'][A-Za-z0-9_-]{20,}/i);
   assert.match(startup, /Start-Process[\s\S]*-WindowStyle Hidden/);
   assert.match(startup, /Import-Clixml/);
+  assert.match(startup, /bridge-worker\.err\.log/);
+  assert.match(taskInstaller, /RepetitionInterval \(New-TimeSpan -Minutes 5\)/);
+  assert.match(taskInstaller, /MultipleInstances IgnoreNew/);
   assert.match(agents, /Production source of truth/);
   assert.match(agents, /Terra low \+ standard tier for durable record\/workspace compilation/);
   assert.match(agents, /activityMoves/);
   assert.match(agents, /Ideal Day Hermes Bridge/);
+  assert.match(agents, /Never run a bare `git push` to the Sites remote/);
   assert.match(productSpec, /Opening an activity is a deterministic UI event/);
   assert.match(productSpec, /ordinary opens enqueue no conversational agent job/);
   assert.match(productSpec, /Activity creation is the primary workspace-design moment/);
