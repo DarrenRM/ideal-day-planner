@@ -308,6 +308,7 @@ function unauthorized() {
 
 function failure(error: unknown) {
   const message = error instanceof Error ? error.message : "Unexpected database error";
+  console.error("Day API failed", error);
   return Response.json({ error: message }, { status: 500 });
 }
 
