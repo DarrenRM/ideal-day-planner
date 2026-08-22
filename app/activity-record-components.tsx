@@ -1,15 +1,16 @@
 "use client";
 
-import { AlertTriangle, CalendarCheck, Check, ChevronDown, ExternalLink, HeartPulse, Package, Plus, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
 import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
+import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<void>;
 
-type Props = { record: ActivityRecord; onMutate: RecordMutation; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[] };
+type Props = { record: ActivityRecord; onMutate: RecordMutation; onTalkWithLuna?: () => void; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[] };
 type Item = { id: string; label: string; detail?: string; completed?: boolean; completedDates?: string[]; urgency?: string; source?: string };
 type Step = { id: string; label: string; note?: string; completed?: boolean; completedDates?: string[] };
 type Entry = { id: string; title: string; detail?: string; date?: string; value?: string; tone?: string };
@@ -124,6 +125,162 @@ function WorkoutRecord({ record, onMutate }: Props) {
       </article>;
     })}</div> : null}
     {data.openChoices?.length ? <div className="workout-open-choices">{data.openChoices.map((choice) => <article key={choice.id}><span><Plus size={13} /></span><div><strong>{choice.label}</strong>{choice.guidance ? <p>{choice.guidance}</p> : null}{choice.equipment?.length ? <small>{choice.equipment.join(" · ")}</small> : null}</div></article>)}</div> : null}
+  </section>;
+}
+
+type StrengthDraft = { load: string; reps: string; rir: string; setType: "working" | "warmup" | "drop" | "failure" };
+
+function compactDate(date: string) {
+  return formatActivityRecordDate(date);
+}
+
+function formatRest(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecords = [] }: Props) {
+  const data = record.data as StrengthSessionData;
+  const workout = relatedRecords.find((entry) => entry.key === data.workoutRecordKey && entry.type === "workout");
+  const plan = (workout?.data ?? {}) as WorkoutPlanData;
+  const exercises = useMemo(() => plan.exercises ?? [], [plan.exercises]);
+  const today = localDateKey();
+  const session = strengthSessionForDate(data, today);
+  const progress = strengthSessionProgress(session, exercises.map((exercise) => exercise.id));
+  const week = strengthWeekSummary(data, today);
+  const [expandedExerciseId, setExpandedExerciseId] = useState(exercises[0]?.id ?? "");
+  const [drafts, setDrafts] = useState<Record<string, StrengthDraft>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
+  const [restUntil, setRestUntil] = useState<number | null>(null);
+  const [restTick, setRestTick] = useState(() => Date.now());
+  const effectiveExpandedExerciseId = exercises.some((exercise) => exercise.id === expandedExerciseId) ? expandedExerciseId : exercises[0]?.id ?? "";
+  const savedNote = session?.note ?? "";
+  const note = noteDraft ?? savedNote;
+  const restRemaining = restUntil ? Math.max(0, Math.ceil((restUntil - restTick) / 1000)) : 0;
+
+  useEffect(() => {
+    if (!restUntil) return;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setRestTick(now);
+      if (now >= restUntil) setRestUntil(null);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [restUntil]);
+
+  function performedSets(exerciseId: string) {
+    return session?.exercises.find((entry) => entry.exerciseId === exerciseId)?.sets ?? [];
+  }
+
+  function draftFor(exercise: WorkoutPlanExercise) {
+    const existingSets = performedSets(exercise.id);
+    const previous = priorExerciseResult(data, exercise.id, today)?.sets[existingSets.length]
+      ?? priorExerciseResult(data, exercise.id, today)?.sets.at(-1);
+    return drafts[exercise.id] ?? {
+      load: previous?.load || exercise.targetLoad || "",
+      reps: previous ? String(previous.reps) : "",
+      rir: "",
+      setType: "working",
+    };
+  }
+
+  async function logSet(exercise: WorkoutPlanExercise) {
+    const draft = draftFor(exercise);
+    if (!draft.reps || saving) return;
+    setSaving(exercise.id);
+    try {
+      await onMutate(record.key, "log_strength_set", {
+        exerciseId: exercise.id,
+        load: draft.load,
+        reps: Number(draft.reps),
+        rir: draft.rir,
+        setType: draft.setType,
+      });
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[exercise.id];
+        return next;
+      });
+      const now = Date.now();
+      setRestTick(now);
+      setRestUntil(now + (exercise.restSeconds ?? 90) * 1000);
+    } finally { setSaving(null); }
+  }
+
+  async function removeSet(exerciseId: string, set: StrengthSet) {
+    if (saving) return;
+    setSaving(set.id);
+    try { await onMutate(record.key, "remove_strength_set", { exerciseId, setId: set.id }); }
+    finally { setSaving(null); }
+  }
+
+  async function saveNote(event: FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setSaving("note");
+    try { await onMutate(record.key, "save_strength_note", { note }); setNoteDraft(null); }
+    finally { setSaving(null); }
+  }
+
+  if (!workout || !exercises.length) return null;
+  const recentSessions = [...(data.sessions ?? [])]
+    .filter((entry) => entry.date < today && entry.exercises.some((exercise) => exercise.sets.length))
+    .sort((left, right) => right.date.localeCompare(left.date))
+    .slice(0, 3);
+
+  return <section className="workspace-block strength-session-record">
+    <div className="strength-session-heading">
+      <div><span className="workspace-overline">Today’s workout</span><strong>{workout.title}</strong>{plan.focus ? <p>{plan.focus}</p> : null}</div>
+      <span className="strength-session-mark"><Dumbbell aria-hidden="true" size={17} /></span>
+    </div>
+    <div className="strength-progress" aria-label={`${progress.completedExercises} of ${progress.totalExercises} exercises and ${progress.completedSets} sets logged`}>
+      <span><strong>{progress.completedExercises}/{progress.totalExercises}</strong><small>exercises</small></span>
+      <span><strong>{progress.completedSets}</strong><small>sets today</small></span>
+      <span><strong>{week.sessions}</strong><small>workouts this week</small></span>
+    </div>
+    {restUntil && restRemaining > 0 ? <div className="strength-rest" role="timer"><span>Rest</span><strong>{formatRest(restRemaining)}</strong><button type="button" onClick={() => setRestUntil(null)}>Skip</button></div> : null}
+    <div className="strength-exercises">{exercises.map((exercise, exerciseIndex) => {
+      const isExpanded = effectiveExpandedExerciseId === exercise.id;
+      const sets = performedSets(exercise.id);
+      const prior = priorExerciseResult(data, exercise.id, today);
+      const target = [exercise.targetSets ? `${exercise.targetSets} sets` : "", exercise.targetReps ? `${exercise.targetReps} reps` : "", exercise.targetLoad || ""].filter(Boolean).join(" · ");
+      const draft = draftFor(exercise);
+      const nextSetIndex = sets.length;
+      const previousSet = prior?.sets[nextSetIndex] ?? prior?.sets.at(-1);
+      return <article className={`strength-exercise ${isExpanded ? "is-expanded" : ""}`} key={exercise.id}>
+        <button aria-expanded={isExpanded} className="strength-exercise-toggle" type="button" onClick={() => setExpandedExerciseId(isExpanded ? "" : exercise.id)}>
+          <span className="strength-exercise-number">{exerciseIndex + 1}</span>
+          <span><strong>{exercise.name}</strong><small>{sets.length ? `${sets.length}${exercise.targetSets ? ` of ${exercise.targetSets}` : ""} sets logged` : target || "Ready when you are"}</small></span>
+          <ChevronDown aria-hidden="true" size={16} />
+        </button>
+        {isExpanded ? <div className="strength-exercise-body">
+          {exercise.note ? <p className="strength-exercise-note">{exercise.note}</p> : null}
+          <div className="strength-comparison"><span><small>Last time</small><strong>{prior ? summarizeStrengthSets(prior.sets) : "No history yet"}</strong></span><span><small>Today’s target</small><strong>{target || "Establish a baseline"}</strong></span></div>
+          <div className="strength-set-table">
+            <div className="strength-set-head" aria-hidden="true"><span>Set</span><span>Previous</span><span>Weight</span><span>Reps</span><span>Done</span></div>
+            {sets.map((set, index) => <div className="strength-set-row is-logged" key={set.id}>
+              <span>{index + 1}</span><span>{prior?.sets[index] ? `${prior.sets[index].load || "BW"} × ${prior.sets[index].reps}` : "—"}</span><strong>{set.load || "BW"}</strong><strong>{set.reps}</strong>
+              <button aria-label={`Remove set ${index + 1} from ${exercise.name}`} className="workspace-check is-checked" disabled={saving === set.id} type="button" onClick={() => void removeSet(exercise.id, set)}><Check size={11} strokeWidth={3} /></button>
+            </div>)}
+            <div className="strength-set-row is-entry">
+              <span>{sets.length + 1}</span><span>{previousSet ? `${previousSet.load || "BW"} × ${previousSet.reps}` : "—"}</span>
+              <input aria-label={`Weight for set ${sets.length + 1} of ${exercise.name}`} inputMode="decimal" placeholder="BW" value={draft.load} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, load: event.target.value } }))} />
+              <input aria-label={`Reps for set ${sets.length + 1} of ${exercise.name}`} inputMode="numeric" min="1" placeholder="—" type="number" value={draft.reps} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, reps: event.target.value } }))} />
+              <button aria-label={`Log set ${sets.length + 1} for ${exercise.name}`} className="workspace-check" disabled={!draft.reps || saving === exercise.id} type="button" onClick={() => void logSet(exercise)}><Check size={11} strokeWidth={3} /></button>
+            </div>
+          </div>
+          <details className="strength-set-options"><summary>Set details</summary><div><label>Type<select value={draft.setType} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, setType: event.target.value as StrengthDraft["setType"] } }))}><option value="working">Working</option><option value="warmup">Warm-up</option><option value="drop">Drop set</option><option value="failure">To failure</option></select></label><label>Reps left (optional)<input inputMode="numeric" max="10" min="0" placeholder="—" type="number" value={draft.rir} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, rir: event.target.value } }))} /></label></div></details>
+        </div> : null}
+      </article>;
+    })}</div>
+    {plan.openChoices?.length ? <div className="strength-open-choices"><span className="workspace-overline">Choose at the gym</span>{plan.openChoices.map((choice) => <button key={choice.id} type="button" onClick={onTalkWithLuna}><Plus aria-hidden="true" size={15} /><span><strong>{choice.label}</strong>{choice.guidance ? <small>{choice.guidance}</small> : null}{choice.equipment?.length ? <em>{choice.equipment.join(" · ")}</em> : null}</span></button>)}</div> : null}
+    <form className="strength-note" onSubmit={saveNote}><label>Workout note<textarea placeholder="Anything worth remembering from today?" value={note} onChange={(event) => setNoteDraft(event.target.value)} /></label><button disabled={saving === "note" || note === savedNote} type="submit">Save note</button></form>
+    <div className="strength-history"><div className="strength-history-heading"><span><small className="workspace-overline">Recent workouts</small><strong>Your lifting history</strong></span><TrendingUp aria-hidden="true" size={16} /></div>{recentSessions.length ? recentSessions.map((entry) => {
+      const setCount = entry.exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
+      const repCount = entry.exercises.reduce((total, exercise) => total + exercise.sets.reduce((sum, set) => sum + set.reps, 0), 0);
+      return <div className="strength-history-row" key={entry.id}><time dateTime={entry.date}>{compactDate(entry.date)}</time><span><strong>{entry.workoutTitle || workout.title}</strong><small>{setCount} sets · {repCount} reps</small></span></div>;
+    }) : <p>Your first completed sets will start the history here.</p>}</div>
   </section>;
 }
 
@@ -392,6 +549,7 @@ export function ActivityRecordComponent(props: Props) {
   if (record.type === "equipment") return <EquipmentRecord record={record} />;
   if (record.type === "session_choice") return <SessionChoiceRecord {...props} />;
   if (record.type === "session_log") return <SessionLogRecord {...props} />;
+  if (record.type === "strength_session") return <StrengthSessionRecord {...props} />;
   if (record.type === "quick_log") return <QuickLogRecord {...props} />;
   if (record.type === "history" || record.type === "timeline") return <HistoryRecord record={record} />;
   if (record.type === "comparison") return <ComparisonRecord record={record} />;

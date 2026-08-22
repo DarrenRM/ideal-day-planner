@@ -13,6 +13,7 @@ export const ACTIVITY_RECORD_TYPES = [
   "equipment",
   "session_choice",
   "session_log",
+  "strength_session",
   "quick_log",
   "history",
   "comparison",
@@ -155,6 +156,7 @@ export function hasUsefulActivityRecordData(record: ActivityRecordContent, conte
   if (record.type === "equipment") return nonEmptyArray(data.items);
   if (record.type === "session_choice") return nonEmptyArray(data.options);
   if (record.type === "session_log") return nonEmptyArray(data.fields) && Boolean(normalizedText(data.choiceRecordKey) || data.defaultOption);
+  if (record.type === "strength_session") return Boolean(normalizedText(data.workoutRecordKey));
   if (record.type === "quick_log") return nonEmptyArray(data.fields);
   if (record.type === "history" || record.type === "timeline" || record.type === "comparison" || record.type === "adherence" || record.type === "resources") return nonEmptyArray(data.entries);
   if (record.type === "metric" || record.type === "trend") {
@@ -234,6 +236,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
           targetSets: boundedNumber(entry.targetSets, 0, 20),
           targetReps: boundedString(entry.targetReps, 40),
           targetLoad: boundedString(entry.targetLoad, 60),
+          restSeconds: boundedNumber(entry.restSeconds, 15, 600),
           lastPerformance: boundedString(entry.lastPerformance, 160),
           completed: entry.completed === true,
           completedDates: stringArray(entry.completedDates, 366, 10).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
@@ -253,6 +256,50 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
           guidance: boundedString(entry.guidance, 400),
           equipment: stringArray(entry.equipment, 20, 100),
         } : null;
+      }),
+    };
+  }
+
+  if (type === "strength_session") {
+    const workoutRecordKey = stableKey(source.workoutRecordKey);
+    if (!workoutRecordKey) return null;
+    return {
+      workoutRecordKey,
+      sessions: objectArray(source.sessions, 365, (entry, index) => {
+        const date = boundedString(entry.date, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+        return {
+          id: itemId(entry.id, index),
+          date,
+          workoutTitle: boundedString(entry.workoutTitle, 160),
+          startedAt: boundedString(entry.startedAt, 40),
+          completedAt: boundedString(entry.completedAt, 40),
+          note: boundedString(entry.note, 800),
+          exercises: objectArray(entry.exercises, 50, (exercise, exerciseIndex) => {
+            const exerciseId = stableKey(exercise.exerciseId);
+            const name = boundedString(exercise.name, 160);
+            if (!exerciseId || !name) return null;
+            return {
+              id: itemId(exercise.id, exerciseIndex),
+              exerciseId,
+              name,
+              sets: objectArray(exercise.sets, 50, (set, setIndex) => {
+                const reps = boundedNumber(set.reps, 0, 1000);
+                if (reps === null) return null;
+                const setType = ["working", "warmup", "drop", "failure"].includes(String(set.type)) ? String(set.type) : "working";
+                return {
+                  id: itemId(set.id, setIndex),
+                  ordinal: Math.max(1, Math.round(boundedNumber(set.ordinal, 1, 50) ?? setIndex + 1)),
+                  type: setType,
+                  load: boundedString(set.load, 60),
+                  reps: Math.round(reps),
+                  rir: boundedNumber(set.rir, 0, 10),
+                  completedAt: boundedString(set.completedAt, 40),
+                };
+              }),
+            };
+          }),
+        };
       }),
     };
   }

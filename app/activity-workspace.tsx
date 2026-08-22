@@ -391,13 +391,30 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     ? selectedSessionOptionId(measuredChoiceRecord.data as SessionChoiceData, localDateKey())
     : measuredSessionData?.defaultOption?.id;
   const measuredIds = new Set([measuredSessionItem?.id, measuredChoiceItem?.id].filter((id): id is string => Boolean(id)));
-  const remainingItems = orderedItems.filter(({ id }) => !measuredIds.has(id));
+  const strengthSessionItem = orderedItems.find(({ component }) => component?.type === "strength_session");
+  const strengthSessionRecord = strengthSessionItem?.component
+    ? recordsByKey.get((strengthSessionItem.component as DataWorkspaceComponent).recordKey)
+    : undefined;
+  const linkedWorkoutKey = strengthSessionRecord?.type === "strength_session" && typeof strengthSessionRecord.data.workoutRecordKey === "string"
+    ? strengthSessionRecord.data.workoutRecordKey
+    : null;
+  const linkedWorkoutItem = linkedWorkoutKey
+    ? orderedItems.find(({ component }) => component?.type === "workout" && (component as DataWorkspaceComponent).recordKey === linkedWorkoutKey)
+    : undefined;
+  const groupedIds = new Set([strengthSessionItem?.id, linkedWorkoutItem?.id].filter((id): id is string => Boolean(id)));
+  const remainingItems = orderedItems.filter(({ id }) => !measuredIds.has(id) && !groupedIds.has(id));
 
   function renderMeasuredItem(item: typeof measuredSessionItem, presentation?: "default" | "compact" | "featured") {
     if (!item?.component || item.component.type === "timer" || item.component.type === "countdown" || item.component.type === "routine") return null;
     const dataComponent = item.component as DataWorkspaceComponent;
     const record = recordsByKey.get(dataComponent.recordKey);
     return record ? <ActivityRecordComponent key={item.id} onMutate={onRecordMutation} presentation={presentation ?? dataComponent.presentation} record={record} relatedRecords={records} /> : null;
+  }
+  function renderStrengthItem() {
+    if (!strengthSessionItem?.component || strengthSessionItem.component.type !== "strength_session") return null;
+    const dataComponent = strengthSessionItem.component as DataWorkspaceComponent;
+    const record = recordsByKey.get(dataComponent.recordKey);
+    return record ? <ActivityRecordComponent key={strengthSessionItem.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation="featured" record={record} relatedRecords={records} /> : null;
   }
   if (!hasVisibleWorkspace && !workState && !recordError) return null;
   return (
@@ -437,6 +454,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             ) : null}
             {measuredSessionItem && measuredChoiceItem && !measuredOptionId ? renderMeasuredItem(measuredChoiceItem, "default") : null}
             {measuredSessionItem && measuredOptionId ? renderMeasuredItem(measuredSessionItem, "featured") : null}
+            {renderStrengthItem()}
             {followUps.map((followUp) => (
               <section className={`workspace-block activity-follow-up ${followUp.status === "due" || followUp.status === "asked" ? "is-due" : ""}`} key={followUp.id}>
                 <div className="activity-follow-up-heading">
@@ -463,7 +481,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
               return record
-                ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} relatedRecords={record.type === "session_log" ? records : undefined} supportingRecords={record.type === "product" ? nestedSupportingComponents.get(record.key) : undefined} />
+                ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation={dataComponent.presentation} record={record} relatedRecords={record.type === "session_log" || record.type === "strength_session" ? records : undefined} supportingRecords={record.type === "product" ? nestedSupportingComponents.get(record.key) : undefined} />
                 : null;
             })}
           </div>

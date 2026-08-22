@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillExplicitFollowUps, backfillMeasuredSessionLogs, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
+import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillStrengthSessions, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
 import { ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
@@ -325,6 +325,7 @@ export async function GET(request: Request) {
     await backfillExplicitFollowUps(userId);
     await backfillBoundedSessionChoices(userId);
     await backfillMeasuredSessionLogs(userId);
+    await backfillStrengthSessions(userId);
     await migrateLegacyProductOwnership(userId);
     if (!await hasTemplateItems(userId, templateId)) {
       const row = await getD1().prepare(`

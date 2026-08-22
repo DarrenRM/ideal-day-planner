@@ -5,6 +5,7 @@ import {
   completeActivitySetup,
   completeRequestedActivitySetup,
   ensureAgentSchema,
+  ensureStrengthSessionsForActivity,
   isLocalBridgeRequest,
   markActivitySetupAnswered,
   moveActivitySubject,
@@ -672,6 +673,17 @@ export async function POST(request: Request) {
         sourceMessageId: job.kind === "user_message" || job.kind === "workspace_refresh" ? job.sourceMessageId : null,
         sourceAgentJobId: jobId,
       });
+      if (recordActions.some((action) => action.op === "upsert" && action.record.type === "workout")) {
+        await ensureStrengthSessionsForActivity({
+          userId: job.userId,
+          activityId: job.activityId,
+          activityVariantId,
+          actionId: `${jobId}:strength-session`,
+        });
+        const refreshedRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);
+        availableRecords.clear();
+        for (const refreshedRecord of refreshedRecords) availableRecords.set(refreshedRecord.key, refreshedRecord);
+      }
       const followUpResult = await persistFollowUpActions({
         userId: job.userId,
         activityId: job.activityId,

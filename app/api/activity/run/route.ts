@@ -236,6 +236,18 @@ export async function POST(request: Request) {
         }).catch((error) => console.error("Could not add measured-session timing after completion.", error));
       }
     }
+    for (const strengthSession of activityRecords.filter((record) => record.type === "strength_session")) {
+      await applyUserRecordMutation({
+        userId,
+        activityId: activity.id,
+        activityVariantId: item.activityVariantId,
+        recordKey: strengthSession.key,
+        actionId: `strength-finish:${runId}:${strengthSession.key}`,
+        operation: "finish_strength_session",
+        payload: {},
+        planDate: date,
+      }).catch((error) => console.error("Could not finish the strength session after completion.", error));
+    }
     const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
       console.error("Could not queue the day highlight after completion.", error);
       return null;

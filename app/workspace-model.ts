@@ -25,6 +25,7 @@ export type RoutineWorkspaceComponent = {
 export const DATA_WORKSPACE_COMPONENT_TYPES = [
   "summary", "product", "protocol", "checklist", "item_list", "workout", "quick_log",
   "recurring_step", "activity_event", "equipment", "session_choice", "session_log",
+  "strength_session",
   "history", "comparison", "metric", "trend", "adherence", "timeline", "goal",
   "attention", "resources",
 ] as const;

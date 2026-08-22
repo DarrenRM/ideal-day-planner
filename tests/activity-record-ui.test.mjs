@@ -165,6 +165,55 @@ test("renders measured sessions as a canonical log, recap, and conditional choic
   assert.match(dayRoute, /backfillMeasuredSessionLogs/);
 });
 
+test("renders strength plans and dated sets as one specialized workout flow", async () => {
+  const [component, workspace, css, store, dayRoute, runRoute, catalog] = await Promise.all([
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../bridge/component-catalog.mjs", import.meta.url), "utf8"),
+  ]);
+  assert.match(component, /function StrengthSessionRecord/);
+  assert.match(component, /Last time/);
+  assert.match(component, /Today’s target/);
+  assert.match(component, /log_strength_set/);
+  assert.match(component, /remove_strength_set/);
+  assert.match(component, /Reps left \(optional\)/);
+  assert.match(component, /Recent workouts/);
+  assert.match(workspace, /linkedWorkoutKey/);
+  assert.match(workspace, /renderStrengthItem/);
+  assert.match(css, /\.strength-set-table/);
+  assert.match(css, /\.strength-rest/);
+  assert.match(store, /backfillStrengthSessions/);
+  assert.match(store, /finish_strength_session/);
+  assert.match(dayRoute, /backfillStrengthSessions/);
+  assert.match(runRoute, /strength-finish:/);
+  assert.match(catalog, /Canonical dated strength history/);
+});
+
+test("normalizes dated strength sessions without mixing them into the plan", () => {
+  const record = parseActivityRecord({
+    id: "lift-sessions", recordKey: "strength-session-log", recordType: "strength_session",
+    title: "Lift sessions", scope: "activity", scopeDate: null, version: 1,
+    payloadJson: JSON.stringify({
+      workoutRecordKey: "leg-day",
+      sessions: [{
+        id: "strength-2026-08-21-leg-day", date: "2026-08-21", workoutTitle: "Leg Day",
+        exercises: [{
+          id: "performed-lunges", exerciseId: "walking-lunges", name: "Walking lunges",
+          sets: [{ id: "set-1", ordinal: 1, type: "working", load: "25 lb", reps: 10, rir: 2, completedAt: "2026-08-21T12:00:00Z" }],
+        }],
+      }],
+    }),
+    updatedAt: "2026-08-21T12:00:00Z",
+  });
+  assert.equal(record?.data.workoutRecordKey, "leg-day");
+  assert.equal(record?.data.sessions[0].exercises[0].sets[0].reps, 10);
+  assert.equal(record?.data.sessions[0].exercises[0].sets[0].rir, 2);
+});
+
 test("normalizes a measured-session record without losing its history", () => {
   const record = parseActivityRecord({
     id: "cardio-log", recordKey: "measured-session-log", recordType: "session_log",

@@ -840,6 +840,7 @@ export async function archiveParentCadenceRecords(userId: string) {
 const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";
 const BOUNDED_SESSION_CHOICE_BACKFILL = "bounded-session-choices-v1";
 const MEASURED_SESSION_LOG_BACKFILL = "measured-session-logs-v1";
+const STRENGTH_SESSION_BACKFILL = "strength-sessions-v1";
 
 export async function backfillExplicitFollowUps(userId: string) {
   const migrationId = `migration:${safeId(userId)}:${EXPLICIT_FOLLOW_UP_BACKFILL}`;
@@ -1036,6 +1037,114 @@ export async function backfillMeasuredSessionLogs(userId: string) {
   }
   await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
     .bind(migrationId, userId, MEASURED_SESSION_LOG_BACKFILL).run();
+  return updated;
+}
+
+export async function ensureStrengthSessionsForActivity(input: {
+  userId: string;
+  activityId: string;
+  activityVariantId?: string | null;
+  actionId: string;
+}) {
+  const activity = await getD1().prepare("SELECT title FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
+    .bind(input.activityId, input.userId).first<{ title: string }>();
+  if (!activity) return 0;
+  const records = await readActivityRecords(input.activityId, null, input.activityVariantId);
+  const targetScope = input.activityVariantId ? "variant" : "activity";
+  const workouts = records.filter((record) => record.type === "workout" && record.scope === targetScope);
+  let updated = 0;
+  for (const workout of workouts) {
+    if (records.some((record) => record.type === "strength_session" && record.scope === targetScope && record.data.workoutRecordKey === workout.key)) continue;
+    const sessionsByDate = new Map<string, {
+      id: string; date: string; workoutTitle: string; startedAt: string; completedAt: string; note: string;
+      exercises: Array<{ id: string; exerciseId: string; name: string; sets: Array<Record<string, unknown>> }>;
+    }>();
+    const workoutExercises = Array.isArray(workout.data.exercises) ? workout.data.exercises as Array<Record<string, unknown>> : [];
+    for (const exercise of workoutExercises) {
+      const exerciseId = typeof exercise.id === "string" ? exercise.id : "";
+      const name = typeof exercise.name === "string" ? exercise.name : "";
+      if (!exerciseId || !name || !Array.isArray(exercise.sets)) continue;
+      for (const [setIndex, setValue] of exercise.sets.entries()) {
+        const set = asObject(setValue);
+        const completedAt = typeof set?.completedAt === "string" ? set.completedAt : "";
+        const reps = typeof set?.reps === "number" && Number.isFinite(set.reps) ? Math.round(set.reps) : null;
+        const date = completedAt.slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || reps === null || reps < 1) continue;
+        const session = sessionsByDate.get(date) ?? {
+          id: `strength-${date}-${workout.key}`,
+          date,
+          workoutTitle: workout.title,
+          startedAt: completedAt,
+          completedAt: "",
+          note: "",
+          exercises: [],
+        };
+        let result = session.exercises.find((entry) => entry.exerciseId === exerciseId);
+        if (!result) {
+          result = { id: `performed-${date}-${exerciseId}`, exerciseId, name, sets: [] };
+          session.exercises.push(result);
+        }
+        result.sets.push({
+          id: typeof set?.id === "string" ? set.id : `set-${setIndex + 1}`,
+          ordinal: result.sets.length + 1,
+          type: "working",
+          load: typeof set?.load === "string" ? set.load : "",
+          reps,
+          rir: null,
+          completedAt,
+        });
+        sessionsByDate.set(date, session);
+      }
+    }
+    const recordKey = workouts.length === 1 ? "strength-session-log" : `${workout.key}-sessions`.slice(0, 80);
+    await persistRecordActions({
+      userId: input.userId,
+      activityId: input.activityId,
+      activityVariantId: input.activityVariantId,
+      actionId: `${input.actionId}:${safeId(workout.key)}:record`,
+      sourceAgentJobId: input.actionId,
+      actions: [{
+        op: "upsert",
+        record: {
+          key: recordKey,
+          subjectKey: null,
+          type: "strength_session",
+          title: `${activity.title} sessions`,
+          scope: targetScope,
+          scopeDate: null,
+          data: { workoutRecordKey: workout.key, sessions: Array.from(sessionsByDate.values()) },
+        },
+      }],
+    });
+    await persistWorkspaceActions({
+      userId: input.userId,
+      activityId: input.activityId,
+      activityVariantId: input.activityVariantId,
+      agentJobId: `${input.actionId}:${safeId(workout.key)}:workspace`,
+      actions: [{
+        op: "upsert",
+        component: { id: recordKey, type: "strength_session", title: `${activity.title} workout`, recordKey, presentation: "featured" },
+      }],
+    });
+    updated += 1;
+  }
+  return updated;
+}
+
+export async function backfillStrengthSessions(userId: string) {
+  const migrationId = `migration:${safeId(userId)}:${STRENGTH_SESSION_BACKFILL}`;
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, STRENGTH_SESSION_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+  const activities = await db.prepare("SELECT id FROM activities WHERE user_id = ? ORDER BY created_at, id")
+    .bind(userId).all<{ id: string }>();
+  let updated = 0;
+  for (const activity of activities.results) {
+    updated += await ensureStrengthSessionsForActivity({ userId, activityId: activity.id, actionId: `${migrationId}:${safeId(activity.id)}` });
+  }
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, STRENGTH_SESSION_BACKFILL).run();
   return updated;
 }
 
@@ -1656,6 +1765,75 @@ export async function applyUserRecordMutation(input: {
       return { ...exercise, sets: [...sets, { id: `set-${crypto.randomUUID()}`, load, reps, effort: "", completedAt: new Date().toISOString() }] };
     });
     if (!changed) throw new Error("That exercise could not be found.");
+  } else if (["log_strength_set", "remove_strength_set", "save_strength_note", "finish_strength_session"].includes(input.operation) && record.type === "strength_session") {
+    const date = input.planDate;
+    if (!date) throw new Error("A date is required.");
+    const workoutRecordKey = typeof data.workoutRecordKey === "string" ? data.workoutRecordKey : "";
+    const workout = records.find((entry) => entry.key === workoutRecordKey && entry.type === "workout");
+    if (!workout) throw new Error("The workout plan is no longer available.");
+    const plannedExercises = Array.isArray(workout.data.exercises) ? workout.data.exercises as Array<Record<string, unknown>> : [];
+    const sessions = Array.isArray(data.sessions) ? data.sessions as Array<Record<string, unknown>> : [];
+    const now = new Date().toISOString();
+    const existing = sessions.find((entry) => entry.date === date);
+    const session: Record<string, unknown> = existing ? structuredClone(existing) : {
+      id: `strength-${date}-${workoutRecordKey}`,
+      date,
+      workoutTitle: workout.title,
+      startedAt: now,
+      completedAt: "",
+      note: "",
+      exercises: [],
+    };
+    const performedExercises = Array.isArray(session.exercises) ? session.exercises as Array<Record<string, unknown>> : [];
+
+    if (input.operation === "log_strength_set") {
+      const exerciseId = typeof input.payload.exerciseId === "string" ? input.payload.exerciseId : "";
+      const planned = plannedExercises.find((exercise) => exercise.id === exerciseId);
+      const reps = typeof input.payload.reps === "number" ? Math.round(input.payload.reps) : Number(input.payload.reps);
+      const load = typeof input.payload.load === "string" ? input.payload.load.trim().slice(0, 60) : "";
+      const rawRir = input.payload.rir === "" || input.payload.rir === null || input.payload.rir === undefined ? null : Number(input.payload.rir);
+      const rir = rawRir === null ? null : Math.round(rawRir);
+      const setType = ["working", "warmup", "drop", "failure"].includes(String(input.payload.setType)) ? String(input.payload.setType) : "working";
+      if (!planned || !exerciseId || !Number.isFinite(reps) || reps < 1 || reps > 1000 || (rir !== null && (!Number.isFinite(rir) || rir < 0 || rir > 10))) {
+        throw new Error("Enter a valid set.");
+      }
+      let performed = performedExercises.find((exercise) => exercise.exerciseId === exerciseId);
+      if (!performed) {
+        performed = { id: `performed-${date}-${exerciseId}`, exerciseId, name: planned.name, sets: [] };
+        performedExercises.push(performed);
+      }
+      const sets = Array.isArray(performed.sets) ? performed.sets as Array<Record<string, unknown>> : [];
+      performed.sets = [...sets, {
+        id: `set-${crypto.randomUUID()}`,
+        ordinal: sets.length + 1,
+        type: setType,
+        load,
+        reps,
+        rir,
+        completedAt: now,
+      }];
+      session.exercises = performedExercises;
+    } else if (input.operation === "remove_strength_set") {
+      const exerciseId = typeof input.payload.exerciseId === "string" ? input.payload.exerciseId : "";
+      const setId = typeof input.payload.setId === "string" ? input.payload.setId : "";
+      let changed = false;
+      session.exercises = performedExercises.map((exercise) => {
+        if (exercise.exerciseId !== exerciseId || !Array.isArray(exercise.sets)) return exercise;
+        const nextSets = (exercise.sets as Array<Record<string, unknown>>).filter((set) => {
+          if (set.id !== setId) return true;
+          changed = true;
+          return false;
+        }).map((set, index) => ({ ...set, ordinal: index + 1 }));
+        return { ...exercise, sets: nextSets };
+      });
+      if (!changed) throw new Error("That set could not be found.");
+    } else if (input.operation === "save_strength_note") {
+      session.note = typeof input.payload.note === "string" ? input.payload.note.trim().slice(0, 800) : "";
+    } else if (input.operation === "finish_strength_session") {
+      if (!existing) return records;
+      session.completedAt = now;
+    }
+    data.sessions = [...sessions.filter((entry) => entry.date !== date), session];
   } else if (input.operation === "add_quick_log" && record.type === "quick_log") {
     const values = Array.isArray(input.payload.values) ? input.payload.values : [];
     const entries = Array.isArray(data.entries) ? data.entries as unknown[] : [];

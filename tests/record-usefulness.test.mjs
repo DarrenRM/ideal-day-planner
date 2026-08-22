@@ -14,6 +14,7 @@ test("rejects hollow domain records", () => {
   assert.equal(hasUsefulActivityRecordData(record("resources", "Helpful links", { entries: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("metric", "Weight", { label: "Weight", current: null, target: null, entries: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("session_log", "Cardio session", { fields: [], entries: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("strength_session", "Lift sessions", { workoutRecordKey: "" })), false);
 });
 
 test("rejects a summary that only repeats schedule information", () => {
@@ -43,6 +44,9 @@ test("accepts components with immediately useful content", () => {
     choiceRecordKey: "cardio-choice",
     fields: [{ id: "duration", label: "Duration", input: "number", kind: "duration", unit: "min" }],
     entries: [],
+  })), true);
+  assert.equal(hasUsefulActivityRecordData(record("strength_session", "Lift sessions", {
+    workoutRecordKey: "leg-day", sessions: [],
   })), true);
   assert.equal(hasUsefulActivityRecordData(record("summary", "Cardio plan", {
     summary: "Use the rowing machine and track distance.",

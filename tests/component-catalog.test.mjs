@@ -5,13 +5,13 @@ import { ACTIVITY_RECIPES, CATALOG_VERSION, COMPONENT_CATALOG, activityRecipeHin
 
 const expected = [
   "summary", "product", "protocol", "checklist", "item_list", "workout",
-  "recurring_step", "activity_event", "equipment", "session_choice", "session_log", "quick_log",
+  "recurring_step", "activity_event", "equipment", "session_choice", "session_log", "strength_session", "quick_log",
   "history", "comparison", "metric", "trend", "adherence", "timeline", "goal",
   "attention", "resources", "timer", "countdown",
 ];
 
-test("the production catalog contains every approved v6 component exactly once", () => {
-  assert.equal(CATALOG_VERSION, "workspace-catalog-v6");
+test("the production catalog contains every approved v7 component exactly once", () => {
+  assert.equal(CATALOG_VERSION, "workspace-catalog-v7");
   const types = COMPONENT_CATALOG.map(([type]) => type);
   assert.deepEqual(types, expected);
   assert.equal(new Set(types).size, types.length);
