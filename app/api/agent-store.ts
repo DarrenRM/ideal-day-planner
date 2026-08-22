@@ -835,7 +835,7 @@ export async function archiveParentCadenceRecords(userId: string) {
   return invalidIds.length;
 }
 
-const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v1";
+const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";
 
 export async function backfillExplicitFollowUps(userId: string) {
   const migrationId = `migration:${safeId(userId)}:${EXPLICIT_FOLLOW_UP_BACKFILL}`;
@@ -856,8 +856,10 @@ export async function backfillExplicitFollowUps(userId: string) {
     LIMIT 50
   `).bind(userId).all<{ id: string; body: string; createdAt: string; conversationId: string; activityId: string; activityTitle: string }>();
   for (const message of messages.results) {
-    const sourceDate = /^\d{4}-\d{2}-\d{2}/.exec(message.createdAt)?.[0];
-    if (!sourceDate) continue;
+    const storedInstant = /(?:Z|[+-]\d{2}:?\d{2})$/.test(message.createdAt)
+      ? message.createdAt
+      : `${message.createdAt.replace(" ", "T")}Z`;
+    const sourceDate = localDateInTimeZone(storedInstant, "America/Phoenix");
     const mentionsElliptical = /elliptical/i.test(message.body);
     await persistFollowUpActions({
       userId,
