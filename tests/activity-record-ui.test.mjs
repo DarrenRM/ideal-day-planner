@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { formatActivityRecordDate } from "../app/activity-record-format.ts";
 import { parseActivityRecord, recurringStepIsDue } from "../app/activity-record-model.ts";
+import { compactRecurringTitle, nextRecurringDate, recurringStepScheduleStatus } from "../app/recurring-step-schedule.ts";
 
 test("formats record dates for people without narrow machine-date strings", () => {
   const today = new Date(2026, 7, 20, 12);
@@ -149,4 +150,17 @@ test("normalizes recurring substeps and only exposes them on due dates", () => {
   assert.equal(recurringStepIsDue(record, "2026-08-21"), true);
   assert.equal(recurringStepIsDue(record, "2026-08-22"), false);
   assert.equal(recurringStepIsDue(record, "2026-08-28"), true);
+});
+
+test("derives recurring-step history and next due dates from the shared cadence schedule", () => {
+  const weekly = { anchorDate: "2026-08-21", cadence: { kind: "weekly", every: 1 }, completedDates: ["2026-08-21"] };
+  assert.deepEqual(recurringStepScheduleStatus(weekly, "2026-08-21"), {
+    completedToday: true, dueToday: false, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
+  });
+  assert.deepEqual(recurringStepScheduleStatus({ ...weekly, completedDates: [] }, "2026-08-21"), {
+    completedToday: false, dueToday: true, lastCompleted: null, nextDue: "2026-08-21",
+  });
+  assert.equal(nextRecurringDate("2026-08-21", { kind: "interval_days", every: 3 }, "2026-08-22"), "2026-08-24");
+  assert.equal(nextRecurringDate("2026-08-21", { kind: "weekdays", weekdays: [1, 3] }, "2026-08-21"), "2026-08-24");
+  assert.equal(compactRecurringTitle("Weekly Beard Grooming Roller", "Weekly"), "Beard Grooming Roller");
 });

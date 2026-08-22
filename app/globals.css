@@ -597,6 +597,12 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .workout-open-choices article > span { display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--accent); }
 .workout-open-choices strong, .workout-open-choices small { display: block; }
 .workout-open-choices p { margin: 4px 0; color: var(--muted); }
+.recurring-step-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 1px 0 3px; }
+.recurring-step-status > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 8px 10px 8px 0; }
+.recurring-step-status > span + span { border-left: 1px solid var(--border); padding-left: 12px; }
+.recurring-step-status small { color: var(--muted); font-size: var(--type-micro); }
+.recurring-step-status strong { color: var(--text); font-size: var(--type-label); font-weight: 620; }
+.recurring-step-status strong.is-due { color: var(--accent); }
 .recurring-step-record > button,
 .session-choice-record > div > button { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 10px 0; color: var(--text); text-align: left; background: none; border: 0; }
 .recurring-step-record > button > span,

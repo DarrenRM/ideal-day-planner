@@ -4,6 +4,7 @@ import { AlertTriangle, CalendarCheck, Check, ExternalLink, Package, Plus, Spark
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
+import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<void>;
 
@@ -126,12 +127,18 @@ function WorkoutRecord({ record, onMutate }: Props) {
 }
 
 function RecurringStepRecord({ record, onMutate }: Props) {
-  const data = record.data as { label: string; note?: string; completedDates?: string[]; cadence?: { kind?: string; every?: number; weekdays?: number[] } };
-  const complete = data.completedDates?.includes(localDateKey()) ?? false;
-  const cadence = data.cadence?.kind === "weekly" ? data.cadence.every === 1 ? "Weekly" : `Every ${data.cadence.every} weeks`
-    : data.cadence?.kind === "interval_days" ? `Every ${data.cadence.every} days` : "Selected days";
-  return <section className="workspace-block recurring-step-record"><Heading eyebrow={cadence} title={record.title} icon={<CalendarCheck size={15} />} />
-    <button className={complete ? "is-complete" : ""} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{complete ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button>
+  const data = record.data as { label: string; note?: string; anchorDate?: string; completedDates?: string[]; cadence?: RecurringCadence };
+  const today = localDateKey();
+  const status = recurringStepScheduleStatus(data, today);
+  const cadence = recurringCadenceLabel(data.cadence);
+  const lastValue = status.completedToday ? "Today" : status.lastCompleted ? formatActivityRecordDate(status.lastCompleted) : "Not yet";
+  const nextValue = status.dueToday ? "Due today" : status.nextDue ? formatActivityRecordDate(status.nextDue) : "Not scheduled";
+  return <section className="workspace-block recurring-step-record"><Heading eyebrow={cadence} title={compactRecurringTitle(record.title, cadence)} icon={<CalendarCheck size={15} />} />
+    <div className="recurring-step-status" aria-label={`Last completed: ${lastValue}. ${status.dueToday ? "Status" : "Next due"}: ${nextValue}.`}>
+      <span><small>{status.completedToday ? "Completed" : "Last completed"}</small><strong>{lastValue}</strong></span>
+      <span><small>{status.dueToday ? "Status" : "Next due"}</small><strong className={status.dueToday ? "is-due" : ""}>{nextValue}</strong></span>
+    </div>
+    <button className={status.completedToday ? "is-complete" : ""} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{status.completedToday ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button>
   </section>;
 }
 

@@ -1,3 +1,5 @@
+import { recurringDateIsDue, type RecurringCadence } from "./recurring-step-schedule.ts";
+
 export const ACTIVITY_RECORD_TYPES = [
   "summary",
   "product",
@@ -481,14 +483,6 @@ export function parseActivityRecord(row: {
 
 export function recurringStepIsDue(record: ActivityRecordContent, date = new Date().toLocaleDateString("en-CA")) {
   if (record.type !== "recurring_step") return true;
-  const data = record.data as { anchorDate?: string; cadence?: { kind?: string; every?: number; weekdays?: number[] } };
-  if (!data.anchorDate || !data.cadence || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
-  const start = new Date(`${data.anchorDate}T12:00:00Z`);
-  const target = new Date(`${date}T12:00:00Z`);
-  const days = Math.floor((target.getTime() - start.getTime()) / 86_400_000);
-  if (days < 0) return false;
-  if (data.cadence.kind === "weekly") return days % (7 * Math.max(1, data.cadence.every ?? 1)) === 0;
-  if (data.cadence.kind === "interval_days") return days % Math.max(1, data.cadence.every ?? 1) === 0;
-  if (data.cadence.kind === "weekdays") return (data.cadence.weekdays ?? []).includes(target.getUTCDay());
-  return false;
+  const data = record.data as { anchorDate?: string; cadence?: RecurringCadence };
+  return recurringDateIsDue(data.anchorDate, data.cadence, date);
 }
