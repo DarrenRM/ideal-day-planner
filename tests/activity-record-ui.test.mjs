@@ -160,7 +160,10 @@ test("presents pending check-ins as upcoming commitments rather than date forms"
   const followUpRenderer = workspace.match(/\{followUps\.map[\s\S]*?\)\)\}/)?.[0] || "";
   assert.match(followUpRenderer, /Upcoming check-in/);
   assert.match(followUpRenderer, /Luna will check back in with you on/);
+  assert.match(followUpRenderer, /EllipsisVertical/);
+  assert.match(followUpRenderer, /Remove check-in/);
   assert.doesNotMatch(followUpRenderer, /type="date"/);
+  assert.doesNotMatch(followUpRenderer, /activity-follow-up-actions/);
 });
 
 test("normalizes recurring substeps and only exposes them on due dates", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, Flame, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, X } from "lucide-react";
+import { CalendarClock, Check, EllipsisVertical, Flame, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, recurringStepIsDue, type ActivityRecord } from "./activity-record-model";
@@ -415,11 +415,19 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             ) : null}
             {followUps.map((followUp) => (
               <section className={`workspace-block activity-follow-up ${followUp.status === "due" || followUp.status === "asked" ? "is-due" : ""}`} key={followUp.id}>
-                <div className="activity-follow-up-heading"><div><span>{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : "Upcoming check-in"}</span><strong>{followUp.title}</strong></div><CalendarClock aria-hidden="true" size={17} /></div>
-                <p>Luna will check back in with you on <time dateTime={followUp.dueDate}>{formatFollowUpDate(followUp.dueDate)}</time> about {followUpReason(followUp.title)}.</p>
-                <div className="activity-follow-up-actions">
-                  <button aria-label={`Remove ${followUp.title} check-in`} type="button" onClick={() => onFollowUpMutation?.(followUp.id, "dismiss")}><X aria-hidden="true" size={14} /> Remove</button>
+                <div className="activity-follow-up-heading">
+                  <div><span>{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : "Upcoming check-in"}</span><strong>{followUp.title}</strong></div>
+                  <div className="activity-follow-up-tools">
+                    <details className="activity-follow-up-menu">
+                      <summary aria-label={`More options for ${followUp.title}`} title="Check-in options"><EllipsisVertical aria-hidden="true" size={17} /></summary>
+                      <div className="activity-follow-up-menu-panel" role="menu">
+                        <button role="menuitem" type="button" onClick={() => onFollowUpMutation?.(followUp.id, "dismiss")}><Trash2 aria-hidden="true" size={15} /> Remove check-in</button>
+                      </div>
+                    </details>
+                    <CalendarClock aria-hidden="true" size={17} />
+                  </div>
                 </div>
+                <p>Luna will check back in with you on <time dateTime={followUp.dueDate}>{formatFollowUpDate(followUp.dueDate)}</time> about {followUpReason(followUp.title)}.</p>
               </section>
             ))}
             {orderedItems.filter(({ displayRole }) => displayRole !== "streak" && displayRole !== "recurring").map(({ component }) => {

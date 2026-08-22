@@ -989,19 +989,31 @@ export async function persistFollowUpActions(input: {
   const db = getD1();
   for (const action of actions) {
     if (action.op === "complete" || action.op === "dismiss") {
-      await db.prepare(`
-        UPDATE activity_follow_ups
-        SET status = ?, completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END,
-            dismissed_at = CASE WHEN ? = 'dismissed' THEN CURRENT_TIMESTAMP ELSE dismissed_at END,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ? AND activity_id = ? AND follow_up_key = ?
-          AND status IN ('pending', 'due', 'asked')
-      `).bind(
-        action.op === "complete" ? "completed" : "dismissed",
-        action.op === "complete" ? "completed" : "dismissed",
-        action.op === "complete" ? "completed" : "dismissed",
-        input.userId, input.activityId, action.key,
-      ).run();
+      const terminalStatus = action.op === "complete" ? "completed" : "dismissed";
+      await db.batch([
+        db.prepare(`
+          UPDATE agent_jobs
+          SET status = 'cancelled', lease_token = NULL, lease_owner = NULL,
+              lease_expires_at = NULL, progress_title = NULL, progress_detail = NULL,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ? AND status IN ('queued', 'leased', 'running', 'retryable_failure')
+            AND id = (
+              SELECT trigger_job_id FROM activity_follow_ups
+              WHERE user_id = ? AND activity_id = ? AND follow_up_key = ?
+            )
+        `).bind(input.userId, input.userId, input.activityId, action.key),
+        db.prepare(`
+          UPDATE activity_follow_ups
+          SET status = ?, completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END,
+              dismissed_at = CASE WHEN ? = 'dismissed' THEN CURRENT_TIMESTAMP ELSE dismissed_at END,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ? AND activity_id = ? AND follow_up_key = ?
+            AND status IN ('pending', 'due', 'asked')
+        `).bind(
+          terminalStatus, terminalStatus, terminalStatus,
+          input.userId, input.activityId, action.key,
+        ),
+      ]);
       continue;
     }
     const id = `activity-follow-up:${safeId(input.userId)}:${safeId(input.activityId)}:${safeId(action.key)}`;
@@ -1050,8 +1062,13 @@ export async function queueDueFollowUps(userId: string, localDate: string, activ
       db.prepare(`
         INSERT OR IGNORE INTO agent_jobs
           (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key)
-        VALUES (?, ?, 'activity', ?, ?, 'follow_up', ?)
-      `).bind(jobId, userId, followUp.activityId, followUp.conversationId, `follow-up:${followUp.id}:${followUp.dueDate}`),
+        SELECT ?, ?, 'activity', ?, ?, 'follow_up', ?
+        FROM activity_follow_ups
+        WHERE id = ? AND user_id = ? AND status = 'pending'
+      `).bind(
+        jobId, userId, followUp.activityId, followUp.conversationId,
+        `follow-up:${followUp.id}:${followUp.dueDate}`, followUp.id, userId,
+      ),
       db.prepare(`
         UPDATE activity_follow_ups
         SET status = 'due', trigger_job_id = ?, updated_at = CURRENT_TIMESTAMP
@@ -1082,10 +1099,23 @@ export async function updateActivityFollowUp(input: {
 }) {
   const db = getD1();
   if (input.operation === "dismiss") {
-    await db.prepare(`
-      UPDATE activity_follow_ups SET status = 'dismissed', dismissed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND user_id = ? AND activity_id = ? AND status IN ('pending', 'due', 'asked')
-    `).bind(input.followUpId, input.userId, input.activityId).run();
+    await db.batch([
+      db.prepare(`
+        UPDATE agent_jobs
+        SET status = 'cancelled', lease_token = NULL, lease_owner = NULL,
+            lease_expires_at = NULL, progress_title = NULL, progress_detail = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND status IN ('queued', 'leased', 'running', 'retryable_failure')
+          AND id = (
+            SELECT trigger_job_id FROM activity_follow_ups
+            WHERE id = ? AND user_id = ? AND activity_id = ?
+          )
+      `).bind(input.userId, input.followUpId, input.userId, input.activityId),
+      db.prepare(`
+        UPDATE activity_follow_ups SET status = 'dismissed', dismissed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND activity_id = ? AND status IN ('pending', 'due', 'asked')
+      `).bind(input.followUpId, input.userId, input.activityId),
+    ]);
   } else {
     if (!input.dueDate || !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)) throw new Error("Choose a valid follow-up date.");
     await db.prepare(`
