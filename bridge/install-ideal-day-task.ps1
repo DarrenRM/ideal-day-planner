@@ -2,12 +2,12 @@ $ErrorActionPreference = "Stop"
 
 $taskName = "Ideal Day Hermes Bridge"
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$bridgeScript = Join-Path $projectRoot "bridge\start-ideal-day.ps1"
+$watchScript = Join-Path $projectRoot "bridge\watch-ideal-day.ps1"
 $currentUser = "$env:USERDOMAIN\$env:USERNAME"
 
 $action = New-ScheduledTaskAction `
   -Execute "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" `
-  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$bridgeScript`"" `
+  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$watchScript`"" `
   -WorkingDirectory $projectRoot
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -User $currentUser
 $watchdogTrigger = New-ScheduledTaskTrigger `

@@ -431,7 +431,7 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
 });
 
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
-  const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, settingsRoute, jobRoute, store, workspaceModel, bridge, startup, taskInstaller, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
+  const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, settingsRoute, jobRoute, store, workspaceModel, bridge, startup, watchdog, taskInstaller, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/reset/route.ts", import.meta.url), "utf8"),
@@ -443,6 +443,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
     readFile(new URL("../app/workspace-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
     readFile(new URL("../bridge/start-ideal-day.ps1", import.meta.url), "utf8"),
+    readFile(new URL("../bridge/watch-ideal-day.ps1", import.meta.url), "utf8"),
     readFile(new URL("../bridge/install-ideal-day-task.ps1", import.meta.url), "utf8"),
     readFile(new URL("../AGENTS.md", import.meta.url), "utf8"),
     readFile(new URL("../PRODUCT_SPEC.md", import.meta.url), "utf8"),
@@ -581,6 +582,10 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(startup, /Start-Process[\s\S]*-WindowStyle Hidden/);
   assert.match(startup, /Import-Clixml/);
   assert.match(startup, /bridge-worker\.err\.log/);
+  assert.match(watchdog, /ideal-day-bridge\\\.mjs/);
+  assert.match(watchdog, /if \(\$bridgeRunning\) \{ exit 0 \}/);
+  assert.match(watchdog, /Start-Process[\s\S]*-WindowStyle Hidden/);
+  assert.match(taskInstaller, /watch-ideal-day\.ps1/);
   assert.match(taskInstaller, /RepetitionInterval \(New-TimeSpan -Minutes 5\)/);
   assert.match(taskInstaller, /MultipleInstances IgnoreNew/);
   assert.match(agents, /Production source of truth/);
