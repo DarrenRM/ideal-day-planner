@@ -503,9 +503,14 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .daily-selection-copy-row button { border-color: transparent; color: color-mix(in srgb, var(--item-color) 65%, #9da8a1); margin-left: -8px; min-height: 36px; padding-bottom: 6px; padding-top: 6px; }
 .daily-selection-undo { align-items: center; background: color-mix(in srgb, var(--item-color) 7%, #111719); border: 1px solid color-mix(in srgb, var(--item-color) 24%, #2c3638); border-radius: 7px; color: #aeb8b1; display: flex; font-size: var(--type-label); justify-content: space-between; min-height: 38px; padding: 7px 10px; }
 .daily-selection-undo button { background: none; border: 0; color: var(--item-color); cursor: pointer; font: inherit; font-weight: 700; min-height: 28px; padding: 3px 4px; }
-.daily-selection-history { border-top: 1px solid var(--border); display: grid; gap: 0; padding-top: 13px; }
-.daily-selection-history > .workspace-overline { margin-bottom: 5px; }
-.daily-selection-history > div { align-items: baseline; display: grid; gap: 10px; grid-template-columns: 72px minmax(0, 1fr); padding: 7px 0; }
+.daily-selection-history { border-top: 1px solid var(--border); }
+.daily-selection-history > summary { align-items: center; color: color-mix(in srgb, var(--item-color) 76%, #e7eee8); cursor: pointer; display: flex; font-size: var(--type-overline); font-weight: 700; justify-content: space-between; letter-spacing: .1em; list-style: none; min-height: 42px; text-transform: uppercase; }
+.daily-selection-history > summary::-webkit-details-marker { display: none; }
+.daily-selection-history > summary svg { color: #758079; flex: 0 0 auto; transition: transform 160ms ease; }
+.daily-selection-history[open] > summary svg { transform: rotate(180deg); }
+.daily-selection-history > summary:focus-visible { border-radius: 5px; outline: 2px solid color-mix(in srgb, var(--item-color) 60%, transparent); outline-offset: 3px; }
+.daily-selection-history-entries { border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent); padding: 4px 0 2px; }
+.daily-selection-history-entries > div { align-items: baseline; display: grid; gap: 10px; grid-template-columns: 72px minmax(0, 1fr); padding: 7px 0; }
 .daily-selection-history time { color: #758079; font-size: var(--type-label); white-space: nowrap; }
 .daily-selection-history p { color: #b8c2bc; font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 0; overflow-wrap: anywhere; }
 .meal-log-record { display: grid; gap: 12px; }

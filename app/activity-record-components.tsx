@@ -194,7 +194,10 @@ function DailySelectionRecord({ record, onMutate }: Props) {
     {adding ? <form className="daily-selection-form" onSubmit={add}><input aria-label="Supplement name" disabled={saving} placeholder="Supplement name…" value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit">Add</button><button disabled={saving} type="button" onClick={() => { setAdding(false); setLabel(""); }}>Cancel</button></form> : null}
     {yesterdaySelection.length > 0 && !sameIds(selectedIds, yesterdaySelection) ? <div className="daily-selection-copy-row"><button disabled={saving} type="button" onClick={() => void copyYesterday()}><RotateCcw size={13} /> Same as yesterday</button></div> : null}
     {undo ? <div className="daily-selection-undo" role="status"><span>Yesterday’s selection copied.</span><button type="button" onClick={() => void undoCopy()}>Undo</button></div> : null}
-    {priorEntries.length ? <div className="daily-selection-history"><span className="workspace-overline">Recent days</span>{priorEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p>{entry.itemIds.map((id) => labels.get(id)).filter(Boolean).join(" · ")}</p></div>)}</div> : null}
+    {priorEntries.length ? <details className="daily-selection-history">
+      <summary><span>Recent days</span><ChevronDown aria-hidden="true" size={15} /></summary>
+      <div className="daily-selection-history-entries">{priorEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p>{entry.itemIds.map((id) => labels.get(id)).filter(Boolean).join(" · ")}</p></div>)}</div>
+    </details> : null}
   </section>;
 }
 
