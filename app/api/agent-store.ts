@@ -8,6 +8,7 @@ import { addLocalDays, localDateInTimeZone, parseCadence } from "../schedule-mod
 import { recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 import { measuredSessionFields, type SessionChoiceData } from "../session-log-model";
+import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
 
 export type ActivityRecord = {
   id: string;
@@ -745,19 +746,26 @@ export async function persistRecordActions(input: {
       .bind(revisionId).first<{ id: string }>();
     if (existingRevision) continue;
     const current = await db.prepare(`
-      SELECT id, version FROM activity_records
+      SELECT id, version, record_type AS recordType, payload_json AS payloadJson FROM activity_records
       WHERE user_id = ? AND activity_id = ? AND record_key = ?
         AND ${variantId ? "activity_variant_id = ?" : "activity_variant_id IS NULL"}
       LIMIT 1
     `).bind(...(variantId
       ? [input.userId, input.activityId, action.record.key, variantId]
-      : [input.userId, input.activityId, action.record.key])).first<{ id: string; version: number }>();
+      : [input.userId, input.activityId, action.record.key])).first<{ id: string; version: number; recordType: string; payloadJson: string }>();
     const nextVersion = (current?.version ?? 0) + 1;
     // A cross-activity move deliberately preserves the durable record id. Use
     // that persisted id for its revisions and relations instead of rebuilding
     // an activity-derived id that no longer names the row.
     const persistedRecordId = current?.id ?? recordId;
-    const payloadJson = JSON.stringify(action.record.data);
+    let nextData = action.record.data;
+    if (action.record.type === "daily_selection" && current?.recordType === "daily_selection" && (input.sourceAgentJobId || input.sourceMessageId)) {
+      try {
+        const currentData = JSON.parse(current.payloadJson) as DailySelectionData;
+        nextData = mergeDailySelectionData(currentData, action.record.data as DailySelectionData);
+      } catch { /* the validated incoming record remains the safe fallback */ }
+    }
+    const payloadJson = JSON.stringify(nextData);
     await db.batch([
       db.prepare(`
         INSERT INTO activity_records
@@ -841,6 +849,7 @@ const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";
 const BOUNDED_SESSION_CHOICE_BACKFILL = "bounded-session-choices-v1";
 const MEASURED_SESSION_LOG_BACKFILL = "measured-session-logs-v1";
 const STRENGTH_SESSION_BACKFILL = "strength-sessions-v1";
+const DAILY_SELECTION_BACKFILL = "daily-selections-v1";
 
 export async function backfillExplicitFollowUps(userId: string) {
   const migrationId = `migration:${safeId(userId)}:${EXPLICIT_FOLLOW_UP_BACKFILL}`;
@@ -1145,6 +1154,60 @@ export async function backfillStrengthSessions(userId: string) {
   }
   await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
     .bind(migrationId, userId, STRENGTH_SESSION_BACKFILL).run();
+  return updated;
+}
+
+export async function backfillDailySelections(userId: string) {
+  const migrationId = `migration:${safeId(userId)}:${DAILY_SELECTION_BACKFILL}`;
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, DAILY_SELECTION_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+  const activities = await db.prepare("SELECT id, title FROM activities WHERE user_id = ? ORDER BY created_at, id")
+    .bind(userId).all<{ id: string; title: string }>();
+  let updated = 0;
+  for (const activity of activities.results) {
+    const records = await readActivityRecords(activity.id);
+    const existing = records.find((record) => record.type === "daily_selection" && /supplement/i.test(`${record.key} ${record.title}`));
+    const legacy = records.find((record) => record.type === "checklist" && /supplement/i.test(`${record.key} ${record.title}`));
+    const source = existing ?? legacy;
+    if (!source) continue;
+    const historyRecords = records.filter((record) => record.type === "history" && /supplement/i.test(`${record.key} ${record.title}`));
+    const migrated = migrateLegacyDailySelection((legacy ?? existing)?.data ?? {}, historyRecords.map((record) => record.data));
+    const data = existing
+      ? mergeDailySelectionData(existing.data as DailySelectionData, migrated)
+      : migrated;
+    await persistRecordActions({
+      userId,
+      activityId: activity.id,
+      actionId: `${migrationId}:${safeId(activity.id)}:records`,
+      sourceAgentJobId: migrationId,
+      actions: [{
+        op: "upsert",
+        record: {
+          key: source.key,
+          subjectKey: null,
+          type: "daily_selection",
+          title: "Supplements",
+          scope: "activity",
+          scopeDate: null,
+          data,
+        },
+      }, ...historyRecords.map((record) => ({ op: "remove" as const, recordKey: record.key }))],
+    });
+    await persistWorkspaceActions({
+      userId,
+      activityId: activity.id,
+      agentJobId: `${migrationId}:${safeId(activity.id)}:workspace`,
+      actions: [
+        { op: "upsert", component: { id: source.key, type: "daily_selection", title: "Supplements", recordKey: source.key, presentation: "featured" } },
+        ...historyRecords.map((record) => ({ op: "remove" as const, componentId: record.key })),
+      ],
+    });
+    updated += 1;
+  }
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, DAILY_SELECTION_BACKFILL).run();
   return updated;
 }
 
@@ -1717,7 +1780,28 @@ export async function applyUserRecordMutation(input: {
   if (!record) throw new Error("That activity information is no longer available.");
   const data = structuredClone(record.data);
 
-  if (input.operation === "toggle_recurring_step" && record.type === "recurring_step") {
+  if (["set_daily_selection", "copy_daily_selection_previous", "add_daily_selection_item"].includes(input.operation) && record.type === "daily_selection") {
+    const date = input.planDate;
+    if (!date) throw new Error("A date is required.");
+    const selection = data as DailySelectionData;
+    if (input.operation === "add_daily_selection_item") {
+      const label = typeof input.payload.label === "string" ? input.payload.label.trim().slice(0, 300) : "";
+      if (!label) throw new Error("Enter a supplement first.");
+      const existing = selection.items.find((item) => item.label.localeCompare(label, undefined, { sensitivity: "base" }) === 0);
+      const item = existing ?? { id: `item-${crypto.randomUUID()}`, label, detail: "", active: true, source: "You" };
+      selection.items = existing
+        ? selection.items.map((candidate) => candidate.id === existing.id ? { ...candidate, active: true } : candidate)
+        : [...selection.items, item];
+      Object.assign(data, withSelectionForDate(selection, date, [...selectionForDate(selection, date), item.id]));
+    } else if (input.operation === "copy_daily_selection_previous") {
+      Object.assign(data, withSelectionForDate(selection, date, selectionForDate(selection, previousDateKey(date))));
+    } else {
+      const itemIds = Array.isArray(input.payload.itemIds)
+        ? input.payload.itemIds.filter((entry): entry is string => typeof entry === "string").slice(0, 100)
+        : [];
+      Object.assign(data, withSelectionForDate(selection, date, itemIds));
+    }
+  } else if (input.operation === "toggle_recurring_step" && record.type === "recurring_step") {
     const date = input.planDate;
     if (!date) throw new Error("A date is required.");
     const completedDates = Array.isArray(data.completedDates) ? data.completedDates.filter((entry): entry is string => typeof entry === "string") : [];

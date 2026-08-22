@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertTriangle, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
+import { AlertTriangle, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
+import { previousDateKey, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
 import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
 import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
@@ -94,6 +95,105 @@ function ItemListRecord({ record, onMutate }: Props) {
       {item.urgency ? <span className={`urgency-badge urgency-${item.urgency.replace("_", "-")}`}>{item.urgency.replace("_", " ")}</span> : null}
     </button>)}</div> : <EmptyLine>No items yet.</EmptyLine>}
     <form className="workspace-inline-form" onSubmit={add}><input aria-label={`Add to ${record.title}`} disabled={saving} placeholder="Add an item…" value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit"><Plus size={11} /> Add</button></form>
+  </section>;
+}
+
+function sameIds(left: string[], right: string[]) {
+  return left.length === right.length && left.every((id) => right.includes(id));
+}
+
+function DailySelectionRecord({ record, onMutate }: Props) {
+  const data = record.data as DailySelectionData;
+  const today = localDateKey();
+  const yesterday = previousDateKey(today);
+  const persistedToday = selectionForDate(data, today);
+  const yesterdaySelection = selectionForDate(data, yesterday);
+  const [optimistic, setOptimistic] = useState<{ version: number; itemIds: string[] } | null>(null);
+  const [undo, setUndo] = useState<{ version: number; itemIds: string[] } | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const selectedIds = optimistic?.version === record.version ? optimistic.itemIds : persistedToday;
+  const activeItems = data.items.filter((item) => item.active !== false);
+  const labels = new Map(data.items.map((item) => [item.id, item.label]));
+  const priorEntries = [...data.entries].filter((entry) => entry.date !== today).sort((left, right) => right.date.localeCompare(left.date)).slice(0, 4);
+
+  useEffect(() => {
+    if (!undo || undo.version !== record.version) return;
+    const timer = window.setTimeout(() => setUndo(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [record.version, undo]);
+
+  async function setSelection(nextIds: string[]) {
+    if (saving) return;
+    setSaving(true);
+    setOptimistic({ version: record.version, itemIds: nextIds });
+    try {
+      await onMutate(record.key, "set_daily_selection", { itemIds: nextIds });
+    } catch (error) {
+      setOptimistic(null);
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function copyYesterday() {
+    if (saving) return;
+    const previous = selectedIds;
+    setSaving(true);
+    setOptimistic({ version: record.version, itemIds: yesterdaySelection });
+    setUndo({ version: record.version + 1, itemIds: previous });
+    try {
+      await onMutate(record.key, "copy_daily_selection_previous", {});
+    } catch (error) {
+      setOptimistic(null);
+      setUndo(null);
+      throw error;
+    } finally { setSaving(false); }
+  }
+
+  async function toggle(item: DailySelectionItem) {
+    const nextIds = selectedIds.includes(item.id)
+      ? selectedIds.filter((id) => id !== item.id)
+      : [...selectedIds, item.id];
+    await setSelection(nextIds);
+  }
+
+  async function add(event: FormEvent) {
+    event.preventDefault();
+    if (!label.trim() || saving) return;
+    setSaving(true);
+    try {
+      await onMutate(record.key, "add_daily_selection_item", { label: label.trim() });
+      setLabel("");
+      setAdding(false);
+    } finally { setSaving(false); }
+  }
+
+  async function undoCopy() {
+    if (!undo) return;
+    const itemIds = undo.itemIds;
+    setUndo(null);
+    await setSelection(itemIds);
+  }
+
+  return <section className="workspace-block daily-selection-record">
+    <Heading eyebrow="Today" title={record.title} />
+    <div aria-label={`${record.title} for today`} className="daily-selection-items">
+      {activeItems.map((item) => {
+        const selected = selectedIds.includes(item.id);
+        return <button aria-pressed={selected} className={selected ? "is-selected" : ""} disabled={saving} key={item.id} type="button" onClick={() => void toggle(item)}>
+          <span aria-hidden="true">{selected ? <Check size={12} strokeWidth={3} /> : null}</span>
+          <strong>{item.label}</strong>
+        </button>;
+      })}
+      {!adding ? <button className="daily-selection-add" disabled={saving} type="button" onClick={() => setAdding(true)}><Plus size={13} /> Add supplement</button> : null}
+    </div>
+    {adding ? <form className="daily-selection-form" onSubmit={add}><input aria-label="Supplement name" disabled={saving} placeholder="Supplement name…" value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit">Add</button><button disabled={saving} type="button" onClick={() => { setAdding(false); setLabel(""); }}>Cancel</button></form> : null}
+    {yesterdaySelection.length > 0 && !sameIds(selectedIds, yesterdaySelection) ? <div className="daily-selection-copy-row"><button disabled={saving} type="button" onClick={() => void copyYesterday()}><RotateCcw size={13} /> Same as yesterday</button></div> : null}
+    {undo ? <div className="daily-selection-undo" role="status"><span>Yesterday’s selection copied.</span><button type="button" onClick={() => void undoCopy()}>Undo</button></div> : null}
+    {priorEntries.length ? <div className="daily-selection-history"><span className="workspace-overline">Recent days</span>{priorEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p>{entry.itemIds.map((id) => labels.get(id)).filter(Boolean).join(" · ")}</p></div>)}</div> : null}
   </section>;
 }
 
@@ -560,6 +660,7 @@ export function ActivityRecordComponent(props: Props) {
   if (record.type === "product") return <ProductRecord {...props} />;
   if (record.type === "protocol") return <ProtocolRecord {...props} />;
   if (record.type === "checklist" || record.type === "item_list") return <ItemListRecord {...props} />;
+  if (record.type === "daily_selection") return <DailySelectionRecord {...props} />;
   if (record.type === "workout") return <WorkoutRecord {...props} />;
   if (record.type === "recurring_step") return <RecurringStepRecord {...props} />;
   if (record.type === "activity_event") return <ActivityEventRecord record={record} />;

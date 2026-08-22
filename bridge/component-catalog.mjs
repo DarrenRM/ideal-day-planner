@@ -1,4 +1,4 @@
-export const CATALOG_VERSION = "workspace-catalog-v7";
+export const CATALOG_VERSION = "workspace-catalog-v8";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
@@ -6,6 +6,7 @@ export const COMPONENT_CATALOG = [
   ["protocol", "Repeatable ordered instructions", "optional subjectKey; summary, steps[{id,label,note,completed}]"],
   ["checklist", "Repeatable actions to check during the current activity", "items[{id,label,detail,completed}]"],
   ["item_list", "Open shopping, queue, inventory, or supply items", "items[{id,label,detail,completed,urgency,source}]"],
+  ["daily_selection", "A reusable roster where any subset may be selected on each date, with history derived from the same entries", "items[{id,label,detail,active,source}], entries[{id,date,itemIds[]}]"],
   ["workout", "Durable strength workout plan or variant with ordered exercises, targets, rest guidance, and intentional open exercise slots", "focus, exercises[{id,name,note,targetSets,targetReps,targetLoad,restSeconds}], openChoices[{id,label,guidance,equipment[]}]"],
   ["recurring_step", "A substep with its own cadence inside a broader activity; it is only visible when due", "label,note,itemKey,anchorDate,cadence{kind(weekly|interval_days|weekdays),every?,weekdays?},completedDates[]"],
   ["activity_event", "Dated activity facts that do not imply the whole occurrence was completed", "entries[{id,date,label,detail,itemKey}]"],
@@ -34,7 +35,8 @@ export const ACTIVITY_RECIPES = [
   "Bounded trial: when the user commits to one session_choice option for a stated date range or until a check-in, set activeSelection for that inclusive range and create the matching follow-up. Exact dated selections remain one-day overrides.",
   "Product/device care: one product subject root per named item, plus subject-owned protocol/resources for that item's directions and sources; optionally one shared adherence/timeline/attention area. Use recurring_step when one tool is only due on some days, activity_event for a dated use, and session_choice for modes that do not need schedule variants. Give all item-owned records the product record's subjectKey. Timed devices may also use countdown.",
   "Body routine: protocol or checklist plus goal; optionally quick_log/history and a deliberately chosen timer.",
-  "Meal/supplement routine: protocol/checklist/product or item_list; no timer merely because it occupies schedule time.",
+  "Supplement routine: use one activity-scoped daily_selection as the canonical roster and dated use history. A confirmed stable supplement adds an active item; only explicit use/taken-today language adds it to today's itemIds. Preserve all prior entries. Never duplicate its history into checklist, history, adherence, or activity_event. Products, protocols, or resources may supplement it when independently useful. No timer merely because the activity occupies schedule time.",
+  "Meal or shake routine: use protocol, product, or item_list for a durable recipe; use a purpose-built composition record when ingredients vary by day rather than forcing them into daily_selection.",
   "Supply manager: item_list plus history; preserve urgency and source.",
   "Focus/creative session: goal, checklist/item_list, resources, history; timer only when requested or already part of the practice.",
   "Media queue: item_list plus summary/history.",

@@ -28,6 +28,25 @@ test("keeps checklist rows and their checkbox visual in one deliberate control",
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.record-item-row \{ min-height: 44px; \}/);
 });
 
+test("renders daily subset selection, copy, inline add, and derived history as one component", async () => {
+  const [component, css, store, dayRoute] = await Promise.all([
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(component, /function DailySelectionRecord/);
+  assert.match(component, /Same as yesterday/);
+  assert.match(component, /Add supplement/);
+  assert.match(component, /Recent days/);
+  assert.match(component, /set_daily_selection/);
+  assert.match(css, /\.daily-selection-items > button \{[^}]*min-height: 42px/s);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.daily-selection-items > button \{ min-height: 44px; \}/);
+  assert.match(store, /backfillDailySelections/);
+  assert.match(store, /migrateLegacyDailySelection/);
+  assert.match(dayRoute, /backfillDailySelections/);
+});
+
 test("renders history as its own responsive recap rather than a timeline grid", async () => {
   const [component, css] = await Promise.all([
     readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),

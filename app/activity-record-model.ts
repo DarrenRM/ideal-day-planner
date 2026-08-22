@@ -7,6 +7,7 @@ export const ACTIVITY_RECORD_TYPES = [
   "protocol",
   "checklist",
   "item_list",
+  "daily_selection",
   "workout",
   "recurring_step",
   "activity_event",
@@ -149,7 +150,7 @@ export function hasUsefulActivityRecordData(record: ActivityRecordContent, conte
 
   if (record.type === "product") return Boolean(normalizedText(data.name));
   if (record.type === "protocol") return Boolean((!isPlaceholderActivityText(data.summary) && normalizedText(data.summary)) || nonEmptyArray(data.steps));
-  if (record.type === "checklist" || record.type === "item_list") return nonEmptyArray(data.items);
+  if (record.type === "checklist" || record.type === "item_list" || record.type === "daily_selection") return nonEmptyArray(data.items);
   if (record.type === "workout") return nonEmptyArray(data.exercises) || nonEmptyArray(data.openChoices);
   if (record.type === "recurring_step") return Boolean(normalizedText(data.label) && data.cadence && typeof data.cadence === "object");
   if (record.type === "activity_event") return nonEmptyArray(data.entries);
@@ -219,6 +220,30 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
           urgency,
           source: boundedString(entry.source, 160),
         };
+      }),
+    };
+  }
+
+  if (type === "daily_selection") {
+    const items = objectArray(source.items, 100, (entry, index) => {
+      const label = boundedString(entry.label, 300);
+      if (!label) return null;
+      return {
+        id: itemId(entry.id, index),
+        label,
+        detail: boundedString(entry.detail, 500),
+        active: entry.active !== false,
+        source: boundedString(entry.source, 160),
+      };
+    });
+    const knownIds = new Set(items.map((item) => item.id));
+    return {
+      items,
+      entries: objectArray(source.entries, 730, (entry, index) => {
+        const date = boundedString(entry.date, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+        const itemIds = [...new Set(stringArray(entry.itemIds, 100, 80).map(stableKey).filter((id) => id && knownIds.has(id)))];
+        return itemIds.length ? { id: itemId(entry.id, index), date, itemIds } : null;
       }),
     };
   }

@@ -67,7 +67,7 @@ test("extracts unique public research links from the triggering message", () => 
 
 test("later writes keep the durable id of a record that moved activities", async () => {
   const store = await readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8");
-  assert.match(store, /SELECT id, version FROM activity_records/);
+  assert.match(store, /SELECT id, version,[^\n]+FROM activity_records/);
   assert.match(store, /const persistedRecordId = current\?\.id \?\? recordId/);
   assert.match(store, /revisionId, persistedRecordId, nextVersion/);
 });

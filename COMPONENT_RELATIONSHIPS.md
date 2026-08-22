@@ -18,6 +18,8 @@ The renderer may nest only explicitly owned `protocol` and `resources` records i
 
 Adherence stays first at activity level. Due recurring steps come directly beneath it, followed by countdowns and primary content; Resources remain last. Recurrence, history, equipment, choices, and other activity-level records remain independent cards unless their component contract explicitly introduces subject composition later.
 
+A `daily_selection` is activity-wide and carries no `subjectKey`. Its roster and dated entries are one canonical record; recent-history presentation is derived from those entries and must not be split into a peer `history` record.
+
 ## Moving a subject
 
 `move_subject` names one subject root and a destination activity. The server resolves the root and every record with the same `subjectKey`, plus unambiguous dated/cadence records that explicitly reference the subject through `itemKey`. It moves their workspace bindings atomically. Conversation stays in the original activity as audit history.

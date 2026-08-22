@@ -7,6 +7,7 @@ const record = (type, title, data) => ({ type, title, data });
 
 test("rejects hollow domain records", () => {
   assert.equal(hasUsefulActivityRecordData(record("checklist", "Shower routine", { items: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("daily_selection", "Supplements", { items: [], entries: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("workout", "Lift workout", { focus: "Lifting session", exercises: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("protocol", "Routine", { summary: "", steps: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("protocol", "Routine", { summary: "Routine details not yet specified.", steps: [] })), false);
@@ -27,6 +28,9 @@ test("rejects a summary that only repeats schedule information", () => {
 test("accepts components with immediately useful content", () => {
   assert.equal(hasUsefulActivityRecordData(record("checklist", "Shower routine", {
     items: [{ id: "condition", label: "Condition hair" }],
+  })), true);
+  assert.equal(hasUsefulActivityRecordData(record("daily_selection", "Supplements", {
+    items: [{ id: "magnesium", label: "Magnesium", active: true }], entries: [],
   })), true);
   assert.equal(hasUsefulActivityRecordData(record("workout", "Leg day", {
     exercises: [{ id: "lunges", name: "Walking lunges" }],
