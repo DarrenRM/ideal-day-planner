@@ -49,7 +49,7 @@ function modelRoute(leased) {
 }
 
 const resultShape = `Return exactly one JSON object with no markdown or surrounding prose:
-{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"followUpQuestion":{"body":string}|null,"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
+{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string}|null,"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
 
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
@@ -72,7 +72,7 @@ This is durable activity design work. Set scheduleProposal:null, occurrenceActio
 
 Hard extraction checklist for the latest message:
 1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device" and subjectKey equal to that product record's stable key. Give every record owned by that item the same subjectKey. Resource entries owned by an item also carry its itemKey; keep different subjects in separate resource records.
-2. An explicit cadence such as “once a week” requires a recurring_step unless it already exists.
+2. A cadence for a nested item inside this activity, such as using one named roller once a week within a broader Hair Routine, requires a recurring_step unless it already exists. Never use recurring_step to represent when the parent activity itself appears; parent cadence belongs exclusively to a ScheduleProposal handled by site-wide Luna.
 3. “Used today” requires an activity_event unless it means the whole activity was completed.
 4. User-stated facts are authoritative for their own routine. Source-derived facts require supplied research evidence or actual web research.
 5. Every visible data component needs a matching existing or upserted recordKey. Preserve stable keys; do not duplicate.
@@ -97,15 +97,20 @@ Research rules:
 
 ${activityActionContract}
 
+FollowUpAction:
+{"op":"upsert","key":"stable-kebab-key","title":"short visible trial name","question":"the natural question Luna should ask when due","dueDate":"YYYY-MM-DD","inferred":boolean}
+or {"op":"complete|dismiss","key":"existing-follow-up-key"}.
+Create one for an explicit future check-in. Also infer one for a clearly finite trial such as “I’ll try the elliptical for one week,” even if the user does not literally say “ask me”; set inferred:true. Do not create one for vague possibilities. Complete an asked follow-up when the latest user message meaningfully answers it.
+
 ${catalogInstructions()}`;
 
 const userMessageInstructions = `${personaInstructions}
 ${resultShape}
-This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpQuestion:null, scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. Never research in this pass or pretend research is complete.`;
+This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], followUpQuestion:null, scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. A request that changes only when the parent activity appears belongs to site-wide schedule work and should not request an activity-workspace follow-up. Never research in this pass or pretend research is complete.`;
 
 const globalInstructions = `${personaInstructions}
 ${resultShape}
-This is site-wide schedule work. Always return recordActions:[], workspaceActions:[], activityMoves:[], and dayHighlight:null. Use one followUpQuestion when an essential choice is ambiguous. Any recurring, multi-day, activity-creation, variant-creation, or pattern change requires a ScheduleProposal and confirmation. Only a clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date/destination/collision policy.
+This is site-wide schedule work. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], and dayHighlight:null. Use one followUpQuestion when an essential choice is ambiguous. Any recurring, multi-day, activity-creation, variant-creation, or pattern change requires a ScheduleProposal and confirmation. Only a clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date/destination/collision policy.
 
 ScheduleProposal: {"baseRevision":number,"effectiveDate":"YYYY-MM-DD","summary":string,"impact":{"todayChanges":number,"futurePatternChanges":number},"actions":ScheduleProposalAction[]}.
 ScheduleProposalAction may create/update/archive activities or variants, add an occurrence, or create/replace/archive a pattern using only the supplied owned IDs and routine revision.`;
@@ -113,8 +118,13 @@ ScheduleProposalAction may create/update/archive activities or variants, add an 
 const dayHighlightInstructions = `${resultShape}
 This is a silent editorial review. Return message:null, workspaceFollowup:false, no actions/proposal/follow-up, and either one supported dayHighlight or null. Choose one dominant fact in this order: personal best, comeback, real streak, unusual measured effort/longest meaningful block, verified completion cluster, count milestone. Five or more completions qualifies. Never append examples or combine achievements. Use at most 10 words and 64 characters.`;
 
+const dueFollowUpInstructions = `${personaInstructions}
+${resultShape}
+This is a due check-in the person previously asked for or implied through a finite trial. Return one concise, context-aware question in message. Return workspaceFollowup:false and all action arrays empty, including followUpActions. Do not research, reschedule, or claim an outcome.`;
+
 function instructionsForJob(leased) {
   if (leased.job.kind === "day_highlight") return dayHighlightInstructions;
+  if (leased.job.kind === "follow_up") return dueFollowUpInstructions;
   if (leased.job.kind === "global_message" || leased.context.scope === "global") return globalInstructions;
   if (leased.job.kind === "user_message") return userMessageInstructions;
   return lunaInstructions;
@@ -244,7 +254,10 @@ ${job.context.sourceMessage?.body || ""}`;
   const knownContext = activityContext
     ? `\nKnown steps: ${activityContext.steps?.join("; ") || "None documented"}\nKnown facts: ${activityContext.facts?.map((fact) => `${fact.label}: ${fact.value}`).join("; ") || "None documented"}\nOpen consideration: ${activityContext.openLoop || "None"}`
     : "\nNo additional visit-specific context was supplied.";
-  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nOwned activities available as move destinations: ${JSON.stringify(job.context.activities || [])}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
+  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nOwned activities available as move destinations: ${JSON.stringify(job.context.activities || [])}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nPending or asked follow-ups:\n${job.context.followUps?.length ? JSON.stringify(job.context.followUps) : "None"}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}`;
+  if (job.job.kind === "follow_up") {
+    return `A saved check-in is due. Ask the supplied question naturally, using the activity history only to make it less mechanical. Do not add advice before the user answers.\n\n${shared}\n\nDue follow-up:\n${JSON.stringify(job.context.dueFollowUp || null)}`;
+  }
   if (job.job.kind === "user_message") {
     return `The user has just spoken in this activity conversation. Respond first and quickly: answer what you can naturally, then decide whether the lasting activity space needs a follow-up. Return recordActions:[] and workspaceActions:[] in this pass. Do not use web research yet. If the user asks for research or verification, acknowledge that you will look into it, do not claim findings yet, and set workspaceFollowup:true. Also set workspaceFollowup:true when useful durable information or a requested design should be organized after your reply.\n\n${shared}\n\nLatest user message:\n${job.context.sourceMessage?.body || ""}`;
   }
@@ -290,6 +303,7 @@ function parseAgentResult(content) {
   const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
   const workspaceActions = Array.isArray(parsed.workspaceActions) ? parsed.workspaceActions : [];
   const activityMoves = Array.isArray(parsed.activityMoves) ? parsed.activityMoves : [];
+  const followUpActions = Array.isArray(parsed.followUpActions) ? parsed.followUpActions : [];
   const followUpQuestion = parsed.followUpQuestion && typeof parsed.followUpQuestion === "object"
     && typeof parsed.followUpQuestion.body === "string" && parsed.followUpQuestion.body.trim()
     ? { body: parsed.followUpQuestion.body.trim() }
@@ -301,7 +315,7 @@ function parseAgentResult(content) {
     && dayHighlightBody
     ? { body: dayHighlightBody, kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
     : null;
-  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
+  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, followUpActions, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
 }
 
 function visibleProgress(leased) {
@@ -368,6 +382,7 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       recordActions: replyFirst ? [] : agentResult.recordActions,
       workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
       activityMoves: replyFirst ? [] : agentResult.activityMoves,
+      followUpActions: replyFirst ? [] : agentResult.followUpActions,
       followUpQuestion: agentResult.followUpQuestion,
       scheduleProposal: agentResult.scheduleProposal,
       occurrenceActions: agentResult.occurrenceActions,
@@ -399,6 +414,7 @@ async function runJob(key, leased) {
       recordActions: [],
       workspaceActions: [],
       activityMoves: [],
+      followUpActions: [],
       followUpQuestion: null,
       scheduleProposal: null,
       occurrenceActions: [],

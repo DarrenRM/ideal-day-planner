@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       db.prepare("DELETE FROM activity_workspaces WHERE user_id = ? AND activity_id = ?").bind(userId, activity.id),
       db.prepare("DELETE FROM agent_session_bindings WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ? AND activity_id = ?)").bind(userId, activity.id),
       db.prepare("DELETE FROM activity_visits WHERE user_id = ? AND activity_id = ?").bind(userId, activity.id),
+      db.prepare("DELETE FROM activity_follow_ups WHERE user_id = ? AND activity_id = ?").bind(userId, activity.id),
       db.prepare("DELETE FROM conversation_messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ? AND activity_id = ?)").bind(userId, activity.id),
       db.prepare("DELETE FROM agent_jobs WHERE user_id = ? AND activity_id = ?").bind(userId, activity.id),
       db.prepare("DELETE FROM conversations WHERE user_id = ? AND activity_id = ?").bind(userId, activity.id),

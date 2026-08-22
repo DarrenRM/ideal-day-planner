@@ -211,6 +211,31 @@ export const activityVisits = sqliteTable("activity_visits", {
   index("activity_visits_activity_opened_idx").on(table.activityId, table.createdAt),
 ]);
 
+export const activityFollowUps = sqliteTable("activity_follow_ups", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").notNull().references(() => activities.id, { onDelete: "cascade" }),
+  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  followUpKey: text("follow_up_key").notNull(),
+  title: text("title").notNull(),
+  question: text("question").notNull(),
+  dueDate: text("due_date").notNull(),
+  status: text("status").notNull().default("pending"),
+  inferred: integer("inferred", { mode: "boolean" }).notNull().default(false),
+  sourceMessageId: text("source_message_id").references(() => conversationMessages.id, { onDelete: "set null" }),
+  sourceAgentJobId: text("source_agent_job_id"),
+  triggerJobId: text("trigger_job_id"),
+  askedAt: text("asked_at"),
+  completedAt: text("completed_at"),
+  dismissedAt: text("dismissed_at"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("activity_follow_ups_activity_key_unique").on(table.activityId, table.followUpKey),
+  index("activity_follow_ups_user_due_idx").on(table.userId, table.status, table.dueDate),
+  index("activity_follow_ups_activity_status_idx").on(table.activityId, table.status),
+]);
+
 export const agentJobs = sqliteTable("agent_jobs", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

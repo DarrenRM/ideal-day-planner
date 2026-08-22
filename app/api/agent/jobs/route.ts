@@ -8,19 +8,23 @@ import {
   isLocalBridgeRequest,
   markActivitySetupAnswered,
   moveActivitySubject,
+  persistFollowUpActions,
   persistRecordActions,
   persistWorkspaceActions,
   readActivityRecords,
+  readActivityFollowUps,
   readActivityWorkspace,
   readConversationMessages,
   safeId,
 } from "../../agent-store";
+import { removeParentCadenceRecordActions } from "../../../activity-cadence-guard";
 import { validateActivityMoveActions } from "../../../activity-transfer-model";
 import { hasUsefulActivityRecordData, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
 import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
 import { localDateInTimeZone, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
 import { applyOccurrenceAction } from "../../schedule-actions";
 import { readSchedulePatterns } from "../../schedule-store";
+import { messageHasScheduleIntent } from "../../../schedule-intent";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
 
@@ -37,7 +41,7 @@ type LeasedJob = {
   dayPlanId: string | null;
   dayRevision: number | null;
   conversationId: string;
-  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message" | "day_highlight";
+  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message" | "day_highlight" | "follow_up";
   sourceMessageId: string | null;
   attempts: number;
 };
@@ -46,6 +50,11 @@ type VisitContextEnvelope = {
   occurrence: { id?: string; activityVariantId?: string | null } | null;
   activityContext: Record<string, unknown> | null;
 };
+
+function scheduleMessageAlsoNeedsWorkspace(value: string | null | undefined) {
+  return messageRequestsResearch(value)
+    || /\b(product|device|equipment|protocol|routine|track|record|history|goal|weight|reps?|sets?|ingredient|dose|dosage|used? today)\b/i.test(value || "");
+}
 
 function parseVisitContext(value: string | null | undefined): VisitContextEnvelope {
   if (!value) return { occurrence: null, activityContext: null };
@@ -335,6 +344,15 @@ export async function GET(request: Request) {
       FROM activity_runs WHERE activity_id = ? AND user_id = ?
       ORDER BY plan_date DESC LIMIT 20
     `).bind(candidate.activityId, candidate.userId).all();
+    const followUps = await readActivityFollowUps(candidate.activityId);
+    const dueFollowUp = candidate.kind === "follow_up"
+      ? await db.prepare(`
+          SELECT id, follow_up_key AS followUpKey, title, question, due_date AS dueDate, inferred
+          FROM activity_follow_ups
+          WHERE trigger_job_id = ? AND user_id = ? AND activity_id = ? AND status = 'due'
+          LIMIT 1
+        `).bind(candidate.id, candidate.userId, candidate.activityId).first()
+      : null;
     const sourceMessage = candidate.sourceMessageId
       ? messages.find((message) => message.id === candidate.sourceMessageId)
         ?? await db.prepare(`
@@ -365,6 +383,8 @@ export async function GET(request: Request) {
         activityVariantId,
         workspace,
         records,
+        followUps,
+        dueFollowUp,
         recentRuns: runs.results,
         recentMessages: messages.slice(-30),
         sourceMessage,
@@ -461,11 +481,16 @@ export async function POST(request: Request) {
         ? await db.prepare("SELECT body FROM conversation_messages WHERE id = ? AND conversation_id = ?")
           .bind(job.sourceMessageId, job.conversationId).first<{ body: string }>()
         : null;
+      const requestedWorkspaceFollowup = payload.workspaceFollowup === true || messageRequestsResearch(sourceMessage?.body);
+      const scheduleOnlyRequest = messageHasScheduleIntent(sourceMessage?.body || "")
+        && !scheduleMessageAlsoNeedsWorkspace(sourceMessage?.body);
       const workspaceFollowup = job.kind === "user_message"
-        && (payload.workspaceFollowup === true || messageRequestsResearch(sourceMessage?.body));
+        && requestedWorkspaceFollowup
+        && !scheduleOnlyRequest;
       const usesReplyFirstProtocol = job.kind === "user_message" && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
+      if (job.kind === "follow_up" && !response) return Response.json({ error: "A due follow-up requires a Luna question." }, { status: 400 });
       if (job.kind === "day_highlight") {
         if (!job.dayPlanId || job.dayRevision === null) return Response.json({ error: "The day highlight lost its day revision." }, { status: 409 });
         const highlightSource = payload.dayHighlight && typeof payload.dayHighlight === "object" && !Array.isArray(payload.dayHighlight)
@@ -587,7 +612,12 @@ export async function POST(request: Request) {
       `).bind(job.activityId, job.userId).first<{ contextJson: string | null }>();
       const activityVariantId = job.activityVariantId ?? parseVisitContext(latestVisit?.contextJson).occurrence?.activityVariantId ?? null;
       const workspaceActions = validateWorkspaceActions(usesReplyFirstProtocol ? [] : payload.workspaceActions, Math.max(60, (schedule?.duration ?? 5) * 60));
-      const recordActions = validateRecordActions(usesReplyFirstProtocol ? [] : payload.recordActions, schedule?.planDate ?? null).filter((action) => (
+      const validatedRecordActions = validateRecordActions(usesReplyFirstProtocol ? [] : payload.recordActions, schedule?.planDate ?? null);
+      const recordActions = removeParentCadenceRecordActions(validatedRecordActions, {
+        title: schedule?.activityTitle,
+        clientKey: await db.prepare("SELECT client_key AS clientKey FROM activities WHERE id = ? AND user_id = ?")
+          .bind(job.activityId, job.userId).first<{ clientKey: string }>().then((row) => row?.clientKey),
+      }).filter((action) => (
         action.op === "remove" || hasUsefulActivityRecordData(action.record, {
           activityTitle: schedule?.activityTitle,
           plannedDurationMinutes,
@@ -641,6 +671,15 @@ export async function POST(request: Request) {
         sourceMessageId: job.kind === "user_message" || job.kind === "workspace_refresh" ? job.sourceMessageId : null,
         sourceAgentJobId: jobId,
       });
+      const followUpResult = await persistFollowUpActions({
+        userId: job.userId,
+        activityId: job.activityId,
+        conversationId: job.conversationId,
+        actionId: jobId,
+        sourceMessageId: job.sourceMessageId,
+        localDate: schedule?.planDate ?? localDateInTimeZone(new Date(), "America/Phoenix"),
+        actions: usesReplyFirstProtocol ? [] : payload.followUpActions,
+      });
       const workspace = await persistWorkspaceActions({
         userId: job.userId,
         activityId: job.activityId,
@@ -693,6 +732,13 @@ export async function POST(request: Request) {
         `).bind(jobId, leaseToken),
       );
       await db.batch(statements);
+      if (job.kind === "follow_up") {
+        await db.prepare(`
+          UPDATE activity_follow_ups
+          SET status = 'asked', asked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+          WHERE trigger_job_id = ? AND user_id = ? AND activity_id = ? AND status = 'due'
+        `).bind(job.id, job.userId, job.activityId).run();
+      }
       if (job.kind === "activity_setup") {
         await completeActivitySetup({
           activityId: job.activityId,
@@ -712,6 +758,7 @@ export async function POST(request: Request) {
         workspace,
         recordActionsApplied: recordActions.length,
         activityMovesApplied: activityMoves.length,
+        followUpActionsApplied: followUpResult.actionsApplied,
       });
     }
 

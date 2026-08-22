@@ -4,7 +4,10 @@ import {
   ensureAgentSchema,
   ensureConversation,
   findActivity,
+  queueDueFollowUps,
   readConversationState,
+  retryFailedConversationJob,
+  updateActivityFollowUp,
   requestIdentity,
   safeId,
 } from "../agent-store";
@@ -111,7 +114,30 @@ export async function POST(request: Request) {
           (id, user_id, activity_id, conversation_id, client_visit_id, context_json)
         VALUES (?, ?, ?, ?, ?, ?)
       `).bind(visitId, userId, activity.id, conversationId, clientVisitId, JSON.stringify({ occurrence, activityContext })).run();
+      await queueDueFollowUps(userId, date, activity.id);
       return Response.json({ conversationId, visitId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) }, { status: 202 });
+    }
+
+    if (mode === "retry_job") {
+      const jobId = typeof payload.jobId === "string" ? payload.jobId.trim().slice(0, 240) : "";
+      if (!jobId || !await retryFailedConversationJob(userId, conversationId, jobId)) {
+        return Response.json({ error: "That update is no longer available to retry." }, { status: 409 });
+      }
+      return Response.json({ conversationId, occurrence, ...await readConversationState(conversationId, requestDate, occurrence?.activityVariantId) }, { status: 202 });
+    }
+
+    if (mode === "follow_up") {
+      const followUpId = typeof payload.followUpId === "string" ? payload.followUpId.trim().slice(0, 240) : "";
+      const operation = payload.operation === "reschedule" ? "reschedule" : payload.operation === "dismiss" ? "dismiss" : null;
+      if (!followUpId || !operation) return Response.json({ error: "Choose a follow-up action." }, { status: 400 });
+      await updateActivityFollowUp({
+        userId,
+        activityId: activity.id,
+        followUpId,
+        operation,
+        dueDate: validDate(payload.dueDate),
+      });
+      return Response.json({ conversationId, occurrence, ...await readConversationState(conversationId, requestDate, occurrence?.activityVariantId) });
     }
 
     if (mode === "message") {

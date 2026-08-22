@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded } from "../agent-store";
+import { archiveParentCadenceRecords, backfillExplicitFollowUps, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
 import { ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
@@ -112,6 +112,7 @@ async function readDay(userId: string, date: string) {
   if (!plan) return null;
 
   const items = await readResolvedDay(userId, planId);
+  await queueDueFollowUps(userId, date);
   const queuedHighlight = items.some((item) => item.completedAt)
     ? await queueDayHighlightIfNeeded(userId, planId)
     : null;
@@ -319,6 +320,8 @@ export async function GET(request: Request) {
   try {
     await ensureAgentSchema();
     const templateId = await ensureAccount(userId, date);
+    await archiveParentCadenceRecords(userId);
+    await backfillExplicitFollowUps(userId);
     await migrateLegacyProductOwnership(userId);
     if (!await hasTemplateItems(userId, templateId)) {
       const row = await getD1().prepare(`

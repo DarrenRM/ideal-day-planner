@@ -4,8 +4,9 @@ import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObje
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
-import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState } from "./activity-workspace";
+import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
+import type { ActivityFollowUp } from "./follow-up-model";
 import { agentSurfaceState, type AgentJobKind } from "./agent-surface-state";
 import { dayModePolicy, DEFAULT_DAY_SETTINGS, normalizeDaySettings, type DaySettings } from "./day-settings";
 import { useMobileConversationDrawer } from "./use-mobile-conversation-drawer";
@@ -67,6 +68,9 @@ type ConversationState = {
   records: ActivityRecord[];
   recentRuns: ActivityRunSummary[];
   proposals?: ActivityScheduleProposal[];
+  followUps?: ActivityFollowUp[];
+  scheduleSummary?: ActivityScheduleSummary | null;
+  failedJob?: { id: string; kind: string; message: string } | null;
 };
 type ActivityScheduleProposal = { id: string; status: string; createdAt: string; document: { summary: string; effectiveDate: string; impact: { todayChanges: number; futurePatternChanges: number } } };
 
@@ -423,9 +427,10 @@ function conversationTime(value: string) {
   return isToday ? `Today · ${time}` : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
-function conversationWorkspaceSignature(state: Pick<ConversationState, "workspace" | "records">) {
+function conversationWorkspaceSignature(state: Pick<ConversationState, "workspace" | "records" | "followUps" | "scheduleSummary">) {
   const recordVersions = state.records.map((record) => `${record.key}:${record.version}`).sort().join("|");
-  return `${state.workspace.revisionId ?? "none"}::${recordVersions}`;
+  const followUps = (state.followUps ?? []).map((followUp) => `${followUp.id}:${followUp.status}:${followUp.dueDate}`).join("|");
+  return `${state.workspace.revisionId ?? "none"}::${recordVersions}::${followUps}::${state.scheduleSummary?.patternId ?? "daily"}`;
 }
 
 type ActivityWorkbenchProps = {
@@ -443,9 +448,10 @@ type ActivityWorkbenchProps = {
   onAdjustDuration: (delta: number) => void;
   onSetDuration: (value: number) => void;
   onChangeToday: () => void;
+  onManageSchedule: () => void;
 };
 
-function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -461,9 +467,13 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const [isSkipping, setIsSkipping] = useState(false);
   const [isViewingWorkspace, setIsViewingWorkspace] = useState(false);
   const [isFooterMenuOpen, setIsFooterMenuOpen] = useState(false);
+  const [isSoftwareKeyboardOpen, setIsSoftwareKeyboardOpen] = useState(false);
   const [resetActivityState, setResetActivityState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [recentRuns, setRecentRuns] = useState<ActivityRunSummary[]>([]);
   const [scheduleProposals, setScheduleProposals] = useState<ActivityScheduleProposal[]>([]);
+  const [followUps, setFollowUps] = useState<ActivityFollowUp[]>([]);
+  const [scheduleSummary, setScheduleSummary] = useState<ActivityScheduleSummary | null>(null);
+  const [failedJob, setFailedJob] = useState<ConversationState["failedJob"]>(null);
   const [proposalBusy, setProposalBusy] = useState<string | null>(null);
   const sendingRef = useRef(false);
   const refreshConversationRef = useRef<() => void>(() => {});
@@ -500,8 +510,10 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         : workspaceWorkState
           ? "Working"
           : "Connected";
-  const workspaceActivity = { ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns };
-  const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records);
+  const workspaceActivity = useMemo(() => ({ ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns }), [isComplete, isPreviewingCompletion, item, recentRuns, timelineEnabled]);
+  const workspaceActivityRef = useRef(workspaceActivity);
+  useEffect(() => { workspaceActivityRef.current = workspaceActivity; }, [workspaceActivity]);
+  const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records) || followUps.length > 0 || Boolean(scheduleSummary);
   const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
   const conversationDrawer = useMobileConversationDrawer({
     activityId: item.activityId ?? item.id,
@@ -517,6 +529,24 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     unreadLunaMessageId: activeUnreadLunaMessageId,
   } = conversationDrawer;
   const isOpeningActivity = connectionState === "joining" || !conversationDrawer.isPreferenceReady;
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    let largestHeight = viewport.height;
+    function updateKeyboardState() {
+      largestHeight = Math.max(largestHeight, viewport!.height);
+      const composerFocused = document.activeElement instanceof HTMLTextAreaElement
+        && document.activeElement.closest(".conversation-composer");
+      setIsSoftwareKeyboardOpen(Boolean(composerFocused && largestHeight - viewport!.height > 120));
+    }
+    viewport.addEventListener("resize", updateKeyboardState);
+    document.addEventListener("focusout", updateKeyboardState);
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardState);
+      document.removeEventListener("focusout", updateKeyboardState);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isFooterMenuOpen) return;
@@ -559,8 +589,9 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         const conversationSection = conversationSectionRef.current;
         const bounds = conversationSection?.getBoundingClientRect();
         if (bounds && bounds.bottom > 0 && bounds.top < window.innerHeight) conversationAnchorTopRef.current = bounds.top;
-        const newestComponent = state.workspace.document.components.at(-1);
-        setWorkspaceReadyLabel(newestComponent?.title ?? "Your activity space");
+        const nextHasWorkspace = hasVisibleActivityWorkspace(workspaceActivityRef.current, state.workspace.document, state.records ?? [])
+          || Boolean(state.followUps?.length) || Boolean(state.scheduleSummary);
+        setWorkspaceReadyLabel(nextHasWorkspace && !state.failedJob ? `${item.title} updated` : null);
       }
       workspaceSignatureRef.current = nextWorkspaceSignature;
       hasAppliedConversationStateRef.current = true;
@@ -579,6 +610,9 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setRecords(state.records ?? []);
       setRecentRuns(state.recentRuns ?? []);
       setScheduleProposals(state.proposals ?? []);
+      setFollowUps(state.followUps ?? []);
+      setScheduleSummary(state.scheduleSummary ?? null);
+      setFailedJob(state.failedJob ?? null);
       setConnectionState("ready");
     }
 
@@ -629,7 +663,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       refreshConversationRef.current = () => {};
       if (refreshTimer) window.clearTimeout(refreshTimer);
     };
-  }, [item.activityId, item.activityVariantId, item.id, item.occurrenceId]);
+  }, [item.activityId, item.activityVariantId, item.id, item.occurrenceId, item.title]);
 
   useLayoutEffect(() => {
     const previousTop = conversationAnchorTopRef.current;
@@ -757,6 +791,9 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setRecords(state.records ?? []);
       setRecentRuns(state.recentRuns ?? []);
       setScheduleProposals(state.proposals ?? []);
+      setFollowUps(state.followUps ?? []);
+      setScheduleSummary(state.scheduleSummary ?? null);
+      setFailedJob(state.failedJob ?? null);
       workspaceSignatureRef.current = conversationWorkspaceSignature(state);
       hasAppliedConversationStateRef.current = true;
       setWorkspaceReadyLabel(null);
@@ -832,6 +869,39 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     } catch (error) {
       setRecordError(error instanceof Error ? error.message : "That change could not be saved.");
     }
+  }
+
+  async function mutateFollowUp(followUpId: string, operation: "reschedule" | "dismiss", dueDate?: string) {
+    try {
+      const response = await fetch("/api/activity", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "follow_up", activityId: item.activityId ?? item.id, occurrenceId: item.occurrenceId ?? item.id, date: localDateKey(), followUpId, operation, dueDate }),
+      });
+      const state = await response.json() as ConversationState & { error?: string };
+      if (!response.ok) throw new Error(state.error || "That check-in could not be changed.");
+      setFollowUps(state.followUps ?? []);
+      setFailedJob(state.failedJob ?? null);
+    } catch (error) {
+      setRecordError(error instanceof Error ? error.message : "That check-in could not be changed.");
+    }
+  }
+
+  async function retryFailedJob() {
+    if (!failedJob) return;
+    const response = await fetch("/api/activity", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "retry_job", activityId: item.activityId ?? item.id, occurrenceId: item.occurrenceId ?? item.id, date: localDateKey(), jobId: failedJob.id }),
+    });
+    if (!response.ok) {
+      setRecordError("That update could not be retried. Please send Luna a new message.");
+      return;
+    }
+    const state = await response.json() as ConversationState;
+    setFailedJob(state.failedJob ?? null);
+    setActiveJob(state.activeJob);
+    refreshConversationRef.current();
   }
 
   async function toggleActivityComplete() {
@@ -925,6 +995,9 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setRecords(state.records ?? []);
       setRecentRuns(state.recentRuns ?? []);
       setScheduleProposals(state.proposals ?? []);
+      setFollowUps(state.followUps ?? []);
+      setScheduleSummary(state.scheduleSummary ?? null);
+      setFailedJob(state.failedJob ?? null);
       workspaceSignatureRef.current = conversationWorkspaceSignature(state);
       hasAppliedConversationStateRef.current = true;
       setWorkspaceReadyLabel(null);
@@ -939,7 +1012,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   }
 
   return (
-    <div className="activity-expansion">
+    <div className={`activity-expansion ${isSoftwareKeyboardOpen ? "is-software-keyboard-open" : ""}`}>
       <div className={`activity-workbench-grid ${isOpeningActivity ? "is-opening" : showWorkspace ? "" : "is-conversation-only"}`}>
         {isOpeningActivity ? (
           <div className="activity-opening-state" role="status" aria-live="polite">
@@ -949,12 +1022,13 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
             <span className="activity-opening-progress" aria-hidden="true" />
           </div>
         ) : <>
-          <ActivityWorkspace activity={workspaceActivity} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} workspace={workspace} workDetail={workspaceWorkDetail} workState={workspaceWorkState} workTitle={workspaceWorkTitle} />
+          <ActivityWorkspace activity={workspaceActivity} followUps={followUps} onFollowUpMutation={mutateFollowUp} onManageSchedule={onManageSchedule} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} scheduleSummary={scheduleSummary} workspace={workspace} workDetail={workspaceWorkDetail} workState={workspaceWorkState} workTitle={workspaceWorkTitle} />
 
           <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${workspaceWorkState ? "has-workspace-work-peek" : showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
             <button
               aria-expanded={conversationDrawer.isOpen}
+              disabled={!showWorkspace}
               className="conversation-drawer-toggle"
               type="button"
               onClick={conversationDrawer.toggle}
@@ -966,7 +1040,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               <span className="conversation-drawer-state">
                 <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {conversationStatusLabel}</span>
                 {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">New</span> : null}
-                <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
+                {showWorkspace ? <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} /> : null}
               </span>
             </button>
           </header>
@@ -997,9 +1071,15 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
             {workspaceReadyLabel ? (
               <button className="workspace-ready-notice" disabled={isViewingWorkspace} type="button" onClick={viewWorkspaceUpdate}>
                 <Sparkles aria-hidden="true" size={14} />
-                <span><strong>{workspaceReadyLabel}</strong> is ready</span>
+                <span><strong>{workspaceReadyLabel}</strong></span>
                 <b>View</b>
               </button>
+            ) : null}
+            {failedJob ? (
+              <div className="workspace-failed-notice" role="alert">
+                <span><strong>{failedJob.message}</strong><small>Your last message is safe.</small></span>
+                <button type="button" onClick={() => void retryFailedJob()}>Retry</button>
+              </div>
             ) : null}
             {isLunaThinking ? <div className="message-group message-luna"><div className="message-bubble prototype-typing" aria-label="Luna is typing"><span /><span /><span /></div></div> : null}
           </div>
@@ -3035,6 +3115,7 @@ export default function Home() {
                           onRemove={() => removeItem(item.id)}
                           onSetDuration={(value) => setDuration(item.id, value)}
                           onChangeToday={() => setOccurrenceEditorItem(item)}
+                          onManageSchedule={() => { setScheduleManagerActivityId(item.activityId ?? item.id); setIsScheduleManagerOpen(true); }}
                         />
                       ) : null}
 

@@ -1,11 +1,14 @@
 "use client";
 
-import { Check, Flame, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon } from "lucide-react";
+import { CalendarClock, Check, Flame, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, recurringStepIsDue, type ActivityRecord } from "./activity-record-model";
 import { hasUsefulRoutineComponent, type CountdownWorkspaceComponent, type DataWorkspaceComponent, type RoutineWorkspaceComponent, type TimerWorkspaceComponent, type WorkspaceDocument } from "./workspace-model";
 import { orderWorkspaceDisplayItems, type WorkspaceDisplayRole } from "./workspace-order";
+import type { ActivityFollowUp } from "./follow-up-model";
+
+export type ActivityScheduleSummary = { patternId: string; name: string; cadenceLabel: string };
 
 export type WorkspaceActivity = {
   id: string;
@@ -28,6 +31,10 @@ type ActivityWorkspaceProps = {
   workState?: "building" | "waiting" | null;
   workTitle?: string | null;
   workDetail?: string | null;
+  followUps?: ActivityFollowUp[];
+  scheduleSummary?: ActivityScheduleSummary | null;
+  onFollowUpMutation?: (id: string, operation: "reschedule" | "dismiss", dueDate?: string) => void;
+  onManageSchedule?: () => void;
 };
 
 export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspace: WorkspaceDocument, records: ActivityRecord[]) {
@@ -311,7 +318,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const visibleComponents = workspace.components.filter((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
@@ -344,7 +351,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     nestedComponentIds.add(component.id);
   }
   const showStarterStreak = supportsStarterStreak(activity) && !visibleComponents.some((component) => component.type === "adherence");
-  const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak;
+  const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak || followUps.length > 0 || Boolean(scheduleSummary);
   const orderedItems = orderWorkspaceDisplayItems([
     ...visibleComponents.filter((component) => !nestedComponentIds.has(component.id)).map((component) => ({
       displayRole: (component.type === "adherence" ? "streak" : component.type === "recurring_step" ? "recurring" : component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
@@ -371,8 +378,36 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       {hasVisibleWorkspace ? (
         <>
           <div className="workspace-stack">
-            {orderedItems.map(({ component, id }) => {
+            {orderedItems.filter(({ displayRole }) => displayRole === "streak").map(({ component, id }) => {
               if (!component) return <ActivityStreak activity={activity} key={id} />;
+              const dataComponent = component as DataWorkspaceComponent;
+              const record = recordsByKey.get(dataComponent.recordKey);
+              return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} /> : null;
+            })}
+            {orderedItems.filter(({ displayRole }) => displayRole === "recurring").map(({ component }) => {
+              if (!component) return null;
+              const dataComponent = component as DataWorkspaceComponent;
+              const record = recordsByKey.get(dataComponent.recordKey);
+              return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} /> : null;
+            })}
+            {scheduleSummary ? (
+              <section className="workspace-block activity-schedule-summary" aria-label={`${activity.title} schedule`}>
+                <div><span>Schedule</span><strong>{scheduleSummary.cadenceLabel}</strong><small>{scheduleSummary.name}</small></div>
+                {onManageSchedule ? <button type="button" onClick={onManageSchedule}>Manage</button> : <CalendarClock aria-hidden="true" size={17} />}
+              </section>
+            ) : null}
+            {followUps.map((followUp) => (
+              <section className={`workspace-block activity-follow-up ${followUp.status === "due" || followUp.status === "asked" ? "is-due" : ""}`} key={followUp.id}>
+                <div className="activity-follow-up-heading"><div><span>{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : followUp.inferred ? "Suggested check-in" : "Check-in"}</span><strong>{followUp.title}</strong></div><CalendarClock aria-hidden="true" size={17} /></div>
+                <p>{followUp.question}</p>
+                <div className="activity-follow-up-actions">
+                  <label><span>Date</span><input aria-label={`Follow-up date for ${followUp.title}`} type="date" value={followUp.dueDate} onChange={(event) => onFollowUpMutation?.(followUp.id, "reschedule", event.target.value)} /></label>
+                  <button aria-label={`Remove ${followUp.title} check-in`} type="button" onClick={() => onFollowUpMutation?.(followUp.id, "dismiss")}><X aria-hidden="true" size={14} /> Remove</button>
+                </div>
+              </section>
+            ))}
+            {orderedItems.filter(({ displayRole }) => displayRole !== "streak" && displayRole !== "recurring").map(({ component }) => {
+              if (!component) return null;
               if (component.type === "timer") return <TimerComponent activity={activity} component={component} key={component.id} />;
               if (component.type === "countdown") return <CountdownComponent activity={activity} component={component} key={component.id} />;
               if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;

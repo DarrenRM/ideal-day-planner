@@ -3,6 +3,9 @@ import { parseActivityRecord, validateRecordActions, type ActivityRecord as Pers
 import { activitySetupKey, activitySetupKeyMatches } from "../activity-setup-policy";
 import { resolveSubjectMoveRecordKeys } from "../activity-transfer-model";
 import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type WorkspaceAction, type WorkspaceDocument } from "../workspace-model";
+import { validateFollowUpActions, type ActivityFollowUp, type FollowUpAction } from "../follow-up-model";
+import { addLocalDays, parseCadence } from "../schedule-model";
+import { recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 
 export type ActivityRecord = {
   id: string;
@@ -74,6 +77,33 @@ export async function ensureAgentSchema() {
       )`),
       db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_visits_user_client_unique ON activity_visits (user_id, client_visit_id)"),
       db.prepare("CREATE INDEX IF NOT EXISTS activity_visits_activity_opened_idx ON activity_visits (activity_id, created_at)"),
+      db.prepare(`CREATE TABLE IF NOT EXISTS activity_follow_ups (
+        id text PRIMARY KEY NOT NULL,
+        user_id text NOT NULL,
+        activity_id text NOT NULL,
+        conversation_id text NOT NULL,
+        follow_up_key text NOT NULL,
+        title text NOT NULL,
+        question text NOT NULL,
+        due_date text NOT NULL,
+        status text DEFAULT 'pending' NOT NULL,
+        inferred integer DEFAULT 0 NOT NULL,
+        source_message_id text,
+        source_agent_job_id text,
+        trigger_job_id text,
+        asked_at text,
+        completed_at text,
+        dismissed_at text,
+        created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_message_id) REFERENCES conversation_messages(id) ON DELETE SET NULL
+      )`),
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_follow_ups_activity_key_unique ON activity_follow_ups (activity_id, follow_up_key)"),
+      db.prepare("CREATE INDEX IF NOT EXISTS activity_follow_ups_user_due_idx ON activity_follow_ups (user_id, status, due_date)"),
+      db.prepare("CREATE INDEX IF NOT EXISTS activity_follow_ups_activity_status_idx ON activity_follow_ups (activity_id, status)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS agent_jobs (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
@@ -686,7 +716,13 @@ export async function persistRecordActions(input: {
   sourceAgentJobId?: string | null;
 }) {
   const db = getD1();
-  for (const action of input.actions) {
+  // Subject roots establish ownership for the records that follow. Removals
+  // happen last so retries never observe a bundle with its owner removed first.
+  const orderedActions = [...input.actions].sort((left, right) => {
+    const priority = (action: RecordAction) => action.op === "remove" ? 3 : action.record.type === "product" ? 0 : action.record.subjectKey ? 1 : 2;
+    return priority(left) - priority(right);
+  });
+  for (const action of orderedActions) {
     if (action.op === "remove") {
       await db.prepare(`
         UPDATE activity_records SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
@@ -749,6 +785,223 @@ export async function persistRecordActions(input: {
       `).bind(`record-relation:${safeId(persistedRecordId)}:${safeId(input.activityId)}:primary`, input.userId, persistedRecordId, input.activityId),
     ]);
   }
+}
+
+export async function readActivityFollowUps(activityId: string): Promise<ActivityFollowUp[]> {
+  const rows = await getD1().prepare(`
+    SELECT id, follow_up_key AS followUpKey, title, question, due_date AS dueDate,
+           status, inferred, created_at AS createdAt, asked_at AS askedAt
+    FROM activity_follow_ups
+    WHERE activity_id = ? AND status IN ('pending', 'due', 'asked')
+    ORDER BY due_date, created_at
+    LIMIT 30
+  `).bind(activityId).all<{
+    id: string; followUpKey: string; title: string; question: string; dueDate: string;
+    status: ActivityFollowUp["status"]; inferred: number; createdAt: string; askedAt: string | null;
+  }>();
+  return rows.results.map((row) => ({
+    id: row.id,
+    key: row.followUpKey,
+    title: row.title,
+    question: row.question,
+    dueDate: row.dueDate,
+    status: row.status,
+    inferred: Boolean(row.inferred),
+    createdAt: row.createdAt,
+    askedAt: row.askedAt,
+  }));
+}
+
+export async function archiveParentCadenceRecords(userId: string) {
+  const rows = await getD1().prepare(`
+    SELECT record.id, record.record_key AS recordKey, record.subject_key AS subjectKey,
+           record.record_type AS recordType, record.title, record.scope,
+           record.scope_date AS scopeDate, record.version, record.payload_json AS payloadJson,
+           record.updated_at AS updatedAt, activity.title AS activityTitle,
+           activity.client_key AS clientKey
+    FROM activity_records record
+    JOIN activities activity ON activity.id = record.activity_id
+    WHERE record.user_id = ? AND record.record_type = 'recurring_step' AND record.archived_at IS NULL
+  `).bind(userId).all<ActivityRecordRow & { activityTitle: string; clientKey: string }>();
+  const invalidIds = rows.results.flatMap((row) => {
+    const record = parseActivityRecord(row);
+    return record && recurringStepRepresentsParentActivity(record, { title: row.activityTitle, clientKey: row.clientKey }) ? [row.id] : [];
+  });
+  if (!invalidIds.length) return 0;
+  await getD1().prepare(`
+    UPDATE activity_records SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = ? AND id IN (${invalidIds.map(() => "?").join(", ")})
+  `).bind(userId, ...invalidIds).run();
+  return invalidIds.length;
+}
+
+const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v1";
+
+export async function backfillExplicitFollowUps(userId: string) {
+  const migrationId = `migration:${safeId(userId)}:${EXPLICIT_FOLLOW_UP_BACKFILL}`;
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, EXPLICIT_FOLLOW_UP_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+  const messages = await db.prepare(`
+    SELECT message.id, message.body, message.created_at AS createdAt,
+           conversation.id AS conversationId, activity.id AS activityId, activity.title AS activityTitle
+    FROM conversation_messages message
+    JOIN conversations conversation ON conversation.id = message.conversation_id
+    JOIN activities activity ON activity.id = conversation.activity_id
+    WHERE conversation.user_id = ? AND message.role = 'user'
+      AND lower(message.body) LIKE '%week%'
+      AND (lower(message.body) LIKE '%ask again%' OR lower(message.body) LIKE '%check back%' OR lower(message.body) LIKE '%check in%')
+    ORDER BY message.created_at
+    LIMIT 50
+  `).bind(userId).all<{ id: string; body: string; createdAt: string; conversationId: string; activityId: string; activityTitle: string }>();
+  for (const message of messages.results) {
+    const sourceDate = /^\d{4}-\d{2}-\d{2}/.exec(message.createdAt)?.[0];
+    if (!sourceDate) continue;
+    const mentionsElliptical = /elliptical/i.test(message.body);
+    await persistFollowUpActions({
+      userId,
+      activityId: message.activityId,
+      conversationId: message.conversationId,
+      actionId: `${migrationId}:${safeId(message.id)}`,
+      sourceMessageId: message.id,
+      localDate: sourceDate,
+      actions: [{
+        op: "upsert",
+        key: `one-week-trial-${safeId(message.id).toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(-48)}`,
+        title: mentionsElliptical ? "One-week elliptical trial" : `One-week ${message.activityTitle} trial`,
+        question: mentionsElliptical
+          ? "How did a week on the elliptical feel, and what would you like to do next?"
+          : `How did your one-week ${message.activityTitle.toLowerCase()} trial go, and what would you like to change?`,
+        dueDate: addLocalDays(sourceDate, 7),
+        inferred: true,
+      }],
+    });
+  }
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, EXPLICIT_FOLLOW_UP_BACKFILL).run();
+  return messages.results.length;
+}
+
+export async function persistFollowUpActions(input: {
+  userId: string;
+  activityId: string;
+  conversationId: string;
+  actionId: string;
+  sourceMessageId?: string | null;
+  localDate: string;
+  actions: FollowUpAction[] | unknown;
+}) {
+  const actions = validateFollowUpActions(input.actions, input.localDate);
+  const db = getD1();
+  for (const action of actions) {
+    if (action.op === "complete" || action.op === "dismiss") {
+      await db.prepare(`
+        UPDATE activity_follow_ups
+        SET status = ?, completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END,
+            dismissed_at = CASE WHEN ? = 'dismissed' THEN CURRENT_TIMESTAMP ELSE dismissed_at END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND activity_id = ? AND follow_up_key = ?
+          AND status IN ('pending', 'due', 'asked')
+      `).bind(
+        action.op === "complete" ? "completed" : "dismissed",
+        action.op === "complete" ? "completed" : "dismissed",
+        action.op === "complete" ? "completed" : "dismissed",
+        input.userId, input.activityId, action.key,
+      ).run();
+      continue;
+    }
+    const id = `activity-follow-up:${safeId(input.userId)}:${safeId(input.activityId)}:${safeId(action.key)}`;
+    await db.prepare(`
+      INSERT INTO activity_follow_ups
+        (id, user_id, activity_id, conversation_id, follow_up_key, title, question,
+         due_date, inferred, source_message_id, source_agent_job_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(activity_id, follow_up_key) DO UPDATE SET
+        title = excluded.title, question = excluded.question, due_date = excluded.due_date,
+        inferred = excluded.inferred, source_message_id = excluded.source_message_id,
+        source_agent_job_id = excluded.source_agent_job_id,
+        status = CASE WHEN activity_follow_ups.status IN ('completed', 'dismissed') THEN activity_follow_ups.status ELSE 'pending' END,
+        trigger_job_id = CASE WHEN activity_follow_ups.due_date <> excluded.due_date THEN NULL ELSE activity_follow_ups.trigger_job_id END,
+        updated_at = CURRENT_TIMESTAMP
+    `).bind(
+      id, input.userId, input.activityId, input.conversationId, action.key, action.title,
+      action.question, action.dueDate, action.inferred ? 1 : 0,
+      input.sourceMessageId ?? null, input.actionId,
+    ).run();
+  }
+  return { actionsApplied: actions.length, followUps: await readActivityFollowUps(input.activityId) };
+}
+
+export async function queueDueFollowUps(userId: string, localDate: string, activityId?: string | null) {
+  const db = getD1();
+  const due = await db.prepare(`
+    SELECT followup.id, followup.activity_id AS activityId, followup.conversation_id AS conversationId,
+      followup.due_date AS dueDate
+    FROM activity_follow_ups followup
+    WHERE followup.user_id = ? AND followup.status = 'pending' AND followup.due_date <= ?
+      AND (? IS NULL OR followup.activity_id = ?)
+    ORDER BY followup.due_date, followup.created_at
+    LIMIT 20
+  `).bind(userId, localDate, activityId ?? null, activityId ?? null).all<{
+    id: string;
+    activityId: string;
+    conversationId: string;
+    dueDate: string;
+  }>();
+  for (const followUp of due.results) {
+    // The due date is part of the identity so a user can reschedule an already-fired
+    // follow-up without colliding with its completed agent job.
+    const jobId = `agent-job:${safeId(userId)}:follow-up:${safeId(followUp.id)}:${followUp.dueDate}`;
+    await db.batch([
+      db.prepare(`
+        INSERT OR IGNORE INTO agent_jobs
+          (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key)
+        VALUES (?, ?, 'activity', ?, ?, 'follow_up', ?)
+      `).bind(jobId, userId, followUp.activityId, followUp.conversationId, `follow-up:${followUp.id}:${followUp.dueDate}`),
+      db.prepare(`
+        UPDATE activity_follow_ups
+        SET status = 'due', trigger_job_id = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND status = 'pending'
+      `).bind(jobId, followUp.id, userId),
+    ]);
+  }
+  return due.results.length;
+}
+
+export async function retryFailedConversationJob(userId: string, conversationId: string, jobId: string) {
+  const result = await getD1().prepare(`
+    UPDATE agent_jobs
+    SET status = 'queued', attempts = 0, error = NULL, lease_token = NULL,
+        lease_owner = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND user_id = ? AND conversation_id = ? AND status = 'failed'
+      AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up')
+  `).bind(jobId, userId, conversationId).run();
+  return Boolean(result.meta.changes ?? 0);
+}
+
+export async function updateActivityFollowUp(input: {
+  userId: string;
+  activityId: string;
+  followUpId: string;
+  operation: "reschedule" | "dismiss";
+  dueDate?: string | null;
+}) {
+  const db = getD1();
+  if (input.operation === "dismiss") {
+    await db.prepare(`
+      UPDATE activity_follow_ups SET status = 'dismissed', dismissed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ? AND activity_id = ? AND status IN ('pending', 'due', 'asked')
+    `).bind(input.followUpId, input.userId, input.activityId).run();
+  } else {
+    if (!input.dueDate || !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)) throw new Error("Choose a valid follow-up date.");
+    await db.prepare(`
+      UPDATE activity_follow_ups
+      SET due_date = ?, status = 'pending', trigger_job_id = NULL, asked_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ? AND activity_id = ? AND status IN ('pending', 'due', 'asked')
+    `).bind(input.dueDate, input.followUpId, input.userId, input.activityId).run();
+  }
+  return readActivityFollowUps(input.activityId);
 }
 
 export async function moveActivityRecords(input: {
@@ -919,7 +1172,7 @@ export async function moveActivitySubject(input: {
   return moveActivityRecords({ ...input, recordKeys: plan.recordKeys });
 }
 
-const PRODUCT_SUBJECT_OWNERSHIP_MIGRATION = "product-subject-ownership-v1";
+const PRODUCT_SUBJECT_OWNERSHIP_MIGRATION = "product-subject-ownership-v2";
 
 function migratedRecordAction(
   record: PersistedActivityRecord,
@@ -1011,14 +1264,49 @@ export async function migrateLegacyProductOwnership(userId: string) {
       data: {},
       updatedAt: "",
     };
+    const beardActions: RecordAction[] = [];
+    if (!hairByKey.has("beard-grooming-roller")) {
+      beardActions.push({ op: "upsert", record: {
+        key: "beard-grooming-roller",
+        subjectKey: "beard-grooming-roller",
+        type: "product",
+        title: "Kestrel Grooming Beard Roller",
+        scope: "activity",
+        data: {
+          kind: "device",
+          name: "Grooming Roller",
+          manufacturer: "Kestrel Grooming",
+          variant: "Beard Grooming Roller",
+          notes: "Used on the scalp as part of Hair Routine.",
+        },
+      } });
+    }
+    if (!hairByKey.has("beard-grooming-roller-weekly")) {
+      beardActions.push({ op: "upsert", record: {
+        key: "beard-grooming-roller-weekly",
+        subjectKey: "beard-grooming-roller",
+        type: "recurring_step",
+        title: "Weekly scalp grooming roller",
+        scope: "activity",
+        data: {
+          label: "Use the grooming roller on the scalp",
+          note: "Once a week as part of Hair Routine.",
+          itemKey: "beard-grooming-roller",
+          anchorDate: "2026-08-21",
+          cadence: { kind: "weekly", every: 1 },
+          completedDates: ["2026-08-21"],
+        },
+      } });
+    }
+    beardActions.push(migratedRecordAction(beardResources, "beard-grooming-roller", {
+      title: "Scalp Grooming Roller Resources",
+      data: { entries: [...mergedEntries.values()] },
+    }));
     await persistRecordActions({
       userId,
       activityId: hairActivityId,
       actionId: `${migrationId}:beard-resources`,
-      actions: [migratedRecordAction(beardResources, "beard-grooming-roller", {
-        title: "Beard Grooming Roller Resources",
-        data: { entries: [...mergedEntries.values()] },
-      })],
+      actions: beardActions,
     });
   }
 
@@ -1098,7 +1386,13 @@ export async function migrateLegacyProductOwnership(userId: string) {
         }] : []),
         ...((movedEntries.length || existingBeardResources) ? [{
           op: "upsert" as const,
-          component: { id: "beard-grooming-roller-resources", type: "resources" as const, title: "Beard Grooming Roller Resources", recordKey: "beard-grooming-roller-resources", presentation: "compact" as const },
+          component: { id: "beard-grooming-roller", type: "product" as const, title: "Kestrel Grooming Beard Roller", recordKey: "beard-grooming-roller", presentation: "featured" as const },
+        }, {
+          op: "upsert" as const,
+          component: { id: "beard-grooming-roller-weekly", type: "recurring_step" as const, title: "Weekly scalp grooming roller", recordKey: "beard-grooming-roller-weekly", presentation: "compact" as const },
+        }, {
+          op: "upsert" as const,
+          component: { id: "beard-grooming-roller-resources", type: "resources" as const, title: "Scalp Grooming Roller Resources", recordKey: "beard-grooming-roller-resources", presentation: "compact" as const },
         }] : []),
       ],
     }),
@@ -1212,6 +1506,14 @@ export async function readConversationState(conversationId: string, planDate?: s
     ORDER BY created_at DESC
     LIMIT 1
   `).bind(conversationId).first<{ status: string; kind: string; progressTitle: string | null; progressDetail: string | null }>();
+  const latestDurableJob = await db.prepare(`
+    SELECT id, status, kind, error
+    FROM agent_jobs
+    WHERE conversation_id = ? AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up')
+      AND status IN ('succeeded', 'failed')
+    ORDER BY updated_at DESC, created_at DESC
+    LIMIT 1
+  `).bind(conversationId).first<{ id: string; status: string; kind: string; error: string | null }>();
   const onlineWorker = await db.prepare(`
     SELECT id FROM agent_workers
     WHERE last_seen_at >= datetime('now', '-20 seconds')
@@ -1219,6 +1521,28 @@ export async function readConversationState(conversationId: string, planDate?: s
   `).first<{ id: string }>();
   const workspace = conversation ? await readActivityWorkspace(conversation.activityId, activityVariantId) : { revisionId: null, revisionNumber: 0, document: EMPTY_WORKSPACE };
   const records = conversation ? await readActivityRecords(conversation.activityId, planDate, activityVariantId) : [];
+  const followUps = conversation ? await readActivityFollowUps(conversation.activityId) : [];
+  const scheduleRow = conversation ? await db.prepare(`
+    SELECT pattern.id, pattern.name, pattern.cadence_json AS cadenceJson,
+           (SELECT COUNT(*) FROM schedule_pattern_steps count_steps WHERE count_steps.pattern_id = pattern.id) AS stepCount
+    FROM schedule_patterns pattern
+    JOIN schedule_pattern_steps step ON step.pattern_id = pattern.id
+    WHERE step.activity_id = ? AND pattern.archived_at IS NULL
+    ORDER BY pattern.position, step.position
+    LIMIT 1
+  `).bind(conversation.activityId).first<{ id: string; name: string; cadenceJson: string; stepCount: number }>() : null;
+  const scheduleCadence = scheduleRow ? (() => { try { return parseCadence(JSON.parse(scheduleRow.cadenceJson)); } catch { return null; } })() : null;
+  const scheduleSummary = scheduleRow && scheduleCadence && (scheduleCadence.kind !== "daily" || scheduleRow.stepCount > 1)
+    ? {
+        patternId: scheduleRow.id,
+        name: scheduleRow.name,
+        cadenceLabel: scheduleCadence.kind === "daily"
+          ? "Rotates daily"
+          : scheduleCadence.kind === "interval_days"
+            ? scheduleCadence.every === 2 ? "Every other day" : `Every ${scheduleCadence.every} days`
+            : scheduleCadence.weekdays.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", "),
+      }
+    : null;
   const recentRuns = conversation
     ? (await db.prepare(`
         SELECT plan_date AS planDate, status, completed_at AS completedAt
@@ -1236,7 +1560,14 @@ export async function readConversationState(conversationId: string, planDate?: s
   `).bind(conversationId).all<{ id: string; status: string; documentJson: string; createdAt: string }>();
   return {
     messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null,
-    agentOnline: Boolean(onlineWorker), workspace, records, recentRuns,
+    failedJob: latestDurableJob?.status === "failed" ? {
+      id: latestDurableJob.id,
+      kind: latestDurableJob.kind,
+      message: latestDurableJob.kind === "follow_up"
+        ? "Luna couldn’t send this check-in."
+        : "Luna couldn’t save the latest activity update.",
+    } : null,
+    agentOnline: Boolean(onlineWorker), workspace, records, recentRuns, followUps, scheduleSummary,
     proposals: proposals.results.flatMap((proposal) => {
       try { return [{ id: proposal.id, status: proposal.status, document: JSON.parse(proposal.documentJson), createdAt: proposal.createdAt }]; } catch { return []; }
     }),
