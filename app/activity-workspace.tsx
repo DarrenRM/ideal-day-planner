@@ -103,7 +103,7 @@ function ActivityStreak({ activity }: { activity: WorkspaceActivity }) {
 
   return (
     <section className="workspace-block activity-streak" aria-label={`${activity.title} streak`}>
-      <header className="activity-streak-heading"><span>Streak</span><Flame aria-hidden="true" size={16} /></header>
+      <header className="activity-streak-heading"><span className="workspace-overline">Streak</span><Flame aria-hidden="true" size={16} /></header>
       <div className="streak-track">
         {steps.map((dayNumber) => {
           const complete = dayNumber <= streak;
@@ -204,7 +204,7 @@ function TimerComponent({ activity, component }: { activity: WorkspaceActivity; 
 
   return (
     <section className="workspace-block time-component" aria-label={component.title}>
-      <div className="workspace-block-heading"><div><span>Stopwatch</span><strong>{component.title}</strong></div><TimerIcon size={16} /></div>
+      <div className="workspace-block-heading"><div><span className="workspace-overline">Stopwatch</span><strong>{component.title}</strong></div><TimerIcon size={16} /></div>
       <output className="time-component-display" aria-live="off">{clockDisplay(elapsed)}</output>
       <div className="time-component-actions">
         <button type="button" onClick={toggle}>{timer.running ? <Pause size={14} /> : <Play size={14} />}{timer.running ? "Pause" : elapsed ? "Resume" : "Start"}</button>
@@ -275,7 +275,7 @@ function CountdownComponent({ activity, component }: { activity: WorkspaceActivi
 
   return (
     <section className={`workspace-block time-component ${remaining === 0 ? "is-finished" : ""}`} aria-label={displayTitle}>
-      <div className="workspace-block-heading"><div><span>{usesTimelineDuration ? "Today’s countdown" : "Countdown"}</span><strong>{displayTitle}</strong></div>{remaining === 0 ? <Check size={16} /> : <Hourglass size={16} />}</div>
+      <div className="workspace-block-heading"><div><span className="workspace-overline">{usesTimelineDuration ? "Today’s countdown" : "Countdown"}</span><strong>{displayTitle}</strong></div>{remaining === 0 ? <Check size={16} /> : <Hourglass size={16} />}</div>
       <output className="time-component-display" aria-live="off">{clockDisplay(remaining)}</output>
       <div className="time-component-actions">
         <button type="button" onClick={toggle}>{countdown.running ? <Pause size={14} /> : <Play size={14} />}{countdown.running ? "Pause" : countdown.startedAt && remaining ? "Resume" : "Start"}</button>
@@ -288,7 +288,7 @@ function CountdownComponent({ activity, component }: { activity: WorkspaceActivi
 function RoutineComponent({ component }: { component: RoutineWorkspaceComponent }) {
   return (
     <section className="workspace-block routine-component" aria-label={component.title}>
-      <div className="workspace-block-heading"><div><span>Saved routine</span><strong>{component.title}</strong></div><Sparkles size={15} /></div>
+      <div className="workspace-block-heading"><div><span className="workspace-overline">Saved routine</span><strong>{component.title}</strong></div><Sparkles size={15} /></div>
       {component.summary ? <p className="routine-component-summary">{component.summary}</p> : null}
       {component.steps?.length ? <ol>{component.steps.map((step) => <li key={step}>{step}</li>)}</ol> : null}
       {component.facts?.length ? <dl>{component.facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}</dl> : null}
@@ -409,14 +409,14 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             })}
             {scheduleSummary ? (
               <section className="workspace-block activity-schedule-summary" aria-label={`${activity.title} schedule`}>
-                <div><span>Schedule</span><strong>{scheduleSummary.cadenceLabel}</strong><small>{scheduleSummary.name}</small></div>
+                <div><span className="workspace-overline">Schedule</span><strong>{scheduleSummary.cadenceLabel}</strong><small>{scheduleSummary.name}</small></div>
                 {onManageSchedule ? <button type="button" onClick={onManageSchedule}>Manage</button> : <CalendarClock aria-hidden="true" size={17} />}
               </section>
             ) : null}
             {followUps.map((followUp) => (
               <section className={`workspace-block activity-follow-up ${followUp.status === "due" || followUp.status === "asked" ? "is-due" : ""}`} key={followUp.id}>
                 <div className="activity-follow-up-heading">
-                  <div><span>{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : "Upcoming check-in"}</span><strong>{followUp.title}</strong></div>
+                  <div><span className="workspace-overline">{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : "Upcoming check-in"}</span><strong>{followUp.title}</strong></div>
                   <div className="activity-follow-up-tools">
                     <details className="activity-follow-up-menu">
                       <summary aria-label={`More options for ${followUp.title}`} title="Check-in options"><EllipsisVertical aria-hidden="true" size={17} /></summary>

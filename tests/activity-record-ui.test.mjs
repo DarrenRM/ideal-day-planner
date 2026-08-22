@@ -46,10 +46,10 @@ test("keeps product cards focused on identity instead of generated subfields", a
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   const productRenderer = component.match(/function ProductRecord[\s\S]*?\n}/)?.[0] || "";
-  assert.match(productRenderer, /<small>\{kindLabel\}<\/small>/);
+  assert.match(productRenderer, /<small className="workspace-overline">\{kindLabel\}<\/small>/);
   assert.doesNotMatch(productRenderer, /usefulFields|record-field-grid/);
   assert.match(productRenderer, /product-supporting-records/);
-  assert.match(productRenderer, /<div><small>\{kindLabel\}<\/small><strong>\{data\.name\}<\/strong>/);
+  assert.match(productRenderer, /<div><small className="workspace-overline">\{kindLabel\}<\/small><strong>\{data\.name\}<\/strong>/);
   assert.match(productRenderer, /<span className="product-mark">/);
   assert.match(component, /eyebrow="Resources"/);
   assert.doesNotMatch(component, /Pinned resources/);
@@ -164,6 +164,23 @@ test("presents pending check-ins as upcoming commitments rather than date forms"
   assert.match(followUpRenderer, /Remove check-in/);
   assert.doesNotMatch(followUpRenderer, /type="date"/);
   assert.doesNotMatch(followUpRenderer, /activity-follow-up-actions/);
+});
+
+test("uses one activity-colored overline primitive across workspace components", async () => {
+  const [records, workspace, css] = await Promise.all([
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(records, /className="workspace-overline">\{eyebrow\}/);
+  assert.match(records, /className="workspace-overline">Equipment/);
+  assert.match(records, /small className="workspace-overline">\{kindLabel\}/);
+  assert.match(workspace, /className="workspace-overline">Streak/);
+  assert.match(workspace, /className="workspace-overline">Schedule/);
+  assert.match(workspace, /className="workspace-overline">\{followUp\.status/);
+  assert.match(css, /\.workspace-overline \{[^}]*color: var\(--item-color\)[^}]*font: 720 var\(--type-micro\)\/var\(--leading-micro\)[^}]*letter-spacing: \.09em[^}]*text-transform: uppercase/s);
+  assert.doesNotMatch(css, /\.equipment-heading > div > span \{/);
+  assert.doesNotMatch(css, /\.activity-schedule-summary span, \.activity-follow-up-heading span/);
 });
 
 test("normalizes recurring substeps and only exposes them on due dates", () => {

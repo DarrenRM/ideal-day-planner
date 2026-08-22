@@ -24,7 +24,7 @@ function localDateKey() { return new Date().toLocaleDateString("en-CA"); }
 function completedToday(entry: { completed?: boolean; completedDates?: string[] }) { return entry.completedDates?.includes(localDateKey()) ?? entry.completed === true; }
 
 function Heading({ eyebrow, title, icon }: { eyebrow: string; title: string; icon?: ReactNode }) {
-  return <div className="workspace-block-heading"><div><span>{eyebrow}</span><strong>{title}</strong></div>{icon}</div>;
+  return <div className="workspace-block-heading"><div><span className="workspace-overline">{eyebrow}</span><strong>{title}</strong></div>{icon}</div>;
 }
 
 function EmptyLine({ children }: { children: ReactNode }) {
@@ -49,7 +49,7 @@ function ProductRecord({ record, onMutate, supportingRecords = [] }: Props) {
   const kindLabel = data.kind === "device" ? "Device" : "Product";
   const identityDetail = [data.manufacturer, data.variant].filter(Boolean).join(" · ");
   return <section className="workspace-block protocol-block product-record">
-    <div className="product-heading"><div><small>{kindLabel}</small><strong>{data.name}</strong>{identityDetail ? <span>{identityDetail}</span> : null}</div><span className="product-mark"><Package size={16} /></span></div>
+    <div className="product-heading"><div><small className="workspace-overline">{kindLabel}</small><strong>{data.name}</strong>{identityDetail ? <span>{identityDetail}</span> : null}</div><span className="product-mark"><Package size={16} /></span></div>
     {data.notes ? <p className="record-description">{data.notes}</p> : null}
     {supportingRecords.length ? <div className="product-supporting-records">{supportingRecords.map((supportingRecord) => supportingRecord.type === "protocol"
       ? <ProtocolContent key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
@@ -157,7 +157,7 @@ function EquipmentRecord({ record }: { record: ActivityRecord }) {
     return result;
   }, new Map<string, NonNullable<typeof data.items>>()).entries());
   return <section aria-label={record.title} className="workspace-block equipment-record">
-    <div className="equipment-heading"><div><span>Equipment</span><strong>Available to you</strong></div><span className="equipment-mark"><Wrench aria-hidden="true" size={15} /></span></div>
+    <div className="equipment-heading"><div><span className="workspace-overline">Equipment</span><strong>Available to you</strong></div><span className="equipment-mark"><Wrench aria-hidden="true" size={15} /></span></div>
     <div className="equipment-groups">{groups.map(([location, items]) => <section key={location}>
       <h4>{location}</h4>
       <div>{items.map((item) => <span className="equipment-item" key={item.id}>{item.name}{item.status && item.status !== "available" ? <small>{item.status}</small> : null}</span>)}</div>
