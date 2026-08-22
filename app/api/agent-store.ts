@@ -4,7 +4,7 @@ import { activitySetupKey, activitySetupKeyMatches } from "../activity-setup-pol
 import { resolveSubjectMoveRecordKeys } from "../activity-transfer-model";
 import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type WorkspaceAction, type WorkspaceDocument } from "../workspace-model";
 import { validateFollowUpActions, type ActivityFollowUp, type FollowUpAction } from "../follow-up-model";
-import { addLocalDays, parseCadence } from "../schedule-model";
+import { addLocalDays, localDateInTimeZone, parseCadence } from "../schedule-model";
 import { recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 
 export type ActivityRecord = {
