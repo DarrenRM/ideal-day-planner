@@ -134,6 +134,33 @@ test("renders reusable cadence, equipment, mode, event, and open-workout states"
   assert.match(component, /function EquipmentRecord/);
   assert.match(component, /function SessionChoiceRecord/);
   assert.match(component, /workout-open-choices/);
+  assert.match(component, /Planned through/);
+  assert.match(component, /equipment-groups/);
+});
+
+test("keeps a bounded session choice active through its review date", () => {
+  const record = parseActivityRecord({
+    id: "cardio-choice", recordKey: "cardio-session-choice", recordType: "session_choice",
+    title: "Cardio option", scope: "activity", scopeDate: null, version: 1,
+    payloadJson: JSON.stringify({
+      prompt: "Choose your cardio machine",
+      options: [{ id: "elliptical", label: "Elliptical" }, { id: "bike", label: "Bike" }],
+      selections: [{ id: "today", date: "2026-08-21", optionId: "elliptical" }],
+      activeSelection: { optionId: "elliptical", startDate: "2026-08-21", endDate: "2026-08-28", reason: "One-week trial" },
+    }),
+    updatedAt: "2026-08-21T12:00:00Z",
+  });
+  assert.deepEqual(record?.data.activeSelection, {
+    optionId: "elliptical", startDate: "2026-08-21", endDate: "2026-08-28", reason: "One-week trial",
+  });
+});
+
+test("presents pending check-ins as upcoming commitments rather than date forms", async () => {
+  const workspace = await readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8");
+  const followUpRenderer = workspace.match(/\{followUps\.map[\s\S]*?\)\)\}/)?.[0] || "";
+  assert.match(followUpRenderer, /Upcoming check-in/);
+  assert.match(followUpRenderer, /Luna will check back in with you on/);
+  assert.doesNotMatch(followUpRenderer, /type="date"/);
 });
 
 test("normalizes recurring substeps and only exposes them on due dates", () => {

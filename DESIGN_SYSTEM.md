@@ -123,6 +123,9 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Luna chooses and fills approved components; she does not choose fonts, spacing, colors, arbitrary HTML, or one-off visual systems.
 - Render a component only when it has enough supported information to be useful. Ask for missing information first when the component would otherwise be a hollow shell.
 - Preserve stable component anatomy across activities while allowing the data and combination of components to fit the activity.
+- Treat equipment as low-priority reference data: place it after the actionable and current-state components, group items by location, and suppress repeated default labels such as “available” or a shared equipment kind.
+- Pending check-ins are commitments, not mini forms. Label them Upcoming, state when Luna will return and why in app-owned language, and expose only a quiet Remove action in the activity workspace.
+- A session choice may carry a bounded default through a known review date. Show the selected option and its “planned through” date; a deliberate dated choice overrides only that day.
 - Record/history information is scannable; current actions are visually stronger than historical details.
 - Checklist rows are whole-row controls with an unmistakable check state and a minimum 44px mobile target. Use spacing and a quiet filled surface to group items; do not stack divider lines inside an already bordered workspace card.
 - History is a read-only recap, not a timeline impersonation. Format machine dates for people, keep dates unbroken, and let titles/details reflow beside or beneath metadata without fixed narrow columns.

@@ -613,6 +613,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .session-choice-record strong, .session-choice-record small { display: block; }
 .recurring-step-record small, .session-choice-record small { margin-top: 3px; color: var(--muted); }
 .session-choice-record > p { margin: 0 0 6px; color: var(--muted); }
+.session-choice-record em { color: color-mix(in srgb, var(--item-color) 72%, #aab4ae); display: block; font-size: var(--type-micro); font-style: normal; font-weight: 620; margin-top: 4px; }
 .session-choice-record > div > button + button { border-top: 1px solid var(--border); }
 .activity-event-record > div { display: grid; }
 .activity-event-record article { display: grid; grid-template-columns: minmax(72px, auto) 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
@@ -620,11 +621,17 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .activity-event-record p { margin: 0; }
 .activity-event-record p strong, .activity-event-record p small { display: block; }
 .activity-event-record p small { margin-top: 3px; color: var(--muted); }
-.equipment-record > div { display: grid; }
-.equipment-record article { display: flex; justify-content: space-between; gap: 12px; align-items: center; min-height: 48px; padding: 8px 0; border-top: 1px solid var(--border); }
-.equipment-record article strong, .equipment-record article small { display: block; }
-.equipment-record article small { margin-top: 2px; color: var(--muted); }
-.equipment-record article > span { color: var(--muted); text-transform: capitalize; }
+.equipment-heading { align-items: flex-start; display: flex; justify-content: space-between; margin-bottom: 12px; }
+.equipment-heading > div { display: grid; gap: 3px; }
+.equipment-heading > div > span { color: #646e69; font-size: var(--type-micro); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.equipment-heading strong { color: #cdd5ce; font-size: var(--type-body-sm); font-weight: 650; }
+.equipment-mark { align-items: center; background: color-mix(in srgb, var(--item-color) 8%, #151b1d); border: 1px solid color-mix(in srgb, var(--item-color) 20%, #30383a); border-radius: 7px; color: color-mix(in srgb, var(--item-color) 68%, #829089); display: inline-flex; flex: 0 0 auto; height: 30px; justify-content: center; width: 30px; }
+.equipment-groups { display: grid; gap: 12px; }
+.equipment-groups > section { display: grid; gap: 7px; }
+.equipment-groups h4 { color: #6f7a74; font-size: var(--type-micro); font-weight: 620; margin: 0; }
+.equipment-groups > section > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.equipment-item { align-items: center; background: #12181a; border: 1px solid #283134; border-radius: 999px; color: #bcc6bf; display: inline-flex; font-size: var(--type-label); gap: 5px; min-height: 29px; padding: 5px 9px; }
+.equipment-item small { color: #7b8780; font-size: var(--type-micro); text-transform: capitalize; }
 .exercise-card { border-top: 1px solid #242b2e; padding: 11px; }
 .exercise-card > header { align-items: center; display: grid; gap: 8px; grid-template-columns: 15px minmax(0, 1fr); }
 .exercise-card > header > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -764,10 +771,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .activity-follow-up-heading > div { display: grid; gap: 3px; }
 .activity-follow-up-heading > svg { color: var(--item-color); }
 .activity-follow-up > p { color: #aeb7b1; font-size: var(--type-label); line-height: 1.5; margin: 0; }
-.activity-follow-up-actions { align-items: end; display: flex; gap: 8px; justify-content: space-between; }
-.activity-follow-up-actions label { display: grid; gap: 4px; }
-.activity-follow-up-actions label > span { color: #737d78; font-size: var(--type-micro); text-transform: uppercase; }
-.activity-follow-up-actions input { background: #0c1012; border: 1px solid #30383a; border-radius: 7px; color: #cbd3cd; min-height: 34px; padding: 0 8px; }
+.activity-follow-up > p time { color: #d1dbd3; font-weight: 620; }
+.activity-follow-up-actions { align-items: center; display: flex; justify-content: flex-end; }
 .activity-follow-up-actions button { align-items: center; background: transparent; border: 0; color: #87908b; cursor: pointer; display: inline-flex; font-size: var(--type-label); gap: 4px; min-height: 34px; }
 .date-separator { align-items: center; color: #555f5a; display: flex; font-size: var(--type-micro); gap: 8px; justify-content: center; margin: 2px 0 4px; }
 .date-separator::before, .date-separator::after { background: #252c2e; content: ""; height: 1px; width: 34px; }

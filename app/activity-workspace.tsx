@@ -59,6 +59,23 @@ function localDateKey() {
   return new Date().toLocaleDateString("en-CA");
 }
 
+function followUpReason(title: string) {
+  const normalized = title.trim().replace(/[.!?]+$/, "");
+  if (!normalized) return "what you wanted to revisit";
+  const reason = `${normalized.charAt(0).toLowerCase()}${normalized.slice(1)}`;
+  return /^(your|the|a|an)\b/i.test(reason) ? reason : `your ${reason}`;
+}
+
+function formatFollowUpDate(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day, 12);
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    day: "numeric",
+    ...(year !== new Date().getFullYear() ? { year: "numeric" } : {}),
+  }).format(date);
+}
+
 function previousDateKey(dateKey: string) {
   const date = new Date(`${dateKey}T12:00:00`);
   date.setDate(date.getDate() - 1);
@@ -354,7 +371,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak || followUps.length > 0 || Boolean(scheduleSummary);
   const orderedItems = orderWorkspaceDisplayItems([
     ...visibleComponents.filter((component) => !nestedComponentIds.has(component.id)).map((component) => ({
-      displayRole: (component.type === "adherence" ? "streak" : component.type === "recurring_step" ? "recurring" : component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : "primary") as WorkspaceDisplayRole,
+      displayRole: (component.type === "adherence" ? "streak" : component.type === "recurring_step" ? "recurring" : component.type === "countdown" ? "countdown" : component.type === "resources" ? "resource" : component.type === "equipment" ? "reference" : "primary") as WorkspaceDisplayRole,
       id: component.id,
       component,
     })),
@@ -398,10 +415,9 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             ) : null}
             {followUps.map((followUp) => (
               <section className={`workspace-block activity-follow-up ${followUp.status === "due" || followUp.status === "asked" ? "is-due" : ""}`} key={followUp.id}>
-                <div className="activity-follow-up-heading"><div><span>{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : followUp.inferred ? "Suggested check-in" : "Check-in"}</span><strong>{followUp.title}</strong></div><CalendarClock aria-hidden="true" size={17} /></div>
-                <p>{followUp.question}</p>
+                <div className="activity-follow-up-heading"><div><span>{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : "Upcoming check-in"}</span><strong>{followUp.title}</strong></div><CalendarClock aria-hidden="true" size={17} /></div>
+                <p>Luna will check back in with you on <time dateTime={followUp.dueDate}>{formatFollowUpDate(followUp.dueDate)}</time> about {followUpReason(followUp.title)}.</p>
                 <div className="activity-follow-up-actions">
-                  <label><span>Date</span><input aria-label={`Follow-up date for ${followUp.title}`} type="date" value={followUp.dueDate} onChange={(event) => onFollowUpMutation?.(followUp.id, "reschedule", event.target.value)} /></label>
                   <button aria-label={`Remove ${followUp.title} check-in`} type="button" onClick={() => onFollowUpMutation?.(followUp.id, "dismiss")}><X aria-hidden="true" size={14} /> Remove</button>
                 </div>
               </section>

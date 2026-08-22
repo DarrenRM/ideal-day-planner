@@ -304,13 +304,33 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
       return label ? { id: itemId(entry.id, index), label, detail: boundedString(entry.detail, 300) } : null;
     });
     if (!options.length) return null;
+    const optionIds = new Set(options.map((option) => option.id));
+    const activeSelectionSource = source.activeSelection && typeof source.activeSelection === "object" && !Array.isArray(source.activeSelection)
+      ? source.activeSelection as Record<string, unknown>
+      : null;
+    const activeOptionId = stableKey(activeSelectionSource?.optionId);
+    const activeStartDate = boundedString(activeSelectionSource?.startDate, 10);
+    const activeEndDate = boundedString(activeSelectionSource?.endDate, 10);
+    const activeSelection = activeSelectionSource
+      && optionIds.has(activeOptionId)
+      && /^\d{4}-\d{2}-\d{2}$/.test(activeStartDate)
+      && /^\d{4}-\d{2}-\d{2}$/.test(activeEndDate)
+      && activeStartDate <= activeEndDate
+      ? {
+          optionId: activeOptionId,
+          startDate: activeStartDate,
+          endDate: activeEndDate,
+          reason: boundedString(activeSelectionSource.reason, 180),
+        }
+      : null;
     return {
       prompt: boundedString(source.prompt, 180), options,
       selections: objectArray(source.selections, 366, (entry, index) => {
         const date = boundedString(entry.date, 10);
         const optionId = stableKey(entry.optionId);
-        return /^\d{4}-\d{2}-\d{2}$/.test(date) && optionId ? { id: itemId(entry.id, index), date, optionId } : null;
+        return /^\d{4}-\d{2}-\d{2}$/.test(date) && optionIds.has(optionId) ? { id: itemId(entry.id, index), date, optionId } : null;
       }),
+      ...(activeSelection ? { activeSelection } : {}),
     };
   }
 

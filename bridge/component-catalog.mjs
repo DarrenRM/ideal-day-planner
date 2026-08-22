@@ -1,4 +1,4 @@
-export const CATALOG_VERSION = "workspace-catalog-v4";
+export const CATALOG_VERSION = "workspace-catalog-v5";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
@@ -10,7 +10,7 @@ export const COMPONENT_CATALOG = [
   ["recurring_step", "A substep with its own cadence inside a broader activity; it is only visible when due", "label,note,itemKey,anchorDate,cadence{kind(weekly|interval_days|weekdays),every?,weekdays?},completedDates[]"],
   ["activity_event", "Dated activity facts that do not imply the whole occurrence was completed", "entries[{id,date,label,detail,itemKey}]"],
   ["equipment", "Durable available or preferred equipment shared across activity variants", "items[{id,name,kind,location,status(available|preferred|unknown),note}]"],
-  ["session_choice", "A small set of modes or options selected for today's session when full schedule variants are unnecessary", "prompt,options[{id,label,detail}],selections[{id,date,optionId}]"],
+  ["session_choice", "A small set of modes or options selected for today's session when full schedule variants are unnecessary", "prompt,options[{id,label,detail}],selections[{id,date,optionId}], optional activeSelection{optionId,startDate,endDate,reason}"],
   ["quick_log", "A compact repeated entry form", "fields[{id,label,unit,input}], entries[{id,values[{field,value}],note,createdAt}]"],
   ["history", "Read-only dated recaps when a more structured tracker does not fit", "entries[{id,title,detail,date,value,tone}]"],
   ["comparison", "Previous-versus-current values", "entries[{id,label,previous,current,change}]"],
@@ -28,6 +28,7 @@ export const COMPONENT_CATALOG = [
 export const ACTIVITY_RECIPES = [
   "Strength session: workout plus an activity-scoped equipment record when known; optionally comparison/history/metric. Use workout openChoices for a purposeful gym-selected slot. Never invent an exercise just to fill one.",
   "Cardio session: goal or summary plus quick_log/metric/history; timer or countdown only when modality or user intent makes time useful.",
+  "Bounded trial: when the user commits to one session_choice option for a stated date range or until a check-in, set activeSelection for that inclusive range and create the matching follow-up. Exact dated selections remain one-day overrides.",
   "Product/device care: one product subject root per named item, plus subject-owned protocol/resources for that item's directions and sources; optionally one shared adherence/timeline/attention area. Use recurring_step when one tool is only due on some days, activity_event for a dated use, and session_choice for modes that do not need schedule variants. Give all item-owned records the product record's subjectKey. Timed devices may also use countdown.",
   "Body routine: protocol or checklist plus goal; optionally quick_log/history and a deliberately chosen timer.",
   "Meal/supplement routine: protocol/checklist/product or item_list; no timer merely because it occupies schedule time.",

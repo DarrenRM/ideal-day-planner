@@ -151,16 +151,35 @@ function ActivityEventRecord({ record }: { record: ActivityRecord }) {
 
 function EquipmentRecord({ record }: { record: ActivityRecord }) {
   const data = record.data as { items?: Array<{ id: string; name: string; kind?: string; location?: string; status?: string; note?: string }> };
-  return <section className="workspace-block equipment-record"><Heading eyebrow="Available equipment" title={record.title} icon={<Wrench size={15} />} />
-    <div>{data.items?.map((item) => <article key={item.id}><div><strong>{item.name}</strong>{[item.kind, item.location].filter(Boolean).length ? <small>{[item.kind, item.location].filter(Boolean).join(" · ")}</small> : null}</div>{item.status ? <span>{item.status}</span> : null}</article>)}</div>
+  const groups = Array.from((data.items ?? []).reduce((result, item) => {
+    const location = item.location || "Other";
+    result.set(location, [...(result.get(location) ?? []), item]);
+    return result;
+  }, new Map<string, NonNullable<typeof data.items>>()).entries());
+  return <section aria-label={record.title} className="workspace-block equipment-record">
+    <div className="equipment-heading"><div><span>Equipment</span><strong>Available to you</strong></div><span className="equipment-mark"><Wrench aria-hidden="true" size={15} /></span></div>
+    <div className="equipment-groups">{groups.map(([location, items]) => <section key={location}>
+      <h4>{location}</h4>
+      <div>{items.map((item) => <span className="equipment-item" key={item.id}>{item.name}{item.status && item.status !== "available" ? <small>{item.status}</small> : null}</span>)}</div>
+    </section>)}</div>
   </section>;
 }
 
 function SessionChoiceRecord({ record, onMutate }: Props) {
-  const data = record.data as { prompt?: string; options?: Array<{ id: string; label: string; detail?: string }>; selections?: Array<{ date: string; optionId: string }> };
-  const selected = data.selections?.find((entry) => entry.date === localDateKey())?.optionId;
+  const data = record.data as {
+    prompt?: string;
+    options?: Array<{ id: string; label: string; detail?: string }>;
+    selections?: Array<{ date: string; optionId: string }>;
+    activeSelection?: { optionId: string; startDate: string; endDate: string; reason?: string };
+  };
+  const today = localDateKey();
+  const exactSelection = data.selections?.find((entry) => entry.date === today)?.optionId;
+  const plannedSelection = data.activeSelection && data.activeSelection.startDate <= today && today <= data.activeSelection.endDate
+    ? data.activeSelection.optionId
+    : undefined;
+  const selected = exactSelection ?? plannedSelection;
   return <section className="workspace-block session-choice-record"><Heading eyebrow="Today" title={record.title} />
-    {data.prompt ? <p>{data.prompt}</p> : null}<div>{data.options?.map((option) => <button aria-pressed={selected === option.id} className={selected === option.id ? "is-selected" : ""} key={option.id} type="button" onClick={() => void onMutate(record.key, "select_session_choice", { optionId: option.id })}><span>{selected === option.id ? <Check size={12} /> : null}</span><div><strong>{option.label}</strong>{option.detail ? <small>{option.detail}</small> : null}</div></button>)}</div>
+    {data.prompt ? <p>{data.prompt}</p> : null}<div>{data.options?.map((option) => <button aria-pressed={selected === option.id} className={selected === option.id ? "is-selected" : ""} key={option.id} type="button" onClick={() => void onMutate(record.key, "select_session_choice", { optionId: option.id })}><span>{selected === option.id ? <Check size={12} /> : null}</span><div><strong>{option.label}</strong>{option.detail ? <small>{option.detail}</small> : null}{data.activeSelection?.optionId === option.id ? <em>Planned through {formatActivityRecordDate(data.activeSelection.endDate)}</em> : null}</div></button>)}</div>
   </section>;
 }
 

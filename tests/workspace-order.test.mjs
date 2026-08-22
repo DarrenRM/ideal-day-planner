@@ -9,6 +9,7 @@ test("keeps streaks first, recurring actions directly beneath them, then countdo
     item("primary", "primary"),
     item("resource-one", "resource"),
     item("support", "primary"),
+    item("equipment", "reference"),
     item("countdown", "countdown"),
     item("weekly", "recurring"),
     item("streak", "streak"),
@@ -21,6 +22,7 @@ test("keeps streaks first, recurring actions directly beneath them, then countdo
     "countdown",
     "primary",
     "support",
+    "equipment",
     "resource-one",
     "resource-two",
   ]);

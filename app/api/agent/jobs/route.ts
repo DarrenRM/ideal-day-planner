@@ -15,6 +15,7 @@ import {
   readActivityFollowUps,
   readActivityWorkspace,
   readConversationMessages,
+  reconcileBoundedSessionChoices,
   safeId,
 } from "../../agent-store";
 import { removeParentCadenceRecordActions } from "../../../activity-cadence-guard";
@@ -680,6 +681,7 @@ export async function POST(request: Request) {
         localDate: schedule?.planDate ?? localDateInTimeZone(new Date(), "America/Phoenix"),
         actions: usesReplyFirstProtocol ? [] : payload.followUpActions,
       });
+      await reconcileBoundedSessionChoices({ userId: job.userId, activityId: job.activityId, actionId: `${jobId}:bounded-choice` });
       const workspace = await persistWorkspaceActions({
         userId: job.userId,
         activityId: job.activityId,

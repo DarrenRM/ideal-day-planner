@@ -6,6 +6,7 @@ import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type W
 import { validateFollowUpActions, type ActivityFollowUp, type FollowUpAction } from "../follow-up-model";
 import { addLocalDays, localDateInTimeZone, parseCadence } from "../schedule-model";
 import { recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
+import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 
 export type ActivityRecord = {
   id: string;
@@ -836,6 +837,7 @@ export async function archiveParentCadenceRecords(userId: string) {
 }
 
 const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";
+const BOUNDED_SESSION_CHOICE_BACKFILL = "bounded-session-choices-v1";
 
 export async function backfillExplicitFollowUps(userId: string) {
   const migrationId = `migration:${safeId(userId)}:${EXPLICIT_FOLLOW_UP_BACKFILL}`;
@@ -883,6 +885,95 @@ export async function backfillExplicitFollowUps(userId: string) {
   await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
     .bind(migrationId, userId, EXPLICIT_FOLLOW_UP_BACKFILL).run();
   return messages.results.length;
+}
+
+type ChoiceFollowUpRow = {
+  id: string;
+  title: string;
+  question: string;
+  dueDate: string;
+  createdAt: string;
+};
+
+function storedLocalDate(createdAt: string) {
+  const instant = /(?:Z|[+-]\d{2}:?\d{2})$/.test(createdAt)
+    ? createdAt
+    : `${createdAt.replace(" ", "T")}Z`;
+  return localDateInTimeZone(instant, "America/Phoenix");
+}
+
+export async function reconcileBoundedSessionChoices(input: { userId: string; activityId: string; actionId: string }) {
+  const db = getD1();
+  const followUps = await db.prepare(`
+    SELECT id, title, question, due_date AS dueDate, created_at AS createdAt
+    FROM activity_follow_ups
+    WHERE user_id = ? AND activity_id = ? AND status IN ('pending', 'due')
+    ORDER BY due_date, created_at
+  `).bind(input.userId, input.activityId).all<ChoiceFollowUpRow>();
+  if (!followUps.results.length) return 0;
+
+  const choices = (await readActivityRecords(input.activityId)).filter((record) => record.type === "session_choice" && record.scope === "activity");
+  let updated = 0;
+  for (const choice of choices) {
+    const data = choice.data as SessionChoicePlanData;
+    const plan = inferSessionChoicePlan(data, followUps.results.map((followUp) => ({
+      ...followUp,
+      sourceDate: storedLocalDate(followUp.createdAt),
+    })));
+    if (!plan) continue;
+    await persistRecordActions({
+      userId: input.userId,
+      activityId: input.activityId,
+      actionId: `${input.actionId}:${safeId(choice.key)}:${safeId(plan.followUpId)}`,
+      sourceAgentJobId: input.actionId,
+      actions: [{
+        op: "upsert",
+        record: {
+          key: choice.key,
+          subjectKey: choice.subjectKey,
+          type: choice.type,
+          title: choice.title,
+          scope: choice.scope,
+          scopeDate: choice.scopeDate,
+          data: {
+            ...choice.data,
+            activeSelection: {
+              optionId: plan.optionId,
+              startDate: plan.startDate,
+              endDate: plan.endDate,
+              reason: plan.reason,
+            },
+          },
+        },
+      }],
+    });
+    updated += 1;
+  }
+  return updated;
+}
+
+export async function backfillBoundedSessionChoices(userId: string) {
+  const migrationId = `migration:${safeId(userId)}:${BOUNDED_SESSION_CHOICE_BACKFILL}`;
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, BOUNDED_SESSION_CHOICE_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+  const activities = await db.prepare(`
+    SELECT DISTINCT activity_id AS activityId
+    FROM activity_follow_ups
+    WHERE user_id = ? AND status IN ('pending', 'due')
+  `).bind(userId).all<{ activityId: string }>();
+  let updated = 0;
+  for (const activity of activities.results) {
+    updated += await reconcileBoundedSessionChoices({
+      userId,
+      activityId: activity.activityId,
+      actionId: migrationId,
+    });
+  }
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, BOUNDED_SESSION_CHOICE_BACKFILL).run();
+  return updated;
 }
 
 export async function persistFollowUpActions(input: {
