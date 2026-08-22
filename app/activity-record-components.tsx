@@ -139,6 +139,10 @@ function formatRest(seconds: number) {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
+function strengthTarget(exercise: WorkoutPlanExercise) {
+  return [exercise.targetSets ? `${exercise.targetSets} sets` : "", exercise.targetReps ? `${exercise.targetReps} reps` : "", exercise.targetLoad || ""].filter(Boolean).join(" · ");
+}
+
 function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecords = [] }: Props) {
   const data = record.data as StrengthSessionData;
   const workout = relatedRecords.find((entry) => entry.key === data.workoutRecordKey && entry.type === "workout");
@@ -148,7 +152,9 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
   const session = strengthSessionForDate(data, today);
   const progress = strengthSessionProgress(session, exercises.map((exercise) => exercise.id));
   const week = strengthWeekSummary(data, today);
+  const hasLoggedSets = (data.sessions ?? []).some((entry) => entry.exercises.some((exercise) => exercise.sets.length));
   const [expandedExerciseId, setExpandedExerciseId] = useState(exercises[0]?.id ?? "");
+  const [firstSetReady, setFirstSetReady] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, StrengthDraft>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
@@ -228,23 +234,30 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
     .filter((entry) => entry.date < today && entry.exercises.some((exercise) => exercise.sets.length))
     .sort((left, right) => right.date.localeCompare(left.date))
     .slice(0, 3);
+  const firstExercise = exercises[0];
+  const firstTarget = strengthTarget(firstExercise);
 
   return <section className="workspace-block strength-session-record">
     <div className="strength-session-heading">
       <div><span className="workspace-overline">Today’s workout</span><strong>{workout.title}</strong>{plan.focus ? <p>{plan.focus}</p> : null}</div>
       <span className="strength-session-mark"><Dumbbell aria-hidden="true" size={17} /></span>
     </div>
-    <div className="strength-progress" aria-label={`${progress.completedExercises} of ${progress.totalExercises} exercises and ${progress.completedSets} sets logged`}>
-      <span><strong>{progress.completedExercises}/{progress.totalExercises}</strong><small>exercises</small></span>
-      <span><strong>{progress.completedSets}</strong><small>sets today</small></span>
-      <span><strong>{week.sessions}</strong><small>workouts this week</small></span>
-    </div>
-    {restUntil && restRemaining > 0 ? <div className="strength-rest" role="timer"><span>Rest</span><strong>{formatRest(restRemaining)}</strong><button type="button" onClick={() => setRestUntil(null)}>Skip</button></div> : null}
-    <div className="strength-exercises">{exercises.map((exercise, exerciseIndex) => {
+    {!hasLoggedSets && !firstSetReady ? <div className="strength-first-session">
+      <div className="strength-first-copy"><span className="workspace-overline">First workout</span><strong>Start with {firstExercise.name}</strong><p>{firstTarget ? `Today’s plan starts with ${firstTarget}.` : "Record your first set to establish a useful baseline."}</p></div>
+      <div className="strength-plan-preview" aria-label="Today’s planned exercises">{exercises.map((exercise, index) => <span key={exercise.id}><b>{index + 1}</b><span><strong>{exercise.name}</strong>{strengthTarget(exercise) ? <small>{strengthTarget(exercise)}</small> : null}</span></span>)}</div>
+      <button className="strength-first-action" type="button" onClick={() => { setExpandedExerciseId(firstExercise.id); setFirstSetReady(true); }}>Log first set</button>
+    </div> : <>
+      {hasLoggedSets ? <div className="strength-progress" aria-label={`${progress.completedExercises} of ${progress.totalExercises} exercises and ${progress.completedSets} sets logged`}>
+        <span><strong>{progress.completedExercises}/{progress.totalExercises}</strong><small>exercises</small></span>
+        <span><strong>{progress.completedSets}</strong><small>sets today</small></span>
+        <span><strong>{week.sessions}</strong><small>workouts this week</small></span>
+      </div> : null}
+      {restUntil && restRemaining > 0 ? <div className="strength-rest" role="timer"><span>Rest</span><strong>{formatRest(restRemaining)}</strong><button type="button" onClick={() => setRestUntil(null)}>Skip</button></div> : null}
+      <div className="strength-exercises">{exercises.map((exercise, exerciseIndex) => {
       const isExpanded = effectiveExpandedExerciseId === exercise.id;
       const sets = performedSets(exercise.id);
       const prior = priorExerciseResult(data, exercise.id, today);
-      const target = [exercise.targetSets ? `${exercise.targetSets} sets` : "", exercise.targetReps ? `${exercise.targetReps} reps` : "", exercise.targetLoad || ""].filter(Boolean).join(" · ");
+      const target = strengthTarget(exercise);
       const draft = draftFor(exercise);
       const nextSetIndex = sets.length;
       const previousSet = prior?.sets[nextSetIndex] ?? prior?.sets.at(-1);
@@ -256,31 +269,36 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
         </button>
         {isExpanded ? <div className="strength-exercise-body">
           {exercise.note ? <p className="strength-exercise-note">{exercise.note}</p> : null}
-          <div className="strength-comparison"><span><small>Last time</small><strong>{prior ? summarizeStrengthSets(prior.sets) : "No history yet"}</strong></span><span><small>Today’s target</small><strong>{target || "Establish a baseline"}</strong></span></div>
-          <div className="strength-set-table">
-            <div className="strength-set-head" aria-hidden="true"><span>Set</span><span>Previous</span><span>Weight</span><span>Reps</span><span>Done</span></div>
+          {prior || target ? <div className={`strength-comparison ${prior && target ? "" : "is-single"}`}>{prior ? <span><small>Last time</small><strong>{summarizeStrengthSets(prior.sets)}</strong></span> : null}{target ? <span><small>Today’s target</small><strong>{target}</strong></span> : null}</div> : null}
+          {!hasLoggedSets ? <div className="strength-first-set-form">
+            <label>Weight<input aria-label={`Weight for the first set of ${exercise.name}`} inputMode="decimal" placeholder="Bodyweight" value={draft.load} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, load: event.target.value } }))} /></label>
+            <label>Reps<input aria-label={`Reps for the first set of ${exercise.name}`} inputMode="numeric" min="1" placeholder="—" type="number" value={draft.reps} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, reps: event.target.value } }))} /></label>
+            <button disabled={!draft.reps || saving === exercise.id} type="button" onClick={() => void logSet(exercise)}>Log set</button>
+          </div> : <div className={`strength-set-table ${prior ? "" : "has-no-previous"}`}>
+            <div className="strength-set-head" aria-hidden="true"><span>Set</span>{prior ? <span>Previous</span> : null}<span>Weight</span><span>Reps</span><span>Done</span></div>
             {sets.map((set, index) => <div className="strength-set-row is-logged" key={set.id}>
-              <span>{index + 1}</span><span>{prior?.sets[index] ? `${prior.sets[index].load || "BW"} × ${prior.sets[index].reps}` : "—"}</span><strong>{set.load || "BW"}</strong><strong>{set.reps}</strong>
+              <span>{index + 1}</span>{prior ? <span>{prior.sets[index] ? `${prior.sets[index].load || "BW"} × ${prior.sets[index].reps}` : "—"}</span> : null}<strong>{set.load || "BW"}</strong><strong>{set.reps}</strong>
               <button aria-label={`Remove set ${index + 1} from ${exercise.name}`} className="workspace-check is-checked" disabled={saving === set.id} type="button" onClick={() => void removeSet(exercise.id, set)}><Check size={11} strokeWidth={3} /></button>
             </div>)}
             <div className="strength-set-row is-entry">
-              <span>{sets.length + 1}</span><span>{previousSet ? `${previousSet.load || "BW"} × ${previousSet.reps}` : "—"}</span>
+              <span>{sets.length + 1}</span>{prior ? <span>{previousSet ? `${previousSet.load || "BW"} × ${previousSet.reps}` : "—"}</span> : null}
               <input aria-label={`Weight for set ${sets.length + 1} of ${exercise.name}`} inputMode="decimal" placeholder="BW" value={draft.load} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, load: event.target.value } }))} />
               <input aria-label={`Reps for set ${sets.length + 1} of ${exercise.name}`} inputMode="numeric" min="1" placeholder="—" type="number" value={draft.reps} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, reps: event.target.value } }))} />
               <button aria-label={`Log set ${sets.length + 1} for ${exercise.name}`} className="workspace-check" disabled={!draft.reps || saving === exercise.id} type="button" onClick={() => void logSet(exercise)}><Check size={11} strokeWidth={3} /></button>
             </div>
-          </div>
+          </div>}
           <details className="strength-set-options"><summary>Set details</summary><div><label>Type<select value={draft.setType} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, setType: event.target.value as StrengthDraft["setType"] } }))}><option value="working">Working</option><option value="warmup">Warm-up</option><option value="drop">Drop set</option><option value="failure">To failure</option></select></label><label>Reps left (optional)<input inputMode="numeric" max="10" min="0" placeholder="—" type="number" value={draft.rir} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, rir: event.target.value } }))} /></label></div></details>
         </div> : null}
       </article>;
-    })}</div>
-    {plan.openChoices?.length ? <div className="strength-open-choices"><span className="workspace-overline">Choose at the gym</span>{plan.openChoices.map((choice) => <button key={choice.id} type="button" onClick={onTalkWithLuna}><Plus aria-hidden="true" size={15} /><span><strong>{choice.label}</strong>{choice.guidance ? <small>{choice.guidance}</small> : null}{choice.equipment?.length ? <em>{choice.equipment.join(" · ")}</em> : null}</span></button>)}</div> : null}
-    <form className="strength-note" onSubmit={saveNote}><label>Workout note<textarea placeholder="Anything worth remembering from today?" value={note} onChange={(event) => setNoteDraft(event.target.value)} /></label><button disabled={saving === "note" || note === savedNote} type="submit">Save note</button></form>
-    <div className="strength-history"><div className="strength-history-heading"><span><small className="workspace-overline">Recent workouts</small><strong>Your lifting history</strong></span><TrendingUp aria-hidden="true" size={16} /></div>{recentSessions.length ? recentSessions.map((entry) => {
+      })}</div>
+      {plan.openChoices?.length ? <div className="strength-open-choices"><span className="workspace-overline">Choose at the gym</span>{plan.openChoices.map((choice) => <button key={choice.id} type="button" onClick={onTalkWithLuna}><Plus aria-hidden="true" size={15} /><span><strong>{choice.label}</strong>{choice.guidance ? <small>{choice.guidance}</small> : null}{choice.equipment?.length ? <em>{choice.equipment.join(" · ")}</em> : null}</span></button>)}</div> : null}
+      <form className="strength-note" onSubmit={saveNote}><label>Workout note<textarea placeholder="Anything worth remembering from today?" value={note} onChange={(event) => setNoteDraft(event.target.value)} /></label><button disabled={saving === "note" || note === savedNote} type="submit">Save note</button></form>
+      {recentSessions.length ? <div className="strength-history"><div className="strength-history-heading"><span><small className="workspace-overline">Recent workouts</small><strong>Your lifting history</strong></span><TrendingUp aria-hidden="true" size={16} /></div>{recentSessions.map((entry) => {
       const setCount = entry.exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
       const repCount = entry.exercises.reduce((total, exercise) => total + exercise.sets.reduce((sum, set) => sum + set.reps, 0), 0);
       return <div className="strength-history-row" key={entry.id}><time dateTime={entry.date}>{compactDate(entry.date)}</time><span><strong>{entry.workoutTitle || workout.title}</strong><small>{setCount} sets · {repCount} reps</small></span></div>;
-    }) : <p>Your first completed sets will start the history here.</p>}</div>
+      })}</div> : null}
+    </>}
   </section>;
 }
 
