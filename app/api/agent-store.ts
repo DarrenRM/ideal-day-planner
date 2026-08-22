@@ -919,7 +919,7 @@ export async function persistFollowUpActions(input: {
         (id, user_id, activity_id, conversation_id, follow_up_key, title, question,
          due_date, inferred, source_message_id, source_agent_job_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(activity_id, follow_up_key) DO UPDATE SET
+      ON CONFLICT(id) DO UPDATE SET
         title = excluded.title, question = excluded.question, due_date = excluded.due_date,
         inferred = excluded.inferred, source_message_id = excluded.source_message_id,
         source_agent_job_id = excluded.source_agent_job_id,
