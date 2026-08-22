@@ -603,10 +603,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .strength-session-heading strong { color: var(--text); font-size: var(--type-body-lg); line-height: var(--leading-body-lg); margin-top: 2px; }
 .strength-session-heading p { color: var(--muted); font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 4px 0 0; }
 .strength-session-mark { align-items: center; background: color-mix(in srgb, var(--item-color) 12%, var(--surface-soft)); border: 1px solid color-mix(in srgb, var(--item-color) 28%, var(--border)); border-radius: 8px; color: var(--item-color); display: flex; flex: 0 0 36px; height: 36px; justify-content: center; width: 36px; }
-.strength-first-session { border-top: 1px solid var(--border); display: grid; gap: 14px; padding: 14px; }
-.strength-first-copy strong, .strength-first-copy p { display: block; }
-.strength-first-copy strong { color: var(--text); font-size: var(--type-body-lg); line-height: var(--leading-body-lg); margin-top: 2px; }
-.strength-first-copy p { color: var(--muted); font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 4px 0 0; }
+.strength-first-session { border-top: 1px solid var(--border); display: grid; gap: 10px; padding: 14px; }
 .strength-plan-preview { background: var(--surface-soft); border: 1px solid var(--border); border-radius: 9px; display: grid; padding: 4px 12px; }
 .strength-plan-preview > span { align-items: center; display: grid; gap: 10px; grid-template-columns: 26px minmax(0, 1fr); min-height: 48px; }
 .strength-plan-preview > span + span { border-top: 1px solid var(--border); }

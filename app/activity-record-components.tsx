@@ -235,7 +235,6 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
     .sort((left, right) => right.date.localeCompare(left.date))
     .slice(0, 3);
   const firstExercise = exercises[0];
-  const firstTarget = strengthTarget(firstExercise);
 
   return <section className="workspace-block strength-session-record">
     <div className="strength-session-heading">
@@ -243,7 +242,7 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
       <span className="strength-session-mark"><Dumbbell aria-hidden="true" size={17} /></span>
     </div>
     {!hasLoggedSets && !firstSetReady ? <div className="strength-first-session">
-      <div className="strength-first-copy"><span className="workspace-overline">First workout</span><strong>Start with {firstExercise.name}</strong><p>{firstTarget ? `Today’s plan starts with ${firstTarget}.` : "Record your first set to establish a useful baseline."}</p></div>
+      <span className="workspace-overline">Exercises</span>
       <div className="strength-plan-preview" aria-label="Today’s planned exercises">{exercises.map((exercise, index) => <span key={exercise.id}><b>{index + 1}</b><span><strong>{exercise.name}</strong>{strengthTarget(exercise) ? <small>{strengthTarget(exercise)}</small> : null}</span></span>)}</div>
       <button className="strength-first-action" type="button" onClick={() => { setExpandedExerciseId(firstExercise.id); setFirstSetReady(true); }}>Log first set</button>
     </div> : <>

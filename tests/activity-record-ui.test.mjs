@@ -177,6 +177,7 @@ test("renders strength plans and dated sets as one specialized workout flow", as
   ]);
   assert.match(component, /function StrengthSessionRecord/);
   assert.match(component, /!hasLoggedSets && !firstSetReady/);
+  assert.match(component, />Exercises</);
   assert.match(component, /Log first set/);
   assert.match(component, /Last time/);
   assert.match(component, /Today’s target/);
