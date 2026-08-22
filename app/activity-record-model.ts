@@ -8,6 +8,7 @@ export const ACTIVITY_RECORD_TYPES = [
   "checklist",
   "item_list",
   "daily_selection",
+  "meal_log",
   "workout",
   "recurring_step",
   "activity_event",
@@ -151,6 +152,7 @@ export function hasUsefulActivityRecordData(record: ActivityRecordContent, conte
   if (record.type === "product") return Boolean(normalizedText(data.name));
   if (record.type === "protocol") return Boolean((!isPlaceholderActivityText(data.summary) && normalizedText(data.summary)) || nonEmptyArray(data.steps));
   if (record.type === "checklist" || record.type === "item_list" || record.type === "daily_selection") return nonEmptyArray(data.items);
+  if (record.type === "meal_log") return nonEmptyArray(data.entries) || nonEmptyArray(data.recipes);
   if (record.type === "workout") return nonEmptyArray(data.exercises) || nonEmptyArray(data.openChoices);
   if (record.type === "recurring_step") return Boolean(normalizedText(data.label) && data.cadence && typeof data.cadence === "object");
   if (record.type === "activity_event") return nonEmptyArray(data.entries);
@@ -244,6 +246,50 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
         const itemIds = [...new Set(stringArray(entry.itemIds, 100, 80).map(stableKey).filter((id) => id && knownIds.has(id)))];
         return itemIds.length ? { id: itemId(entry.id, index), date, itemIds } : null;
+      }),
+    };
+  }
+
+  if (type === "meal_log") {
+    const ingredients = (value: unknown, maximumItems = 60) => objectArray(value, maximumItems, (entry, index) => {
+      const label = boundedString(entry.label, 200);
+      return label ? { id: itemId(entry.id, index), label, amount: boundedString(entry.amount, 80) } : null;
+    });
+    return {
+      kind: source.kind === "shake" ? "shake" : source.kind === "food_prep" ? "food_prep" : "meal",
+      recipes: objectArray(source.recipes, 60, (entry, index) => {
+        const name = boundedString(entry.name, 200);
+        if (!name) return null;
+        return {
+          id: itemId(entry.id, index),
+          name,
+          sourceUrl: safeUrl(entry.sourceUrl),
+          sourceLabel: boundedString(entry.sourceLabel, 160),
+          summary: boundedString(entry.summary, 800),
+          ingredients: ingredients(entry.ingredients),
+          instructions: stringArray(entry.instructions, 50, 500),
+          servings: boundedString(entry.servings, 80),
+          notes: boundedString(entry.notes, 800),
+        };
+      }),
+      entries: objectArray(source.entries, 730, (entry, index) => {
+        const date = boundedString(entry.date, 10);
+        const title = boundedString(entry.title, 240);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title) return null;
+        return {
+          id: itemId(entry.id, index),
+          date,
+          title,
+          recipeId: stableKey(entry.recipeId),
+          detail: boundedString(entry.detail, 800),
+          ingredients: ingredients(entry.ingredients),
+          quantity: boundedString(entry.quantity, 100),
+          servings: boundedString(entry.servings, 100),
+          storage: boundedString(entry.storage, 300),
+          sourceUrl: safeUrl(entry.sourceUrl),
+          sourceLabel: boundedString(entry.sourceLabel, 160),
+          createdAt: boundedString(entry.createdAt, 40),
+        };
       }),
     };
   }

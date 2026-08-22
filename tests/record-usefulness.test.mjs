@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasUsefulActivityRecordData } from "../app/activity-record-model.ts";
+import { hasUsefulActivityRecordData, validateRecordActions } from "../app/activity-record-model.ts";
 import { validateWorkspaceActions } from "../app/workspace-model.ts";
 
 const record = (type, title, data) => ({ type, title, data });
@@ -8,6 +8,7 @@ const record = (type, title, data) => ({ type, title, data });
 test("rejects hollow domain records", () => {
   assert.equal(hasUsefulActivityRecordData(record("checklist", "Shower routine", { items: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("daily_selection", "Supplements", { items: [], entries: [] })), false);
+  assert.equal(hasUsefulActivityRecordData(record("meal_log", "Meals", { recipes: [], entries: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("workout", "Lift workout", { focus: "Lifting session", exercises: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("protocol", "Routine", { summary: "", steps: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("protocol", "Routine", { summary: "Routine details not yet specified.", steps: [] })), false);
@@ -31,6 +32,9 @@ test("accepts components with immediately useful content", () => {
   })), true);
   assert.equal(hasUsefulActivityRecordData(record("daily_selection", "Supplements", {
     items: [{ id: "magnesium", label: "Magnesium", active: true }], entries: [],
+  })), true);
+  assert.equal(hasUsefulActivityRecordData(record("meal_log", "Today’s shake", {
+    kind: "shake", recipes: [], entries: [{ id: "shake-2026-08-22", date: "2026-08-22", title: "Strawberry shake" }],
   })), true);
   assert.equal(hasUsefulActivityRecordData(record("workout", "Leg day", {
     exercises: [{ id: "lunges", name: "Walking lunges" }],
@@ -67,4 +71,15 @@ test("does not admit an empty inline routine into a workspace", () => {
     op: "upsert",
     component: { id: "shower-routine", type: "routine", title: "Shower routine", summary: "Routine details not yet specified." },
   }], 300), []);
+});
+
+test("normalizes a bounded meal log without requiring recipe or ingredient detail", () => {
+  const actions = validateRecordActions([{ op: "upsert", record: {
+    key: "meals", type: "meal_log", title: "Breakfast", scope: "activity", data: {
+      kind: "meal", recipes: [], entries: [{ id: "breakfast-2026-08-22", date: "2026-08-22", title: "Turkey sandwich", sourceUrl: "javascript:alert(1)" }],
+    },
+  } }], "2026-08-22");
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].record.data.entries[0].title, "Turkey sandwich");
+  assert.equal(actions[0].record.data.entries[0].sourceUrl, "");
 });

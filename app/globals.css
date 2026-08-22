@@ -508,6 +508,49 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .daily-selection-history > div { align-items: baseline; display: grid; gap: 10px; grid-template-columns: 72px minmax(0, 1fr); padding: 7px 0; }
 .daily-selection-history time { color: #758079; font-size: var(--type-label); white-space: nowrap; }
 .daily-selection-history p { color: #b8c2bc; font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 0; overflow-wrap: anywhere; }
+.meal-log-record { display: grid; gap: 12px; }
+.meal-log-record > .workspace-block-heading { margin-bottom: 0; }
+.meal-log-today, .meal-log-recipes { display: grid; gap: 8px; }
+.meal-log-entry { background: color-mix(in srgb, var(--item-color) 4%, #101517); border: 1px solid #283134; border-radius: 8px; min-width: 0; overflow: hidden; }
+.meal-log-entry-heading { align-items: center; display: grid; gap: 10px; grid-template-columns: 32px minmax(0, 1fr); min-height: 54px; padding: 9px 10px; }
+.meal-log-mark { align-items: center; background: color-mix(in srgb, var(--item-color) 10%, #151b1d); border: 1px solid color-mix(in srgb, var(--item-color) 28%, #30393a); border-radius: 7px; color: var(--item-color); display: inline-flex; height: 32px; justify-content: center; width: 32px; }
+.meal-log-entry-heading > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.meal-log-entry-heading strong { color: #d8e0d9; font-size: var(--type-body-sm); font-weight: 650; line-height: var(--leading-body-sm); overflow-wrap: anywhere; }
+.meal-log-entry-heading small { color: #77817c; font-size: var(--type-label); line-height: var(--leading-label); overflow-wrap: anywhere; }
+.meal-log-details { border-top: 1px solid #273033; }
+.meal-log-details > summary, .meal-log-saved-recipes > summary { align-items: center; color: color-mix(in srgb, var(--item-color) 64%, #9ca7a0); cursor: pointer; display: flex; font-size: var(--type-label); font-weight: 650; justify-content: space-between; list-style: none; min-height: 40px; padding: 8px 10px; }
+.meal-log-details > summary::-webkit-details-marker, .meal-log-saved-recipes > summary::-webkit-details-marker { display: none; }
+.meal-log-details > summary svg, .meal-log-saved-recipes > summary svg { transition: transform .18s ease; }
+.meal-log-details[open] > summary svg, .meal-log-saved-recipes[open] > summary svg { transform: rotate(180deg); }
+.meal-log-details > summary:focus-visible, .meal-log-saved-recipes > summary:focus-visible, .meal-log-source:focus-visible { outline: 2px solid color-mix(in srgb, var(--item-color) 52%, var(--accent)); outline-offset: -2px; }
+.meal-log-detail-body { border-top: 1px solid #222a2d; display: grid; gap: 12px; padding: 11px 10px 12px; }
+.meal-log-detail-body > p { color: #aab4ad; font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 0; }
+.meal-log-detail-body dl { display: grid; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.meal-log-detail-body dl > div { background: #0f1416; border: 1px solid #252e30; border-radius: 7px; min-width: 0; padding: 8px; }
+.meal-log-detail-body dt { color: #707b75; font-size: var(--type-micro); line-height: var(--leading-micro); text-transform: uppercase; }
+.meal-log-detail-body dd { color: #c4cdc6; font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 3px 0 0; overflow-wrap: anywhere; }
+.meal-log-ingredients, .meal-log-instructions { display: grid; gap: 6px; }
+.meal-log-ingredients ul, .meal-log-instructions ol { display: grid; gap: 6px; margin: 0; padding: 0; }
+.meal-log-ingredients li { align-items: baseline; color: #b9c3bc; display: flex; font-size: var(--type-body-sm); gap: 10px; justify-content: space-between; line-height: var(--leading-body-sm); }
+.meal-log-ingredients li small { color: #7d8882; flex: 0 0 auto; font-size: var(--type-label); }
+.meal-log-instructions ol { color: #aeb8b1; counter-reset: meal-step; list-style: none; }
+.meal-log-instructions li { counter-increment: meal-step; display: grid; font-size: var(--type-body-sm); gap: 8px; grid-template-columns: 20px minmax(0, 1fr); line-height: var(--leading-body-sm); }
+.meal-log-instructions li::before { color: var(--item-color); content: counter(meal-step) "."; font-weight: 700; }
+.meal-log-source { align-items: center; border-top: 1px solid #252e30; color: inherit; display: flex; justify-content: space-between; padding-top: 10px; text-decoration: none; }
+.meal-log-source > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.meal-log-source small { color: #707b75; font-size: var(--type-micro); text-transform: uppercase; }
+.meal-log-source strong { color: color-mix(in srgb, var(--item-color) 65%, #c2cbc4); font-size: var(--type-body-sm); font-weight: 620; overflow-wrap: anywhere; }
+.meal-log-source svg { color: #87928c; flex: 0 0 auto; }
+.meal-log-saved-recipes { border-top: 1px solid var(--border); }
+.meal-log-saved-recipes > summary { margin: 0 -8px -4px; padding-left: 8px; padding-right: 8px; }
+.meal-log-saved-recipes[open] > .meal-log-recipes { padding-top: 8px; }
+.meal-log-history { border-top: 1px solid var(--border); display: grid; gap: 0; padding-top: 12px; }
+.meal-log-history > .workspace-overline { margin-bottom: 4px; }
+.meal-log-history > div { align-items: baseline; display: grid; gap: 10px; grid-template-columns: 72px minmax(0, 1fr); padding: 7px 0; }
+.meal-log-history time { color: #758079; font-size: var(--type-label); white-space: nowrap; }
+.meal-log-history p { display: flex; flex-direction: column; gap: 2px; margin: 0; min-width: 0; }
+.meal-log-history strong { color: #bdc7c0; font-size: var(--type-body-sm); font-weight: 620; line-height: var(--leading-body-sm); overflow-wrap: anywhere; }
+.meal-log-history small { color: #707b75; font-size: var(--type-label); line-height: var(--leading-label); overflow-wrap: anywhere; }
 .workout-plan { display: flex; flex-direction: column; }
 .exercise-row { align-items: center; background: transparent; border: 0; border-top: 1px solid #20272a; color: inherit; cursor: pointer; display: grid; gap: 8px; min-width: 0; padding: 8px 1px; text-align: left; width: 100%; }
 .exercise-row:first-child { border-top: 0; }

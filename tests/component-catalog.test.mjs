@@ -4,14 +4,14 @@ import test from "node:test";
 import { ACTIVITY_RECIPES, CATALOG_VERSION, COMPONENT_CATALOG, activityRecipeHint } from "../bridge/component-catalog.mjs";
 
 const expected = [
-  "summary", "product", "protocol", "checklist", "item_list", "daily_selection", "workout",
+  "summary", "product", "protocol", "checklist", "item_list", "daily_selection", "meal_log", "workout",
   "recurring_step", "activity_event", "equipment", "session_choice", "session_log", "strength_session", "quick_log",
   "history", "comparison", "metric", "trend", "adherence", "timeline", "goal",
   "attention", "resources", "timer", "countdown",
 ];
 
-test("the production catalog contains every approved v8 component exactly once", () => {
-  assert.equal(CATALOG_VERSION, "workspace-catalog-v8");
+test("the production catalog contains every approved v9 component exactly once", () => {
+  assert.equal(CATALOG_VERSION, "workspace-catalog-v9");
   const types = COMPONENT_CATALOG.map(([type]) => type);
   assert.deepEqual(types, expected);
   assert.equal(new Set(types).size, types.length);
@@ -44,8 +44,13 @@ test("recipe hints cover the live activity families without treating schedule du
   assert.equal(activityRecipeHint("Cardio", "Training"), "Measured session");
   assert.equal(activityRecipeHint("Morning walk", "Light"), "Measured session");
   assert.equal(activityRecipeHint("Red light", "Care"), "Product/device care");
+  assert.equal(activityRecipeHint("Shake / Supplements", "Fuel"), "Meal/supplement routine");
+  assert.equal(activityRecipeHint("Breakfast", "Fuel"), "Meal/supplement routine");
+  assert.equal(activityRecipeHint("Dinner", "Fuel"), "Meal/supplement routine");
+  assert.equal(activityRecipeHint("Food Prep", "Logistics"), "Meal/supplement routine");
   assert.equal(activityRecipeHint("Resupply", "Logistics"), "Supply manager");
   assert.equal(activityRecipeHint("Build / Create", "Creativity"), "Focus/creative session");
   assert.ok(ACTIVITY_RECIPES.some((recipe) => recipe.toLowerCase().includes("no timer merely")));
   assert.ok(ACTIVITY_RECIPES.some((recipe) => recipe.includes("Use workout instead")));
+  assert.ok(ACTIVITY_RECIPES.some((recipe) => recipe.includes("meal_log")));
 });

@@ -55,7 +55,7 @@ type VisitContextEnvelope = {
 
 function scheduleMessageAlsoNeedsWorkspace(value: string | null | undefined) {
   return messageRequestsResearch(value)
-    || /\b(product|device|equipment|protocol|routine|track|record|history|goal|weight|reps?|sets?|ingredient|dose|dosage|used? today)\b/i.test(value || "");
+    || /\b(product|device|equipment|protocol|routine|track|record|history|goal|weight|reps?|sets?|ingredient|dose|dosage|used? today|ate|drank|made|prepped|cooked|meal|shake)\b/i.test(value || "");
 }
 
 function parseVisitContext(value: string | null | undefined): VisitContextEnvelope {

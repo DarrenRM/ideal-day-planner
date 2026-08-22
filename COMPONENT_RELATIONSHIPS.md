@@ -20,6 +20,8 @@ Adherence stays first at activity level. Due recurring steps come directly benea
 
 A `daily_selection` is activity-wide and carries no `subjectKey`. Its roster and dated entries are one canonical record; recent-history presentation is derived from those entries and must not be split into a peer `history` record.
 
+A `meal_log` is activity-wide and carries no `subjectKey`. It owns optional reusable recipes and the dated meal, shake, or food-prep entries that reference them. Recipe links and ingredients remain inside this record rather than becoming adjacent `resources`, `item_list`, or `history` records.
+
 ## Moving a subject
 
 `move_subject` names one subject root and a destination activity. The server resolves the root and every record with the same `subjectKey`, plus unambiguous dated/cadence records that explicitly reference the subject through `itemKey`. It moves their workspace bindings atomically. Conversation stays in the original activity as audit history.

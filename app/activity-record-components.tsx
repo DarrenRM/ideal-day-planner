@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
+import { AlertTriangle, BookOpen, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Utensils, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
 import { previousDateKey, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
+import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
 import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
 import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
@@ -194,6 +195,66 @@ function DailySelectionRecord({ record, onMutate }: Props) {
     {yesterdaySelection.length > 0 && !sameIds(selectedIds, yesterdaySelection) ? <div className="daily-selection-copy-row"><button disabled={saving} type="button" onClick={() => void copyYesterday()}><RotateCcw size={13} /> Same as yesterday</button></div> : null}
     {undo ? <div className="daily-selection-undo" role="status"><span>Yesterday’s selection copied.</span><button type="button" onClick={() => void undoCopy()}>Undo</button></div> : null}
     {priorEntries.length ? <div className="daily-selection-history"><span className="workspace-overline">Recent days</span>{priorEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p>{entry.itemIds.map((id) => labels.get(id)).filter(Boolean).join(" · ")}</p></div>)}</div> : null}
+  </section>;
+}
+
+function IngredientList({ ingredients }: { ingredients?: MealIngredient[] }) {
+  if (!ingredients?.length) return null;
+  return <div className="meal-log-ingredients"><span className="workspace-overline">Ingredients</span><ul>{ingredients.map((ingredient) => <li key={ingredient.id}><span>{ingredient.label}</span>{ingredient.amount ? <small>{ingredient.amount}</small> : null}</li>)}</ul></div>;
+}
+
+function RecipeDetails({ entry, recipe }: { entry?: MealLogEntry; recipe?: SavedRecipe }) {
+  const ingredients = entry?.ingredients?.length ? entry.ingredients : recipe?.ingredients;
+  const sourceUrl = entry?.sourceUrl || recipe?.sourceUrl;
+  const sourceLabel = entry?.sourceLabel || recipe?.sourceLabel || (sourceUrl ? "Original recipe" : "");
+  const facts = [
+    entry?.quantity ? ["Amount", entry.quantity] : null,
+    entry?.servings || recipe?.servings ? ["Servings", entry?.servings || recipe?.servings] : null,
+    entry?.storage ? ["Storage", entry.storage] : null,
+  ].filter((fact): fact is string[] => Boolean(fact));
+  return <div className="meal-log-detail-body">
+    {entry?.detail || recipe?.summary ? <p>{entry?.detail || recipe?.summary}</p> : null}
+    {facts.length ? <dl>{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : null}
+    <IngredientList ingredients={ingredients} />
+    {recipe?.instructions?.length ? <div className="meal-log-instructions"><span className="workspace-overline">Method</span><ol>{recipe.instructions.map((instruction, index) => <li key={`${recipe.id}-step-${index + 1}`}>{instruction}</li>)}</ol></div> : null}
+    {recipe?.notes ? <p>{recipe.notes}</p> : null}
+    {sourceUrl ? <a className="meal-log-source" href={sourceUrl} rel="noreferrer" target="_blank"><span><small>Source</small><strong>{sourceLabel}</strong></span><ExternalLink aria-hidden="true" size={14} /></a> : null}
+  </div>;
+}
+
+function MealEntryCard({ data, entry }: { data: MealLogData; entry: MealLogEntry }) {
+  const recipe = recipeForMealEntry(data, entry);
+  const ingredientCount = (entry.ingredients?.length || recipe?.ingredients?.length) ?? 0;
+  const sourceLabel = entry.sourceLabel || recipe?.sourceLabel;
+  const meta = [entry.quantity, entry.servings, ingredientCount ? `${ingredientCount} ingredient${ingredientCount === 1 ? "" : "s"}` : "", sourceLabel].filter(Boolean);
+  const hasDetails = mealEntryHasDetails(data, entry);
+  return <article className="meal-log-entry">
+    <div className="meal-log-entry-heading"><span className="meal-log-mark"><Utensils aria-hidden="true" size={15} /></span><div><strong>{entry.title}</strong>{meta.length ? <small>{meta.join(" · ")}</small> : null}</div></div>
+    {hasDetails ? <details className="meal-log-details"><summary><span>{recipe ? "Recipe details" : "View details"}</span><ChevronDown aria-hidden="true" size={15} /></summary><RecipeDetails entry={entry} recipe={recipe} /></details> : null}
+  </article>;
+}
+
+function SavedRecipeCard({ recipe }: { recipe: SavedRecipe }) {
+  const meta = [recipe.sourceLabel, recipe.ingredients?.length ? `${recipe.ingredients.length} ingredient${recipe.ingredients.length === 1 ? "" : "s"}` : "", recipe.servings].filter(Boolean);
+  return <article className="meal-log-entry is-recipe">
+    <div className="meal-log-entry-heading"><span className="meal-log-mark"><BookOpen aria-hidden="true" size={15} /></span><div><strong>{recipe.name}</strong>{meta.length ? <small>{meta.join(" · ")}</small> : null}</div></div>
+    {savedRecipeHasDetails(recipe) ? <details className="meal-log-details"><summary><span>Recipe details</span><ChevronDown aria-hidden="true" size={15} /></summary><RecipeDetails recipe={recipe} /></details> : null}
+  </article>;
+}
+
+function MealLogRecord({ record }: { record: ActivityRecord }) {
+  const data = record.data as unknown as MealLogData;
+  const today = localDateKey();
+  const todayEntries = mealEntriesForDate(data, today);
+  const recentEntries = data.entries.filter((entry) => entry.date !== today).sort((left, right) => right.date.localeCompare(left.date)).slice(0, 4);
+  const recipeIdsUsedToday = new Set(todayEntries.map((entry) => entry.recipeId).filter(Boolean));
+  const savedRecipes = data.recipes.filter((recipe) => !recipeIdsUsedToday.has(recipe.id));
+  const headingMode = todayEntries.length ? "today" : savedRecipes.length ? "recipe" : "recent";
+  return <section className="workspace-block meal-log-record">
+    <Heading eyebrow={headingMode === "today" ? "Today" : headingMode === "recipe" ? "Saved recipe" : "Recent"} title={record.title} icon={headingMode === "today" ? <Utensils size={16} /> : <BookOpen size={16} />} />
+    {todayEntries.length ? <div className="meal-log-today">{todayEntries.map((entry) => <MealEntryCard data={data} entry={entry} key={entry.id} />)}</div> : <div className="meal-log-recipes">{savedRecipes.map((recipe) => <SavedRecipeCard key={recipe.id} recipe={recipe} />)}</div>}
+    {todayEntries.length && savedRecipes.length ? <details className="meal-log-saved-recipes"><summary><span>{savedRecipes.length} saved recipe{savedRecipes.length === 1 ? "" : "s"}</span><ChevronDown aria-hidden="true" size={15} /></summary><div className="meal-log-recipes">{savedRecipes.map((recipe) => <SavedRecipeCard key={recipe.id} recipe={recipe} />)}</div></details> : null}
+    {recentEntries.length ? <div className="meal-log-history"><span className="workspace-overline">Recent</span>{recentEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p><strong>{entry.title}</strong>{entry.detail ? <small>{entry.detail}</small> : null}</p></div>)}</div> : null}
   </section>;
 }
 
@@ -661,6 +722,7 @@ export function ActivityRecordComponent(props: Props) {
   if (record.type === "protocol") return <ProtocolRecord {...props} />;
   if (record.type === "checklist" || record.type === "item_list") return <ItemListRecord {...props} />;
   if (record.type === "daily_selection") return <DailySelectionRecord {...props} />;
+  if (record.type === "meal_log") return <MealLogRecord record={record} />;
   if (record.type === "workout") return <WorkoutRecord {...props} />;
   if (record.type === "recurring_step") return <RecurringStepRecord {...props} />;
   if (record.type === "activity_event") return <ActivityEventRecord record={record} />;

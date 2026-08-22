@@ -47,6 +47,20 @@ test("renders daily subset selection, copy, inline add, and derived history as o
   assert.match(dayRoute, /backfillDailySelections/);
 });
 
+test("renders concise meal entries with optional collapsed recipe details", async () => {
+  const [component, css] = await Promise.all([
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(component, /function MealLogRecord/);
+  assert.match(component, /Recipe details/);
+  assert.match(component, /meal-log-history/);
+  assert.match(component, /mealEntriesForDate/);
+  assert.doesNotMatch(component.match(/function MealLogRecord[\s\S]*?\n}/)?.[0] || "", /input|textarea|toggle/);
+  assert.match(css, /\.meal-log-entry/);
+  assert.match(css, /\.meal-log-details > summary/);
+});
+
 test("renders history as its own responsive recap rather than a timeline grid", async () => {
   const [component, css] = await Promise.all([
     readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),

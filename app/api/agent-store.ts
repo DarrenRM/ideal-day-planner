@@ -9,6 +9,7 @@ import { recurringStepRepresentsParentActivity } from "../activity-cadence-guard
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 import { measuredSessionFields, type SessionChoiceData } from "../session-log-model";
 import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
+import { mergeMealLogData, type MealLogData } from "../meal-log-model";
 
 export type ActivityRecord = {
   id: string;
@@ -763,6 +764,12 @@ export async function persistRecordActions(input: {
       try {
         const currentData = JSON.parse(current.payloadJson) as DailySelectionData;
         nextData = mergeDailySelectionData(currentData, action.record.data as DailySelectionData);
+      } catch { /* the validated incoming record remains the safe fallback */ }
+    }
+    if (action.record.type === "meal_log" && current?.recordType === "meal_log" && (input.sourceAgentJobId || input.sourceMessageId)) {
+      try {
+        const currentData = JSON.parse(current.payloadJson) as MealLogData;
+        nextData = mergeMealLogData(currentData, action.record.data as MealLogData);
       } catch { /* the validated incoming record remains the safe fallback */ }
     }
     const payloadJson = JSON.stringify(nextData);
