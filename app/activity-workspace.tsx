@@ -401,7 +401,19 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   const linkedWorkoutItem = linkedWorkoutKey
     ? orderedItems.find(({ component }) => component?.type === "workout" && (component as DataWorkspaceComponent).recordKey === linkedWorkoutKey)
     : undefined;
-  const groupedIds = new Set([strengthSessionItem?.id, linkedWorkoutItem?.id].filter((id): id is string => Boolean(id)));
+  const linkedWorkoutPhaseItems = linkedWorkoutKey
+    ? orderedItems.filter(({ component }) => {
+        if (component?.type !== "protocol") return false;
+        const phaseRecord = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
+        return phaseRecord?.type === "protocol" && phaseRecord.data.workoutRecordKey === linkedWorkoutKey
+          && (phaseRecord.data.phase === "warmup" || phaseRecord.data.phase === "cooldown");
+      })
+    : [];
+  const groupedIds = new Set([
+    strengthSessionItem?.id,
+    linkedWorkoutItem?.id,
+    ...linkedWorkoutPhaseItems.map(({ id }) => id),
+  ].filter((id): id is string => Boolean(id)));
   const remainingItems = orderedItems.filter(({ id }) => !measuredIds.has(id) && !groupedIds.has(id));
 
   function renderMeasuredItem(item: typeof measuredSessionItem, presentation?: "default" | "compact" | "featured") {

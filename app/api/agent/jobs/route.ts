@@ -27,12 +27,9 @@ import { localDateInTimeZone, parseOccurrenceAction, parseScheduleProposal } fro
 import { applyOccurrenceAction } from "../../schedule-actions";
 import { readSchedulePatterns } from "../../schedule-store";
 import { messageHasScheduleIntent } from "../../../schedule-intent";
+import { messageRequestsResearch } from "../../../research-intent";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
-
-function messageRequestsResearch(value: string | null | undefined) {
-  return /https?:\/\/\S+|www\.\S+|look\s*up|research|verify|check\s+(?:the|its|these|those|spec)|web\s+(?:access|search)|specification|manufacturer/i.test(value || "");
-}
 
 type LeasedJob = {
   id: string;
@@ -133,7 +130,10 @@ export async function GET(request: Request) {
           OR instr(lower(message.body), 'https://') > 0
           OR instr(lower(message.body), 'www.') > 0
           OR instr(lower(message.body), 'look up') > 0
+          OR instr(lower(message.body), 'look into') > 0
           OR instr(lower(message.body), 'research') > 0
+          OR instr(lower(message.body), 'investigate') > 0
+          OR instr(lower(message.body), 'find out') > 0
           OR instr(lower(message.body), 'verify') > 0
           OR instr(lower(message.body), 'manufacturer') > 0
         )
@@ -478,11 +478,19 @@ export async function POST(request: Request) {
 
     if (mode === "complete") {
       const suppliedResponse = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
-      const response = suppliedResponse;
       const sourceMessage = job.sourceMessageId
         ? await db.prepare("SELECT body FROM conversation_messages WHERE id = ? AND conversation_id = ?")
           .bind(job.sourceMessageId, job.conversationId).first<{ body: string }>()
         : null;
+      const workspaceClarificationSource = job.kind === "workspace_refresh" && payload.followUpQuestion && typeof payload.followUpQuestion === "object" && !Array.isArray(payload.followUpQuestion)
+        ? payload.followUpQuestion as Record<string, unknown>
+        : null;
+      const workspaceClarification = typeof workspaceClarificationSource?.body === "string"
+        ? workspaceClarificationSource.body.trim().slice(0, 4000)
+        : "";
+      const response = job.kind === "workspace_refresh"
+        ? messageRequestsResearch(sourceMessage?.body) ? suppliedResponse : workspaceClarification
+        : suppliedResponse;
       const requestedWorkspaceFollowup = payload.workspaceFollowup === true || messageRequestsResearch(sourceMessage?.body);
       const scheduleOnlyRequest = messageHasScheduleIntent(sourceMessage?.body || "")
         && !scheduleMessageAlsoNeedsWorkspace(sourceMessage?.body);
@@ -649,6 +657,11 @@ export async function POST(request: Request) {
         if (action.op === "remove") availableRecords.delete(action.recordKey);
         else availableRecords.set(action.record.key, action.record);
       }
+      const invalidWorkoutPhase = recordActions.some((action) => {
+        if (action.op !== "upsert" || action.record.type !== "protocol" || !action.record.data.workoutRecordKey) return false;
+        return availableRecords.get(String(action.record.data.workoutRecordKey))?.type !== "workout";
+      });
+      if (invalidWorkoutPhase) return Response.json({ error: "A workout phase must link to a saved workout in this activity." }, { status: 400 });
       const safeWorkspaceActions = workspaceActions.filter((action) => {
         if (action.op === "remove") return true;
         const component = action.component;

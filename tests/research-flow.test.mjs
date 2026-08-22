@@ -3,10 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { researchAcknowledgement, userMessageRequestsResearch } from "../bridge/job-policy.mjs";
+import { messageRequestsResearch as appMessageRequestsResearch } from "../app/research-intent.ts";
 
 test("treats pasted links and explicit lookup requests as research work", () => {
   assert.equal(userMessageRequestsResearch("https://lumenlab.example/"), true);
   assert.equal(userMessageRequestsResearch("Can you look up the manufacturer directions?"), true);
+  assert.equal(userMessageRequestsResearch("Can you look into this and advise?"), true);
+  assert.equal(appMessageRequestsResearch("Can you look into this and advise?"), true);
   assert.equal(userMessageRequestsResearch("I use this after showering."), false);
 });
 
@@ -17,10 +20,11 @@ test("acknowledges research immediately in the activity's language", () => {
   );
 });
 
-test("the bridge bypasses the slow conversational pass and the server recovers missed follow-ups", async () => {
-  const [bridge, route] = await Promise.all([
+test("research is acknowledged synchronously and compiled through one final response path", async () => {
+  const [bridge, route, messageJobs] = await Promise.all([
     readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
     readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity-message-jobs.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(bridge, /leased\.job\.kind === "user_message" && userMessageRequestsResearch\(sourceMessage\)/);
@@ -36,6 +40,10 @@ test("the bridge bypasses the slow conversational pass and the server recovers m
   assert.match(bridge, /never emit fields or usage subfields/);
   assert.match(route, /'agent-job:workspace-recovery:' \|\| source\.id/);
   assert.match(route, /payload\.workspaceFollowup === true \|\| messageRequestsResearch\(sourceMessage\?\.body\)/);
+  assert.match(messageJobs, /researchAcknowledgement\(input\.activityTitle\)/);
+  assert.match(messageJobs, /researchRequested \? "workspace_refresh" : "user_message"/);
+  assert.match(route, /job\.kind === "workspace_refresh"[\s\S]*messageRequestsResearch\(sourceMessage\?\.body\) \? suppliedResponse : workspaceClarification/);
+  assert.match(bridge, /Only researched findings belong in message; ordinary workspace compilation must return message:null/);
   assert.match(bridge, /sendHeartbeat\(leased\)/);
   assert.match(route, /SET lease_expires_at = datetime\('now', '\+3 minutes'\)/);
 });

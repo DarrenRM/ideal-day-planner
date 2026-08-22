@@ -198,7 +198,10 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
   }
 
   if (type === "protocol") {
+    const workoutRecordKey = stableKey(source.workoutRecordKey);
+    const phase = source.phase === "warmup" ? "warmup" : source.phase === "cooldown" ? "cooldown" : "";
     return {
+      ...(workoutRecordKey && phase ? { workoutRecordKey, phase } : {}),
       summary: boundedString(source.summary, 800),
       steps: objectArray(source.steps, 30, (entry, index) => {
         const label = boundedString(entry.label, 400);
@@ -645,6 +648,7 @@ export function validateRecordActions(value: unknown, planDate?: string | null):
     if (scope === "day" && !scopeDate) return [];
     const requestedSubjectKey = stableKey(record.subjectKey);
     const subjectKey = type === "product" ? requestedSubjectKey || key : requestedSubjectKey || null;
+    if (type === "protocol" && data.workoutRecordKey && subjectKey) return [];
     return [{ op: "upsert" as const, record: { key, subjectKey, type, title, scope, scopeDate, data } }];
   }).slice(0, 30);
 }

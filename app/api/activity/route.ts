@@ -154,7 +154,7 @@ export async function POST(request: Request) {
         `).bind(messageId, conversationId, body),
         ...activityMessageJobStatements({
           userId, activityId: activity.id, activityVariantId: occurrence?.activityVariantId,
-          conversationId, sourceMessageId: messageId, clientMessageId, body,
+          conversationId, sourceMessageId: messageId, clientMessageId, body, activityTitle: activity.title,
         }),
       ]);
       return Response.json({ conversationId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) }, { status: 202 });

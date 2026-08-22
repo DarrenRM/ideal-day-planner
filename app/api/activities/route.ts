@@ -181,7 +181,7 @@ export async function POST(request: Request) {
         `).bind(messageId, conversationId, setupRequest),
         ...activityMessageJobStatements({
           userId, activityId, conversationId, sourceMessageId: messageId,
-          clientMessageId, body: setupRequest,
+          clientMessageId, body: setupRequest, activityTitle: title,
         }),
       ]);
     } else {

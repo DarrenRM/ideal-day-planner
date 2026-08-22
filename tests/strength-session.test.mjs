@@ -8,6 +8,7 @@ import {
   strengthWeekSummary,
   summarizeStrengthSets,
 } from "../app/strength-session-model.ts";
+import { parseActivityRecord } from "../app/activity-record-model.ts";
 
 const data = {
   workoutRecordKey: "leg-day",
@@ -43,4 +44,25 @@ test("derives today's strength progress and previous exercise values from dated 
 
 test("derives weekly workout and set counts without agent-maintained summaries", () => {
   assert.deepEqual(strengthWeekSummary(data, "2026-08-21"), { sessions: 2, sets: 3 });
+});
+
+test("preserves an explicitly linked warm-up as a workout phase", () => {
+  const record = parseActivityRecord({
+    id: "warmup-record",
+    recordKey: "leg-day-warmup",
+    recordType: "protocol",
+    title: "Leg-day dynamic warm-up",
+    scope: "activity",
+    scopeDate: null,
+    version: 1,
+    payloadJson: JSON.stringify({
+      workoutRecordKey: "leg-day",
+      phase: "warmup",
+      summary: "Prepare for the first exercise.",
+      steps: [{ id: "walk", label: "Easy walk" }],
+    }),
+    updatedAt: "2026-08-22T12:00:00Z",
+  });
+  assert.equal(record?.data.workoutRecordKey, "leg-day");
+  assert.equal(record?.data.phase, "warmup");
 });

@@ -8,7 +8,7 @@ import { previousDateKey, selectionForDate, type DailySelectionData, type DailyS
 import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
 import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
-import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
+import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPhaseProtocolData, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<void>;
 
@@ -307,10 +307,44 @@ function strengthTarget(exercise: WorkoutPlanExercise) {
   return [exercise.targetSets ? `${exercise.targetSets} sets` : "", exercise.targetReps ? `${exercise.targetReps} reps` : "", exercise.targetLoad || ""].filter(Boolean).join(" · ");
 }
 
+function StrengthWorkoutPhase({ record, onMutate }: { record: ActivityRecord; onMutate: RecordMutation }) {
+  const data = record.data as unknown as WorkoutPhaseProtocolData;
+  const steps = data.steps ?? [];
+  const completedSteps = steps.filter(completedToday).length;
+  const complete = steps.length > 0 && completedSteps === steps.length;
+  const [expanded, setExpanded] = useState(!complete);
+
+  useEffect(() => {
+    if (complete) setExpanded(false);
+  }, [complete]);
+
+  return <section className={`strength-workout-phase is-${data.phase} ${complete ? "is-complete" : ""}`}>
+    <button aria-expanded={expanded} className="strength-phase-toggle" type="button" onClick={() => setExpanded((current) => !current)}>
+      <span className="strength-phase-mark">{complete ? <Check aria-hidden="true" size={14} strokeWidth={3} /> : data.phase === "warmup" ? "1" : "✓"}</span>
+      <span><small className="workspace-overline">{data.phase === "warmup" ? "Warm-up" : "Cool-down"}</small><strong>{record.title}</strong><em>{complete ? "Complete" : `${completedSteps} of ${steps.length} steps`}</em></span>
+      <ChevronDown aria-hidden="true" size={16} />
+    </button>
+    {expanded ? <div className="strength-phase-body">
+      {data.summary ? <p>{data.summary}</p> : null}
+      <div className="strength-phase-steps">{steps.map((step) => <button aria-pressed={completedToday(step)} className={completedToday(step) ? "is-complete" : ""} key={step.id} type="button" onClick={() => void onMutate(record.key, "toggle_item", { itemId: step.id })}>
+        <span aria-hidden="true">{completedToday(step) ? <Check size={11} strokeWidth={3} /> : null}</span>
+        <span><strong>{step.label}</strong>{step.note ? <small>{step.note}</small> : null}</span>
+      </button>)}</div>
+    </div> : null}
+  </section>;
+}
+
 function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecords = [] }: Props) {
   const data = record.data as StrengthSessionData;
   const workout = relatedRecords.find((entry) => entry.key === data.workoutRecordKey && entry.type === "workout");
   const plan = (workout?.data ?? {}) as WorkoutPlanData;
+  const workoutPhases = workout ? relatedRecords.filter((entry) => {
+    if (entry.type !== "protocol") return false;
+    const phase = entry.data as unknown as Partial<WorkoutPhaseProtocolData>;
+    return phase.workoutRecordKey === workout.key && (phase.phase === "warmup" || phase.phase === "cooldown");
+  }) : [];
+  const warmup = workoutPhases.find((entry) => entry.data.phase === "warmup");
+  const cooldown = workoutPhases.find((entry) => entry.data.phase === "cooldown");
   const exercises = useMemo(() => plan.exercises ?? [], [plan.exercises]);
   const today = localDateKey();
   const session = strengthSessionForDate(data, today);
@@ -405,6 +439,7 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
       <div><span className="workspace-overline">Today’s workout</span><strong>{workout.title}</strong>{plan.focus ? <p>{plan.focus}</p> : null}</div>
       <span className="strength-session-mark"><Dumbbell aria-hidden="true" size={17} /></span>
     </div>
+    {warmup ? <StrengthWorkoutPhase onMutate={onMutate} record={warmup} /> : null}
     {!hasLoggedSets && !firstSetReady ? <div className="strength-first-session">
       <span className="workspace-overline">Exercises</span>
       <div className="strength-plan-preview" aria-label="Today’s planned exercises">{exercises.map((exercise, index) => <span key={exercise.id}><b>{index + 1}</b><span><strong>{exercise.name}</strong>{strengthTarget(exercise) ? <small>{strengthTarget(exercise)}</small> : null}</span></span>)}</div>
@@ -455,6 +490,7 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
       </article>;
       })}</div>
       {plan.openChoices?.length ? <div className="strength-open-choices"><span className="workspace-overline">Choose at the gym</span>{plan.openChoices.map((choice) => <button key={choice.id} type="button" onClick={onTalkWithLuna}><Plus aria-hidden="true" size={15} /><span><strong>{choice.label}</strong>{choice.guidance ? <small>{choice.guidance}</small> : null}{choice.equipment?.length ? <em>{choice.equipment.join(" · ")}</em> : null}</span></button>)}</div> : null}
+      {cooldown ? <StrengthWorkoutPhase onMutate={onMutate} record={cooldown} /> : null}
       <form className="strength-note" onSubmit={saveNote}><label>Workout note<textarea placeholder="Anything worth remembering from today?" value={note} onChange={(event) => setNoteDraft(event.target.value)} /></label><button disabled={saving === "note" || note === savedNote} type="submit">Save note</button></form>
       {recentSessions.length ? <div className="strength-history"><div className="strength-history-heading"><span><small className="workspace-overline">Recent workouts</small><strong>Your lifting history</strong></span><TrendingUp aria-hidden="true" size={16} /></div>{recentSessions.map((entry) => {
       const setCount = entry.exercises.reduce((total, exercise) => total + exercise.sets.length, 0);

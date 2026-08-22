@@ -856,6 +856,7 @@ const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";
 const BOUNDED_SESSION_CHOICE_BACKFILL = "bounded-session-choices-v1";
 const MEASURED_SESSION_LOG_BACKFILL = "measured-session-logs-v1";
 const STRENGTH_SESSION_BACKFILL = "strength-sessions-v1";
+const STRENGTH_WORKOUT_PHASE_BACKFILL = "strength-workout-phases-v1";
 const DAILY_SELECTION_BACKFILL = "daily-selections-v1";
 
 export async function backfillExplicitFollowUps(userId: string) {
@@ -1161,6 +1162,53 @@ export async function backfillStrengthSessions(userId: string) {
   }
   await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
     .bind(migrationId, userId, STRENGTH_SESSION_BACKFILL).run();
+  return updated;
+}
+
+export async function backfillStrengthWorkoutPhases(userId: string) {
+  const migrationId = `migration:${safeId(userId)}:${STRENGTH_WORKOUT_PHASE_BACKFILL}`;
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, STRENGTH_WORKOUT_PHASE_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+
+  const activities = await db.prepare("SELECT id FROM activities WHERE user_id = ? ORDER BY created_at, id")
+    .bind(userId).all<{ id: string }>();
+  let updated = 0;
+  for (const activity of activities.results) {
+    const records = await readActivityRecords(activity.id);
+    const workouts = records.filter((record) => record.type === "workout" && record.scope === "activity");
+    if (workouts.length !== 1) continue;
+    const workout = workouts[0];
+    const candidates = records.filter((record) => {
+      if (record.type !== "protocol" || record.scope !== "activity" || record.subjectKey || record.data.workoutRecordKey) return false;
+      const text = `${record.title} ${typeof record.data.summary === "string" ? record.data.summary : ""}`;
+      return /warm[- ]?up|movement prep|pre-lift|activation/i.test(text);
+    });
+    for (const protocol of candidates) {
+      await persistRecordActions({
+        userId,
+        activityId: activity.id,
+        actionId: `${migrationId}:${safeId(activity.id)}:${safeId(protocol.key)}`,
+        sourceAgentJobId: migrationId,
+        actions: [{
+          op: "upsert",
+          record: {
+            key: protocol.key,
+            subjectKey: null,
+            type: "protocol",
+            title: protocol.title,
+            scope: protocol.scope,
+            scopeDate: protocol.scopeDate,
+            data: { ...protocol.data, workoutRecordKey: workout.key, phase: "warmup" },
+          },
+        }],
+      });
+      updated += 1;
+    }
+  }
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, STRENGTH_WORKOUT_PHASE_BACKFILL).run();
   return updated;
 }
 

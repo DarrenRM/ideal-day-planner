@@ -1,4 +1,4 @@
-const RESEARCH_REQUEST_PATTERN = /https?:\/\/\S+|www\.\S+|look\s*up|research|verify|check\s+(?:the|its|these|those|spec)|web\s+(?:access|search)|specification|manufacturer/i;
+const RESEARCH_REQUEST_PATTERN = /https?:\/\/\S+|www\.\S+|look\s*(?:up|into)|research|investigat(?:e|ion)|find\s+out|verify|check\s+(?:the|its|these|those|spec|into|on)|web\s+(?:access|search)|specification|manufacturer/i;
 
 export function userMessageRequestsResearch(value) {
   return RESEARCH_REQUEST_PATTERN.test(String(value || ""));

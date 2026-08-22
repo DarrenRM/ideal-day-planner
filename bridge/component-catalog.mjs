@@ -1,9 +1,9 @@
-export const CATALOG_VERSION = "workspace-catalog-v9";
+export const CATALOG_VERSION = "workspace-catalog-v10";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
   ["product", "One named product or device identity card and subject root", "subjectKey(same as record key); kind(product|device), name, manufacturer, variant, notes"],
-  ["protocol", "Repeatable ordered instructions", "optional subjectKey; summary, steps[{id,label,note,completed}]"],
+  ["protocol", "Repeatable ordered instructions", "either optional subjectKey for a product/device, or workoutRecordKey plus phase(warmup|cooldown) for an explicitly linked workout phase; summary, steps[{id,label,note,completed}]"],
   ["checklist", "Repeatable actions to check during the current activity", "items[{id,label,detail,completed}]"],
   ["item_list", "Open shopping, queue, inventory, or supply items", "items[{id,label,detail,completed,urgency,source}]"],
   ["daily_selection", "A reusable roster where any subset may be selected on each date, with history derived from the same entries", "items[{id,label,detail,active,source}], entries[{id,date,itemIds[]}]"],
@@ -30,7 +30,7 @@ export const COMPONENT_CATALOG = [
 ];
 
 export const ACTIVITY_RECIPES = [
-  "Strength session: one workout plan plus one linked strength_session log and an activity-scoped equipment record when known. The workout owns the reusable exercise order and targets; strength_session owns every dated performed set. Use workout openChoices for a purposeful gym-selected slot. Never copy set history into workout, comparison, metric, history, or activity_event records because the app derives it from strength_session.",
+  "Strength session: one workout plan plus one linked strength_session log and an activity-scoped equipment record when known. The workout owns the reusable exercise order and targets; strength_session owns every dated performed set. A movement-preparation or recovery protocol is not an exercise: link its protocol explicitly with workoutRecordKey and phase warmup or cooldown so it renders inside the strength flow before or after the numbered exercises. Use workout openChoices for a purposeful gym-selected slot. Never copy set history into workout, comparison, metric, history, or activity_event records because the app derives it from strength_session.",
   "Measured session: use session_log when the whole session is the unit of tracking: one modality plus duration and a small number of supported measurements or settings. Link it to session_choice when today’s modality is selected from options. Use this for cardio, running, walking, hiking, rucking, cycling, swimming, rowing, stair work, simple conditioning, and similar sessions. Use workout instead when exercises, sets, reps, and loads are the units.",
   "Cardio session: session_choice when the modality is open, then one linked session_log. Keep fields minimal and modality-aware. Preserve every existing entry when updating fields or adding today’s session. Do not maintain separate metric/history copies of session-log values; the app derives progress and averages. Timer or countdown is optional and only useful when the modality or user intent makes time useful.",
   "Bounded trial: when the user commits to one session_choice option for a stated date range or until a check-in, set activeSelection for that inclusive range and create the matching follow-up. Exact dated selections remain one-day overrides.",

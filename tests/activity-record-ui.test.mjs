@@ -211,6 +211,9 @@ test("renders strength plans and dated sets as one specialized workout flow", as
     readFile(new URL("../bridge/component-catalog.mjs", import.meta.url), "utf8"),
   ]);
   assert.match(component, /function StrengthSessionRecord/);
+  assert.match(component, /function StrengthWorkoutPhase/);
+  assert.match(component, /workoutRecordKey === workout\.key/);
+  assert.match(component, /<StrengthWorkoutPhase onMutate=\{onMutate\} record=\{warmup\}/);
   assert.match(component, /!hasLoggedSets && !firstSetReady/);
   assert.match(component, />Exercises</);
   assert.match(component, /Log first set/);
@@ -227,6 +230,7 @@ test("renders strength plans and dated sets as one specialized workout flow", as
   assert.match(css, /\.strength-first-set-form/);
   assert.match(css, /\.strength-rest/);
   assert.match(store, /backfillStrengthSessions/);
+  assert.match(store, /backfillStrengthWorkoutPhases/);
   assert.match(store, /finish_strength_session/);
   assert.match(dayRoute, /backfillStrengthSessions/);
   assert.match(runRoute, /strength-finish:/);

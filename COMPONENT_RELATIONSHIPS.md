@@ -22,6 +22,8 @@ A `daily_selection` is activity-wide and carries no `subjectKey`. Its roster and
 
 A `meal_log` is activity-wide and carries no `subjectKey`. It owns optional reusable recipes and the dated meal, shake, or food-prep entries that reference them. Recipe links and ingredients remain inside this record rather than becoming adjacent `resources`, `item_list`, or `history` records.
 
+A workout phase is an activity- or variant-scoped `protocol` with no `subjectKey`. It carries the target workout's `workoutRecordKey` and a bounded `phase` of `warmup` or `cooldown`. The renderer nests it inside that workout's strength session before or after the numbered exercises. A warm-up is never inferred from card adjacency or numbered as an exercise; an unlinked protocol remains an independent activity card.
+
 ## Moving a subject
 
 `move_subject` names one subject root and a destination activity. The server resolves the root and every record with the same `subjectKey`, plus unambiguous dated/cadence records that explicitly reference the subject through `itemKey`. It moves their workspace bindings atomically. Conversation stays in the original activity as audit history.

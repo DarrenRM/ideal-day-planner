@@ -50,6 +50,13 @@ export type WorkoutPlanData = {
   openChoices?: Array<{ id: string; label: string; guidance?: string; equipment?: string[] }>;
 };
 
+export type WorkoutPhaseProtocolData = {
+  workoutRecordKey: string;
+  phase: "warmup" | "cooldown";
+  summary?: string;
+  steps?: Array<{ id: string; label: string; note?: string; completed?: boolean; completedDates?: string[] }>;
+};
+
 export function strengthSessionForDate(data: StrengthSessionData, date: string) {
   return data.sessions?.find((session) => session.date === date) ?? null;
 }

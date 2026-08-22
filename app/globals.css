@@ -677,6 +677,27 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .strength-session-heading strong { color: var(--text); font-size: var(--type-body-lg); line-height: var(--leading-body-lg); margin-top: 2px; }
 .strength-session-heading p { color: var(--muted); font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 4px 0 0; }
 .strength-session-mark { align-items: center; background: color-mix(in srgb, var(--item-color) 12%, var(--surface-soft)); border: 1px solid color-mix(in srgb, var(--item-color) 28%, var(--border)); border-radius: 8px; color: var(--item-color); display: flex; flex: 0 0 36px; height: 36px; justify-content: center; width: 36px; }
+.strength-workout-phase { border-top: 1px solid var(--border); }
+.strength-phase-toggle { align-items: center; background: color-mix(in srgb, var(--item-color) 4%, var(--surface-soft)); border: 0; color: var(--text); cursor: pointer; display: grid; gap: 11px; grid-template-columns: 30px minmax(0, 1fr) auto; min-height: 68px; padding: 10px 14px; text-align: left; width: 100%; }
+.strength-phase-toggle > span:nth-child(2) { min-width: 0; }
+.strength-phase-toggle strong, .strength-phase-toggle em { display: block; }
+.strength-phase-toggle strong { font-size: var(--type-body); line-height: var(--leading-body); margin-top: 2px; }
+.strength-phase-toggle em { color: var(--muted); font-size: var(--type-label); font-style: normal; line-height: var(--leading-label); margin-top: 2px; }
+.strength-phase-toggle > svg { color: var(--muted); transition: transform .18s ease; }
+.strength-phase-toggle[aria-expanded="true"] > svg { transform: rotate(180deg); }
+.strength-phase-mark { align-items: center; background: color-mix(in srgb, var(--item-color) 10%, transparent); border: 1px solid color-mix(in srgb, var(--item-color) 34%, var(--border)); border-radius: 50%; color: var(--item-color); display: flex; font-size: var(--type-label); font-weight: 700; height: 30px; justify-content: center; width: 30px; }
+.strength-workout-phase.is-complete .strength-phase-mark { background: color-mix(in srgb, var(--item-color) 72%, var(--accent)); color: var(--accent-ink); }
+.strength-phase-body { background: color-mix(in srgb, var(--item-color) 3%, var(--surface-soft)); border-top: 1px solid var(--border); padding: 12px 14px 14px; }
+.strength-phase-body > p { color: var(--muted); font-size: var(--type-body-sm); line-height: var(--leading-body-sm); margin: 0 0 9px; }
+.strength-phase-steps { display: grid; gap: 6px; }
+.strength-phase-steps > button { align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; display: grid; gap: 10px; grid-template-columns: 24px minmax(0, 1fr); min-height: 46px; padding: 7px 10px; text-align: left; width: 100%; }
+.strength-phase-steps > button > span:first-child { align-items: center; border: 1px solid color-mix(in srgb, var(--item-color) 30%, var(--border)); border-radius: 50%; color: var(--accent-ink); display: flex; height: 22px; justify-content: center; width: 22px; }
+.strength-phase-steps > button.is-complete > span:first-child { background: color-mix(in srgb, var(--item-color) 76%, var(--accent)); border-color: transparent; }
+.strength-phase-steps strong, .strength-phase-steps small { display: block; }
+.strength-phase-steps strong { font-size: var(--type-body-sm); line-height: var(--leading-body-sm); }
+.strength-phase-steps small { color: var(--muted); font-size: var(--type-label); line-height: var(--leading-label); margin-top: 1px; }
+.strength-workout-phase.is-cooldown { border-bottom: 1px solid var(--border); }
+.strength-workout-phase + .strength-first-session, .strength-workout-phase + .strength-progress { border-top: 0; }
 .strength-first-session { border-top: 1px solid var(--border); display: grid; gap: 10px; padding: 14px; }
 .strength-plan-preview { background: var(--surface-soft); border: 1px solid var(--border); border-radius: 9px; display: grid; padding: 4px 12px; }
 .strength-plan-preview > span { align-items: center; display: grid; gap: 10px; grid-template-columns: 26px minmax(0, 1fr); min-height: 48px; }
