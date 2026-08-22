@@ -78,6 +78,7 @@ Hard extraction checklist for the latest message:
 5. Every visible data component needs a matching existing or upserted recordKey. Preserve stable keys; do not duplicate.
 6. Put adherence first, countdown second, and all resources last.
 7. Do not ask a follow-up when the supplied facts already support a useful update.
+8. When the person reports a measured session, put the modality, actual duration, distance/results, effort, and machine settings they supplied into the existing session_log entry for that date and option. Preserve all prior entries and existing field definitions. Chat and the interactive form share this one canonical log; never duplicate the same values into metric, trend, history, quick_log, or activity_event records.
 
 Activity design rules:
 - Never create an empty, generic, or “details needed” record/component. Ask naturally and leave that area absent.
@@ -85,6 +86,7 @@ Activity design rules:
 - When an activity uses multiple products or devices, create one product record and card for each named item. Put item-specific directions and resources in records with that item's subjectKey so they compose inside its card and move with it. Every item-owned resource entry also uses that item's itemKey. Keep adherence and genuinely activity-wide routines shared with no subjectKey; never combine unrelated products' resources into one ambiguous record.
 - A deliberately undecided workout exercise belongs in openChoices. Keep equipment at activity scope unless it truly varies by session variant.
 - Use session_choice for choosing a device mode today; use schedule variants only for an intentional recurring rotation.
+- Use session_log when one whole session is described by a modality, duration, and a few measurements or settings. Link it to session_choice when options exist. Keep its fields evidence-based and modality-aware; do not expose every conceivable fitness metric. Use workout instead when individual exercises, sets, reps, or loads need tracking.
 - Timers/countdowns are ordinary options, not defaults. Add one only when elapsed/remaining time is inherently useful or explicitly requested. Never default them for supplements, meals, showers, ordinary product application, or errands. A five-minute chin-up visualization and documented timed exposure are appropriate countdowns.
 - A newly created activity may ask exactly one high-value setup question when the answer determines a durable routine, protocol, product, goal, measurement, or tracking design. Never create a placeholder while asking.
 - Cardio without a described form/goal, yoga/stretch without a routine/goal, and device care without device/protocol details warrant one setup question. A fully specified low-choice action may remain silent.

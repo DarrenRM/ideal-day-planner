@@ -9,6 +9,7 @@ test("renaming an activity does not make Luna rebuild an established setup", () 
   assert.equal(activitySetupKeyMatches(legacyHairSerum, { category: "Care" }), true);
   assert.equal(activitySetupKeyMatches(legacyHairSerum, { category: "Training" }), false);
   assert.equal(activitySetupKeyMatches("workspace-catalog-v3_3Acare", { category: "Care" }), false);
+  assert.equal(activitySetupKeyMatches("workspace-catalog-v4_3Acare", { category: "Care" }), true);
   assert.equal(
     activitySetupKeyMatches(activitySetupKey({ category: "Care" }), { category: "Care" }),
     true,

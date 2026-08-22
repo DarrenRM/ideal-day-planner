@@ -1,14 +1,15 @@
 "use client";
 
-import { AlertTriangle, CalendarCheck, Check, ExternalLink, Package, Plus, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
+import { AlertTriangle, CalendarCheck, Check, ChevronDown, ExternalLink, HeartPulse, Package, Plus, Sparkles, Target, TrendingUp, Wrench } from "lucide-react";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
 import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
+import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<void>;
 
-type Props = { record: ActivityRecord; onMutate: RecordMutation; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[] };
+type Props = { record: ActivityRecord; onMutate: RecordMutation; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[] };
 type Item = { id: string; label: string; detail?: string; completed?: boolean; completedDates?: string[]; urgency?: string; source?: string };
 type Step = { id: string; label: string; note?: string; completed?: boolean; completedDates?: string[] };
 type Entry = { id: string; title: string; detail?: string; date?: string; value?: string; tone?: string };
@@ -165,21 +166,138 @@ function EquipmentRecord({ record }: { record: ActivityRecord }) {
   </section>;
 }
 
-function SessionChoiceRecord({ record, onMutate }: Props) {
-  const data = record.data as {
-    prompt?: string;
-    options?: Array<{ id: string; label: string; detail?: string }>;
-    selections?: Array<{ date: string; optionId: string }>;
-    activeSelection?: { optionId: string; startDate: string; endDate: string; reason?: string };
-  };
+function SessionChoiceRecord({ record, onMutate, presentation }: Props) {
+  const data = record.data as SessionChoiceData & { prompt?: string };
   const today = localDateKey();
-  const exactSelection = data.selections?.find((entry) => entry.date === today)?.optionId;
-  const plannedSelection = data.activeSelection && data.activeSelection.startDate <= today && today <= data.activeSelection.endDate
-    ? data.activeSelection.optionId
+  const savedSelection = selectedSessionOptionId(data, today);
+  const [optimisticSelection, setOptimisticSelection] = useState<{ version: number; optionId: string } | null>(null);
+  const [expanded, setExpanded] = useState(!savedSelection || presentation !== "compact");
+  const [saving, setSaving] = useState<string | null>(null);
+  const selected = optimisticSelection?.version === record.version ? optimisticSelection.optionId : savedSelection;
+  const options = [...(data.options ?? [])].sort((left, right) => Number(right.id === selected) - Number(left.id === selected));
+  const collapsed = Boolean(selected && !expanded);
+
+  async function choose(optionId: string) {
+    if (saving) return;
+    setSaving(optionId);
+    setOptimisticSelection({ version: record.version, optionId });
+    try {
+      await onMutate(record.key, "select_session_choice", { optionId });
+      setExpanded(false);
+    } catch {
+      setOptimisticSelection(null);
+    } finally { setSaving(null); }
+  }
+
+  return <section className={`workspace-block session-choice-record ${collapsed ? "is-collapsed" : "is-expanded"}`}><Heading eyebrow="Today" title={record.title} />
+    {data.prompt && !collapsed ? <p>{data.prompt}</p> : null}<div className="session-choice-options">{options.map((option) => <button aria-pressed={selected === option.id} className={selected === option.id ? "is-selected" : ""} disabled={Boolean(saving)} key={option.id} type="button" onClick={() => void choose(option.id)}><span>{selected === option.id ? <Check size={12} /> : null}</span><div><strong>{option.label}</strong>{option.detail ? <small>{option.detail}</small> : null}{data.activeSelection?.optionId === option.id ? <em>Planned through {formatActivityRecordDate(data.activeSelection.endDate)}</em> : null}</div></button>)}</div>
+    {collapsed && options.length > 1 ? <button className="session-choice-expand" type="button" onClick={() => setExpanded(true)}>See all options <ChevronDown aria-hidden="true" size={14} /></button> : null}
+  </section>;
+}
+
+function sessionValueLabel(field: SessionLogField, value: string) {
+  return `${value}${field.unit && !field.unit.startsWith("/") && field.unit !== "%" ? ` ${field.unit}` : field.unit || ""}`;
+}
+
+function compactSessionEntry(entry: SessionLogEntry, fields: SessionLogField[]) {
+  return fields.flatMap((field) => {
+    const value = sessionFieldValue(entry, field);
+    return value ? [`${field.label} ${sessionValueLabel(field, value)}`] : [];
+  }).slice(0, 4).join(" · ");
+}
+
+function formatSessionNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+}
+
+function SessionLogRecord({ record, onMutate, relatedRecords = [] }: Props) {
+  const data = record.data as SessionLogData;
+  const today = localDateKey();
+  const choiceRecord = data.choiceRecordKey
+    ? relatedRecords.find((entry) => entry.key === data.choiceRecordKey && entry.type === "session_choice")
     : undefined;
-  const selected = exactSelection ?? plannedSelection;
-  return <section className="workspace-block session-choice-record"><Heading eyebrow="Today" title={record.title} />
-    {data.prompt ? <p>{data.prompt}</p> : null}<div>{data.options?.map((option) => <button aria-pressed={selected === option.id} className={selected === option.id ? "is-selected" : ""} key={option.id} type="button" onClick={() => void onMutate(record.key, "select_session_choice", { optionId: option.id })}><span>{selected === option.id ? <Check size={12} /> : null}</span><div><strong>{option.label}</strong>{option.detail ? <small>{option.detail}</small> : null}{data.activeSelection?.optionId === option.id ? <em>Planned through {formatActivityRecordDate(data.activeSelection.endDate)}</em> : null}</div></button>)}</div>
+  const choiceData = choiceRecord?.data as SessionChoiceData | undefined;
+  const optionId = choiceData ? selectedSessionOptionId(choiceData, today) : data.defaultOption?.id;
+  const option = choiceData?.options?.find((entry) => entry.id === optionId) ?? (data.defaultOption?.id === optionId ? data.defaultOption : undefined);
+  const fields = optionId ? sessionFieldsForOption(data, optionId) : [];
+  const todayEntry = data.entries?.find((entry) => entry.date === today && entry.optionId === optionId);
+  const draftKey = `${record.version}:${optionId ?? "none"}:${todayEntry?.id ?? "new"}`;
+  const [draft, setDraft] = useState(() => ({ key: draftKey, values: sessionEntryValues(todayEntry), note: todayEntry?.note ?? "" }));
+  const [saving, setSaving] = useState(false);
+  const summary = useMemo(() => optionId ? summarizeSessionLog(data, optionId, today) : null, [data, optionId, today]);
+  if (!optionId || !option || !fields.length || !summary) return null;
+
+  const currentDraft = draft.key === draftKey
+    ? draft
+    : { key: draftKey, values: sessionEntryValues(todayEntry), note: todayEntry?.note ?? "" };
+  const values = currentDraft.values;
+  const note = currentDraft.note;
+
+  function updateField(fieldId: string, value: string) {
+    setDraft((existing) => {
+      const base = existing.key === draftKey
+        ? existing
+        : { key: draftKey, values: sessionEntryValues(todayEntry), note: todayEntry?.note ?? "" };
+      return { ...base, values: { ...base.values, [fieldId]: value } };
+    });
+  }
+
+  function updateNote(value: string) {
+    setDraft((existing) => {
+      const base = existing.key === draftKey
+        ? existing
+        : { key: draftKey, values: sessionEntryValues(todayEntry), note: todayEntry?.note ?? "" };
+      return { ...base, note: value };
+    });
+  }
+
+  const coreFields = fields.filter((field) => field.kind !== "setting");
+  const settingFields = fields.filter((field) => field.kind === "setting");
+  const maximumDay = Math.max(...summary.weekDays.map((day) => day.value), 1);
+  const maximumWeek = Math.max(...summary.recentWeeks.map((week) => week.duration || week.sessions), 1);
+  const hasDraft = Object.values(values).some((value) => value.trim()) || note.trim();
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!hasDraft || saving) return;
+    setSaving(true);
+    try {
+      await onMutate(record.key, "save_session_log", {
+        optionId,
+        values: fields.flatMap((field) => values[field.id]?.trim() ? [{ field: field.id, value: values[field.id].trim() }] : []),
+        note: note.trim(),
+      });
+    } finally { setSaving(false); }
+  }
+
+  return <section className="workspace-block session-log-record">
+    <Heading eyebrow="Today’s session" title={option.label} icon={<HeartPulse aria-hidden="true" size={16} />} />
+    {summary.latestPrior ? <div className="session-last-time"><span>Last session</span><strong>{formatActivityRecordDate(summary.latestPrior.date)}</strong><p>{compactSessionEntry(summary.latestPrior, fields)}</p></div> : null}
+    <form onSubmit={save}>
+      <div className="session-field-grid">{coreFields.map((field) => <label key={field.id}><span>{field.label}{field.unit ? <small>{field.unit}</small> : null}</span><input inputMode={field.input === "text" ? "text" : "decimal"} max={field.kind === "effort" ? 10 : undefined} min={field.kind === "effort" ? 1 : field.input === "number" ? 0 : undefined} placeholder="—" step="any" type={field.input === "text" ? "text" : "number"} value={values[field.id] ?? ""} onChange={(event) => updateField(field.id, event.target.value)} /></label>)}</div>
+      {settingFields.length ? <fieldset><legend>Machine settings</legend><div className="session-field-grid">{settingFields.map((field) => <label key={field.id}><span>{field.label}{field.unit ? <small>{field.unit}</small> : null}</span><input inputMode={field.input === "text" ? "text" : "decimal"} min={field.input === "number" ? 0 : undefined} placeholder="—" step="any" type={field.input === "text" ? "text" : "number"} value={values[field.id] ?? ""} onChange={(event) => updateField(field.id, event.target.value)} /></label>)}</div></fieldset> : null}
+      <label className="session-note"><span>Notes <small>optional</small></span><input placeholder="How did it feel?" value={note} onChange={(event) => updateNote(event.target.value)} /></label>
+      <button disabled={!hasDraft || saving} type="submit">{saving ? "Saving…" : todayEntry ? "Update session" : "Save session"}</button>
+    </form>
+    <div className="session-progress">
+      <div className="session-progress-heading"><span className="workspace-overline">Progress</span><strong>This week</strong></div>
+      {summary.weekEntries.length ? <>
+        <div className="session-stats">
+          <span><small>Sessions</small><strong>{summary.weekEntries.length}</strong></span>
+          <span><small>Minutes</small><strong>{formatSessionNumber(summary.totalDuration)}</strong></span>
+          {summary.totalDistance !== null && summary.distanceField ? <span><small>Distance</small><strong>{formatSessionNumber(summary.totalDistance)} <em>{summary.distanceField.unit}</em></strong></span> : null}
+          {summary.averageEffort !== null ? <span><small>Avg effort</small><strong>{formatSessionNumber(summary.averageEffort)} <em>/10</em></strong></span> : null}
+        </div>
+        <div className="session-week-chart" aria-label={`${summary.weekEntries.length} ${option.label} sessions this week`}>{summary.weekDays.map((day) => <span className={day.value ? "has-session" : ""} key={day.date} title={`${formatActivityRecordDate(day.date)}: ${day.value ? `${formatSessionNumber(day.value)} minutes` : "No session"}`}><i style={{ height: `${day.value ? Math.max(18, (day.value / maximumDay) * 100) : 5}%` }} /><small>{day.label}</small></span>)}</div>
+        <div className="session-month-trend">
+          <div><small>Four-week rhythm</small><strong>{summary.recentWeeks.reduce((sum, week) => sum + week.sessions, 0)} sessions</strong></div>
+          <div aria-label={`${option.label} sessions across the last four weeks`}>{summary.recentWeeks.map((week, index) => {
+            const value = week.duration || week.sessions;
+            return <span className={week.sessions ? "has-session" : ""} key={week.startDate} title={`${formatActivityRecordDate(week.startDate)}–${formatActivityRecordDate(week.endDate)}: ${week.sessions} sessions, ${formatSessionNumber(week.duration)} minutes`}><i style={{ width: `${value ? Math.max(10, (value / maximumWeek) * 100) : 3}%` }} /><small>{index === summary.recentWeeks.length - 1 ? "Now" : formatActivityRecordDate(week.startDate)}</small></span>;
+          })}</div>
+        </div>
+      </> : <p className="session-progress-empty">Your first saved session will start the comparison.</p>}
+    </div>
   </section>;
 }
 
@@ -273,6 +391,7 @@ export function ActivityRecordComponent(props: Props) {
   if (record.type === "activity_event") return <ActivityEventRecord record={record} />;
   if (record.type === "equipment") return <EquipmentRecord record={record} />;
   if (record.type === "session_choice") return <SessionChoiceRecord {...props} />;
+  if (record.type === "session_log") return <SessionLogRecord {...props} />;
   if (record.type === "quick_log") return <QuickLogRecord {...props} />;
   if (record.type === "history" || record.type === "timeline") return <HistoryRecord record={record} />;
   if (record.type === "comparison") return <ComparisonRecord record={record} />;

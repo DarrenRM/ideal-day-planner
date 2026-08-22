@@ -1,4 +1,5 @@
 import { recurringDateIsDue, type RecurringCadence } from "./recurring-step-schedule.ts";
+import { SESSION_LOG_FIELD_KINDS, type SessionLogFieldKind } from "./session-log-model.ts";
 
 export const ACTIVITY_RECORD_TYPES = [
   "summary",
@@ -11,6 +12,7 @@ export const ACTIVITY_RECORD_TYPES = [
   "activity_event",
   "equipment",
   "session_choice",
+  "session_log",
   "quick_log",
   "history",
   "comparison",
@@ -152,6 +154,7 @@ export function hasUsefulActivityRecordData(record: ActivityRecordContent, conte
   if (record.type === "activity_event") return nonEmptyArray(data.entries);
   if (record.type === "equipment") return nonEmptyArray(data.items);
   if (record.type === "session_choice") return nonEmptyArray(data.options);
+  if (record.type === "session_log") return nonEmptyArray(data.fields) && Boolean(normalizedText(data.choiceRecordKey) || data.defaultOption);
   if (record.type === "quick_log") return nonEmptyArray(data.fields);
   if (record.type === "history" || record.type === "timeline" || record.type === "comparison" || record.type === "adherence" || record.type === "resources") return nonEmptyArray(data.entries);
   if (record.type === "metric" || record.type === "trend") {
@@ -331,6 +334,58 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
         return /^\d{4}-\d{2}-\d{2}$/.test(date) && optionIds.has(optionId) ? { id: itemId(entry.id, index), date, optionId } : null;
       }),
       ...(activeSelection ? { activeSelection } : {}),
+    };
+  }
+
+  if (type === "session_log") {
+    const fields = objectArray(source.fields, 30, (entry, index) => {
+      const id = itemId(entry.id, index);
+      const label = boundedString(entry.label, 80);
+      const kind = SESSION_LOG_FIELD_KINDS.includes(entry.kind as SessionLogFieldKind)
+        ? entry.kind as SessionLogFieldKind
+        : null;
+      if (!label || !kind) return null;
+      return {
+        id,
+        label,
+        unit: boundedString(entry.unit, 24),
+        input: entry.input === "text" ? "text" : "number",
+        kind,
+        optionIds: stringArray(entry.optionIds, 20, 80).map(stableKey).filter(Boolean),
+      };
+    });
+    if (!fields.length) return null;
+    const fieldIds = new Set(fields.map((field) => field.id));
+    const defaultSource = source.defaultOption && typeof source.defaultOption === "object" && !Array.isArray(source.defaultOption)
+      ? source.defaultOption as Record<string, unknown>
+      : null;
+    const defaultOptionId = stableKey(defaultSource?.id);
+    const defaultOptionLabel = boundedString(defaultSource?.label, 120);
+    const choiceRecordKey = stableKey(source.choiceRecordKey);
+    if (!choiceRecordKey && (!defaultOptionId || !defaultOptionLabel)) return null;
+    return {
+      choiceRecordKey,
+      ...(defaultOptionId && defaultOptionLabel ? { defaultOption: { id: defaultOptionId, label: defaultOptionLabel } } : {}),
+      fields,
+      entries: objectArray(source.entries, 500, (entry, index) => {
+        const date = boundedString(entry.date, 10);
+        const optionId = stableKey(entry.optionId);
+        const values = objectArray(entry.values, 30, (pair) => {
+          const field = stableKey(pair.field);
+          const fieldValue = boundedString(pair.value, 120);
+          return field && fieldIds.has(field) && fieldValue ? { field, value: fieldValue } : null;
+        });
+        const note = boundedString(entry.note, 500);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !optionId || (!values.length && !note)) return null;
+        return {
+          id: itemId(entry.id, index),
+          date,
+          optionId,
+          values,
+          note,
+          createdAt: boundedString(entry.createdAt, 40),
+        };
+      }),
     };
   }
 

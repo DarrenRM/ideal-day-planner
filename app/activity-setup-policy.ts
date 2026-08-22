@@ -7,6 +7,9 @@ function safeSetupKey(value: string) {
 }
 
 export function activitySetupKey(activity: ActivitySetupIdentity) {
+  // This key versions the setup interview, not the component catalog. Catalog
+  // additions with deterministic backfills must not make every established
+  // activity silently run setup again when it is opened.
   return safeSetupKey(`workspace-catalog-v4:${activity.category.trim().toLowerCase()}`).slice(0, 180);
 }
 

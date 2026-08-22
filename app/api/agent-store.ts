@@ -7,6 +7,7 @@ import { validateFollowUpActions, type ActivityFollowUp, type FollowUpAction } f
 import { addLocalDays, localDateInTimeZone, parseCadence } from "../schedule-model";
 import { recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
+import { measuredSessionFields, type SessionChoiceData } from "../session-log-model";
 
 export type ActivityRecord = {
   id: string;
@@ -838,6 +839,7 @@ export async function archiveParentCadenceRecords(userId: string) {
 
 const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";
 const BOUNDED_SESSION_CHOICE_BACKFILL = "bounded-session-choices-v1";
+const MEASURED_SESSION_LOG_BACKFILL = "measured-session-logs-v1";
 
 export async function backfillExplicitFollowUps(userId: string) {
   const migrationId = `migration:${safeId(userId)}:${EXPLICIT_FOLLOW_UP_BACKFILL}`;
@@ -973,6 +975,67 @@ export async function backfillBoundedSessionChoices(userId: string) {
   }
   await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
     .bind(migrationId, userId, BOUNDED_SESSION_CHOICE_BACKFILL).run();
+  return updated;
+}
+
+export async function backfillMeasuredSessionLogs(userId: string) {
+  const migrationId = `migration:${safeId(userId)}:${MEASURED_SESSION_LOG_BACKFILL}`;
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, MEASURED_SESSION_LOG_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+  const activities = await db.prepare(`
+    SELECT id, title, category
+    FROM activities
+    WHERE user_id = ?
+    ORDER BY created_at, id
+  `).bind(userId).all<{ id: string; title: string; category: string }>();
+  let updated = 0;
+  for (const activity of activities.results) {
+    if (!/cardio|run|walk|hike|ruck|cycle|bike|row|swim|elliptical|stair|conditioning/i.test(`${activity.title} ${activity.category}`)) continue;
+    const records = await readActivityRecords(activity.id);
+    if (records.some((record) => record.type === "session_log")) continue;
+    const choice = records.find((record) => record.type === "session_choice" && record.scope === "activity");
+    if (!choice) continue;
+    const choiceData = choice.data as SessionChoiceData;
+    const options = choiceData.options ?? [];
+    if (!options.length) continue;
+    const recordKey = "measured-session-log";
+    await persistRecordActions({
+      userId,
+      activityId: activity.id,
+      actionId: `${migrationId}:${safeId(activity.id)}:record`,
+      sourceAgentJobId: migrationId,
+      actions: [{
+        op: "upsert",
+        record: {
+          key: recordKey,
+          subjectKey: null,
+          type: "session_log",
+          title: `${activity.title} sessions`,
+          scope: "activity",
+          scopeDate: null,
+          data: {
+            choiceRecordKey: choice.key,
+            fields: measuredSessionFields(options),
+            entries: [],
+          },
+        },
+      }],
+    });
+    await persistWorkspaceActions({
+      userId,
+      activityId: activity.id,
+      agentJobId: `${migrationId}:${safeId(activity.id)}:workspace`,
+      actions: [{
+        op: "upsert",
+        component: { id: recordKey, type: "session_log", title: `${activity.title} session`, recordKey, presentation: "featured" },
+      }],
+    });
+    updated += 1;
+  }
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, MEASURED_SESSION_LOG_BACKFILL).run();
   return updated;
 }
 
@@ -1597,6 +1660,58 @@ export async function applyUserRecordMutation(input: {
     const values = Array.isArray(input.payload.values) ? input.payload.values : [];
     const entries = Array.isArray(data.entries) ? data.entries as unknown[] : [];
     data.entries = [...entries, { id: `entry-${crypto.randomUUID()}`, values, note: "", createdAt: new Date().toISOString() }];
+  } else if (input.operation === "save_session_log" && record.type === "session_log") {
+    const date = input.planDate;
+    const optionId = typeof input.payload.optionId === "string" ? input.payload.optionId.trim().toLowerCase() : "";
+    if (!date || !optionId) throw new Error("Choose a session option first.");
+    const fields = Array.isArray(data.fields) ? data.fields.flatMap((value) => {
+      const field = asObject(value);
+      return field && typeof field.id === "string" ? [field] : [];
+    }) : [];
+    const fieldsById = new Map(fields.map((field) => [field.id as string, field]));
+    const values = Array.isArray(input.payload.values) ? input.payload.values.flatMap((value) => {
+      const pair = asObject(value);
+      const fieldId = typeof pair?.field === "string" ? pair.field : "";
+      const field = fieldsById.get(fieldId);
+      const rawValue = typeof pair?.value === "string" || typeof pair?.value === "number" ? String(pair.value).trim().slice(0, 120) : "";
+      if (!field || !rawValue) return [];
+      if (field.input === "number") {
+        const numeric = Number(rawValue);
+        if (!Number.isFinite(numeric) || numeric < 0) return [];
+        if (field.kind === "effort" && (numeric < 1 || numeric > 10)) return [];
+      }
+      return [{ field: fieldId, value: rawValue }];
+    }) : [];
+    const hasNote = Object.prototype.hasOwnProperty.call(input.payload, "note");
+    const note = typeof input.payload.note === "string" ? input.payload.note.trim().slice(0, 500) : "";
+    const choiceRecordKey = typeof data.choiceRecordKey === "string" ? data.choiceRecordKey : "";
+    if (choiceRecordKey) {
+      const choice = records.find((entry) => entry.key === choiceRecordKey && entry.type === "session_choice");
+      const options = Array.isArray(choice?.data.options) ? choice.data.options as Array<Record<string, unknown>> : [];
+      if (!options.some((option) => option.id === optionId)) throw new Error("Choose an available session option.");
+    } else {
+      const fallback = asObject(data.defaultOption);
+      if (fallback?.id !== optionId) throw new Error("Choose an available session option.");
+    }
+    const entries = Array.isArray(data.entries) ? data.entries as Array<Record<string, unknown>> : [];
+    const existing = entries.find((entry) => entry.date === date && entry.optionId === optionId);
+    const existingValues = Array.isArray(existing?.values) ? existing.values.flatMap((value) => {
+      const pair = asObject(value);
+      return typeof pair?.field === "string" && typeof pair.value === "string" ? [{ field: pair.field, value: pair.value }] : [];
+    }) : [];
+    const mergedValues = new Map(existingValues.map((pair) => [pair.field, pair.value]));
+    for (const pair of values) mergedValues.set(pair.field, pair.value);
+    const mergedNote = hasNote ? note : typeof existing?.note === "string" ? existing.note : "";
+    if (!mergedValues.size && !mergedNote) throw new Error("Add at least one session detail.");
+    const nextEntry = {
+      id: typeof existing?.id === "string" ? existing.id : `session-${date}-${optionId}`,
+      date,
+      optionId,
+      values: Array.from(mergedValues, ([field, value]) => ({ field, value })),
+      note: mergedNote,
+      createdAt: typeof existing?.createdAt === "string" ? existing.createdAt : new Date().toISOString(),
+    };
+    data.entries = [...entries.filter((entry) => !(entry.date === date && entry.optionId === optionId)), nextEntry];
   } else if (input.operation === "set_adherence" && record.type === "adherence") {
     const date = typeof input.payload.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.payload.date) ? input.payload.date : input.planDate;
     if (!date) throw new Error("A date is required.");
@@ -1610,7 +1725,7 @@ export async function applyUserRecordMutation(input: {
   }
 
   const actions = validateRecordActions([{ op: "upsert", record: {
-    key: record.key, type: record.type, title: record.title, scope: record.scope,
+    key: record.key, subjectKey: record.subjectKey, type: record.type, title: record.title, scope: record.scope,
     scopeDate: record.scopeDate, data,
   } }], input.planDate);
   if (!actions.length) throw new Error("The updated information did not pass validation.");

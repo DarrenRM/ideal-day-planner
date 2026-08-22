@@ -1,6 +1,7 @@
 import { getD1 } from "../../../../db";
 import { parseAdvancement } from "../../../schedule-model";
-import { apiFailure, ensureAgentSchema, findActivity, queueDayHighlight, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
+import { selectedSessionOptionId, sessionFieldValue, sessionFieldsForOption, type SessionChoiceData, type SessionLogData } from "../../../session-log-model";
+import { apiFailure, applyUserRecordMutation, ensureAgentSchema, findActivity, queueDayHighlight, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
 
 function validDate(value: unknown) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
@@ -166,7 +167,8 @@ export async function POST(request: Request) {
     const timerMode = timing?.mode === "timer" || timing?.mode === "countdown" ? timing.mode : null;
     const timerComponentId = typeof timing?.componentId === "string" ? timing.componentId.trim().slice(0, 64) : null;
     const startedAt = typeof timing?.startedAt === "string" && !Number.isNaN(Date.parse(timing.startedAt)) ? timing.startedAt : null;
-    const recordVersions = (await readActivityRecords(activity.id, date, item.activityVariantId)).map((record) => ({
+    const activityRecords = await readActivityRecords(activity.id, date, item.activityVariantId);
+    const recordVersions = activityRecords.map((record) => ({
       key: record.key,
       type: record.type,
       version: record.version,
@@ -205,6 +207,35 @@ export async function POST(request: Request) {
       ...await completionAdvancementStatements(userId, item, "completed"),
     ];
     await db.batch(statements);
+    if (actualElapsedSeconds !== null && actualElapsedSeconds > 0) {
+      const sessionLog = activityRecords.find((record) => record.type === "session_log");
+      const sessionData = sessionLog?.data as SessionLogData | undefined;
+      const choice = sessionData?.choiceRecordKey
+        ? activityRecords.find((record) => record.key === sessionData.choiceRecordKey && record.type === "session_choice")
+        : undefined;
+      const optionId = choice
+        ? selectedSessionOptionId(choice.data as SessionChoiceData, date)
+        : sessionData?.defaultOption?.id;
+      const durationField = optionId && sessionData
+        ? sessionFieldsForOption(sessionData, optionId).find((field) => field.kind === "duration")
+        : undefined;
+      const existingEntry = sessionData?.entries?.find((entry) => entry.date === date && entry.optionId === optionId);
+      if (sessionLog && optionId && durationField && !sessionFieldValue(existingEntry, durationField)) {
+        await applyUserRecordMutation({
+          userId,
+          activityId: activity.id,
+          activityVariantId: item.activityVariantId,
+          recordKey: sessionLog.key,
+          actionId: `session-timing:${runId}`,
+          operation: "save_session_log",
+          payload: {
+            optionId,
+            values: [{ field: durationField.id, value: String(Math.round((actualElapsedSeconds / 60) * 10) / 10) }],
+          },
+          planDate: date,
+        }).catch((error) => console.error("Could not add measured-session timing after completion.", error));
+      }
+    }
     const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
       console.error("Could not queue the day highlight after completion.", error);
       return null;

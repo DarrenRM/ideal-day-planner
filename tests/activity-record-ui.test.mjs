@@ -133,9 +133,60 @@ test("renders reusable cadence, equipment, mode, event, and open-workout states"
   assert.match(component, /function ActivityEventRecord/);
   assert.match(component, /function EquipmentRecord/);
   assert.match(component, /function SessionChoiceRecord/);
+  assert.match(component, /function SessionLogRecord/);
+  assert.match(component, /See all options/);
+  assert.match(component, /save_session_log/);
   assert.match(component, /workout-open-choices/);
   assert.match(component, /Planned through/);
   assert.match(component, /equipment-groups/);
+});
+
+test("renders measured sessions as a canonical log, recap, and conditional choice flow", async () => {
+  const [component, workspace, css, runRoute, dayRoute] = await Promise.all([
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(component, /Last session/);
+  assert.match(component, /This week/);
+  assert.match(component, /Four-week rhythm/);
+  assert.match(component, /Machine settings/);
+  assert.match(component, /Update session/);
+  assert.match(workspace, /measuredSessionItem/);
+  assert.match(workspace, /measuredOptionId/);
+  assert.match(workspace, /renderMeasuredItem\(measuredChoiceItem, "default"\)/);
+  assert.match(workspace, /renderMeasuredItem\(measuredChoiceItem, "compact"\)/);
+  assert.match(css, /\.session-log-record input[^}]*height: 40px/s);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.session-log-record input, \.session-log-record form > button \{ min-height: 44px;/s);
+  assert.match(runRoute, /save_session_log/);
+  assert.match(runRoute, /elapsedSeconds/);
+  assert.match(dayRoute, /backfillMeasuredSessionLogs/);
+});
+
+test("normalizes a measured-session record without losing its history", () => {
+  const record = parseActivityRecord({
+    id: "cardio-log", recordKey: "measured-session-log", recordType: "session_log",
+    title: "Cardio sessions", scope: "activity", scopeDate: null, version: 3,
+    payloadJson: JSON.stringify({
+      choiceRecordKey: "cardio-choice",
+      fields: [
+        { id: "duration", label: "Duration", input: "number", kind: "duration", unit: "min" },
+        { id: "elliptical-level", label: "Level", input: "number", kind: "setting", optionIds: ["elliptical"] },
+      ],
+      entries: [{
+        id: "2026-08-21-elliptical", date: "2026-08-21", optionId: "elliptical",
+        values: [{ field: "duration", value: "15" }, { field: "elliptical-level", value: "7" }],
+        note: "Felt good", createdAt: "2026-08-21T12:00:00Z",
+      }],
+    }),
+    updatedAt: "2026-08-21T12:00:00Z",
+  });
+  assert.equal(record?.data.choiceRecordKey, "cardio-choice");
+  assert.equal(record?.data.fields.length, 2);
+  assert.equal(record?.data.entries[0].values[1].value, "7");
+  assert.equal(record?.data.entries[0].note, "Felt good");
 });
 
 test("keeps a bounded session choice active through its review date", () => {
