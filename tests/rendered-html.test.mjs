@@ -63,6 +63,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /hasLoaded \? <>[\s\S]*displayedScheduledItems\.map/);
   assert.match(page, /<DayHighlights/);
   assert.match(page, /Go Further/);
+  assert.match(page, /Keep it going/);
+  assert.match(page, /More to choose from/);
   assert.match(page, /promoteExtra/);
   assert.match(page, /mode: "set-role"/);
   assert.match(page, /GO_FURTHER_PREVIEW_LIMIT/);
@@ -425,6 +427,8 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(model, /type: "set_activity"/);
   assert.match(store, /INSERT OR IGNORE INTO daily_plan_items/);
   assert.match(store, /occurrenceKey/);
+  assert.match(store, /previous\.schedule_pattern_step_id = dpi\.schedule_pattern_step_id/);
+  assert.match(store, /previous\.source_date < dpi\.source_date/);
   assert.match(occurrenceRoute, /applyOccurrenceAction/);
   assert.match(occurrenceActions, /parseOccurrenceAction/);
   assert.match(proposalService, /schedule_action_events/);

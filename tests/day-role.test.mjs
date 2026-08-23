@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GO_FURTHER_PREVIEW_LIMIT, normalizeActivityOrigin, normalizePlanRole, partitionDayItems } from "../app/day-role.ts";
+import { GO_FURTHER_PREVIEW_LIMIT, normalizeActivityOrigin, normalizePlanRole, partitionAvailableExtras, partitionDayItems } from "../app/day-role.ts";
 
 test("keeps activity origin separate from the dated commitment role", () => {
   assert.equal(normalizeActivityOrigin("starter"), "starter");
@@ -22,4 +22,15 @@ test("promotes only activated extras into today's active list", () => {
   assert.deepEqual(result.active.map((item) => item.id), ["morning", "stretch", "finished-extra"]);
   assert.deepEqual(result.availableExtras.map((item) => item.id), ["walk"]);
   assert.equal(GO_FURTHER_PREVIEW_LIMIT, 3);
+});
+
+test("Keep it going requires a completed, activated extra on the previous matching occurrence", () => {
+  const result = partitionAvailableExtras([
+    { id: "continued", planRole: "extra", previousPlanRole: "extra", previousEligibleDate: "2026-08-22", previousActivatedAt: "2026-08-22 08:00:00", previousCompletedAt: "2026-08-22 08:20:00" },
+    { id: "not-selected", planRole: "extra", previousPlanRole: "extra", previousEligibleDate: "2026-08-22", previousActivatedAt: null, previousCompletedAt: "2026-08-22 08:20:00" },
+    { id: "missed-last-time", planRole: "extra", previousPlanRole: "extra", previousEligibleDate: "2026-08-22", previousActivatedAt: "2026-08-22 08:00:00", previousCompletedAt: null },
+    { id: "formerly-essential", planRole: "extra", previousPlanRole: "essential", previousEligibleDate: "2026-08-22", previousActivatedAt: "2026-08-22 08:00:00", previousCompletedAt: "2026-08-22 08:20:00" },
+  ]);
+  assert.deepEqual(result.keepGoing.map((item) => item.id), ["continued"]);
+  assert.deepEqual(result.moreOptions.map((item) => item.id), ["not-selected", "missed-last-time", "formerly-essential"]);
 });

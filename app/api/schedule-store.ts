@@ -28,6 +28,10 @@ export type ResolvedDayItem = {
   skippedAt: string | null;
   planRole: "essential" | "extra";
   activatedAt: string | null;
+  previousEligibleDate: string | null;
+  previousCompletedAt: string | null;
+  previousActivatedAt: string | null;
+  previousPlanRole: "essential" | "extra" | null;
   revision: number;
 };
 
@@ -287,6 +291,46 @@ export async function readResolvedDay(userId: string, planId: string) {
            dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt,
            CASE WHEN dpi.plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole,
            dpi.activated_at AS activatedAt,
+           (
+             SELECT previous.source_date
+             FROM daily_plan_items previous
+             WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
+               AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
+               AND previous.source_date < dpi.source_date
+               AND previous.removed_at IS NULL
+             ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
+             LIMIT 1
+           ) AS previousEligibleDate,
+           (
+             SELECT previous.completed_at
+             FROM daily_plan_items previous
+             WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
+               AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
+               AND previous.source_date < dpi.source_date
+               AND previous.removed_at IS NULL
+             ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
+             LIMIT 1
+           ) AS previousCompletedAt,
+           (
+             SELECT previous.activated_at
+             FROM daily_plan_items previous
+             WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
+               AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
+               AND previous.source_date < dpi.source_date
+               AND previous.removed_at IS NULL
+             ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
+             LIMIT 1
+           ) AS previousActivatedAt,
+           (
+             SELECT CASE WHEN previous.plan_role = 'extra' THEN 'extra' ELSE 'essential' END
+             FROM daily_plan_items previous
+             WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
+               AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
+               AND previous.source_date < dpi.source_date
+               AND previous.removed_at IS NULL
+             ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
+             LIMIT 1
+           ) AS previousPlanRole,
            dpi.revision
     FROM daily_plan_items dpi
     JOIN daily_plans dp ON dp.id = dpi.daily_plan_id

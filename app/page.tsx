@@ -14,7 +14,7 @@ import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 import { ScheduleManager } from "./schedule-manager";
 import { GlobalLuna } from "./global-luna";
 import { OccurrenceEditor } from "./occurrence-editor";
-import { GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionDayItems, type PlanRole } from "./day-role";
+import { GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionAvailableExtras, partitionDayItems, type PlanRole } from "./day-role";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
@@ -36,6 +36,10 @@ type RoutineItem = {
   skippedAt?: string | null;
   planRole?: PlanRole;
   activatedAt?: string | null;
+  previousEligibleDate?: string | null;
+  previousCompletedAt?: string | null;
+  previousActivatedAt?: string | null;
+  previousPlanRole?: PlanRole | null;
 };
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
@@ -419,6 +423,16 @@ function formatTodayHeading(date = new Date()) {
   const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
   const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
   return `${weekday}, ${month} ${formatDayOrdinal(date.getDate())}`;
+}
+
+function formatPreviousOccurrence(dateKey: string | null | undefined) {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return "Completed last time";
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const [todayYear, todayMonth, todayDay] = localDateKey().split("-").map(Number);
+  const elapsedDays = Math.round((Date.UTC(todayYear, todayMonth - 1, todayDay) - Date.UTC(year, month - 1, day)) / 86_400_000);
+  if (elapsedDays === 1) return "Last done yesterday";
+  const label = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, day)));
+  return `Last done ${label}`;
 }
 
 function conversationTime(value: string) {
@@ -1649,8 +1663,13 @@ export default function Home() {
   }, [dayStartedAt, items]);
 
   const { active: activeDayItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
+  const { keepGoing: keepGoingExtras, moreOptions: otherExtras } = useMemo(() => partitionAvailableExtras(availableExtras), [availableExtras]);
   const essentialItems = useMemo(() => items.filter((item) => normalizePlanRole(item.planRole) === "essential"), [items]);
-  const visibleExtras = showAllExtras ? availableExtras : availableExtras.slice(0, GO_FURTHER_PREVIEW_LIMIT);
+  const prioritizedExtras = useMemo(() => [...keepGoingExtras, ...otherExtras], [keepGoingExtras, otherExtras]);
+  const visibleExtras = showAllExtras ? prioritizedExtras : prioritizedExtras.slice(0, GO_FURTHER_PREVIEW_LIMIT);
+  const visibleExtraIds = useMemo(() => new Set(visibleExtras.map((item) => item.id)), [visibleExtras]);
+  const visibleKeepGoingExtras = keepGoingExtras.filter((item) => visibleExtraIds.has(item.id));
+  const visibleOtherExtras = otherExtras.filter((item) => visibleExtraIds.has(item.id));
 
   const scheduledItems = useMemo(() => {
     return activeDayItems.reduce<{ cursor: number; scheduled: ScheduledItem[] }>((state, item) => {
@@ -3228,24 +3247,50 @@ export default function Home() {
                     <div><span>Optional</span><h3 id="go-further-title">Go Further</h3></div>
                     <small>Choose one when you have more in you.</small>
                   </header>
-                  <div className="go-further-list">
-                    {visibleExtras.map((item) => {
-                      const ExtraIcon = activityIconFor(item);
-                      return <button
-                        className="go-further-option"
-                        data-extra-id={item.id}
-                        disabled={promotingExtraId === item.id}
-                        key={item.id}
-                        style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
-                        type="button"
-                        onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
-                      >
-                        <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
-                        <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatDuration(item.duration)} · {item.category}</small></span>
-                        <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
-                      </button>;
-                    })}
-                  </div>
+                  {visibleKeepGoingExtras.length ? <div className="go-further-group is-continuation">
+                    <div className="go-further-group-heading">
+                      <div><span>Keep it going</span><small>You chose these on their last scheduled day.</small></div>
+                    </div>
+                    <div className="go-further-list">
+                      {visibleKeepGoingExtras.map((item) => {
+                        const ExtraIcon = activityIconFor(item);
+                        return <button
+                          className="go-further-option is-continuation"
+                          data-extra-id={item.id}
+                          disabled={promotingExtraId === item.id}
+                          key={item.id}
+                          style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
+                          type="button"
+                          onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
+                        >
+                          <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
+                          <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatPreviousOccurrence(item.previousEligibleDate)} · {formatDuration(item.duration)}</small></span>
+                          <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
+                        </button>;
+                      })}
+                    </div>
+                  </div> : null}
+                  {visibleOtherExtras.length ? <div className={`go-further-group ${visibleKeepGoingExtras.length ? "has-continuations" : ""}`}>
+                    {visibleKeepGoingExtras.length ? <div className="go-further-group-heading"><div><span>More to choose from</span></div></div> : null}
+                    <div className="go-further-list">
+                      {visibleOtherExtras.map((item) => {
+                        const ExtraIcon = activityIconFor(item);
+                        return <button
+                          className="go-further-option"
+                          data-extra-id={item.id}
+                          disabled={promotingExtraId === item.id}
+                          key={item.id}
+                          style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
+                          type="button"
+                          onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
+                        >
+                          <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
+                          <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatDuration(item.duration)} · {item.category}</small></span>
+                          <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
+                        </button>;
+                      })}
+                    </div>
+                  </div> : null}
                   {availableExtras.length > GO_FURTHER_PREVIEW_LIMIT ? <button className="go-further-toggle" type="button" onClick={() => setShowAllExtras((current) => !current)}>{showAllExtras ? "Show less" : `See all ${availableExtras.length}`}</button> : null}
                 </section>
               ) : null}

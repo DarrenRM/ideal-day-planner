@@ -19,6 +19,10 @@ export type DayRoleItem = {
   activatedAt?: string | null;
   completedAt?: string | null;
   skippedAt?: string | null;
+  previousEligibleDate?: string | null;
+  previousCompletedAt?: string | null;
+  previousActivatedAt?: string | null;
+  previousPlanRole?: PlanRole | null;
 };
 
 export function isActiveDayItem(item: DayRoleItem) {
@@ -34,4 +38,20 @@ export function partitionDayItems<T extends DayRoleItem>(items: T[]) {
     else availableExtras.push(item);
   }
   return { active, availableExtras };
+}
+
+export function isKeepGoingCandidate(item: DayRoleItem) {
+  return normalizePlanRole(item.planRole) === "extra"
+    && item.previousPlanRole === "extra"
+    && Boolean(item.previousEligibleDate && item.previousActivatedAt && item.previousCompletedAt);
+}
+
+export function partitionAvailableExtras<T extends DayRoleItem>(items: T[]) {
+  const keepGoing: T[] = [];
+  const moreOptions: T[] = [];
+  for (const item of items) {
+    if (isKeepGoingCandidate(item)) keepGoing.push(item);
+    else moreOptions.push(item);
+  }
+  return { keepGoing, moreOptions };
 }
