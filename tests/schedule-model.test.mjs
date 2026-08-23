@@ -49,6 +49,9 @@ test("validates and normalizes the bounded schedule language", () => {
   assert.equal(parseCadence({ kind: "weekdays", weekdays: [] }), null);
   assert.equal(parseCadence({ kind: "interval_days", every: 0, anchorDate: "2026-08-21" }), null);
   assert.deepEqual(parseAdvancement({ kind: "completion", advanceOnSkip: false }), { kind: "completion", advanceOnSkip: false });
+  assert.equal(parseSchedulePattern(pattern())?.steps[0].planRole, "essential");
+  assert.equal(parseSchedulePattern(pattern({ steps: [{ ...pattern().steps[0], planRole: "extra" }] }))?.steps[0].planRole, "extra");
+  assert.equal(parseOccurrenceAction({ type: "activate_extra", occurrenceId: "occurrence:1", idempotencyKey: "activate:1" })?.type, "activate_extra");
 });
 
 test("performs local-date arithmetic without DST drift", () => {

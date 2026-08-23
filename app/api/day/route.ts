@@ -1,6 +1,6 @@
 import { getD1 } from "../../../db";
 import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
-import { ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
+import { ensureDayRoles, ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 const LEGACY_MIGRATION = "local-routine-v1";
@@ -16,6 +16,7 @@ type StoredItem = {
   color: string;
   completedAt?: string | null;
   skippedAt?: string | null;
+  planRole: "essential" | "extra";
 };
 
 function identity(request: Request) {
@@ -45,6 +46,7 @@ function normalizeItems(value: unknown): StoredItem[] | null {
   if (!Array.isArray(value) || value.length > 200) return null;
   const seen = new Set<string>();
   const items: StoredItem[] = [];
+  let hasExplicitRoles = false;
 
   for (const candidate of value) {
     if (!candidate || typeof candidate !== "object") return null;
@@ -61,10 +63,13 @@ function normalizeItems(value: unknown): StoredItem[] | null {
     seen.add(id);
     const completedAt = typeof raw.completedAt === "string" ? raw.completedAt.slice(0, 40) : null;
     const skippedAt = typeof raw.skippedAt === "string" ? raw.skippedAt.slice(0, 40) : null;
-    items.push({ id, title, category, icon, color, duration, completedAt, skippedAt });
+    if (raw.planRole === "essential" || raw.planRole === "extra") hasExplicitRoles = true;
+    const planRole = raw.planRole === "extra" ? "extra" : "essential";
+    items.push({ id, title, category, icon, color, duration, completedAt, skippedAt, planRole });
   }
-
-  return items;
+  return !hasExplicitRoles && items.length > 8
+    ? items.map((item, index) => ({ ...item, planRole: index < 6 ? "essential" : "extra" }))
+    : items;
 }
 
 function normalizeStartMinutes(value: unknown) {
@@ -177,7 +182,9 @@ async function resetToday(userId: string, date: string) {
     `).bind(planId, userId),
     db.prepare(`
       UPDATE daily_plan_items
-      SET completed_at = NULL, skipped_at = NULL, updated_at = CURRENT_TIMESTAMP
+      SET completed_at = NULL, skipped_at = NULL,
+          activated_at = CASE WHEN plan_role = 'extra' THEN NULL ELSE activated_at END,
+          updated_at = CURRENT_TIMESTAMP
       WHERE daily_plan_id = ?
     `).bind(planId),
     db.prepare(`
@@ -229,8 +236,8 @@ async function importLegacy(userId: string, date: string, items: StoredItem[], s
     const activityId = `activity:${user}:${safeSegment(item.id)}`;
     statements.push(
       db.prepare(`
-        INSERT INTO activities (id, user_id, client_key, title, category, icon, color)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO activities (id, user_id, client_key, title, category, icon, color, origin)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'imported')
         ON CONFLICT(user_id, client_key) DO UPDATE SET
           title = excluded.title, category = excluded.category, icon = excluded.icon, color = excluded.color, updated_at = CURRENT_TIMESTAMP
       `).bind(activityId, userId, item.id, item.title, item.category, item.icon, item.color),
@@ -244,6 +251,21 @@ async function importLegacy(userId: string, date: string, items: StoredItem[], s
   );
   await db.batch(statements);
   await ensureDefaultSchedule(userId, templateId);
+  await syncImportedRoles(userId, templateId, items);
+}
+
+async function syncImportedRoles(userId: string, templateId: string, items: StoredItem[]) {
+  const db = getD1();
+  const statements = items.map((item) => db.prepare(`
+    UPDATE schedule_pattern_steps
+    SET plan_role = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE activity_id = (
+      SELECT id FROM activities WHERE user_id = ? AND client_key = ? LIMIT 1
+    ) AND pattern_id IN (
+      SELECT id FROM schedule_patterns WHERE user_id = ? AND routine_id = ? AND archived_at IS NULL
+    )
+  `).bind(item.planRole, userId, item.id, userId, templateId));
+  if (statements.length) await db.batch(statements);
 }
 
 async function activityDefinitions(userId: string) {
@@ -278,8 +300,8 @@ async function restoreTemplateAndToday(userId: string, date: string, items: Stor
     const activityId = `activity:${user}:${safeSegment(item.id)}`;
     statements.push(
       db.prepare(`
-        INSERT INTO activities (id, user_id, client_key, title, category, icon, color)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO activities (id, user_id, client_key, title, category, icon, color, origin)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'imported')
         ON CONFLICT(user_id, client_key) DO UPDATE SET
           title = excluded.title, category = excluded.category, icon = excluded.icon, color = excluded.color, updated_at = CURRENT_TIMESTAMP
       `).bind(activityId, userId, item.id, item.title, item.category, item.icon, item.color),
@@ -299,6 +321,7 @@ async function restoreTemplateAndToday(userId: string, date: string, items: Stor
   );
   await db.batch(statements);
   await ensureDefaultSchedule(userId, templateId);
+  await syncImportedRoles(userId, templateId, items);
   await resolveDay(userId, date, templateId, planId, startMinutes);
 }
 
@@ -348,6 +371,7 @@ export async function GET(request: Request) {
         needsImport: true,
       });
     }
+    await ensureDayRoles(userId, templateId);
     await createTodayFromTemplate(userId, date, templateId);
     return Response.json({ date, ...await readDay(userId, date), needsImport: false });
   } catch (error) {
@@ -365,6 +389,8 @@ export async function POST(request: Request) {
     await ensureAgentSchema();
     const payload = await request.json() as { mode?: unknown; items?: unknown; startMinutes?: unknown; currentMinutes?: unknown };
     const templateId = await ensureAccount(userId, date);
+    await ensureDefaultSchedule(userId, templateId);
+    await ensureDayRoles(userId, templateId);
     if (payload.mode === "start-day") {
       await createTodayFromTemplate(userId, date, templateId);
       return Response.json({ date, ...await startToday(userId, date, payload.currentMinutes), needsImport: false });

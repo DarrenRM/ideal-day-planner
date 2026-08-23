@@ -127,6 +127,13 @@
       "when": 1787358879083,
       "tag": "0017_rainy_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1787503793385,
+      "tag": "0018_typical_switch",
+      "breakpoints": true
     }
   ]
 }

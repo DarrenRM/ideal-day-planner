@@ -36,6 +36,7 @@ export const activities = sqliteTable("activities", {
   category: text("category").notNull(),
   icon: text("icon").notNull(),
   color: text("color").notNull(),
+  origin: text("origin").notNull().default("user"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [uniqueIndex("activities_user_client_key_unique").on(table.userId, table.clientKey)]);
@@ -102,6 +103,7 @@ export const schedulePatternSteps = sqliteTable("schedule_pattern_steps", {
   position: integer("position").notNull(),
   durationMinutes: integer("duration_minutes").notNull(),
   displayLabelOverride: text("display_label_override"),
+  planRole: text("plan_role").notNull().default("essential"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
@@ -150,6 +152,8 @@ export const dailyPlanItems = sqliteTable("daily_plan_items", {
   color: text("color").notNull(),
   position: integer("position").notNull(),
   duration: integer("duration").notNull(),
+  planRole: text("plan_role").notNull().default("essential"),
+  activatedAt: text("activated_at"),
   completedAt: text("completed_at"),
   skippedAt: text("skipped_at"),
   removedAt: text("removed_at"),

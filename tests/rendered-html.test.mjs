@@ -62,6 +62,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
   assert.match(page, /hasLoaded \? <>[\s\S]*displayedScheduledItems\.map/);
   assert.match(page, /<DayHighlights/);
+  assert.match(page, /Go Further/);
+  assert.match(page, /promoteExtra/);
+  assert.match(page, /mode: "set-role"/);
+  assert.match(page, /GO_FURTHER_PREVIEW_LIMIT/);
+  assert.match(css, /\.go-further-option \{[^}]*min-height: 52px;/);
   assert.match(page, /completedItems\.length > 1 \? <span className=\{`day-highlights-count/);
   assert.match(css, /\.day-highlights\.is-single \.day-highlights-overview \{ grid-template-columns: minmax\(0, 1fr\) 38px 14px; \}/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.day-highlights-overview \{[^}]*min-height: 86px;/);

@@ -19,6 +19,7 @@ export type ScheduleStep = {
   position: number;
   durationMinutes: number;
   displayLabelOverride: string | null;
+  planRole: "essential" | "extra";
 };
 
 export type SchedulePattern = {
@@ -55,7 +56,8 @@ export type OccurrenceAction =
   | { type: "set_variant"; occurrenceId: string; activityVariantId: string | null; idempotencyKey: string }
   | { type: "set_label"; occurrenceId: string; displayLabel: string | null; idempotencyKey: string }
   | { type: "set_status"; occurrenceId: string; status: "planned" | "completed" | "skipped" | "removed"; idempotencyKey: string }
-  | { type: "add_occurrence"; activityId: string; date: string; position?: number; activityVariantId?: string | null; durationMinutes?: number; idempotencyKey: string };
+  | { type: "activate_extra"; occurrenceId: string; idempotencyKey: string }
+  | { type: "add_occurrence"; activityId: string; date: string; position?: number; activityVariantId?: string | null; durationMinutes?: number; planRole?: "essential" | "extra"; idempotencyKey: string };
 
 export type ScheduleProposalAction =
   | { type: "create_activity"; clientKey: string; title: string; category: string; durationMinutes: number }
@@ -190,10 +192,11 @@ export function parseScheduleStep(value: unknown): ScheduleStep | null {
   const displayLabelOverride = source.displayLabelOverride === null || source.displayLabelOverride === undefined
     ? null
     : boundedText(source.displayLabelOverride, MAX_VARIANT_NAME_LENGTH);
+  const planRole = source.planRole === "extra" ? "extra" : "essential";
   if (!id || !activityId || activityVariantId === null && source.activityVariantId !== null && source.activityVariantId !== undefined || position === null || durationMinutes === null) return null;
   if (!SAFE_ID.test(id) || !SAFE_ID.test(activityId) || activityVariantId && !SAFE_ID.test(activityVariantId)) return null;
   if (source.displayLabelOverride !== null && source.displayLabelOverride !== undefined && !displayLabelOverride) return null;
-  return { id, activityId, activityVariantId, position, durationMinutes, displayLabelOverride };
+  return { id, activityId, activityVariantId, position, durationMinutes, displayLabelOverride, planRole };
 }
 
 export function parseSchedulePattern(value: unknown): SchedulePattern | null {
@@ -317,7 +320,8 @@ export function parseOccurrenceAction(value: unknown): OccurrenceAction | null {
     const durationMinutes = source.durationMinutes === undefined ? undefined : boundedInteger(source.durationMinutes, 5, MAX_ACTIVITY_DURATION_MINUTES);
     const activityVariantId = source.activityVariantId === undefined || source.activityVariantId === null ? null : boundedText(source.activityVariantId, 200);
     if (!activityId || !SAFE_ID.test(activityId) || !isLocalDate(source.date) || position === null || durationMinutes === null || activityVariantId === null && source.activityVariantId !== undefined && source.activityVariantId !== null) return null;
-    return { type: "add_occurrence", activityId, date: source.date, ...(position === undefined ? {} : { position }), ...(activityVariantId ? { activityVariantId } : {}), ...(durationMinutes === undefined ? {} : { durationMinutes }), idempotencyKey };
+    const planRole = source.planRole === "extra" ? "extra" : "essential";
+    return { type: "add_occurrence", activityId, date: source.date, ...(position === undefined ? {} : { position }), ...(activityVariantId ? { activityVariantId } : {}), ...(durationMinutes === undefined ? {} : { durationMinutes }), planRole, idempotencyKey };
   }
   const occurrenceId = boundedText(source.occurrenceId, 200);
   if (!occurrenceId || !SAFE_ID.test(occurrenceId)) return null;
@@ -355,6 +359,7 @@ export function parseOccurrenceAction(value: unknown): OccurrenceAction | null {
   if (source.type === "set_status" && ["planned", "completed", "skipped", "removed"].includes(String(source.status))) {
     return { type: "set_status", occurrenceId, status: source.status as "planned" | "completed" | "skipped" | "removed", idempotencyKey };
   }
+  if (source.type === "activate_extra") return { type: "activate_extra", occurrenceId, idempotencyKey };
   return null;
 }
 

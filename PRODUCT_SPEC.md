@@ -1,7 +1,7 @@
 # Ideal Day — Living Product Specification
 
 Status: discovery  
-Last updated: 2026-08-19  
+Last updated: 2026-08-23
 Owner: Darren  
 
 This document is the shared source of truth for what we are building. Confirmed decisions are labeled as such. Hypotheses and unresolved questions are kept visible so implementation does not silently turn guesses into product behavior.
@@ -28,6 +28,12 @@ Today’s activity list is the home screen. Activities are the primary context b
 - Treat today as the default edit target. The user or agent updates the underlying template only when that target is explicitly requested.
 - Allow activities to be added, edited, deleted, reordered, completed, skipped for today, and opened into their Luna-backed workspace.
 - Keep unfinished checklist order stable. Completed activities leave the working list for the compact Highlights panel; skipped activities remain in place and reversible.
+- Separate activity origin from daily commitment. `starter`, `user`, `luna`, and `imported` describe where an activity came from; `essential` and `extra` describe how a scheduled occurrence participates in a day. Origin is useful for onboarding, analytics, and recommendations but is not a daily status badge.
+- Make commitment schedule-step scoped and snapshot it onto each dated occurrence. The same activity may be essential in one schedule and optional in another without changing its identity or history.
+- Show Essentials as the normal working list. Only unfinished Essentials determine the day-success denominator; completing an extra is still real completion and appears in Highlights, but ignoring an extra never turns the day into a failure.
+- Put unchosen extras in a bounded `Go Further` pool below Essentials. These are calm opportunities, not a second backlog: show three by default with a deliberate reveal for the rest, omit completion circles, and let the whole row add the option to today.
+- Choosing a Go Further option sets a dated activation, transforms it into the normal activity-card anatomy in its scheduled position, and leaves its future default unchanged. Unchosen extras expire with the day; Reset Today clears their dated activation.
+- Let Add Activity, Manage Schedule, activity overflow menus, and confirmed Luna schedule proposals assign the daily role. Existing large routines receive a one-time conservative starter split that keeps the first six ordered patterns essential and places the remainder in Go Further; the person can then refine each role.
 - Put durable product preferences in a Settings modal opened by a gear beside the development tools.
 - Keep timers and countdowns available as ordinary activity components in either day mode. They measure real use only when the person starts them.
 

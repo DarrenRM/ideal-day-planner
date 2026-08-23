@@ -1,5 +1,6 @@
 import { getD1 } from "../../../db";
 import { addLocalDays, isLocalDate, parseAdvancement, parseCadence } from "../../schedule-model";
+import { normalizeActivityOrigin, normalizePlanRole } from "../../day-role";
 import { apiFailure, ensureAgentSchema, ensureConversation, queueActivitySetup, requestIdentity, safeId } from "../agent-store";
 import { activityMessageJobStatements } from "../activity-message-jobs";
 import { applyOccurrenceAction } from "../schedule-actions";
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
   try {
     const db = getD1();
     const activities = await db.prepare(`
-      SELECT id, client_key AS clientKey, title, category, icon, color
+      SELECT id, client_key AS clientKey, title, category, icon, color, origin
       FROM activities WHERE user_id = ? ORDER BY title
     `).bind(userId).all();
     const variants = await db.prepare(`
@@ -54,6 +55,50 @@ export async function POST(request: Request) {
     const db = getD1();
     const routine = await routineFor(userId);
     if (!routine) return Response.json({ error: "Your routine is not ready yet." }, { status: 409 });
+
+    if (mode === "set-role") {
+      const occurrenceId = text(payload.occurrenceId, 200);
+      const planRole = normalizePlanRole(payload.planRole);
+      const occurrence = await db.prepare(`
+        SELECT dpi.id, dpi.schedule_pattern_step_id AS schedulePatternStepId
+        FROM daily_plan_items dpi
+        JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+        WHERE dpi.id = ? AND dp.user_id = ?
+      `).bind(occurrenceId, userId).first<{ id: string; schedulePatternStepId: string | null }>();
+      if (!occurrence) return Response.json({ error: "Activity occurrence not found." }, { status: 404 });
+      const statements = [db.prepare(`
+        UPDATE daily_plan_items
+        SET plan_role = ?, activated_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(planRole, occurrence.id)];
+      if (occurrence.schedulePatternStepId) {
+        statements.push(
+          db.prepare(`UPDATE schedule_pattern_steps SET plan_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(planRole, occurrence.schedulePatternStepId),
+          db.prepare(`
+            UPDATE daily_plan_items
+            SET plan_role = ?, activated_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+            WHERE schedule_pattern_step_id = ? AND completed_at IS NULL AND skipped_at IS NULL
+          `).bind(planRole, occurrence.schedulePatternStepId),
+        );
+      }
+      const eventKey = `set-plan-role:${occurrence.id}:${planRole}:${crypto.randomUUID()}`;
+      statements.push(
+        db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id),
+        db.prepare(`
+          INSERT INTO schedule_action_events
+            (id, user_id, action_type, action_json, source, actor, idempotency_key)
+          VALUES (?, ?, 'set_plan_role', ?, 'user', ?, ?)
+        `).bind(
+          `schedule-event:${safeId(userId)}:${crypto.randomUUID()}`,
+          userId,
+          JSON.stringify({ occurrenceId: occurrence.id, schedulePatternStepId: occurrence.schedulePatternStepId, planRole }),
+          userId,
+          eventKey,
+        ),
+      );
+      await db.batch(statements);
+      return Response.json({ updated: true, planRole });
+    }
 
     if (mode === "update") {
       const clientKey = text(payload.activityId, 160);
@@ -118,6 +163,8 @@ export async function POST(request: Request) {
     const color = /^#[0-9a-f]{6}$/i.test(text(payload.color, 20)) ? text(payload.color, 20) : "#a8c96d";
     const schedule = payload.schedule && typeof payload.schedule === "object" ? payload.schedule as Record<string, unknown> : { kind: "daily" };
     const setupRequest = text(payload.setupRequest, 4000);
+    const planRole = normalizePlanRole(payload.planRole);
+    const origin = normalizeActivityOrigin(payload.origin);
     const includeToday = payload.includeToday !== false;
     const cadence = schedule.kind === "none" ? null : parseCadence(schedule.kind === "daily" ? { kind: "daily" } : schedule);
     const advancement = schedule.kind === "none" ? null : parseAdvancement(payload.advancement ?? { kind: "calendar" });
@@ -127,9 +174,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "That schedule is not valid." }, { status: 400 });
     }
     await db.prepare(`
-      INSERT INTO activities (id, user_id, client_key, title, category, icon, color)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(activityId, userId, clientKey, title, category, icon, color).run();
+      INSERT INTO activities (id, user_id, client_key, title, category, icon, color, origin)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(activityId, userId, clientKey, title, category, icon, color, origin).run();
 
     if (schedule.kind !== "none") {
       const positionRow = await db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS position FROM schedule_patterns WHERE routine_id = ? AND archived_at IS NULL`)
@@ -145,9 +192,9 @@ export async function POST(request: Request) {
         `).bind(patternId, userId, routine.id, clientKey, title, positionRow?.position ?? 0, JSON.stringify(cadence), JSON.stringify(advancement), effectiveDate, effectiveDate),
         db.prepare(`
           INSERT INTO schedule_pattern_steps
-            (id, pattern_id, activity_id, position, duration_minutes)
-          VALUES (?, ?, ?, 0, ?)
-        `).bind(stepId, patternId, activityId, activityDuration),
+            (id, pattern_id, activity_id, position, duration_minutes, plan_role)
+          VALUES (?, ?, ?, 0, ?, ?)
+        `).bind(stepId, patternId, activityId, activityDuration, planRole),
         db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id),
       ]);
       if (date && includeToday) await resolveDay(userId, date, routine.id, `plan:${safeId(userId)}:${date}`, routine.startMinutes);
@@ -157,6 +204,7 @@ export async function POST(request: Request) {
         activityId,
         date,
         durationMinutes: activityDuration,
+        planRole,
         idempotencyKey: `create-activity:${clientKey}:${date}`,
       }, { source: "user", actor: userId });
     }

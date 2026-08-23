@@ -48,8 +48,8 @@ function patternStatements(db: ReturnType<typeof getD1>, userId: string, routine
       )];
   statements.push(...pattern.steps.map((step, index) => db.prepare(`
     INSERT INTO schedule_pattern_steps
-      (id, pattern_id, activity_id, activity_variant_id, position, duration_minutes, display_label_override)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+      (id, pattern_id, activity_id, activity_variant_id, position, duration_minutes, display_label_override, plan_role)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     `schedule-step:${safeId(patternId)}:${index}`,
     patternId,
@@ -58,6 +58,7 @@ function patternStatements(db: ReturnType<typeof getD1>, userId: string, routine
     index,
     step.durationMinutes,
     step.displayLabelOverride,
+    step.planRole,
   )));
   return statements;
 }
@@ -165,8 +166,8 @@ export async function applyScheduleProposal(userId: string, proposalId: string) 
     if (action.type === "create_activity") {
       const style = CATEGORY_STYLE[action.category];
       statements.push(db.prepare(`
-        INSERT INTO activities (id, user_id, client_key, title, category, icon, color)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO activities (id, user_id, client_key, title, category, icon, color, origin)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'luna')
       `).bind(createdActivityIds.get(`proposal:${action.clientKey}`), userId, action.clientKey, action.title, action.category, style.icon, style.color));
     } else if (action.type === "create_variant") {
       const activityId = resolveActivityId(action.activityId);

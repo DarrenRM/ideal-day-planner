@@ -65,6 +65,7 @@ function emptyPattern(position: number, firstActivity?: Activity): SchedulePatte
       position: 0,
       durationMinutes: 15,
       displayLabelOverride: null,
+      planRole: "essential",
     }] : [],
   };
 }
@@ -240,7 +241,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
       const result = await response.json() as { activity?: Activity; error?: string };
       if (!response.ok || !result.activity) throw new Error(result.error || "The activity could not be created.");
       setData((current) => current ? { ...current, activities: [...current.activities, result.activity!] } : current);
-      updateEditing((pattern) => ({ ...pattern, steps: [...pattern.steps, { id: `step:${crypto.randomUUID()}`, activityId: result.activity!.id, activityVariantId: null, position: pattern.steps.length, durationMinutes: 15, displayLabelOverride: null }] }));
+      updateEditing((pattern) => ({ ...pattern, steps: [...pattern.steps, { id: `step:${crypto.randomUUID()}`, activityId: result.activity!.id, activityVariantId: null, position: pattern.steps.length, durationMinutes: 15, displayLabelOverride: null, planRole: "essential" }] }));
       setIsAddingActivity(false);
       setNewActivityName("");
       setSaveState("idle");
@@ -278,7 +279,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
                 {editing.steps.length > 1 ? <label><span>Starts with</span><select value={editing.initialStepPosition} onChange={(event) => updateEditing((pattern) => ({ ...pattern, initialStepPosition: Number(event.target.value) }))}>{editing.steps.map((step, index) => <option value={index} key={step.id}>Step {index + 1} · {activityMap.get(step.activityId)?.title ?? "Activity"}{step.activityVariantId ? ` — ${variantMap.get(step.activityVariantId)?.name ?? "Variant"}` : ""}</option>)}</select></label> : null}
               </div>
               <div className="sequence-steps">
-                <div className="sequence-section-heading"><div><span>Sequence</span><p>One step appears each time this schedule runs.</p></div><div><button type="button" onClick={() => setIsAddingActivity(true)}><Plus size={15} /> New activity</button><button type="button" disabled={!data.activities.length} onClick={() => updateEditing((pattern) => ({ ...pattern, steps: [...pattern.steps, { id: `step:${crypto.randomUUID()}`, activityId: data.activities[0].id, activityVariantId: null, position: pattern.steps.length, durationMinutes: 15, displayLabelOverride: null }] }))}><Plus size={15} /> Add step</button></div></div>
+                <div className="sequence-section-heading"><div><span>Sequence</span><p>One step appears each time this schedule runs.</p></div><div><button type="button" onClick={() => setIsAddingActivity(true)}><Plus size={15} /> New activity</button><button type="button" disabled={!data.activities.length} onClick={() => updateEditing((pattern) => ({ ...pattern, steps: [...pattern.steps, { id: `step:${crypto.randomUUID()}`, activityId: data.activities[0].id, activityVariantId: null, position: pattern.steps.length, durationMinutes: 15, displayLabelOverride: null, planRole: "essential" }] }))}><Plus size={15} /> Add step</button></div></div>
                 {editing.steps.map((step, index) => {
                   const variants = data.variants.filter((variant) => variant.activityId === step.activityId);
                   return <div className="sequence-step" key={step.id}>
@@ -286,6 +287,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
                     <label><span>Activity</span><select value={step.activityId} onChange={(event) => updateStep(index, { activityId: event.target.value, activityVariantId: null })}>{data.activities.map((activity) => <option value={activity.id} key={activity.id}>{activity.title}</option>)}</select></label>
                     <label className="sequence-variant-field"><span>Variant</span><select value={step.activityVariantId ?? ""} onChange={(event) => updateStep(index, { activityVariantId: event.target.value || null })}><option value="">None</option>{variants.map((variant) => <option value={variant.id} key={variant.id}>{variant.name}</option>)}</select><button type="button" onClick={() => { setNewVariantStep(index); setNewVariantName(""); }}>New variant</button></label>
                     <label><span>Minutes</span><input min="5" max="480" type="number" value={step.durationMinutes} onChange={(event) => updateStep(index, { durationMinutes: Math.max(5, event.target.valueAsNumber || 5) })} /></label>
+                    <label><span>Daily role</span><select value={step.planRole} onChange={(event) => updateStep(index, { planRole: event.target.value === "extra" ? "extra" : "essential" })}><option value="essential">Essential</option><option value="extra">Go Further</option></select></label>
                     <label className="sequence-label-field"><span>Display label</span><input maxLength={60} placeholder="Optional for this step" value={step.displayLabelOverride ?? ""} onChange={(event) => updateStep(index, { displayLabelOverride: event.target.value || null })} /></label>
                     <div className="sequence-step-actions"><button aria-label="Move step up" disabled={index === 0} type="button" onClick={() => moveStep(index, -1)}><ArrowUp size={15} /></button><button aria-label="Move step down" disabled={index === editing.steps.length - 1} type="button" onClick={() => moveStep(index, 1)}><ArrowDown size={15} /></button><button aria-label="Remove step" disabled={editing.steps.length === 1} type="button" onClick={() => updateEditing((pattern) => { const initialStepId = pattern.steps[pattern.initialStepPosition]?.id; const next = pattern.steps.filter((_, stepIndex) => stepIndex !== index).map((candidate, position) => ({ ...candidate, position })); const retainedInitial = next.findIndex((step) => step.id === initialStepId); return { ...pattern, initialStepPosition: retainedInitial >= 0 ? retainedInitial : Math.min(index, next.length - 1), steps: next }; })}><Trash2 size={15} /></button></div>
                   </div>;

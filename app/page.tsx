@@ -14,6 +14,7 @@ import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 import { ScheduleManager } from "./schedule-manager";
 import { GlobalLuna } from "./global-luna";
 import { OccurrenceEditor } from "./occurrence-editor";
+import { GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionDayItems, type PlanRole } from "./day-role";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
@@ -33,6 +34,8 @@ type RoutineItem = {
   color: string;
   completedAt?: string | null;
   skippedAt?: string | null;
+  planRole?: PlanRole;
+  activatedAt?: string | null;
 };
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
@@ -449,9 +452,10 @@ type ActivityWorkbenchProps = {
   onSetDuration: (value: number) => void;
   onChangeToday: () => void;
   onManageSchedule: () => void;
+  onSetRole: (role: PlanRole) => void;
 };
 
-function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule, onSetRole }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
@@ -1135,6 +1139,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                 ) : (
                   <>
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onChangeToday(); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
+                    <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onSetRole(normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
                     {isComplete ? <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); void toggleActivityComplete(); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onEdit(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                     <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setResetActivityState("confirming")}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
@@ -1204,7 +1209,8 @@ function DayHighlights({
   onOpenActivity: (item: ScheduledItem, bounds: DOMRect) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const progress = totalActivities ? Math.min(100, (completedItems.length / totalActivities) * 100) : 0;
+  const completedEssentials = completedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
+  const progress = totalActivities ? Math.min(100, (completedEssentials / totalActivities) * 100) : 0;
   const density = completedItems.length === 1 ? "is-single" : completedItems.length <= 3 ? "is-sparse" : "";
   const visibleCopy = highlight.body || (completedItems.length === 1 ? activityDisplayTitle(completedItems[0]) : null);
   const history = [...completedItems].sort((left, right) => (storedTimestampMillis(right.completedAt) ?? 0) - (storedTimestampMillis(left.completedAt) ?? 0));
@@ -1332,7 +1338,7 @@ function hydrateStoredItems(value: unknown): RoutineItem[] {
       typeof item.icon !== "string" ||
       typeof item.color !== "string"
     ) throw new Error("The saved day contains an invalid item.");
-    return { ...item, category, color: CATEGORY_META[category].color, detail: "Saved activity" } as RoutineItem;
+    return { ...item, planRole: normalizePlanRole(item.planRole), category, color: CATEGORY_META[category].color, detail: "Saved activity" } as RoutineItem;
   });
 }
 
@@ -1361,6 +1367,7 @@ export default function Home() {
   const [draftIncludeToday, setDraftIncludeToday] = useState(true);
   const [draftLunaRequest, setDraftLunaRequest] = useState("");
   const [draftSetupRequest, setDraftSetupRequest] = useState("");
+  const [draftPlanRole, setDraftPlanRole] = useState<PlanRole>("essential");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editCategory, setEditCategory] = useState<Category>("Care");
@@ -1384,6 +1391,8 @@ export default function Home() {
   const [pendingActivityIds, setPendingActivityIds] = useState<Set<string>>(() => new Set());
   const [celebratingActivityId, setCelebratingActivityId] = useState<string | null>(null);
   const [skippingActivityId, setSkippingActivityId] = useState<string | null>(null);
+  const [showAllExtras, setShowAllExtras] = useState(false);
+  const [promotingExtraId, setPromotingExtraId] = useState<string | null>(null);
   const [settlingCompletedIds, setSettlingCompletedIds] = useState<Set<string>>(() => new Set());
   const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1398,6 +1407,7 @@ export default function Home() {
   const completionPlacementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const nextActivityCueTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const activityListPositionSnapshot = useRef<Map<string, { left: number; top: number }> | null>(null);
+  const extraPromotionOrigins = useRef<Map<string, DOMRect>>(new Map());
   const activityReorderAnimations = useRef<Animation[]>([]);
   const expandedCompletionActionRef = useRef<(() => void) | null>(null);
   const mobileActivityTransitionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -1638,21 +1648,25 @@ export default function Home() {
     }));
   }, [dayStartedAt, items]);
 
+  const { active: activeDayItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
+  const essentialItems = useMemo(() => items.filter((item) => normalizePlanRole(item.planRole) === "essential"), [items]);
+  const visibleExtras = showAllExtras ? availableExtras : availableExtras.slice(0, GO_FURTHER_PREVIEW_LIMIT);
+
   const scheduledItems = useMemo(() => {
-    return items.reduce<{ cursor: number; scheduled: ScheduledItem[] }>((state, item) => {
+    return activeDayItems.reduce<{ cursor: number; scheduled: ScheduledItem[] }>((state, item) => {
       const consumesScheduleTime = !item.skippedAt && !completedBeforeLaunchIds.has(item.id);
       const scheduled = { ...item, start: state.cursor, end: state.cursor + (consumesScheduleTime ? item.duration : 0) };
       return { cursor: scheduled.end, scheduled: [...state.scheduled, scheduled] };
     }, { cursor: startMinutes, scheduled: [] }).scheduled;
-  }, [completedBeforeLaunchIds, items, startMinutes]);
+  }, [activeDayItems, completedBeforeLaunchIds, startMinutes]);
 
   const totalMinutes = useMemo(
-    () => items.reduce((total, item) => total + (item.skippedAt ? 0 : item.duration), 0),
-    [items],
+    () => activeDayItems.reduce((total, item) => total + (item.skippedAt ? 0 : item.duration), 0),
+    [activeDayItems],
   );
   const scheduledMinutes = useMemo(
-    () => items.reduce((total, item) => total + (item.skippedAt || completedBeforeLaunchIds.has(item.id) ? 0 : item.duration), 0),
-    [completedBeforeLaunchIds, items],
+    () => activeDayItems.reduce((total, item) => total + (item.skippedAt || completedBeforeLaunchIds.has(item.id) ? 0 : item.duration), 0),
+    [activeDayItems, completedBeforeLaunchIds],
   );
   const finishMinutes = startMinutes + scheduledMinutes;
 
@@ -1696,6 +1710,19 @@ export default function Home() {
     const animations: Animation[] = [];
     document.querySelectorAll<HTMLElement>(".routine-row[data-activity-id]").forEach((row) => {
       const id = row.dataset.activityId;
+      const promotionOrigin = id ? extraPromotionOrigins.current.get(id) : null;
+      if (promotionOrigin) {
+        extraPromotionOrigins.current.delete(id!);
+        const current = row.getBoundingClientRect();
+        animations.push(row.animate([
+          {
+            transform: `translate(${promotionOrigin.left - current.left}px, ${promotionOrigin.top - current.top}px) scaleY(${Math.max(.55, promotionOrigin.height / Math.max(current.height, 1))})`,
+            opacity: .72,
+          },
+          { transform: "translate(0, 0) scaleY(1)", opacity: 1 },
+        ], { duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 520, easing: "cubic-bezier(.2, .8, .24, 1)" }));
+        return;
+      }
       const previous = id ? before.get(id) : null;
       if (!previous) return;
       const current = row.getBoundingClientRect();
@@ -1728,11 +1755,11 @@ export default function Home() {
   const categoryTotals = useMemo(
     () => CATEGORY_ORDER.map((category) => ({
       category,
-      minutes: items.filter((item) => item.category === category && !item.skippedAt).reduce((sum, item) => sum + item.duration, 0),
-      count: items.filter((item) => item.category === category && !item.skippedAt).length,
+      minutes: activeDayItems.filter((item) => item.category === category && !item.skippedAt).reduce((sum, item) => sum + item.duration, 0),
+      count: activeDayItems.filter((item) => item.category === category && !item.skippedAt).length,
       color: CATEGORY_META[category].color,
     })).filter((entry) => entry.minutes > 0),
-    [items],
+    [activeDayItems],
   );
 
   const fakeTimePresets = [
@@ -1743,8 +1770,8 @@ export default function Home() {
   ];
   const minutesUntilPreferredStart = Math.max(0, preferredStartMinutes - displayedMinutes);
   const nextStartBoundary = Math.min(1435, Math.ceil(displayedMinutes / 5) * 5);
-  const activeItemCount = items.filter((item) => !item.skippedAt).length;
-  const completedItemCount = items.filter((item) => item.completedAt).length;
+  const activeItemCount = essentialItems.filter((item) => !item.skippedAt).length;
+  const completedItemCount = essentialItems.filter((item) => item.completedAt).length;
 
   async function setTimelineEnabled(enabled: boolean) {
     if (settingsSaveState === "saving" || enabled === timelineEnabled) return;
@@ -1875,6 +1902,59 @@ export default function Home() {
     }
   }
 
+  async function promoteExtra(item: RoutineItem, origin: DOMRect) {
+    if (promotingExtraId || normalizePlanRole(item.planRole) !== "extra" || item.activatedAt) return;
+    activityListPositionSnapshot.current = new Map(
+      Array.from(document.querySelectorAll<HTMLElement>(".routine-row[data-activity-id]")).flatMap((row) => {
+        const id = row.dataset.activityId;
+        const bounds = row.getBoundingClientRect();
+        return id ? [[id, { left: bounds.left, top: bounds.top }] as const] : [];
+      }),
+    );
+    extraPromotionOrigins.current.set(item.id, origin);
+    const activatedAt = new Date().toISOString();
+    setPromotingExtraId(item.id);
+    setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt } : candidate));
+    setSaveState("saving");
+    try {
+      const response = await fetch("/api/occurrences", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ actions: [{ type: "activate_extra", occurrenceId: item.id, idempotencyKey: window.crypto.randomUUID() }] }),
+      });
+      if (!response.ok) throw new Error("That extra could not be added today.");
+      setSaveState("saved");
+      window.setTimeout(() => cueNextActivity(item.id), 420);
+    } catch {
+      extraPromotionOrigins.current.delete(item.id);
+      setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt: null } : candidate));
+      setSaveState("retrying");
+    } finally {
+      setPromotingExtraId(null);
+    }
+  }
+
+  async function setActivityRole(item: RoutineItem, planRole: PlanRole) {
+    if (normalizePlanRole(item.planRole) === planRole) return;
+    setMobileActivityMenuId(null);
+    if (planRole === "extra" && selectedActivityId === item.id) collapseActivity();
+    captureActivityListPositions();
+    setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, planRole, activatedAt: null } : candidate));
+    setSaveState("saving");
+    try {
+      const response = await fetch("/api/activities", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "set-role", occurrenceId: item.id, planRole }),
+      });
+      if (!response.ok) throw new Error("The daily role could not be saved.");
+      setSaveState("saved");
+    } catch {
+      await reloadToday();
+      setSaveState("retrying");
+    }
+  }
+
   function setDuration(id: string, value: number) {
     if (!Number.isFinite(value)) return;
     const duration = Math.min(480, Math.max(1, Math.round(value)));
@@ -1905,6 +1985,7 @@ export default function Home() {
       detail: "Custom block",
       duration: normalizeActivityDuration(draftDuration),
       category: draftCategory,
+      planRole: draftPlanRole,
       ...meta,
     };
     setSaveState("saving");
@@ -1929,6 +2010,8 @@ export default function Home() {
                 ? { kind: "daily" }
                 : { kind: "none" },
           includeToday: draftIncludeToday,
+          planRole: draftPlanRole,
+          origin: "user",
           setupRequest,
         }),
       });
@@ -1958,6 +2041,7 @@ export default function Home() {
     setDraftIncludeToday(true);
     setDraftLunaRequest("");
     setDraftSetupRequest("");
+    setDraftPlanRole("essential");
     setIsAdding(false);
   }
 
@@ -2755,8 +2839,8 @@ export default function Home() {
                   <span className="mobile-schedule-title">{formatTodayHeading()}</span>
                 </h2>
                 <p>
-                  <span className="desktop-schedule-summary">{hasLoaded ? timelineEnabled ? isDayStarted ? `${items.length} activities · times move with your day` : `${items.length} activities · ready when you are` : `${items.length} activities · move through them in your own time` : "Loading your saved day…"}</span>
-                  <span className="mobile-schedule-summary">{hasLoaded ? timelineEnabled ? <>{items.length} activities <i aria-hidden="true">·</i> {formatDuration(totalMinutes)} total</> : <>{items.length} activities <i aria-hidden="true">·</i> {completedItemCount} done</> : "Loading your saved day…"}</span>
+                  <span className="desktop-schedule-summary">{hasLoaded ? timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
+                  <span className="mobile-schedule-summary">{hasLoaded ? <>{activeItemCount} essentials <i aria-hidden="true">·</i> {availableExtras.length} more</> : "Loading your saved day…"}</span>
                 </p>
               </div>
               <div className="planner-actions">
@@ -2826,6 +2910,13 @@ export default function Home() {
                     value={draftCategory}
                   />
                 </div>
+                <div className="add-field">
+                  <label htmlFor="block-role">Daily role</label>
+                  <select id="block-role" value={draftPlanRole} onChange={(event) => setDraftPlanRole(event.target.value === "extra" ? "extra" : "essential")}>
+                    <option value="essential">Essential</option>
+                    <option value="extra">Go Further</option>
+                  </select>
+                </div>
                 <div className="add-field add-schedule-field">
                   <label htmlFor="block-schedule">Schedule</label>
                   <select id="block-schedule" value={draftScheduleKind} onChange={(event) => setDraftScheduleKind(event.target.value as typeof draftScheduleKind)}>
@@ -2878,6 +2969,10 @@ export default function Home() {
                 totalActivities={activeItemCount}
                 onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
               /> : null}
+              {activeDayItems.length ? <div className="daily-list-heading">
+                <span>Essentials</span>
+                <small>{Math.max(0, activeItemCount - completedItemCount)} left</small>
+              </div> : null}
               {displayedScheduledItems.map((item, displayIndex) => {
                 const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);
                 const isDragging = draggingId === item.id;
@@ -3055,6 +3150,7 @@ export default function Home() {
                                 ) : <>
                                   <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                                   <button role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
+                                  <button role="menuitem" type="button" onClick={() => void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential")}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
                                   {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>}
                                   <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
                                   <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
@@ -3116,6 +3212,7 @@ export default function Home() {
                           onSetDuration={(value) => setDuration(item.id, value)}
                           onChangeToday={() => setOccurrenceEditorItem(item)}
                           onManageSchedule={() => { setScheduleManagerActivityId(item.activityId ?? item.id); setIsScheduleManagerOpen(true); }}
+                          onSetRole={(role) => void setActivityRole(item, role)}
                         />
                       ) : null}
 
@@ -3124,6 +3221,34 @@ export default function Home() {
                   </Fragment>
                 );
               })}
+
+              {availableExtras.length ? (
+                <section className="go-further" aria-labelledby="go-further-title">
+                  <header>
+                    <div><span>Optional</span><h3 id="go-further-title">Go Further</h3></div>
+                    <small>Choose one when you have more in you.</small>
+                  </header>
+                  <div className="go-further-list">
+                    {visibleExtras.map((item) => {
+                      const ExtraIcon = activityIconFor(item);
+                      return <button
+                        className="go-further-option"
+                        data-extra-id={item.id}
+                        disabled={promotingExtraId === item.id}
+                        key={item.id}
+                        style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
+                        type="button"
+                        onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
+                      >
+                        <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
+                        <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatDuration(item.duration)} · {item.category}</small></span>
+                        <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
+                      </button>;
+                    })}
+                  </div>
+                  {availableExtras.length > GO_FURTHER_PREVIEW_LIMIT ? <button className="go-further-toggle" type="button" onClick={() => setShowAllExtras((current) => !current)}>{showAllExtras ? "Show less" : `See all ${availableExtras.length}`}</button> : null}
+                </section>
+              ) : null}
 
               {dayMode.showClockState && nowLineIndex === displayedScheduledItems.length ? (
                 <div className="now-line now-line-finished" aria-label={`Current time ${formatTime(displayedMinutes)}`}>

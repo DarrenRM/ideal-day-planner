@@ -43,6 +43,8 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
     position: number;
     sourceDate: string | null;
     planDate: string;
+    planRole: "essential" | "extra";
+    activatedAt: string | null;
   } | null = null;
   if (action.type !== "add_occurrence") {
     occurrence = await db.prepare(`
@@ -50,7 +52,9 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
              dpi.activity_variant_id AS activityVariantId, dpi.client_key AS clientKey,
              dpi.title, dpi.variant_name_snapshot AS variantName,
              dpi.display_label_override AS displayLabel, dpi.category, dpi.icon, dpi.color,
-             dpi.duration, dpi.position, dpi.source_date AS sourceDate, dp.plan_date AS planDate
+             dpi.duration, dpi.position, dpi.source_date AS sourceDate, dp.plan_date AS planDate,
+             CASE WHEN dpi.plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole,
+             dpi.activated_at AS activatedAt
       FROM daily_plan_items dpi
       JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
       WHERE dpi.id = ? AND dp.user_id = ?
@@ -122,6 +126,14 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
           revision = revision + 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(occurrence.id).run();
+  } else if (action.type === "activate_extra" && occurrence) {
+    if (occurrence.planRole !== "extra") throw new Error("That activity is already essential today.");
+    await db.prepare(`
+      UPDATE daily_plan_items
+      SET activated_at = COALESCE(activated_at, CURRENT_TIMESTAMP),
+          revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(occurrence.id).run();
   } else if (action.type === "move_to_date" && occurrence) {
     const routine = await db.prepare(`
       SELECT rt.id AS routineId, rt.start_minutes AS startMinutes
@@ -138,13 +150,14 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
           (id, daily_plan_id, activity_id, occurrence_key, activity_variant_id,
            client_key, title, variant_name_snapshot, display_label_override,
            category, icon, color, position, duration, source_date,
-           moved_from_daily_plan_item_id, revision)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+           moved_from_daily_plan_item_id, plan_role, activated_at, revision)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `).bind(
         movedId, targetPlanId, occurrence.activityId, movedKey, occurrence.activityVariantId,
         occurrence.clientKey, occurrence.title, occurrence.variantName, occurrence.displayLabel,
         occurrence.category, occurrence.icon, occurrence.color, action.position ?? occurrence.position,
         occurrence.duration, occurrence.sourceDate ?? occurrence.planDate, occurrence.id,
+        occurrence.planRole, occurrence.activatedAt,
       ),
       db.prepare(`
         UPDATE daily_plan_items
@@ -181,13 +194,13 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
       INSERT OR IGNORE INTO daily_plan_items
         (id, daily_plan_id, activity_id, occurrence_key, activity_variant_id,
          client_key, title, variant_name_snapshot, category, icon, color,
-         position, duration, source_date, revision)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+         position, duration, plan_role, source_date, revision)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `).bind(
       occurrenceId, planId, activity.id, `adhoc:${action.idempotencyKey}`,
       action.activityVariantId ?? null, activity.clientKey, activity.title, variantName,
       activity.category, activity.icon, activity.color, action.position ?? 999,
-      action.durationMinutes ?? 15, action.date,
+      action.durationMinutes ?? 15, action.planRole ?? "essential", action.date,
     ).run();
   }
 

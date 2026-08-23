@@ -26,6 +26,8 @@ export type ResolvedDayItem = {
   position: number;
   completedAt: string | null;
   skippedAt: string | null;
+  planRole: "essential" | "extra";
+  activatedAt: string | null;
   revision: number;
 };
 
@@ -51,7 +53,10 @@ type StepRow = {
   position: number;
   durationMinutes: number;
   displayLabelOverride: string | null;
+  planRole: "essential" | "extra";
 };
+
+const DAY_ROLE_MIGRATION = "day-roles-v1";
 
 function parseJson(value: string) {
   try {
@@ -116,6 +121,50 @@ export async function ensureDefaultSchedule(userId: string, routineId: string) {
   await db.batch(statements);
 }
 
+export async function ensureDayRoles(userId: string, routineId: string) {
+  const db = getD1();
+  const migrated = await db.prepare(`
+    SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ?
+  `).bind(userId, DAY_ROLE_MIGRATION).first<{ id: string }>();
+  if (migrated) return;
+
+  const count = await db.prepare(`
+    SELECT COUNT(*) AS count FROM schedule_patterns
+    WHERE user_id = ? AND routine_id = ? AND archived_at IS NULL
+  `).bind(userId, routineId).first<{ count: number }>();
+  const migrationId = `migration:${safeId(userId)}:${DAY_ROLE_MIGRATION}`;
+  const statements = [];
+  if ((count?.count ?? 0) > 8) {
+    statements.push(
+      db.prepare(`
+        UPDATE schedule_pattern_steps
+        SET plan_role = 'extra', updated_at = CURRENT_TIMESTAMP
+        WHERE pattern_id IN (
+          SELECT id FROM schedule_patterns
+          WHERE user_id = ? AND routine_id = ? AND archived_at IS NULL
+          ORDER BY position, id LIMIT -1 OFFSET 6
+        )
+      `).bind(userId, routineId),
+      db.prepare(`
+        UPDATE daily_plan_items
+        SET plan_role = 'extra', activated_at = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE schedule_pattern_step_id IN (
+          SELECT s.id FROM schedule_pattern_steps s
+          WHERE s.pattern_id IN (
+            SELECT id FROM schedule_patterns
+            WHERE user_id = ? AND routine_id = ? AND archived_at IS NULL
+            ORDER BY position, id LIMIT -1 OFFSET 6
+          )
+        )
+      `).bind(userId, routineId),
+    );
+  }
+  statements.push(db.prepare(`
+    INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)
+  `).bind(migrationId, userId, DAY_ROLE_MIGRATION));
+  await db.batch(statements);
+}
+
 export async function readSchedulePatterns(userId: string, routineId: string): Promise<Array<{ pattern: SchedulePattern; state: PatternState | null }>> {
   const db = getD1();
   const patterns = await db.prepare(`
@@ -133,7 +182,8 @@ export async function readSchedulePatterns(userId: string, routineId: string): P
     SELECT s.id, s.pattern_id AS patternId, s.activity_id AS activityId,
            s.activity_variant_id AS activityVariantId, s.position,
            s.duration_minutes AS durationMinutes,
-           s.display_label_override AS displayLabelOverride
+           s.display_label_override AS displayLabelOverride,
+           CASE WHEN s.plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole
     FROM schedule_pattern_steps s
     JOIN schedule_patterns p ON p.id = s.pattern_id
     WHERE p.user_id = ? AND p.routine_id = ? AND p.archived_at IS NULL
@@ -212,13 +262,14 @@ export async function resolveDay(userId: string, date: string, routineId: string
           (id, daily_plan_id, activity_id, occurrence_key, schedule_pattern_id,
            schedule_pattern_step_id, activity_variant_id, client_key, title,
            variant_name_snapshot, display_label_override, category, icon, color,
-           position, duration, source_date, revision)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+           position, duration, plan_role, source_date, revision)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
       `).bind(
         occurrenceId, planId, activity.id, resolved.occurrenceKey, pattern.id,
         resolved.step.id, variant?.id ?? null, activity.clientKey, activity.title,
         variant?.name ?? null, resolved.step.displayLabelOverride, activity.category,
-        activity.icon, activity.color, pattern.position, resolved.step.durationMinutes, date,
+        activity.icon, activity.color, pattern.position, resolved.step.durationMinutes,
+        resolved.step.planRole, date,
       )];
     });
     if (statements.length) await db.batch(statements);
@@ -234,6 +285,8 @@ export async function readResolvedDay(userId: string, planId: string) {
            dpi.display_label_override AS displayLabel,
            dpi.duration, dpi.category, dpi.icon, dpi.color, dpi.position,
            dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt,
+           CASE WHEN dpi.plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole,
+           dpi.activated_at AS activatedAt,
            dpi.revision
     FROM daily_plan_items dpi
     JOIN daily_plans dp ON dp.id = dpi.daily_plan_id

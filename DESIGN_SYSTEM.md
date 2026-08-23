@@ -106,6 +106,15 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Site-wide Luna opens from the app shell as a right-side drawer on desktop and a full-screen conversation on mobile. Messages, work state, clarification, and proposal cards survive closing and reopening.
 - A schedule proposal card must distinguish today impact from future-pattern impact and provide explicit Apply, Revise with Luna, and Dismiss actions. Applying once visibly settles the card; retries never produce duplicate patterns or occurrences.
 
+## Daily commitment tiers
+
+- `Essential` and `Go Further` are hierarchy, not categories and not provenance. Never color or badge an activity differently because it was seeded, user-created, or Luna-created.
+- Essentials use the full standard activity-card anatomy and are the only activities counted in the daily success denominator.
+- Go Further is one bounded surface beneath the working list. Its options use a compact 52–56px whole-row control with the normal activity icon/color, title, duration/category metadata, and a plus affordance—never an unchecked completion circle.
+- Show at most three options before `See all`. The surface should feel invitational, not like an overflowing second task list; avoid guilt copy, percentages, or “incomplete” states.
+- Activating an option should preserve spatial continuity: animate the compact option into a normal card at its ordered list position in roughly 500ms, then provide the existing next-item cue. Under reduced motion, use an immediate placement with a short opacity settle.
+- Completed activated extras join Highlights. Unchosen extras remain absent from completion progress and disappear naturally when the dated plan rolls over.
+
 ## Completion motion
 
 - Completion feedback begins on press instead of waiting for persistence: sweep a restrained lime-to-gold highlight across a closed activity or the shared header of an expanded activity, briefly pop the checkmark, then settle into the normal Done state.

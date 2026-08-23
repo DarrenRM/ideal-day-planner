@@ -111,9 +111,9 @@ export async function POST(request: Request) {
     statements.push(
       ...pattern.steps.map((step) => db.prepare(`
         INSERT INTO schedule_pattern_steps
-          (id, pattern_id, activity_id, activity_variant_id, position, duration_minutes, display_label_override)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).bind(step.id, pattern.id, step.activityId, step.activityVariantId, step.position, step.durationMinutes, step.displayLabelOverride)),
+          (id, pattern_id, activity_id, activity_variant_id, position, duration_minutes, display_label_override, plan_role)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(step.id, pattern.id, step.activityId, step.activityVariantId, step.position, step.durationMinutes, step.displayLabelOverride, step.planRole)),
       db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id),
       db.prepare(`
         INSERT INTO schedule_action_events
