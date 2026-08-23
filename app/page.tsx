@@ -2813,13 +2813,13 @@ export default function Home() {
         </div>
       ) : null}
 
-      <ScheduleManager
+      {isScheduleManagerOpen ? <ScheduleManager
         initialActivityId={scheduleManagerActivityId}
-        open={isScheduleManagerOpen}
+        open
         onAskLuna={(draft) => { setIsScheduleManagerOpen(false); setScheduleManagerActivityId(null); setGlobalLunaDraft(draft); setIsGlobalLunaOpen(true); }}
         onClose={() => { setIsScheduleManagerOpen(false); setScheduleManagerActivityId(null); }}
         onSaved={() => void reloadToday()}
-      />
+      /> : null}
       {isGlobalLunaOpen ? <GlobalLuna
         initialDraft={globalLunaDraft}
         open={isGlobalLunaOpen}
@@ -2830,7 +2830,12 @@ export default function Home() {
       <OccurrenceEditor
         item={occurrenceEditorItem}
         onClose={() => setOccurrenceEditorItem(null)}
-        onFuture={() => { setOccurrenceEditorItem(null); setScheduleManagerActivityId(null); setIsScheduleManagerOpen(true); }}
+        onFuture={() => {
+          const activityId = occurrenceEditorItem?.activityId ?? null;
+          setOccurrenceEditorItem(null);
+          setScheduleManagerActivityId(activityId);
+          setIsScheduleManagerOpen(true);
+        }}
         onSaved={() => { void reloadToday(); }}
       />
 
@@ -2873,7 +2878,7 @@ export default function Home() {
                   <button
                     aria-expanded={isMenuOpen}
                     aria-haspopup="menu"
-                    aria-label="More schedule options"
+                    aria-label="More routine options"
                     className="planner-menu-trigger"
                     disabled={!hasLoaded}
                     type="button"
@@ -2884,7 +2889,7 @@ export default function Home() {
                       <p className="planner-menu-label">Routine</p>
                       <button className="planner-menu-item" role="menuitem" type="button" onClick={() => { setIsMenuOpen(false); setScheduleManagerActivityId(null); setIsScheduleManagerOpen(true); }}>
                         <CalendarDays aria-hidden="true" size={15} strokeWidth={1.8} />
-                        <span>Manage schedule</span>
+                        <span>Manage routine</span>
                       </button>
                     </div>
                   ) : null}

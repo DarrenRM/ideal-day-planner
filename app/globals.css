@@ -29,58 +29,90 @@
 }
 
 /* Schedule management */
-.schedule-manager-modal { width: min(920px, calc(100vw - 32px)); max-height: min(860px, calc(100dvh - 32px)); }
+.schedule-manager-modal { width: min(760px, calc(100vw - 32px)); max-height: min(860px, calc(100dvh - 32px)); }
 .schedule-manager-body { overflow: auto; padding: 22px; }
 .schedule-manager-loading { min-height: 220px; display: grid; place-content: center; gap: 10px; color: var(--muted); text-align: center; }
 .schedule-manager-loading svg { margin: auto; animation: spin 1.2s linear infinite; }
-.schedule-manager-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--panel) 86%, var(--accent) 14%); }
-.schedule-manager-intro > div { display: flex; align-items: flex-start; gap: 12px; }
-.schedule-manager-intro strong, .schedule-manager-intro p { display: block; }
-.schedule-manager-intro p { margin: 4px 0 0; color: var(--muted); max-width: 560px; }
-.schedule-manager-intro > button, .sequence-section-heading > button, .sequence-section-heading > div:last-child > button { min-height: 42px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent); color: #11170c; font-weight: 700; white-space: nowrap; }
-.schedule-pattern-list { display: grid; gap: 12px; margin-top: 16px; }
-.schedule-pattern-card { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; }
-.schedule-pattern-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 17px 18px; }
-.schedule-pattern-summary span, .schedule-editor-heading span, .sequence-section-heading span, .schedule-preview > span { color: var(--accent); font-size: var(--text-caption); font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
-.schedule-pattern-summary h3, .schedule-editor-heading h3 { margin: 4px 0; font-size: var(--text-title); }
-.schedule-pattern-summary p { margin: 0; color: var(--muted); }
-.schedule-pattern-summary small { display: block; margin-top: 7px; color: var(--muted); font-size: var(--text-caption); }
-.schedule-pattern-summary > strong { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: var(--text-caption); white-space: nowrap; }
-.schedule-pattern-preview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--line); }
-.schedule-pattern-preview span { min-width: 0; padding: 12px 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-pattern-preview span + span { border-left: 1px solid var(--line); }
-.schedule-pattern-preview time { display: block; margin-bottom: 3px; color: var(--muted); font-size: var(--text-caption); }
-.schedule-pattern-card footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 12px; }
-.schedule-pattern-card footer button, .schedule-editor-heading button, .schedule-editor-actions > button:first-child { min-height: 38px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--text); }
-.schedule-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-.schedule-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 17px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
-.schedule-editor-grid > label, .sequence-step > label { display: grid; gap: 7px; color: var(--muted); font-size: var(--text-caption); font-weight: 650; }
-.schedule-editor-grid input, .schedule-editor-grid select, .sequence-step input, .sequence-step select { width: 100%; min-height: 42px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
+.routine-manager { display: grid; gap: 18px; }
+.routine-manager-overview { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--surface-raised) 88%, var(--accent) 12%); }
+.routine-manager-overview > div > span, .routine-group-heading span, .routine-editor-heading span, .routine-editor-section-heading > span, .routine-editor-section-heading > div > span, .routine-preview > span { color: var(--accent); font-size: var(--type-label); font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+.routine-manager-overview strong { display: block; margin-top: 3px; font-size: var(--type-title); line-height: 1.35; }
+.routine-manager-overview p { margin: 3px 0 0; color: var(--muted); font-size: var(--type-body-sm); }
+.routine-manager-overview > button, .routine-group-heading > button, .routine-editor-section-heading > button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 10px; background: transparent; color: var(--accent); font-weight: 700; white-space: nowrap; }
+.routine-group { border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); }
+.routine-group-heading { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; }
+.routine-group-heading h3 { margin: 3px 0 0; font-size: var(--type-body-lg); }
+.routine-group-heading > button { min-height: 36px; }
+.routine-rule-list { border-top: 1px solid var(--border); }
+.routine-rule-row { min-height: 62px; display: flex; align-items: stretch; position: relative; }
+.routine-rule-row + .routine-rule-row { border-top: 1px solid var(--border); }
+.routine-rule-row.is-paused { opacity: .78; }
+.routine-rule-open { min-width: 0; flex: 1; display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; align-items: center; gap: 11px; padding: 10px 8px 10px 14px; border: 0; background: transparent; text-align: left; }
+.routine-rule-open:hover { background: rgba(255, 255, 255, .018); }
+.routine-rule-icon { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 10px; color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.routine-rule-copy { min-width: 0; display: grid; gap: 1px; }
+.routine-rule-copy strong { overflow: hidden; color: var(--text); font-size: var(--type-body); text-overflow: ellipsis; white-space: nowrap; }
+.routine-rule-copy > span { color: var(--muted); font-size: var(--type-body-sm); }
+.routine-rule-copy small { overflow: hidden; color: var(--subtle); font-size: var(--type-label); text-overflow: ellipsis; white-space: nowrap; }
+.routine-rule-open > svg { color: var(--subtle); }
+.routine-rule-menu { width: 46px; display: grid; place-items: center; position: relative; }
+.routine-rule-menu summary { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 9px; color: var(--muted); cursor: pointer; list-style: none; }
+.routine-rule-menu summary::-webkit-details-marker { display: none; }
+.routine-rule-menu summary:hover { background: rgba(255, 255, 255, .04); color: var(--text); }
+.routine-rule-menu > div { min-width: 190px; padding: 5px; position: absolute; z-index: 12; top: 48px; right: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); box-shadow: 0 16px 40px rgba(0, 0, 0, .36); }
+.routine-rule-menu button { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; text-align: left; }
+.routine-rule-menu button:hover { background: rgba(255, 255, 255, .04); }
+.routine-group-empty { min-height: 80px; display: flex; align-items: center; gap: 11px; padding: 15px 17px; border-top: 1px solid var(--border); color: var(--muted); }
+.routine-group-empty > svg { color: var(--accent); }
+.routine-group-empty span { display: grid; gap: 2px; }
+.routine-group-empty strong { color: var(--text); font-size: var(--type-body); }
+.routine-group-toggle { width: 100%; min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; border: 0; background: transparent; text-align: left; }
+.routine-group-toggle > span { display: grid; gap: 2px; }
+.routine-group-toggle > span:last-child { display: flex; grid-auto-flow: column; align-items: center; gap: 8px; color: var(--muted); }
+.routine-group-toggle small { color: var(--accent); font-size: var(--type-label); font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+.routine-group-toggle strong { font-size: var(--type-body-lg); }
+.routine-group-toggle[aria-expanded="true"] > span:last-child svg { transform: rotate(180deg); }
+.routine-editor { display: grid; gap: 16px; }
+.routine-editor-heading { display: flex; align-items: center; gap: 13px; }
+.routine-editor-heading > button { min-height: 38px; display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 7px; border: 1px solid var(--border); border-radius: 9px; background: transparent; color: var(--muted); }
+.routine-editor-heading > button svg { transform: rotate(180deg); }
+.routine-editor-heading h3 { margin: 2px 0 0; font-size: var(--type-title); }
+.routine-scope-note { display: flex; align-items: center; gap: 10px; padding: 12px 13px; border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border)); border-radius: 11px; background: color-mix(in srgb, var(--accent) 7%, transparent); color: var(--muted); }
+.routine-scope-note > svg { flex: 0 0 auto; color: var(--accent); }
+.routine-scope-note span { display: grid; gap: 1px; }
+.routine-scope-note strong { color: var(--text); font-size: var(--type-body-sm); }
+.routine-editor-section { padding: 16px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface-raised); }
+.routine-editor-section-heading { margin-bottom: 13px; }
+.routine-editor-section-heading.is-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.routine-editor-section-heading h4 { margin: 2px 0 0; font-size: var(--type-body-lg); }
+.routine-editor-section-heading > button { min-height: 36px; }
+.routine-field-grid, .routine-advanced-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.routine-field { display: grid; gap: 7px; color: var(--muted); font-size: var(--type-label); font-weight: 650; }
+.routine-field > input, .routine-field > select, .routine-field .schedule-inline-number input { width: 100%; min-height: 42px; padding: 0 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; }
 .weekday-picker { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; border: 0; }
-.weekday-picker legend { width: 100%; margin-bottom: 2px; color: var(--muted); font-size: var(--text-caption); font-weight: 650; }
+.weekday-picker legend { width: 100%; margin: 12px 0 2px; color: var(--muted); font-size: var(--type-label); font-weight: 650; }
 .weekday-picker label input { position: absolute; opacity: 0; pointer-events: none; }
-.weekday-picker label span { min-width: 46px; min-height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); cursor: pointer; }
+.weekday-picker label span { min-width: 46px; min-height: 38px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); cursor: pointer; }
 .weekday-picker label input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
 .schedule-inline-number { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .schedule-inline-number input { max-width: 90px; }
-.sequence-steps { margin-top: 18px; }
-.sequence-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
-.sequence-section-heading > div:last-child { display: flex; gap: 8px; }
-.sequence-section-heading > div:last-child > button:first-child { background: transparent; color: var(--text); }
-.sequence-section-heading p { margin: 3px 0 0; color: var(--muted); }
-.sequence-step { display: grid; grid-template-columns: 34px minmax(150px, 1.3fr) minmax(130px, 1fr) 92px auto; align-items: end; gap: 10px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
-.sequence-step + .sequence-step { margin-top: 8px; }
 .sequence-step-number { width: 30px; height: 30px; display: grid; place-items: center; align-self: center; border-radius: 50%; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-weight: 750; }
-.sequence-step-actions { display: flex; gap: 5px; padding-bottom: 2px; }
-.sequence-label-field { grid-column: 2 / 5; }
-.sequence-step-actions button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); }
-.sequence-step-actions button:disabled { opacity: .3; }
-.schedule-preview { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
-.schedule-preview > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-.schedule-preview > div > div { padding: 10px; border-radius: 9px; background: var(--surface); }
-.schedule-preview time, .schedule-preview strong { display: block; }
-.schedule-preview time { color: var(--muted); font-size: var(--text-caption); }
-.schedule-editor-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+.routine-rotation-steps { display: grid; gap: 8px; }
+.routine-rotation-step { display: grid; grid-template-columns: 30px minmax(0, 1.5fr) minmax(0, 1fr) auto; align-items: end; gap: 10px; padding: 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
+.routine-step-actions { display: flex; gap: 5px; padding-bottom: 2px; }
+.routine-step-actions button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--muted); }
+.routine-step-actions button:disabled { opacity: .3; }
+.routine-advance-field { max-width: 360px; margin-top: 13px; }
+.routine-advanced-toggle { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: space-between; padding: 0 13px; border: 1px solid var(--border); border-radius: 11px; background: transparent; color: var(--muted); text-align: left; }
+.routine-advanced-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.routine-advanced-fields { padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface-raised); }
+.routine-preview { padding: 15px; border: 1px solid var(--border); border-radius: 12px; }
+.routine-preview > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 9px; }
+.routine-preview > div > div { min-width: 0; padding: 10px; border-radius: 9px; background: var(--surface); }
+.routine-preview time, .routine-preview strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.routine-preview time { color: var(--muted); font-size: var(--type-label); }
+.routine-editor-actions { display: flex; justify-content: flex-end; gap: 9px; }
+.routine-editor-actions > button:first-child { min-height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; background: transparent; }
 .add-block-form { grid-template-columns: minmax(170px, 1fr) 88px 132px minmax(170px, .8fr) auto; }
 .add-field select { width: 100%; height: 36px; padding: 0 9px; border: 1px solid #30373a; border-radius: 7px; background: #0c0f12; color: #dfe4df; font: inherit; }
 .add-weekday-picker { grid-column: 1 / -1; display: flex; gap: 6px; margin: 0; padding: 0; border: 0; }
@@ -97,20 +129,18 @@
   .schedule-manager-backdrop { align-items: stretch; padding: 0; }
   .schedule-manager-modal { width: 100%; max-height: 100dvh; min-height: 100dvh; border-radius: 0; }
   .schedule-manager-body { padding: 14px; }
-  .schedule-manager-intro, .schedule-pattern-summary, .schedule-editor-heading { align-items: stretch; flex-direction: column; }
-  .schedule-manager-intro > button { justify-content: center; }
-  .schedule-pattern-summary > strong { align-self: flex-start; }
-  .schedule-pattern-preview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .schedule-pattern-preview span:nth-child(3) { border-left: 0; border-top: 1px solid var(--line); }
-  .schedule-pattern-preview span:nth-child(4) { border-top: 1px solid var(--line); }
-  .schedule-editor-grid { grid-template-columns: 1fr; padding: 13px; }
-  .weekday-picker { grid-column: auto; }
-  .sequence-step { grid-template-columns: 30px minmax(0, 1fr); align-items: center; }
-  .sequence-step > label { grid-column: 2; }
-  .sequence-step > .sequence-label-field { grid-column: 2; }
-  .sequence-step-number { grid-row: 1 / 4; }
-  .sequence-step-actions { grid-column: 2; }
-  .schedule-preview > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .routine-manager-overview { align-items: stretch; flex-direction: column; gap: 13px; }
+  .routine-manager-overview > button { width: 100%; }
+  .routine-group-heading { align-items: flex-start; }
+  .routine-group-heading > button { flex: 0 0 auto; }
+  .routine-rule-open { grid-template-columns: 34px minmax(0, 1fr) 16px; padding-left: 11px; }
+  .routine-editor-heading { align-items: flex-start; }
+  .routine-field-grid, .routine-advanced-fields { grid-template-columns: 1fr; }
+  .routine-rotation-step { grid-template-columns: 30px minmax(0, 1fr); align-items: center; }
+  .routine-rotation-step > .routine-field, .routine-step-actions { grid-column: 2; }
+  .routine-rotation-step > .sequence-step-number { grid-row: 1 / 4; }
+  .routine-preview > div { grid-template-columns: 1fr; }
+  .routine-editor-actions { display: grid; grid-template-columns: 1fr 1.5fr; }
   .add-block-form { grid-template-columns: 1fr 1fr; }
   .add-schedule-field, .add-weekday-picker, .add-include-today { grid-column: 1 / -1; }
 }

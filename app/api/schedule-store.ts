@@ -47,6 +47,7 @@ type PatternRow = {
   endDate: string | null;
   revision: number;
   currentStepPosition: number | null;
+  archivedAt: string | null;
 };
 
 type StepRow = {
@@ -169,19 +170,22 @@ export async function ensureDayRoles(userId: string, routineId: string) {
   await db.batch(statements);
 }
 
-export async function readSchedulePatterns(userId: string, routineId: string): Promise<Array<{ pattern: SchedulePattern; state: PatternState | null }>> {
+export async function readSchedulePatterns(userId: string, routineId: string, options: { includeArchived?: boolean } = {}): Promise<Array<{ pattern: SchedulePattern; state: PatternState | null; archivedAt: string | null }>> {
   const db = getD1();
+  const archiveFilter = options.includeArchived ? "" : "AND sp.archived_at IS NULL";
   const patterns = await db.prepare(`
     SELECT sp.id, sp.name, sp.position, sp.cadence_json AS cadenceJson,
            sp.advancement_json AS advancementJson, sp.anchor_date AS anchorDate,
            sp.initial_step_position AS initialStepPosition,
            sp.effective_date AS effectiveDate, sp.end_date AS endDate,
-           sp.revision, sps.current_step_position AS currentStepPosition
+           sp.revision, sps.current_step_position AS currentStepPosition,
+           sp.archived_at AS archivedAt
     FROM schedule_patterns sp
     LEFT JOIN schedule_pattern_state sps ON sps.pattern_id = sp.id
-    WHERE sp.user_id = ? AND sp.routine_id = ? AND sp.archived_at IS NULL
+    WHERE sp.user_id = ? AND sp.routine_id = ? ${archiveFilter}
     ORDER BY sp.position, sp.id
   `).bind(userId, routineId).all<PatternRow>();
+  const stepArchiveFilter = options.includeArchived ? "" : "AND p.archived_at IS NULL";
   const steps = await db.prepare(`
     SELECT s.id, s.pattern_id AS patternId, s.activity_id AS activityId,
            s.activity_variant_id AS activityVariantId, s.position,
@@ -190,7 +194,7 @@ export async function readSchedulePatterns(userId: string, routineId: string): P
            CASE WHEN s.plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole
     FROM schedule_pattern_steps s
     JOIN schedule_patterns p ON p.id = s.pattern_id
-    WHERE p.user_id = ? AND p.routine_id = ? AND p.archived_at IS NULL
+    WHERE p.user_id = ? AND p.routine_id = ? ${stepArchiveFilter}
     ORDER BY p.position, s.position
   `).bind(userId, routineId).all<StepRow>();
   const byPattern = new Map<string, ScheduleStep[]>();
@@ -220,6 +224,7 @@ export async function readSchedulePatterns(userId: string, routineId: string): P
         steps: patternSteps,
       },
       state: row.currentStepPosition === null ? null : { currentStepPosition: row.currentStepPosition },
+      archivedAt: row.archivedAt,
     }];
   });
 }

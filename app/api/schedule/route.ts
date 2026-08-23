@@ -18,13 +18,14 @@ export async function GET(request: Request) {
     if (!routine) return Response.json({ error: "Your routine is not ready yet." }, { status: 409 });
     const fromDate = new URL(request.url).searchParams.get("from") ?? "";
     const previewFrom = isLocalDate(fromDate) ? fromDate : new Date().toISOString().slice(0, 10);
-    const patterns = await readSchedulePatterns(userId, routine.id);
+    const patterns = await readSchedulePatterns(userId, routine.id, { includeArchived: true });
     return Response.json({
       revision: routine.revision,
-      patterns: patterns.map(({ pattern, state }) => ({
+      patterns: patterns.map(({ pattern, state, archivedAt }) => ({
         ...pattern,
         state,
-        preview: previewPattern(pattern, previewFrom, 6, state).map((entry) => ({
+        archived: Boolean(archivedAt),
+        preview: archivedAt ? [] : previewPattern(pattern, previewFrom, 6, state).map((entry) => ({
           date: entry.triggerDate,
           activityId: entry.step.activityId,
           activityVariantId: entry.step.activityVariantId,
@@ -61,6 +62,19 @@ export async function POST(request: Request) {
       if (!result.meta.changes) return Response.json({ error: "That schedule changed elsewhere.", code: "stale_revision" }, { status: 409 });
       await db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id).run();
       return Response.json({ archived: true, revision: routine.revision + 1 });
+    }
+
+    if (mode === "restore") {
+      const patternId = typeof payload.patternId === "string" ? payload.patternId.slice(0, 200) : "";
+      const expectedRevision = typeof payload.expectedRevision === "number" && Number.isInteger(payload.expectedRevision) ? payload.expectedRevision : null;
+      if (!patternId || expectedRevision === null) return Response.json({ error: "A pattern and revision are required." }, { status: 400 });
+      const result = await db.prepare(`
+        UPDATE schedule_patterns SET archived_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND routine_id = ? AND revision = ? AND archived_at IS NOT NULL
+      `).bind(patternId, userId, routine.id, expectedRevision).run();
+      if (!result.meta.changes) return Response.json({ error: "That schedule changed elsewhere.", code: "stale_revision" }, { status: 409 });
+      await db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id).run();
+      return Response.json({ restored: true, revision: routine.revision + 1 });
     }
 
     const pattern = parseSchedulePattern(payload.pattern);

@@ -413,9 +413,10 @@ test("keeps the routine data and interactions in the page", async () => {
 });
 
 test("keeps universal scheduling behind typed, auditable boundaries", async () => {
-  const [model, store, occurrenceRoute, occurrenceActions, proposalService, lunaRoute, manager, migration] = await Promise.all([
+  const [model, store, scheduleRoute, occurrenceRoute, occurrenceActions, proposalService, lunaRoute, manager, migration] = await Promise.all([
     readFile(new URL("../app/schedule-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/schedule/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/occurrences/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule-proposal-service.ts", import.meta.url), "utf8"),
@@ -430,12 +431,21 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(store, /occurrenceKey/);
   assert.match(store, /previous\.schedule_pattern_step_id = dpi\.schedule_pattern_step_id/);
   assert.match(store, /previous\.source_date < dpi\.source_date/);
+  assert.match(scheduleRoute, /includeArchived: true/);
+  assert.match(scheduleRoute, /mode === "restore"/);
   assert.match(occurrenceRoute, /applyOccurrenceAction/);
   assert.match(occurrenceActions, /parseOccurrenceAction/);
   assert.match(proposalService, /schedule_action_events/);
   assert.match(proposalService, /stale_revision/);
   assert.match(lunaRoute, /ensureGlobalConversation/);
-  assert.match(manager, /Manage schedule/);
+  assert.match(manager, /Manage routine/);
+  assert.match(manager, /Adjust with Luna/);
+  assert.match(manager, /Custom days & rotations/);
+  assert.match(manager, /Daily activities/);
+  assert.match(manager, /Future routine/);
+  assert.match(manager, /Advanced options/);
+  assert.match(manager, /Pause future days/);
+  assert.match(manager, /Restore to routine/);
   assert.match(manager, /Starts with/);
   assert.match(manager, /Begins/);
   assert.match(migration, /INSERT INTO `schedule_patterns`/);
