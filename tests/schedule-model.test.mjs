@@ -52,6 +52,17 @@ test("validates and normalizes the bounded schedule language", () => {
   assert.equal(parseSchedulePattern(pattern())?.steps[0].planRole, "essential");
   assert.equal(parseSchedulePattern(pattern({ steps: [{ ...pattern().steps[0], planRole: "extra" }] }))?.steps[0].planRole, "extra");
   assert.equal(parseOccurrenceAction({ type: "activate_extra", occurrenceId: "occurrence:1", idempotencyKey: "activate:1" })?.type, "activate_extra");
+  assert.deepEqual(parseOccurrenceAction({
+    type: "activate_activity_for_date",
+    activityId: "activity:resupply",
+    date: "2026-08-24",
+    idempotencyKey: "capture-date:1",
+  }), {
+    type: "activate_activity_for_date",
+    activityId: "activity:resupply",
+    date: "2026-08-24",
+    idempotencyKey: "capture-date:1",
+  });
 });
 
 test("performs local-date arithmetic without DST drift", () => {

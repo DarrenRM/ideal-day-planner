@@ -46,7 +46,7 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
     planRole: "essential" | "extra";
     activatedAt: string | null;
   } | null = null;
-  if (action.type !== "add_occurrence") {
+  if (action.type !== "add_occurrence" && action.type !== "activate_activity_for_date") {
     occurrence = await db.prepare(`
       SELECT dpi.id, dpi.daily_plan_id AS dailyPlanId, dpi.activity_id AS activityId,
              dpi.activity_variant_id AS activityVariantId, dpi.client_key AS clientKey,
@@ -165,6 +165,49 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
         WHERE id = ?
       `).bind(occurrence.id),
     ]);
+  } else if (action.type === "activate_activity_for_date") {
+    const activity = await db.prepare(`
+      SELECT id, client_key AS clientKey, title, category, icon, color
+      FROM activities
+      WHERE user_id = ? AND (id = ? OR client_key = ?)
+      LIMIT 1
+    `).bind(userId, action.activityId, action.activityId).first<{ id: string; clientKey: string; title: string; category: string; icon: string; color: string }>();
+    if (!activity) throw new Error("That activity was not found.");
+    const routine = await db.prepare(`
+      SELECT id AS routineId, start_minutes AS startMinutes
+      FROM routine_templates WHERE user_id = ? ORDER BY created_at LIMIT 1
+    `).bind(userId).first<{ routineId: string; startMinutes: number }>();
+    if (!routine) throw new Error("The routine could not be found.");
+    const planId = `plan:${safeId(userId)}:${action.date}`;
+    await resolveDay(userId, action.date, routine.routineId, planId, routine.startMinutes);
+    const existing = await db.prepare(`
+      SELECT id, CASE WHEN plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole
+      FROM daily_plan_items
+      WHERE daily_plan_id = ? AND activity_id = ? AND removed_at IS NULL
+      ORDER BY position, created_at, id
+      LIMIT 1
+    `).bind(planId, activity.id).first<{ id: string; planRole: "essential" | "extra" }>();
+    if (existing) {
+      if (existing.planRole === "extra") {
+        await db.prepare(`
+          UPDATE daily_plan_items
+          SET activated_at = COALESCE(activated_at, CURRENT_TIMESTAMP), revision = revision + 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).bind(existing.id).run();
+      }
+    } else {
+      const occurrenceId = `day-item:${safeId(userId)}:${action.date}:capture:${safeId(action.idempotencyKey)}`;
+      await db.prepare(`
+        INSERT OR IGNORE INTO daily_plan_items
+          (id, daily_plan_id, activity_id, occurrence_key, client_key, title, category, icon, color,
+           position, duration, plan_role, activated_at, source_date, revision)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 999, 15, 'extra', CURRENT_TIMESTAMP, ?, 1)
+      `).bind(
+        occurrenceId, planId, activity.id, `capture:${action.idempotencyKey}`,
+        activity.clientKey, activity.title, activity.category, activity.icon, activity.color, action.date,
+      ).run();
+    }
   } else if (action.type === "add_occurrence") {
     const activity = await db.prepare(`
       SELECT id, client_key AS clientKey, title, category, icon, color

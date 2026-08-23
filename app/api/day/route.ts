@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
 import { ensureDayRoles, ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
+import { readCaptureAttention } from "../capture-service";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 const LEGACY_MIGRATION = "local-routine-v1";
@@ -117,6 +118,7 @@ async function readDay(userId: string, date: string) {
   if (!plan) return null;
 
   const items = await readResolvedDay(userId, planId);
+  const attention = await readCaptureAttention(userId);
   await queueDueFollowUps(userId, date);
   const queuedHighlight = items.some((item) => item.completedAt)
     ? await queueDayHighlightIfNeeded(userId, planId)
@@ -124,6 +126,7 @@ async function readDay(userId: string, date: string) {
 
   return {
     items,
+    attention,
     startMinutes: plan.startMinutes,
     preferredStartMinutes: plan.preferredStartMinutes,
     startedAt: plan.startedAt,

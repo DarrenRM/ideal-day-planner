@@ -28,6 +28,8 @@ import { applyOccurrenceAction } from "../../schedule-actions";
 import { readSchedulePatterns } from "../../schedule-store";
 import { messageHasScheduleIntent } from "../../../schedule-intent";
 import { messageRequestsResearch } from "../../../research-intent";
+import { normalizeCaptureLabel, validateCaptureActions } from "../../../capture-model";
+import { applyCaptureAction } from "../../capture-service";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
 
@@ -545,6 +547,9 @@ export async function POST(request: Request) {
         const occurrenceSource = Array.isArray(payload.occurrenceActions) ? payload.occurrenceActions.slice(0, 20) : [];
         const occurrenceActions = occurrenceSource.map(parseOccurrenceAction);
         if (occurrenceActions.includes(null)) return Response.json({ error: "A day action did not pass validation." }, { status: 400 });
+        const captureSource = Array.isArray(payload.captureActions) ? payload.captureActions.slice(0, 20) : [];
+        const captureActions = validateCaptureActions(captureSource);
+        if (captureActions.length !== captureSource.length) return Response.json({ error: "A captured item did not pass validation." }, { status: 400 });
         if (occurrenceActions.some((action) => action?.type === "set_status" && action.status === "completed")) {
           return Response.json({ error: "Luna cannot mark an activity complete." }, { status: 400 });
         }
@@ -557,8 +562,8 @@ export async function POST(request: Request) {
             return Response.json({ error: "The schedule changed while Luna was preparing this proposal. Please ask her to refresh it." }, { status: 409 });
           }
         }
-        if (!response && !followUpBody && !proposal && !occurrenceActions.length) {
-          return Response.json({ error: "Global Luna must respond, clarify, propose, or make one permitted day change." }, { status: 400 });
+        if (!response && !followUpBody && !proposal && !occurrenceActions.length && !captureActions.length) {
+          return Response.json({ error: "Global Luna must respond, clarify, capture an open item, propose, or make one permitted day change." }, { status: 400 });
         }
         for (const action of occurrenceActions) {
           await applyOccurrenceAction(job.userId, action, {
@@ -567,6 +572,20 @@ export async function POST(request: Request) {
             conversationId: job.conversationId,
             sourceMessageId: job.sourceMessageId,
             sourceAgentJobId: job.id,
+          });
+        }
+        const suppliedLocalDate = typeof payload.localDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.localDate)
+          ? payload.localDate
+          : localDateInTimeZone(new Date(), "America/Phoenix");
+        for (const action of captureActions) {
+          await applyCaptureAction(job.userId, {
+            ...action,
+            idempotencyKey: `agent-capture:${safeId(job.id)}:${safeId(normalizeCaptureLabel(action.label))}`.slice(0, 200),
+          }, {
+            conversationId: job.conversationId,
+            sourceMessageId: job.sourceMessageId,
+            sourceAgentJobId: job.id,
+            localDate: suppliedLocalDate,
           });
         }
         const proposalId = proposal ? `schedule-proposal:${safeId(job.id)}` : null;
@@ -600,7 +619,7 @@ export async function POST(request: Request) {
           `).bind(jobId, leaseToken),
         );
         await db.batch(statements);
-        return Response.json({ completed: true, messageId, proposalId, occurrenceActionsApplied: occurrenceActions.length });
+        return Response.json({ completed: true, messageId, proposalId, occurrenceActionsApplied: occurrenceActions.length, capturesApplied: captureActions.length });
       }
       if (!job.activityId) return Response.json({ error: "An activity job is missing its activity." }, { status: 409 });
       const schedule = await db.prepare(`

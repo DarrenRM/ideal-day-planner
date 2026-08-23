@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, Send, Sparkles, X } from "lucide-react";
+import { CalendarDays, Check, Inbox, Send, Sparkles, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import type { PendingCapture } from "./capture-model";
 
 type LunaMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string };
 type LunaProposal = {
@@ -20,9 +21,10 @@ type LunaState = {
   activeJob: { status: string; progressTitle?: string | null; progressDetail?: string | null } | null;
   agentOnline: boolean;
   proposals: LunaProposal[];
+  captures: PendingCapture[];
 };
 
-const EMPTY_STATE: LunaState = { messages: [], activeJob: null, agentOnline: false, proposals: [] };
+const EMPTY_STATE: LunaState = { messages: [], activeJob: null, agentOnline: false, proposals: [], captures: [] };
 
 function formatMessageTime(value: string) {
   const date = new Date(value.replace(" ", "T") + (value.endsWith("Z") ? "" : "Z"));
@@ -40,21 +42,25 @@ function formatProposalDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onScheduleChanged }: {
+export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRead, onScheduleChanged }: {
   open: boolean;
   initialDraft: string;
   onDraftConsumed: () => void;
   onClose: () => void;
+  onRead: () => void;
   onScheduleChanged: () => void;
 }) {
   const [state, setState] = useState<LunaState>(EMPTY_STATE);
   const [draft, setDraft] = useState(initialDraft);
   const [sending, setSending] = useState(false);
   const [proposalBusy, setProposalBusy] = useState<string | null>(null);
+  const [captureBusy, setCaptureBusy] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [revisionText, setRevisionText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const onReadRef = useRef(onRead);
+  useEffect(() => { onReadRef.current = onRead; }, [onRead]);
 
   async function load() {
     const response = await fetch("/api/luna", { cache: "no-store" });
@@ -65,6 +71,18 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onSch
   }
 
   const hasActiveJob = Boolean(state.activeJob);
+
+  useEffect(() => {
+    if (!open) return;
+    void fetch("/api/luna", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "mark-read" }),
+    }).then((response) => response.ok ? response.json() : null).then((result) => {
+      if (result) setState(result as LunaState);
+      onReadRef.current();
+    }).catch(() => undefined);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -92,7 +110,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onSch
     const escape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     document.addEventListener("keydown", escape);
     return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", escape); };
-  }, [open, state.messages.length, state.activeJob, state.proposals.length, onClose]);
+  }, [open, state.messages.length, state.activeJob, state.proposals.length, state.captures.length, onClose]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -139,6 +157,24 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onSch
     }
   }
 
+  async function chooseCaptureTiming(captureId: string, timing: "today" | "tomorrow" | "later") {
+    if (captureBusy) return;
+    setCaptureBusy(captureId);
+    try {
+      const response = await fetch("/api/captures", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ captureId, timing }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "That item could not be updated.");
+      await load();
+      if (timing !== "later") onScheduleChanged();
+    } finally {
+      setCaptureBusy(null);
+    }
+  }
+
   if (!open) return null;
   return (
     <div className="global-luna-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -178,6 +214,18 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onSch
                   <button className="is-primary" disabled={proposalBusy === proposal.id} type="button" onClick={() => void proposalAction(proposal.id, "confirm")}><Check aria-hidden="true" size={15} /> Confirm</button>
                 </div>
               )}
+            </article>
+          ))}
+          {state.captures.map((capture) => (
+            <article className="luna-capture-card" key={capture.id}>
+              <div className="luna-capture-heading"><span><Inbox aria-hidden="true" size={16} /></span><div><small>{capture.status === "filed" ? `Saved to ${capture.activityTitle}` : "Needs a home"}</small><strong>{capture.label}</strong></div></div>
+              {capture.detail ? <p>{capture.detail}</p> : null}
+              {capture.status === "filed" && capture.timing === "unspecified" ? <div className="luna-capture-actions" aria-label={`Choose when to handle ${capture.label}`}>
+                <button disabled={captureBusy === capture.id} type="button" onClick={() => void chooseCaptureTiming(capture.id, "today")}><CalendarDays aria-hidden="true" size={14} /> Today</button>
+                <button disabled={captureBusy === capture.id} type="button" onClick={() => void chooseCaptureTiming(capture.id, "tomorrow")}>Tomorrow</button>
+                <button disabled={captureBusy === capture.id} type="button" onClick={() => void chooseCaptureTiming(capture.id, "later")}>Later</button>
+              </div> : null}
+              {capture.status === "pending_destination" ? <small className="luna-capture-hint">Luna needs to know where you want to keep this{capture.destinationHint ? ` — ${capture.destinationHint}` : ""}.</small> : null}
             </article>
           ))}
         </div>

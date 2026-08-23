@@ -16,6 +16,7 @@ import { GlobalLuna } from "./global-luna";
 import { OccurrenceEditor } from "./occurrence-editor";
 import { GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionAvailableExtras, partitionDayItems, type PlanRole } from "./day-role";
 import { fallbackDayHighlight } from "./day-highlight";
+import type { CaptureAttention } from "./capture-model";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
@@ -81,6 +82,7 @@ type ConversationState = {
   failedJob?: { id: string; kind: string; message: string } | null;
 };
 type ActivityScheduleProposal = { id: string; status: string; createdAt: string; document: { summary: string; effectiveDate: string; impact: { todayChanges: number; futurePatternChanges: number } } };
+type LunaSummary = { unreadCount: number; pendingDecisionCount: number; captureRevision: string | null };
 
 const START_MINUTES = 8 * 60;
 const DEFAULT_DEV_MINUTES = 7 * 60 + 30;
@@ -1397,6 +1399,8 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [daySettings, setDaySettings] = useState<DaySettings>(DEFAULT_DAY_SETTINGS);
   const [dayHighlight, setDayHighlight] = useState<DayHighlight>(EMPTY_DAY_HIGHLIGHT);
+  const [captureAttention, setCaptureAttention] = useState<CaptureAttention[]>([]);
+  const [lunaSummary, setLunaSummary] = useState<LunaSummary>({ unreadCount: 0, pendingDecisionCount: 0, captureRevision: null });
   const [settingsSaveState, setSettingsSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [resetTodayState, setResetTodayState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [mobileResetActivity, setMobileResetActivity] = useState<{ id: string; state: "confirming" | "resetting" | "error" } | null>(null);
@@ -1478,7 +1482,7 @@ export default function Home() {
           return;
         }
         if (!response.ok) throw new Error(`Could not load the saved day (${response.status}).`);
-        let day = await response.json() as { items: unknown; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; settings?: unknown; highlight?: unknown; needsImport: boolean };
+        let day = await response.json() as { items: unknown; attention?: CaptureAttention[]; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; settings?: unknown; highlight?: unknown; needsImport: boolean };
 
         if (day.needsImport) {
           const legacyItems = readLegacyRoutine();
@@ -1495,6 +1499,7 @@ export default function Home() {
         if (cancelled) return;
         const loadedItems = hydrateStoredItems(day.items);
         setItems(loadedItems);
+        setCaptureAttention(Array.isArray(day.attention) ? day.attention : []);
         setCompletedIds(new Set(loadedItems.filter((item) => item.completedAt).map((item) => item.id)));
         setStartMinutes(day.startMinutes);
         setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
@@ -1516,6 +1521,26 @@ export default function Home() {
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!hasLoaded) return;
+    let cancelled = false;
+    let previousRevision: string | null = null;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/luna?summary=1", { cache: "no-store" });
+        if (!response.ok) return;
+        const next = await response.json() as LunaSummary;
+        if (cancelled) return;
+        setLunaSummary(next);
+        if (previousRevision && next.captureRevision && previousRevision !== next.captureRevision) void reloadToday();
+        previousRevision = next.captureRevision;
+      } catch { /* The saved day remains usable while Luna catches up. */ }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 4_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [hasLoaded]);
 
   useEffect(() => {
     if (!hasLoaded || dayHighlight.status !== "queued" && dayHighlight.status !== "running") return;
@@ -1669,13 +1694,22 @@ export default function Home() {
   }, [dayStartedAt, items]);
 
   const { active: activeDayItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
-  const { keepGoing: keepGoingExtras, moreOptions: otherExtras } = useMemo(() => partitionAvailableExtras(availableExtras), [availableExtras]);
+  const attentionByActivity = useMemo(() => captureAttention.reduce<Map<string, CaptureAttention[]>>((map, capture) => {
+    const entries = map.get(capture.activityId) ?? [];
+    entries.push(capture);
+    map.set(capture.activityId, entries);
+    return map;
+  }, new Map()), [captureAttention]);
+  const attentionExtras = useMemo(() => availableExtras.filter((item) => item.activityId && attentionByActivity.has(item.activityId)), [attentionByActivity, availableExtras]);
+  const ordinaryExtras = useMemo(() => availableExtras.filter((item) => !item.activityId || !attentionByActivity.has(item.activityId)), [attentionByActivity, availableExtras]);
+  const { keepGoing: keepGoingExtras, moreOptions: otherExtras } = useMemo(() => partitionAvailableExtras(ordinaryExtras), [ordinaryExtras]);
   const essentialItems = useMemo(() => items.filter((item) => normalizePlanRole(item.planRole) === "essential"), [items]);
-  const prioritizedExtras = useMemo(() => [...keepGoingExtras, ...otherExtras], [keepGoingExtras, otherExtras]);
+  const prioritizedExtras = useMemo(() => [...attentionExtras, ...keepGoingExtras, ...otherExtras], [attentionExtras, keepGoingExtras, otherExtras]);
   const visibleExtras = showAllExtras ? prioritizedExtras : prioritizedExtras.slice(0, GO_FURTHER_PREVIEW_LIMIT);
   const visibleExtraIds = useMemo(() => new Set(visibleExtras.map((item) => item.id)), [visibleExtras]);
   const visibleKeepGoingExtras = keepGoingExtras.filter((item) => visibleExtraIds.has(item.id));
   const visibleOtherExtras = otherExtras.filter((item) => visibleExtraIds.has(item.id));
+  const visibleAttentionExtras = attentionExtras.filter((item) => visibleExtraIds.has(item.id));
 
   const scheduledItems = useMemo(() => {
     return activeDayItems.reduce<{ cursor: number; scheduled: ScheduledItem[] }>((state, item) => {
@@ -1823,9 +1857,10 @@ export default function Home() {
     try {
       const response = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Today could not be refreshed.");
-      const day = await response.json() as { items: unknown; highlight?: unknown };
+      const day = await response.json() as { items: unknown; attention?: CaptureAttention[]; highlight?: unknown };
       const refreshedItems = hydrateStoredItems(day.items);
       setItems(refreshedItems);
+      setCaptureAttention(Array.isArray(day.attention) ? day.attention : []);
       setCompletedIds(new Set(refreshedItems.filter((item) => item.completedAt).map((item) => item.id)));
       setDayHighlight(normalizeDayHighlight(day.highlight));
       setSaveState("saved");
@@ -2682,11 +2717,11 @@ export default function Home() {
           <button
             aria-expanded={isGlobalLunaOpen}
             aria-haspopup="dialog"
-            aria-label="Talk with Luna"
+            aria-label={lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? "Talk with Luna, update available" : "Talk with Luna"}
             className="luna-shell-trigger"
             type="button"
             onClick={() => { setIsDevMenuOpen(false); setIsSettingsOpen(false); setIsGlobalLunaOpen(true); }}
-          ><Sparkles aria-hidden="true" size={17} strokeWidth={1.8} /><span>Luna</span></button>
+          ><Sparkles aria-hidden="true" size={17} strokeWidth={1.8} /><span>Luna</span>{lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? <i className="luna-shell-notification" aria-hidden="true" /> : null}</button>
           <button
             aria-expanded={isSettingsOpen}
             aria-haspopup="dialog"
@@ -2825,6 +2860,7 @@ export default function Home() {
         open={isGlobalLunaOpen}
         onClose={() => setIsGlobalLunaOpen(false)}
         onDraftConsumed={() => setGlobalLunaDraft("")}
+        onRead={() => setLunaSummary((current) => ({ ...current, unreadCount: 0 }))}
         onScheduleChanged={() => { void reloadToday(); }}
       /> : null}
       <OccurrenceEditor
@@ -3258,7 +3294,32 @@ export default function Home() {
                     <div><span>Optional</span><h3 id="go-further-title">Go Further</h3></div>
                     <small>Choose one when you have more in you.</small>
                   </header>
-                  {visibleKeepGoingExtras.length ? <div className="go-further-group is-continuation">
+                  {visibleAttentionExtras.length ? <div className="go-further-group is-attention">
+                    <div className="go-further-group-heading">
+                      <div><span>Needs attention</span><small>You asked Luna to keep these close.</small></div>
+                    </div>
+                    <div className="go-further-list">
+                      {visibleAttentionExtras.map((item) => {
+                        const ExtraIcon = activityIconFor(item);
+                        const captures = item.activityId ? attentionByActivity.get(item.activityId) ?? [] : [];
+                        const labels = captures.slice(0, 2).map((capture) => capture.label).join(", ");
+                        return <button
+                          className="go-further-option is-attention"
+                          data-extra-id={item.id}
+                          disabled={promotingExtraId === item.id}
+                          key={item.id}
+                          style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
+                          type="button"
+                          onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
+                        >
+                          <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
+                          <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{labels}{captures.length > 2 ? ` +${captures.length - 2}` : ""}</small></span>
+                          <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
+                        </button>;
+                      })}
+                    </div>
+                  </div> : null}
+                  {visibleKeepGoingExtras.length ? <div className={`go-further-group is-continuation ${visibleAttentionExtras.length ? "has-continuations" : ""}`}>
                     <div className="go-further-group-heading">
                       <div><span>Keep it going</span><small>You chose these on their last scheduled day.</small></div>
                     </div>
@@ -3281,7 +3342,7 @@ export default function Home() {
                       })}
                     </div>
                   </div> : null}
-                  {visibleOtherExtras.length ? <div className={`go-further-group ${visibleKeepGoingExtras.length ? "has-continuations" : ""}`}>
+                  {visibleOtherExtras.length ? <div className={`go-further-group ${visibleKeepGoingExtras.length || visibleAttentionExtras.length ? "has-continuations" : ""}`}>
                     {visibleKeepGoingExtras.length ? <div className="go-further-group-heading"><div><span>More to choose from</span></div></div> : null}
                     <div className="go-further-list">
                       {visibleOtherExtras.map((item) => {

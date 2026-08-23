@@ -57,6 +57,7 @@ export type OccurrenceAction =
   | { type: "set_label"; occurrenceId: string; displayLabel: string | null; idempotencyKey: string }
   | { type: "set_status"; occurrenceId: string; status: "planned" | "completed" | "skipped" | "removed"; idempotencyKey: string }
   | { type: "activate_extra"; occurrenceId: string; idempotencyKey: string }
+  | { type: "activate_activity_for_date"; activityId: string; date: string; idempotencyKey: string }
   | { type: "add_occurrence"; activityId: string; date: string; position?: number; activityVariantId?: string | null; durationMinutes?: number; planRole?: "essential" | "extra"; idempotencyKey: string };
 
 export type ScheduleProposalAction =
@@ -314,6 +315,12 @@ export function parseOccurrenceAction(value: unknown): OccurrenceAction | null {
   if (!source) return null;
   const idempotencyKey = boundedText(source.idempotencyKey, 200);
   if (!idempotencyKey || !SAFE_ID.test(idempotencyKey)) return null;
+  if (source.type === "activate_activity_for_date") {
+    const activityId = boundedText(source.activityId, 200);
+    return activityId && SAFE_ID.test(activityId) && isLocalDate(source.date)
+      ? { type: "activate_activity_for_date", activityId, date: source.date, idempotencyKey }
+      : null;
+  }
   if (source.type === "add_occurrence") {
     const activityId = boundedText(source.activityId, 200);
     const position = source.position === undefined ? undefined : boundedInteger(source.position, 0, 999);

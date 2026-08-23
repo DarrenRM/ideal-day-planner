@@ -182,6 +182,7 @@ export const conversations = sqliteTable("conversations", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   scopeType: text("scope_type").notNull().default("activity"),
   activityId: text("activity_id").references(() => activities.id, { onDelete: "cascade" }),
+  lastReadAt: text("last_read_at"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [
@@ -200,6 +201,35 @@ export const conversationMessages = sqliteTable("conversation_messages", {
   createdAt: createdAt(),
 }, (table) => [
   index("conversation_messages_conversation_created_idx").on(table.conversationId, table.createdAt),
+]);
+
+export const capturedIntents = sqliteTable("captured_intents", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  conversationId: text("conversation_id").references(() => conversations.id, { onDelete: "set null" }),
+  sourceMessageId: text("source_message_id").references(() => conversationMessages.id, { onDelete: "set null" }),
+  sourceAgentJobId: text("source_agent_job_id"),
+  destinationActivityId: text("destination_activity_id").references(() => activities.id, { onDelete: "set null" }),
+  captureKind: text("capture_kind").notNull().default("open_item"),
+  label: text("label").notNull(),
+  normalizedLabel: text("normalized_label").notNull(),
+  detail: text("detail").notNull().default(""),
+  urgency: text("urgency").notNull().default(""),
+  destinationHint: text("destination_hint").notNull().default(""),
+  status: text("status").notNull().default("pending_destination"),
+  timingStatus: text("timing_status").notNull().default("unspecified"),
+  scheduledDate: text("scheduled_date"),
+  linkedRecordKey: text("linked_record_key"),
+  linkedItemId: text("linked_item_id"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  dismissedAt: text("dismissed_at"),
+  resolvedAt: text("resolved_at"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("captured_intents_user_idempotency_unique").on(table.userId, table.idempotencyKey),
+  index("captured_intents_user_status_idx").on(table.userId, table.status, table.updatedAt),
+  index("captured_intents_activity_status_idx").on(table.destinationActivityId, table.status),
 ]);
 
 export const activityVisits = sqliteTable("activity_visits", {

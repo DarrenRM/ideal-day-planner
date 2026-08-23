@@ -1,5 +1,32 @@
 import { getD1 } from "../../../db";
 import { apiFailure, ensureAgentSchema, ensureGlobalConversation, readGlobalConversationState, requestIdentity, safeId } from "../agent-store";
+import { captureRevision, readPendingCaptures } from "../capture-service";
+
+async function summary(conversationId: string, userId: string) {
+  const db = getD1();
+  const unread = await db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM conversation_messages message
+    JOIN conversations conversation ON conversation.id = message.conversation_id
+    WHERE message.conversation_id = ? AND conversation.user_id = ? AND message.role = 'luna'
+      AND (conversation.last_read_at IS NULL OR message.created_at > conversation.last_read_at)
+  `).bind(conversationId, userId).first<{ count: number }>();
+  const captures = await readPendingCaptures(userId, conversationId);
+  return {
+    unreadCount: unread?.count ?? 0,
+    pendingDecisionCount: captures.filter((capture) => capture.status === "filed" && capture.timing === "unspecified").length,
+    captureRevision: await captureRevision(userId),
+  };
+}
+
+async function state(conversationId: string, userId: string) {
+  return {
+    conversationId,
+    ...await readGlobalConversationState(conversationId, userId),
+    captures: await readPendingCaptures(userId, conversationId),
+    ...await summary(conversationId, userId),
+  };
+}
 
 export async function GET(request: Request) {
   const userId = requestIdentity(request);
@@ -7,7 +34,8 @@ export async function GET(request: Request) {
   try {
     await ensureAgentSchema();
     const conversationId = await ensureGlobalConversation(userId);
-    return Response.json({ conversationId, ...await readGlobalConversationState(conversationId, userId) });
+    if (new URL(request.url).searchParams.get("summary") === "1") return Response.json(await summary(conversationId, userId));
+    return Response.json(await state(conversationId, userId));
   } catch (error) {
     return apiFailure(error);
   }
@@ -18,11 +46,18 @@ export async function POST(request: Request) {
   if (!userId) return Response.json({ error: "Sign in to talk with Luna." }, { status: 401 });
   try {
     const payload = await request.json() as Record<string, unknown>;
+    await ensureAgentSchema();
+    const conversationId = await ensureGlobalConversation(userId);
+    if (payload.mode === "mark-read") {
+      await getD1().prepare(`
+        UPDATE conversations SET last_read_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND scope_type = 'global'
+      `).bind(conversationId, userId).run();
+      return Response.json(await state(conversationId, userId));
+    }
     const body = typeof payload.body === "string" ? payload.body.trim().slice(0, 4000) : "";
     const clientMessageId = typeof payload.messageId === "string" ? payload.messageId.trim().slice(0, 160) : "";
     if (!body || !clientMessageId) return Response.json({ error: "A message and message ID are required." }, { status: 400 });
-    await ensureAgentSchema();
-    const conversationId = await ensureGlobalConversation(userId);
     const messageId = `message:${safeId(userId)}:global:${safeId(clientMessageId)}`;
     const jobId = `agent-job:${safeId(userId)}:global:${safeId(clientMessageId)}`;
     await getD1().batch([
@@ -36,7 +71,7 @@ export async function POST(request: Request) {
         VALUES (?, ?, 'global', NULL, ?, 'global_message', ?, ?)
       `).bind(jobId, userId, conversationId, `global-message:${messageId}`, messageId),
     ]);
-    return Response.json({ conversationId, ...await readGlobalConversationState(conversationId, userId) }, { status: 202 });
+    return Response.json(await state(conversationId, userId), { status: 202 });
   } catch (error) {
     return apiFailure(error);
   }

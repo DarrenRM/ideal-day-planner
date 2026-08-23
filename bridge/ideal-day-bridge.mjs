@@ -49,7 +49,7 @@ function modelRoute(leased) {
 }
 
 const resultShape = `Return exactly one JSON object with no markdown or surrounding prose:
-{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string}|null,"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
+{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"captureActions":CaptureAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string}|null,"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
 
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
@@ -68,7 +68,7 @@ Use this only when the person explicitly asks to relocate an existing product or
 const lunaInstructions = `${personaInstructions}
 ${resultShape}
 
-This is durable activity design work. Set scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
+This is durable activity design work. Set captureActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
 
 Hard extraction checklist for the latest message:
 1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device" and subjectKey equal to that product record's stable key. Give every record owned by that item the same subjectKey. Resource entries owned by an item also carry its itemKey; keep different subjects in separate resource records.
@@ -112,22 +112,25 @@ ${catalogInstructions()}`;
 
 const userMessageInstructions = `${personaInstructions}
 ${resultShape}
-This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], followUpQuestion:null, scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. Explicitly reporting food or drink eaten, consumed, made, or prepped is lasting detail and always needs workspaceFollowup:true. A request that changes only when the parent activity appears belongs to site-wide schedule work and should not request an activity-workspace follow-up. Never research in this pass or pretend research is complete.`;
+This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], captureActions:[], followUpActions:[], followUpQuestion:null, scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. Explicitly reporting food or drink eaten, consumed, made, or prepped is lasting detail and always needs workspaceFollowup:true. A request that changes only when the parent activity appears belongs to site-wide schedule work and should not request an activity-workspace follow-up. Never research in this pass or pretend research is complete.`;
 
 const globalInstructions = `${personaInstructions}
 ${resultShape}
-This is site-wide schedule work. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], and dayHighlight:null. Use one followUpQuestion when an essential choice is ambiguous. Any recurring, multi-day, activity-creation, variant-creation, or pattern change requires a ScheduleProposal and confirmation. Only a clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date/destination/collision policy.
+This is site-wide routine work. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], and dayHighlight:null. Use one followUpQuestion when an essential choice is ambiguous. Any recurring, multi-day, activity-creation, variant-creation, or pattern change requires a ScheduleProposal and confirmation. Only a clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date/destination/collision policy.
+
+CaptureAction: {"op":"capture_open_item","activityId":"exact-owned-activity-id"|null,"destinationHint":string,"label":string,"detail":string,"urgency":""|"now"|"soon"|"this_week"|"later","timing":"unspecified"|"today"|"tomorrow"|"later","idempotencyKey":"stable-id"}.
+Use captureActions for an explicit open loop such as “I need more oranges,” “buy toothpaste,” or “restock filters.” Do not capture hypotheticals, questions, already-completed actions, or general observations. Choose activityId only when one supplied owned activity is an obvious home; otherwise use null and a short destinationHint. Use today or tomorrow only when the person explicitly says so; otherwise use unspecified and ask one friendly timing question after confirming where you saved it. Filing an item does not change the destination activity's essential/extra role. Do not also create an occurrenceAction for the same capture; Ideal Day applies explicit timing from the capture itself.
 
 ScheduleProposal: {"baseRevision":number,"effectiveDate":"YYYY-MM-DD","summary":string,"impact":{"todayChanges":number,"futurePatternChanges":number},"actions":ScheduleProposalAction[]}.
 ScheduleProposalAction may create/update/archive activities or variants, add an occurrence, or create/replace/archive a pattern using only the supplied owned IDs and routine revision.
 Every proposed schedule step may set planRole:"essential" or "extra". Use essential for the small must-do foundation the person wants to count toward a successful day; use extra for optional ways to go further. This role is independent of who created the activity. Preserve an existing step's role unless the person asks to change priority or the proposal is explicitly organizing an unclassified routine.`;
 
 const dayHighlightInstructions = `${resultShape}
-This is a silent editorial review. Return message:null, workspaceFollowup:false, no actions/proposal/follow-up, and either one supported dayHighlight or null. Choose one dominant fact in this order: personal best, comeback, real streak, unusual measured effort/longest meaningful block, verified completion cluster, count milestone. Five or more completions qualifies. Never append examples or combine achievements. Use at most 10 words and 64 characters.`;
+This is a silent editorial review. Return message:null, workspaceFollowup:false, no actions/proposal/follow-up, including captureActions:[], and either one supported dayHighlight or null. Choose one dominant fact in this order: personal best, comeback, real streak, unusual measured effort/longest meaningful block, verified completion cluster, count milestone. Five or more completions qualifies. Never append examples or combine achievements. Use at most 10 words and 64 characters.`;
 
 const dueFollowUpInstructions = `${personaInstructions}
 ${resultShape}
-This is a due check-in the person previously asked for or implied through a finite trial. Return one concise, context-aware question in message. Return workspaceFollowup:false and all action arrays empty, including followUpActions. Do not research, reschedule, or claim an outcome.`;
+This is a due check-in the person previously asked for or implied through a finite trial. Return one concise, context-aware question in message. Return workspaceFollowup:false and all action arrays empty, including captureActions and followUpActions. Do not research, reschedule, or claim an outcome.`;
 
 function instructionsForJob(leased) {
   if (leased.job.kind === "day_highlight") return dayHighlightInstructions;
@@ -310,6 +313,7 @@ function parseAgentResult(content) {
   const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
   const workspaceActions = Array.isArray(parsed.workspaceActions) ? parsed.workspaceActions : [];
   const activityMoves = Array.isArray(parsed.activityMoves) ? parsed.activityMoves : [];
+  const captureActions = Array.isArray(parsed.captureActions) ? parsed.captureActions : [];
   const followUpActions = Array.isArray(parsed.followUpActions) ? parsed.followUpActions : [];
   const followUpQuestion = parsed.followUpQuestion && typeof parsed.followUpQuestion === "object"
     && typeof parsed.followUpQuestion.body === "string" && parsed.followUpQuestion.body.trim()
@@ -322,7 +326,7 @@ function parseAgentResult(content) {
     && dayHighlightBody
     ? { body: dayHighlightBody, kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
     : null;
-  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, followUpActions, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
+  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, captureActions, followUpActions, followUpQuestion, scheduleProposal, occurrenceActions, dayHighlight };
 }
 
 function visibleProgress(leased) {
@@ -389,10 +393,12 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       recordActions: replyFirst ? [] : agentResult.recordActions,
       workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
       activityMoves: replyFirst ? [] : agentResult.activityMoves,
+      captureActions: agentResult.captureActions,
       followUpActions: replyFirst ? [] : agentResult.followUpActions,
       followUpQuestion: agentResult.followUpQuestion,
       scheduleProposal: agentResult.scheduleProposal,
       occurrenceActions: agentResult.occurrenceActions,
+      localDate: leased.context.localDate,
       dayHighlight: agentResult.dayHighlight,
     }),
   });
