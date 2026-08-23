@@ -413,7 +413,7 @@ test("keeps the routine data and interactions in the page", async () => {
 });
 
 test("keeps universal scheduling behind typed, auditable boundaries", async () => {
-  const [model, store, scheduleRoute, occurrenceRoute, occurrenceActions, proposalService, lunaRoute, manager, migration] = await Promise.all([
+  const [model, store, scheduleRoute, occurrenceRoute, occurrenceActions, proposalService, lunaRoute, manager, css, migration] = await Promise.all([
     readFile(new URL("../app/schedule-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule/route.ts", import.meta.url), "utf8"),
@@ -422,6 +422,7 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
     readFile(new URL("../app/api/schedule-proposal-service.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/luna/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/schedule-manager.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0011_faulty_human_robot.sql", import.meta.url), "utf8"),
   ]);
 
@@ -444,6 +445,9 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(manager, /No custom activity days or rotations yet/);
   assert.match(manager, /Weekly steps within an activity still live inside that activity/);
   assert.match(manager, /Daily activities/);
+  assert.match(manager, /routine-rule-menu[\s\S]*routine-rule-disclosure/);
+  assert.match(css, /\.routine-rule-menu \{[^}]*flex: 0 0 40px/s);
+  assert.match(css, /\.routine-rule-disclosure \{[^}]*flex: 0 0 40px/s);
   assert.match(manager, /Future routine/);
   assert.match(manager, /Advanced options/);
   assert.match(manager, /Pause future days/);

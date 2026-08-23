@@ -241,23 +241,24 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
 
   function RuleRow({ pattern, paused = false }: { pattern: PatternView; paused?: boolean }) {
     const rotation = isRotationPattern(pattern);
+    const title = patternTitle(pattern);
     return <article className={`routine-rule-row ${paused ? "is-paused" : ""}`}>
       <button className="routine-rule-open" type="button" onClick={() => beginEditing(pattern)}>
         <span className="routine-rule-icon" aria-hidden="true">{rotation ? <RotateCcw size={17} /> : <CalendarDays size={17} />}</span>
         <span className="routine-rule-copy">
-          <strong>{patternTitle(pattern)}</strong>
+          <strong>{title}</strong>
           <span>{paused ? `Paused · ${cadenceLabel(pattern.cadence)}` : rotation ? `${cadenceLabel(pattern.cadence)} · ${pattern.steps.length}-step rotation` : cadenceLabel(pattern.cadence)}</span>
           {rotation ? <small>{rotationSteps(pattern)}</small> : null}
         </span>
-        <ChevronRight aria-hidden="true" size={17} />
       </button>
       <details className="routine-rule-menu">
-        <summary aria-label={`More options for ${patternTitle(pattern)}`}><MoreVertical aria-hidden="true" size={17} /></summary>
+        <summary aria-label={`More options for ${title}`}><MoreVertical aria-hidden="true" size={17} /></summary>
         <div>{paused
           ? <button type="button" onClick={() => void setPatternPaused(pattern, false)}><RotateCcw aria-hidden="true" size={15} /> Restore to routine</button>
           : <button type="button" onClick={() => void setPatternPaused(pattern, true)}><Archive aria-hidden="true" size={15} /> Pause future days</button>}
         </div>
       </details>
+      <button aria-label={`Edit ${title}`} className="routine-rule-disclosure" type="button" onClick={() => beginEditing(pattern)}><ChevronRight aria-hidden="true" size={17} /></button>
     </article>;
   }
 
