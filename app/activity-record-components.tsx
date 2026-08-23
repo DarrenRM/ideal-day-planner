@@ -312,14 +312,11 @@ function StrengthWorkoutPhase({ record, onMutate }: { record: ActivityRecord; on
   const steps = data.steps ?? [];
   const completedSteps = steps.filter(completedToday).length;
   const complete = steps.length > 0 && completedSteps === steps.length;
-  const [expanded, setExpanded] = useState(!complete);
-
-  useEffect(() => {
-    if (complete) setExpanded(false);
-  }, [complete]);
+  const [expandedPreference, setExpandedPreference] = useState(!complete);
+  const expanded = !complete && expandedPreference;
 
   return <section className={`strength-workout-phase is-${data.phase} ${complete ? "is-complete" : ""}`}>
-    <button aria-expanded={expanded} className="strength-phase-toggle" type="button" onClick={() => setExpanded((current) => !current)}>
+    <button aria-expanded={expanded} className="strength-phase-toggle" type="button" onClick={() => setExpandedPreference((current) => !current)}>
       <span className="strength-phase-mark">{complete ? <Check aria-hidden="true" size={14} strokeWidth={3} /> : data.phase === "warmup" ? "1" : "✓"}</span>
       <span><small className="workspace-overline">{data.phase === "warmup" ? "Warm-up" : "Cool-down"}</small><strong>{record.title}</strong><em>{complete ? "Complete" : `${completedSteps} of ${steps.length} steps`}</em></span>
       <ChevronDown aria-hidden="true" size={16} />

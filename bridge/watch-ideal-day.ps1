@@ -12,7 +12,7 @@ if ($bridgeRunning) { exit 0 }
 
 Start-Process `
   -FilePath $powershellExe `
-  -ArgumentList @("-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", "`"$startScript`"") `
+  -ArgumentList @("-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", "`"$startScript`"") `
   -WorkingDirectory $projectRoot `
   -WindowStyle Hidden
 
