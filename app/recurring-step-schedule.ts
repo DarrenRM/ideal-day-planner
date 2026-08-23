@@ -52,16 +52,28 @@ export function nextRecurringDate(anchorDate: string | undefined, cadence: Recur
   return null;
 }
 
+function previousRecurringDate(anchorDate: string | undefined, cadence: RecurringCadence | undefined, onOrBeforeDate: string) {
+  if (!anchorDate || !cadence || !dateFromKey(onOrBeforeDate)) return null;
+  for (let offset = 0; offset <= 366; offset += 1) {
+    const candidate = addDays(onOrBeforeDate, -offset);
+    if (candidate && recurringDateIsDue(anchorDate, cadence, candidate)) return candidate;
+  }
+  return null;
+}
+
 export function recurringStepScheduleStatus(data: RecurringStepScheduleData, today: string) {
   const completedDates = [...new Set(data.completedDates ?? [])]
     .filter((date) => DATE_KEY.test(date) && date <= today)
     .sort();
   const lastCompleted = completedDates.at(-1) ?? null;
   const completedToday = lastCompleted === today;
-  const dueToday = !completedToday && recurringDateIsDue(data.anchorDate, data.cadence, today);
+  const previousDue = previousRecurringDate(data.anchorDate, data.cadence, today);
+  const completedThisCycle = Boolean(previousDue && completedDates.some((date) => date >= previousDue && date <= today));
+  const dueToday = !completedThisCycle && recurringDateIsDue(data.anchorDate, data.cadence, today);
 
   return {
     completedToday,
+    completedThisCycle,
     dueToday,
     lastCompleted,
     nextDue: dueToday ? today : nextRecurringDate(data.anchorDate, data.cadence, today),

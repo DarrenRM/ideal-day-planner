@@ -3,7 +3,7 @@
 import { CalendarClock, Check, EllipsisVertical, Flame, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
-import { hasUsefulActivityRecordData, recurringStepIsDue, type ActivityRecord } from "./activity-record-model";
+import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
 import { hasUsefulRoutineComponent, type CountdownWorkspaceComponent, type DataWorkspaceComponent, type RoutineWorkspaceComponent, type TimerWorkspaceComponent, type WorkspaceDocument } from "./workspace-model";
 import { orderWorkspaceDisplayItems, type WorkspaceDisplayRole } from "./workspace-order";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -44,7 +44,7 @@ export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspa
     if (component.type === "timer" || component.type === "countdown") return true;
     if (component.type === "routine") return hasUsefulRoutineComponent(component);
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
-    return Boolean(record && recurringStepIsDue(record) && hasUsefulActivityRecordData(record, {
+    return Boolean(record && hasUsefulActivityRecordData(record, {
       activityTitle: activity.title,
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
     }));
@@ -342,7 +342,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     if (component.type === "timer" || component.type === "countdown") return true;
     if (component.type === "routine") return hasUsefulRoutineComponent(component);
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
-    return Boolean(record && recurringStepIsDue(record) && hasUsefulActivityRecordData(record, {
+    return Boolean(record && hasUsefulActivityRecordData(record, {
       activityTitle: activity.title,
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
     }));

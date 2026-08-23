@@ -327,7 +327,7 @@ test("uses one activity-colored overline primitive across workspace components",
   assert.doesNotMatch(css, /\.activity-schedule-summary span, \.activity-follow-up-heading span/);
 });
 
-test("normalizes recurring substeps and only exposes them on due dates", () => {
+test("normalizes recurring substeps and derives their due dates", () => {
   const record = parseActivityRecord({
     id: "roller-step", recordKey: "weekly-roller", recordType: "recurring_step",
     title: "Grooming roller", scope: "activity", scopeDate: null, version: 1,
@@ -346,12 +346,25 @@ test("normalizes recurring substeps and only exposes them on due dates", () => {
 test("derives recurring-step history and next due dates from the shared cadence schedule", () => {
   const weekly = { anchorDate: "2026-08-21", cadence: { kind: "weekly", every: 1 }, completedDates: ["2026-08-21"] };
   assert.deepEqual(recurringStepScheduleStatus(weekly, "2026-08-21"), {
-    completedToday: true, dueToday: false, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
+    completedToday: true, completedThisCycle: true, dueToday: false, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
+  });
+  assert.deepEqual(recurringStepScheduleStatus(weekly, "2026-08-23"), {
+    completedToday: false, completedThisCycle: true, dueToday: false, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
   });
   assert.deepEqual(recurringStepScheduleStatus({ ...weekly, completedDates: [] }, "2026-08-21"), {
-    completedToday: false, dueToday: true, lastCompleted: null, nextDue: "2026-08-21",
+    completedToday: false, completedThisCycle: false, dueToday: true, lastCompleted: null, nextDue: "2026-08-21",
   });
   assert.equal(nextRecurringDate("2026-08-21", { kind: "interval_days", every: 3 }, "2026-08-22"), "2026-08-24");
   assert.equal(nextRecurringDate("2026-08-21", { kind: "weekdays", weekdays: [1, 3] }, "2026-08-21"), "2026-08-24");
   assert.equal(compactRecurringTitle("Weekly Beard Grooming Roller", "Weekly"), "Beard Grooming Roller");
+});
+
+test("keeps recurring-step status visible between scheduled dates", async () => {
+  const [workspace, component] = await Promise.all([
+    readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(workspace, /recurringStepIsDue/);
+  assert.match(component, /status\.completedThisCycle/);
+  assert.match(component, /disabled=\{completionLocked\}/);
 });

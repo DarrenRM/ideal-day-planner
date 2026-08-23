@@ -505,12 +505,14 @@ function RecurringStepRecord({ record, onMutate }: Props) {
   const cadence = recurringCadenceLabel(data.cadence);
   const lastValue = status.completedToday ? "Today" : status.lastCompleted ? formatActivityRecordDate(status.lastCompleted) : "Not yet";
   const nextValue = status.dueToday ? "Due today" : status.nextDue ? formatActivityRecordDate(status.nextDue) : "Not scheduled";
+  const completionLabel = status.completedThisCycle ? "Completed" : "Last completed";
+  const completionLocked = status.completedThisCycle && !status.completedToday;
   return <section className="workspace-block recurring-step-record"><Heading eyebrow={cadence} title={compactRecurringTitle(record.title, cadence)} icon={<CalendarCheck size={15} />} />
     <div className="recurring-step-status" aria-label={`Last completed: ${lastValue}. ${status.dueToday ? "Status" : "Next due"}: ${nextValue}.`}>
-      <span><small>{status.completedToday ? "Completed" : "Last completed"}</small><strong>{lastValue}</strong></span>
+      <span><small>{completionLabel}</small><strong>{lastValue}</strong></span>
       <span><small>{status.dueToday ? "Status" : "Next due"}</small><strong className={status.dueToday ? "is-due" : ""}>{nextValue}</strong></span>
     </div>
-    <button className={status.completedToday ? "is-complete" : ""} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{status.completedToday ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button>
+    <button className={status.completedThisCycle ? "is-complete" : ""} disabled={completionLocked} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{status.completedThisCycle ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button>
   </section>;
 }
 

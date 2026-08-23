@@ -332,7 +332,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
 
               <section className="routine-group" aria-labelledby="custom-routines-heading">
                 <div className="routine-group-heading"><div><span>Custom</span><h3 id="custom-routines-heading">Custom days & rotations</h3></div><button type="button" onClick={beginRotation}><Plus aria-hidden="true" size={15} /> New rotation</button></div>
-                {groups.custom.length ? <div className="routine-rule-list">{groups.custom.map((rule) => <RuleRow pattern={rule as PatternView} key={rule.id} />)}</div> : <div className="routine-group-empty"><CalendarDays aria-hidden="true" size={18} /><span><strong>Everything currently repeats daily.</strong>Custom days and rotations will live here.</span></div>}
+                {groups.custom.length ? <div className="routine-rule-list">{groups.custom.map((rule) => <RuleRow pattern={rule as PatternView} key={rule.id} />)}</div> : <div className="routine-group-empty"><CalendarDays aria-hidden="true" size={18} /><span><strong>No custom activity days or rotations yet.</strong>Weekly steps within an activity still live inside that activity.</span></div>}
               </section>
 
               <section className="routine-group is-collapsible" aria-labelledby="daily-routines-heading">

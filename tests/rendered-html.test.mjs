@@ -441,6 +441,8 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(manager, /Manage routine/);
   assert.match(manager, /Adjust with Luna/);
   assert.match(manager, /Custom days & rotations/);
+  assert.match(manager, /No custom activity days or rotations yet/);
+  assert.match(manager, /Weekly steps within an activity still live inside that activity/);
   assert.match(manager, /Daily activities/);
   assert.match(manager, /Future routine/);
   assert.match(manager, /Advanced options/);
