@@ -15,6 +15,7 @@ import { ScheduleManager } from "./schedule-manager";
 import { GlobalLuna } from "./global-luna";
 import { OccurrenceEditor } from "./occurrence-editor";
 import { GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionAvailableExtras, partitionDayItems, type PlanRole } from "./day-role";
+import { fallbackDayHighlight } from "./day-highlight";
 
 type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
@@ -1226,14 +1227,19 @@ function DayHighlights({
   const completedEssentials = completedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
   const progress = totalActivities ? Math.min(100, (completedEssentials / totalActivities) * 100) : 0;
   const density = completedItems.length === 1 ? "is-single" : completedItems.length <= 3 ? "is-sparse" : "";
-  const visibleCopy = highlight.body || (completedItems.length === 1 ? activityDisplayTitle(completedItems[0]) : null);
+  const visibleCopy = highlight.body || fallbackDayHighlight(completedItems.map((item) => ({
+    title: item.title,
+    displayTitle: activityDisplayTitle(item),
+    duration: item.duration,
+    completedAt: item.completedAt,
+  })));
   const history = [...completedItems].sort((left, right) => (storedTimestampMillis(right.completedAt) ?? 0) - (storedTimestampMillis(left.completedAt) ?? 0));
 
   return (
     <section className={`day-highlights ${density} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
       <button className="day-highlights-overview" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        {completedItems.length > 1 ? <span className={`day-highlights-count ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
-          <strong>{completedItems.length}</strong><span>done</span>
+        {completedItems.length > 1 ? <span aria-label={`${completedEssentials} of ${totalActivities} essential activities complete`} className={`day-highlights-count ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
+          <strong>{completedEssentials}/{totalActivities}</strong>
         </span> : null}
         <span className="day-highlights-copy">
           <strong id="day-highlights-title">Highlights</strong>

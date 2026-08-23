@@ -69,7 +69,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /mode: "set-role"/);
   assert.match(page, /GO_FURTHER_PREVIEW_LIMIT/);
   assert.match(css, /\.go-further-option \{[^}]*min-height: 52px;/);
-  assert.match(page, /completedItems\.length > 1 \? <span className=\{`day-highlights-count/);
+  assert.match(page, /completedItems\.length > 1 \? <span[^>]*className=\{`day-highlights-count/);
   assert.match(css, /\.day-highlights\.is-single \.day-highlights-overview \{ grid-template-columns: minmax\(0, 1fr\) 38px 14px; \}/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.day-highlights-overview \{[^}]*min-height: 86px;/);
   assert.match(page, /draggable/);
@@ -284,7 +284,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.day-highlights-copy > span[^}]*-webkit-line-clamp: 2/);
   assert.match(css, /\.day-highlights-overview[^}]*min-height: 78px/);
   assert.match(page, /completedItems\.length === 1 \? "is-single"/);
-  assert.match(page, /highlight\.body \|\| \(completedItems\.length === 1/);
+  assert.match(page, /highlight\.body \|\| fallbackDayHighlight/);
+  assert.match(page, /\{completedEssentials\}\/\{totalActivities\}/);
   assert.doesNotMatch(page, /day-highlight-thinking/);
   assert.match(page, /function cueNextActivity/);
   assert.match(page, /window\.scrollBy\(\{/);
