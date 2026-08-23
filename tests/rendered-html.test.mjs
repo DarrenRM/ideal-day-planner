@@ -446,7 +446,7 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(manager, /Weekly steps within an activity still live inside that activity/);
   assert.match(manager, /Daily activities/);
   assert.match(manager, /routine-rule-menu[\s\S]*routine-rule-disclosure/);
-  assert.match(css, /\.routine-rule-menu \{[^}]*flex: 0 0 40px/s);
+  assert.match(css, /\.routine-rule-menu \{[^}]*display: flex;[^}]*align-items: center;[^}]*flex: 0 0 40px;[^}]*justify-content: center/s);
   assert.match(css, /\.routine-rule-disclosure \{[^}]*flex: 0 0 40px/s);
   assert.match(manager, /Future routine/);
   assert.match(manager, /Advanced options/);

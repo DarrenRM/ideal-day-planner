@@ -54,7 +54,7 @@
 .routine-rule-copy strong { overflow: hidden; color: var(--text); font-size: var(--type-body); text-overflow: ellipsis; white-space: nowrap; }
 .routine-rule-copy > span { color: var(--muted); font-size: var(--type-body-sm); }
 .routine-rule-copy small { overflow: hidden; color: var(--subtle); font-size: var(--type-label); text-overflow: ellipsis; white-space: nowrap; }
-.routine-rule-menu { width: 40px; display: grid; flex: 0 0 40px; place-items: center; position: relative; }
+.routine-rule-menu { width: 40px; display: flex; align-items: center; flex: 0 0 40px; justify-content: center; position: relative; }
 .routine-rule-menu summary { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 9px; color: var(--muted); cursor: pointer; list-style: none; }
 .routine-rule-menu summary::-webkit-details-marker { display: none; }
 .routine-rule-menu summary:hover { background: rgba(255, 255, 255, .04); color: var(--text); }
