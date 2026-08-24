@@ -327,6 +327,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .go-further header > div { display: grid; gap: 3px; }
 .go-further h3 { color: #e0e7e1; font: 620 var(--type-body-lg)/var(--leading-body-lg) var(--type-serif); margin: 0; }
 .go-further > header > small { color: #737e78; font: 500 var(--type-label)/var(--leading-label) var(--type-sans); text-align: right; }
+.go-further-error { background: rgba(207, 113, 100, .08); border: 1px solid rgba(207, 113, 100, .28); border-radius: 8px; color: #dca69d; font: 560 var(--type-label)/var(--leading-label) var(--type-sans); margin: 0 0 10px; padding: 8px 10px; }
 .go-further-group { display: grid; gap: 7px; }
 .go-further-group.has-continuations { border-top: 1px solid #242c2f; margin-top: 11px; padding-top: 11px; }
 .go-further-group-heading { align-items: end; display: flex; justify-content: space-between; }

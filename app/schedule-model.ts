@@ -2,6 +2,7 @@ export const MAX_PATTERN_STEPS = 64;
 export const MAX_PATTERN_NAME_LENGTH = 80;
 export const MAX_VARIANT_NAME_LENGTH = 60;
 export const MAX_ACTIVITY_DURATION_MINUTES = 480;
+export const MAX_OCCURRENCE_ID_LENGTH = 512;
 
 export type DailyCadence = { kind: "daily" };
 export type WeekdayCadence = { kind: "weekdays"; weekdays: number[]; intervalWeeks: number };
@@ -83,6 +84,7 @@ export type ScheduleProposalDocument = {
 
 const LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9:._~-]{0,199}$/;
+const SAFE_OCCURRENCE_ID = /^[A-Za-z0-9][A-Za-z0-9:._~-]{0,511}$/;
 const ACTIVITY_CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 
 function recordValue(value: unknown): Record<string, unknown> | null {
@@ -330,8 +332,8 @@ export function parseOccurrenceAction(value: unknown): OccurrenceAction | null {
     const planRole = source.planRole === "extra" ? "extra" : "essential";
     return { type: "add_occurrence", activityId, date: source.date, ...(position === undefined ? {} : { position }), ...(activityVariantId ? { activityVariantId } : {}), ...(durationMinutes === undefined ? {} : { durationMinutes }), planRole, idempotencyKey };
   }
-  const occurrenceId = boundedText(source.occurrenceId, 200);
-  if (!occurrenceId || !SAFE_ID.test(occurrenceId)) return null;
+  const occurrenceId = boundedText(source.occurrenceId, MAX_OCCURRENCE_ID_LENGTH);
+  if (!occurrenceId || !SAFE_OCCURRENCE_ID.test(occurrenceId)) return null;
   if (source.type === "move_within_day") {
     const position = boundedInteger(source.position, 0, 999);
     return position === null ? null : { type: "move_within_day", occurrenceId, position, idempotencyKey };

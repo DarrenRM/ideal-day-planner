@@ -1434,6 +1434,7 @@ export default function Home() {
   const [skippingActivityId, setSkippingActivityId] = useState<string | null>(null);
   const [showAllExtras, setShowAllExtras] = useState(false);
   const [promotingExtraId, setPromotingExtraId] = useState<string | null>(null);
+  const [extraPromotionError, setExtraPromotionError] = useState<string | null>(null);
   const [settlingCompletedIds, setSettlingCompletedIds] = useState<Set<string>>(() => new Set());
   const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1851,7 +1852,11 @@ export default function Home() {
   const essentialsComplete = activeItemCount > 0 && completedItemCount >= activeItemCount;
   const settledEssentialCount = settledCompletedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
   const settledEssentialsComplete = activeItemCount > 0 && settledEssentialCount >= activeItemCount;
-  const isDayBloom = settledEssentialsComplete && Boolean(celebratingActivityId);
+  const unfinishedChosenExtras = activeDayItems.filter((item) => normalizePlanRole(item.planRole) === "extra"
+    && !item.skippedAt
+    && (!completedIds.has(item.id) || settlingCompletedIds.has(item.id)));
+  const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras.length === 0;
+  const isDayBloom = dayAchievementReady && Boolean(celebratingActivityId);
 
   async function setTimelineEnabled(enabled: boolean) {
     if (settingsSaveState === "saving" || enabled === timelineEnabled) return;
@@ -1994,9 +1999,12 @@ export default function Home() {
     );
     extraPromotionOrigins.current.set(item.id, origin);
     const activatedAt = new Date().toISOString();
+    setExtraPromotionError(null);
+    setShowAllExtras(false);
     setPromotingExtraId(item.id);
     setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt } : candidate));
     setSaveState("saving");
+    window.setTimeout(() => cueNextActivity(item.id), 80);
     try {
       const response = await fetch("/api/occurrences", {
         method: "POST",
@@ -2005,11 +2013,12 @@ export default function Home() {
       });
       if (!response.ok) throw new Error("That extra could not be added today.");
       setSaveState("saved");
-      window.setTimeout(() => cueNextActivity(item.id), 420);
     } catch {
       extraPromotionOrigins.current.delete(item.id);
       setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt: null } : candidate));
-      setSaveState("retrying");
+      setShowAllExtras(true);
+      setExtraPromotionError(`${item.title} wasn’t added. Try it again.`);
+      setSaveState("saved");
     } finally {
       setPromotingExtraId(null);
     }
@@ -2926,8 +2935,8 @@ export default function Home() {
                   <span className="mobile-schedule-title">{formatTodayHeading()}</span>
                 </h2>
                 <p>
-                  <span className="desktop-schedule-summary">{hasLoaded ? essentialsComplete ? `Essentials complete · ${availableExtras.length} optional` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
-                  <span className="mobile-schedule-summary">{hasLoaded ? essentialsComplete ? <>Essentials complete <i aria-hidden="true">·</i> {availableExtras.length} optional</> : <>{activeItemCount} essentials <i aria-hidden="true">·</i> {availableExtras.length} more</> : "Loading your saved day…"}</span>
+                  <span className="desktop-schedule-summary">{hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} optional` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
+                  <span className="mobile-schedule-summary">{hasLoaded ? essentialsComplete ? <>Essentials complete {unfinishedChosenExtras.length ? <><i aria-hidden="true">·</i> {unfinishedChosenExtras.length} chosen </> : null}<i aria-hidden="true">·</i> {availableExtras.length} optional</> : <>{activeItemCount} essentials <i aria-hidden="true">·</i> {availableExtras.length} more</> : "Loading your saved day…"}</span>
                 </p>
               </div>
               <div className="planner-actions">
@@ -3056,10 +3065,10 @@ export default function Home() {
                 totalActivities={activeItemCount}
                 onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
               /> : null}
-              {settledEssentialsComplete ? <DayVictory isArriving={isDayBloom} /> : null}
-              {activeDayItems.length && !settledEssentialsComplete ? <div className="daily-list-heading">
-                <span>Essentials</span>
-                <small>{Math.max(0, activeItemCount - completedItemCount)} left</small>
+              {dayAchievementReady ? <DayVictory isArriving={isDayBloom} /> : null}
+              {activeDayItems.length && !dayAchievementReady ? <div className="daily-list-heading">
+                <span>{settledEssentialsComplete ? "Going further" : "Essentials"}</span>
+                <small>{settledEssentialsComplete ? unfinishedChosenExtras.length : Math.max(0, activeItemCount - completedItemCount)} left</small>
               </div> : null}
               {displayedScheduledItems.map((item, displayIndex) => {
                 const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);
@@ -3316,6 +3325,7 @@ export default function Home() {
                     <div><span>Optional</span><h3 id="go-further-title">Go Further</h3></div>
                     <small>{settledEssentialsComplete ? "Essentials complete. Anything else is a bonus." : "Choose one when you have more in you."}</small>
                   </header>
+                  {extraPromotionError ? <p className="go-further-error" role="alert">{extraPromotionError}</p> : null}
                   {visibleAttentionExtras.length ? <div className="go-further-group is-attention">
                     <div className="go-further-group-heading">
                       <div><span>Needs attention</span><small>You asked Luna to keep these close.</small></div>

@@ -288,10 +288,14 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /\{completedEssentials\}\/\{totalActivities\}/);
   assert.doesNotMatch(page, /day-highlight-thinking/);
   assert.match(page, /const settledEssentialsComplete = activeItemCount > 0 && settledEssentialCount >= activeItemCount/);
+  assert.match(page, /const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras\.length === 0/);
   assert.match(page, /isDayBloom \? "Essentials complete" : "Highlights"/);
-  assert.match(page, /activeDayItems\.length && !settledEssentialsComplete/);
+  assert.match(page, /activeDayItems\.length && !dayAchievementReady/);
   assert.match(page, /Essentials complete\. Anything else is a bonus\./);
-  assert.match(page, /settledEssentialsComplete \? <DayVictory isArriving=\{isDayBloom\}/);
+  assert.match(page, /dayAchievementReady \? <DayVictory isArriving=\{isDayBloom\}/);
+  assert.match(page, /setShowAllExtras\(false\)/);
+  assert.match(page, /window\.setTimeout\(\(\) => cueNextActivity\(item\.id\), 80\)/);
+  assert.match(page, /setExtraPromotionError\(`\$\{item\.title\} wasn’t added\. Try it again\.`\)/);
   assert.match(page, /Today’s achievement/);
   assert.match(page, /The rest of today is yours\./);
   assert.match(css, /\.day-victory \{[^}]*min-height: 92px/);
