@@ -285,11 +285,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.day-highlights-overview[^}]*min-height: 78px/);
   assert.match(page, /completedItems\.length === 1 \? "is-single"/);
   assert.match(page, /highlight\.body \|\| fallbackDayHighlight/);
-  assert.match(page, /\{completedEssentials\}\/\{totalActivities\}/);
+  assert.match(page, /\{completedActivities\}\/\{totalSelectedActivities\}/);
   assert.doesNotMatch(page, /day-highlight-thinking/);
   assert.match(page, /const settledEssentialsComplete = activeItemCount > 0 && settledEssentialCount >= activeItemCount/);
   assert.match(page, /const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras\.length === 0/);
-  assert.match(page, /isDayBloom \? "Essentials complete" : "Highlights"/);
+  assert.match(page, /isDayBloom \? "Today complete" : "Highlights"/);
   assert.match(page, /activeDayItems\.length && !dayAchievementReady/);
   assert.match(page, /Essentials complete\. Anything else is a bonus\./);
   assert.match(page, /dayAchievementReady \? <DayVictory isArriving=\{isDayBloom\}/);

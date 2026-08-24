@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GO_FURTHER_PREVIEW_LIMIT, normalizeActivityOrigin, normalizePlanRole, partitionAvailableExtras, partitionDayItems } from "../app/day-role.ts";
+import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, normalizeActivityOrigin, normalizePlanRole, partitionAvailableExtras, partitionDayItems } from "../app/day-role.ts";
 
 test("keeps activity origin separate from the dated commitment role", () => {
   assert.equal(normalizeActivityOrigin("starter"), "starter");
@@ -22,6 +22,22 @@ test("promotes only activated extras into today's active list", () => {
   assert.deepEqual(result.active.map((item) => item.id), ["morning", "stretch", "finished-extra"]);
   assert.deepEqual(result.availableExtras.map((item) => item.id), ["walk"]);
   assert.equal(GO_FURTHER_PREVIEW_LIMIT, 3);
+});
+
+test("activated extras expand today's progress denominator without changing the essential count", () => {
+  assert.deepEqual(dayProgressCounts([
+    { planRole: "essential", completedAt: "2026-08-23 08:00:00" },
+    { planRole: "essential", completedAt: "2026-08-23 08:05:00" },
+    { planRole: "extra" },
+    { planRole: "extra", activatedAt: "2026-08-23 08:10:00", completedAt: "2026-08-23 08:20:00" },
+    { planRole: "extra", activatedAt: "2026-08-23 08:15:00" },
+    { planRole: "extra", activatedAt: "2026-08-23 08:15:00", skippedAt: "2026-08-23 08:16:00" },
+  ]), {
+    selectedTotal: 4,
+    selectedCompleted: 3,
+    essentialTotal: 2,
+    essentialCompleted: 2,
+  });
 });
 
 test("Keep it going requires a completed, activated extra on the previous matching occurrence", () => {

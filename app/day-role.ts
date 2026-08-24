@@ -40,6 +40,17 @@ export function partitionDayItems<T extends DayRoleItem>(items: T[]) {
   return { active, availableExtras };
 }
 
+export function dayProgressCounts(items: DayRoleItem[]) {
+  const selected = items.filter((item) => isActiveDayItem(item) && !item.skippedAt);
+  const essentials = selected.filter((item) => normalizePlanRole(item.planRole) === "essential");
+  return {
+    selectedTotal: selected.length,
+    selectedCompleted: selected.filter((item) => Boolean(item.completedAt)).length,
+    essentialTotal: essentials.length,
+    essentialCompleted: essentials.filter((item) => Boolean(item.completedAt)).length,
+  };
+}
+
 export function isKeepGoingCandidate(item: DayRoleItem) {
   return normalizePlanRole(item.planRole) === "extra"
     && item.previousPlanRole === "extra"

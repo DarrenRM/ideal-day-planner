@@ -14,7 +14,7 @@ import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 import { ScheduleManager } from "./schedule-manager";
 import { GlobalLuna } from "./global-luna";
 import { OccurrenceEditor } from "./occurrence-editor";
-import { GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionAvailableExtras, partitionDayItems, type PlanRole } from "./day-role";
+import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionAvailableExtras, partitionDayItems, type PlanRole } from "./day-role";
 import { fallbackDayHighlight } from "./day-highlight";
 import type { CaptureAttention } from "./capture-model";
 
@@ -1214,22 +1214,22 @@ function completionTimeLabel(value: string | null | undefined) {
 
 function DayHighlights({
   completedItems,
-  totalActivities,
+  totalSelectedActivities,
   highlight,
   celebratingActivityId,
   onOpenActivity,
 }: {
   completedItems: ScheduledItem[];
-  totalActivities: number;
+  totalSelectedActivities: number;
   highlight: DayHighlight;
   celebratingActivityId: string | null;
   onOpenActivity: (item: ScheduledItem, bounds: DOMRect) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const completedEssentials = completedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
-  const progress = totalActivities ? Math.min(100, (completedEssentials / totalActivities) * 100) : 0;
-  const essentialsComplete = totalActivities > 0 && completedEssentials >= totalActivities;
-  const isDayBloom = essentialsComplete && Boolean(celebratingActivityId);
+  const completedActivities = completedItems.length;
+  const progress = totalSelectedActivities ? Math.min(100, (completedActivities / totalSelectedActivities) * 100) : 0;
+  const planComplete = totalSelectedActivities > 0 && completedActivities >= totalSelectedActivities;
+  const isDayBloom = planComplete && Boolean(celebratingActivityId);
   const density = completedItems.length === 1 ? "is-single" : completedItems.length <= 3 ? "is-sparse" : "";
   const visibleCopy = highlight.body || fallbackDayHighlight(completedItems.map((item) => ({
     title: item.title,
@@ -1240,14 +1240,14 @@ function DayHighlights({
   const history = [...completedItems].sort((left, right) => (storedTimestampMillis(right.completedAt) ?? 0) - (storedTimestampMillis(left.completedAt) ?? 0));
 
   return (
-    <section className={`day-highlights ${density} ${essentialsComplete ? "is-essentials-complete" : ""} ${isDayBloom ? "is-day-bloom" : ""} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
-      {isDayBloom ? <span aria-atomic="true" className="visually-hidden" role="status">Essentials complete.</span> : null}
+    <section className={`day-highlights ${density} ${planComplete ? "is-plan-complete" : ""} ${isDayBloom ? "is-day-bloom" : ""} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
+      {isDayBloom ? <span aria-atomic="true" className="visually-hidden" role="status">Today complete.</span> : null}
       <button className="day-highlights-overview" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        {completedItems.length > 1 ? <span aria-label={`${completedEssentials} of ${totalActivities} essential activities complete`} className={`day-highlights-count ${essentialsComplete ? "is-complete" : ""} ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
-          <strong>{completedEssentials}/{totalActivities}</strong>
+        {completedItems.length > 1 ? <span aria-label={`${completedActivities} of ${totalSelectedActivities} activities selected for today complete`} className={`day-highlights-count ${planComplete ? "is-complete" : ""} ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
+          <strong>{completedActivities}/{totalSelectedActivities}</strong>
         </span> : null}
         <span className="day-highlights-copy">
-          <strong id="day-highlights-title">{isDayBloom ? "Essentials complete" : "Highlights"}</strong>
+          <strong id="day-highlights-title">{isDayBloom ? "Today complete" : "Highlights"}</strong>
           {visibleCopy ? <span>{visibleCopy}</span> : null}
         </span>
         <span className="day-highlights-icon-grid" aria-label={`${completedItems.length} completed activities`} style={{ "--highlight-columns": Math.min(completedItems.length, 6), "--highlight-mobile-columns": Math.min(completedItems.length, 4) } as CSSProperties}>
@@ -1721,7 +1721,7 @@ export default function Home() {
   const attentionExtras = useMemo(() => availableExtras.filter((item) => item.activityId && attentionByActivity.has(item.activityId)), [attentionByActivity, availableExtras]);
   const ordinaryExtras = useMemo(() => availableExtras.filter((item) => !item.activityId || !attentionByActivity.has(item.activityId)), [attentionByActivity, availableExtras]);
   const { keepGoing: keepGoingExtras, moreOptions: otherExtras } = useMemo(() => partitionAvailableExtras(ordinaryExtras), [ordinaryExtras]);
-  const essentialItems = useMemo(() => items.filter((item) => normalizePlanRole(item.planRole) === "essential"), [items]);
+  const dayProgress = useMemo(() => dayProgressCounts(items), [items]);
   const prioritizedExtras = useMemo(() => [...attentionExtras, ...keepGoingExtras, ...otherExtras], [attentionExtras, keepGoingExtras, otherExtras]);
   const visibleExtras = showAllExtras ? prioritizedExtras : prioritizedExtras.slice(0, GO_FURTHER_PREVIEW_LIMIT);
   const visibleExtraIds = useMemo(() => new Set(visibleExtras.map((item) => item.id)), [visibleExtras]);
@@ -1847,8 +1847,10 @@ export default function Home() {
   ];
   const minutesUntilPreferredStart = Math.max(0, preferredStartMinutes - displayedMinutes);
   const nextStartBoundary = Math.min(1435, Math.ceil(displayedMinutes / 5) * 5);
-  const activeItemCount = essentialItems.filter((item) => !item.skippedAt).length;
-  const completedItemCount = essentialItems.filter((item) => item.completedAt).length;
+  const activeItemCount = dayProgress.essentialTotal;
+  const completedItemCount = dayProgress.essentialCompleted;
+  const selectedItemCount = dayProgress.selectedTotal;
+  const selectedCompletedItemCount = dayProgress.selectedCompleted;
   const essentialsComplete = activeItemCount > 0 && completedItemCount >= activeItemCount;
   const settledEssentialCount = settledCompletedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
   const settledEssentialsComplete = activeItemCount > 0 && settledEssentialCount >= activeItemCount;
@@ -2920,8 +2922,8 @@ export default function Home() {
               <div><span>Finish</span><strong>{hasLoaded && isDayStarted ? formatTime(finishMinutes) : "—"}</strong></div>
               <div><span>Length</span><strong>{hasLoaded ? formatDuration(totalMinutes) : "—"}</strong></div>
             </> : <>
-              <div><span>Completed</span><strong>{hasLoaded ? `${completedItemCount} of ${activeItemCount}` : "—"}</strong></div>
-              <div><span>Remaining</span><strong>{hasLoaded ? Math.max(0, activeItemCount - completedItemCount) : "—"}</strong></div>
+              <div><span>Completed</span><strong>{hasLoaded ? `${selectedCompletedItemCount} of ${selectedItemCount}` : "—"}</strong></div>
+              <div><span>Remaining</span><strong>{hasLoaded ? Math.max(0, selectedItemCount - selectedCompletedItemCount) : "—"}</strong></div>
             </>}
           </div>
         </section>
@@ -3062,7 +3064,7 @@ export default function Home() {
                 celebratingActivityId={celebratingActivityId}
                 completedItems={settledCompletedItems}
                 highlight={dayHighlight}
-                totalActivities={activeItemCount}
+                totalSelectedActivities={selectedItemCount}
                 onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
               /> : null}
               {dayAchievementReady ? <DayVictory isArriving={isDayBloom} /> : null}
@@ -3418,12 +3420,12 @@ export default function Home() {
 
           <aside className="summary-rail" aria-label="Plan summary">
             <section className="summary-card shape-card">
-              <div className="summary-title"><div><p className="eyebrow">{timelineEnabled ? "Day shape" : "Today’s mix"}</p><h2>{hasLoaded ? timelineEnabled ? `${formatDuration(totalMinutes)} total` : `${activeItemCount} activities` : "Loading…"}</h2></div><span>{hasLoaded ? timelineEnabled ? isDayStarted ? `${formatTime(startMinutes)}–${formatTime(finishMinutes)}` : `Ready for ${formatTime(preferredStartMinutes)}` : `${completedItemCount} done` : "—"}</span></div>
+              <div className="summary-title"><div><p className="eyebrow">{timelineEnabled ? "Day shape" : "Today’s mix"}</p><h2>{hasLoaded ? timelineEnabled ? `${formatDuration(totalMinutes)} total` : `${selectedItemCount} activities` : "Loading…"}</h2></div><span>{hasLoaded ? timelineEnabled ? isDayStarted ? `${formatTime(startMinutes)}–${formatTime(finishMinutes)}` : `Ready for ${formatTime(preferredStartMinutes)}` : `${selectedCompletedItemCount} done` : "—"}</span></div>
               <div className="shape-list">
                 {hasLoaded ? categoryTotals.map((entry) => (
                   <div className="shape-row" key={entry.category}>
                     <div><span className="shape-dot" style={{ background: entry.color }} /><strong>{entry.category}</strong><span>{timelineEnabled ? `${entry.minutes} min` : entry.count}</span></div>
-                    <div className="shape-track"><span style={{ background: entry.color, width: timelineEnabled ? totalMinutes ? `${(entry.minutes / totalMinutes) * 100}%` : "0%" : activeItemCount ? `${(entry.count / activeItemCount) * 100}%` : "0%" }} /></div>
+                    <div className="shape-track"><span style={{ background: entry.color, width: timelineEnabled ? totalMinutes ? `${(entry.minutes / totalMinutes) * 100}%` : "0%" : selectedItemCount ? `${(entry.count / selectedItemCount) * 100}%` : "0%" }} /></div>
                   </div>
                 )) : [0, 1, 2, 3, 4].map((row) => <div className="shape-loading-row" aria-hidden="true" key={row} />)}
               </div>

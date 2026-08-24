@@ -6,6 +6,8 @@ Owner: Darren
 
 This document is the shared source of truth for what we are building. Confirmed decisions are labeled as such. Hypotheses and unresolved questions are kept visible so implementation does not silently turn guesses into product behavior.
 
+Focused discovery for the proposed first-run experience lives in `ONBOARDING_FLOW_SPEC.md`. It remains a working design until decisions are confirmed here.
+
 ## 1. Product thesis
 
 Ideal Day is not just a routine calendar. It is a personal operating system organized around activities. Its default home is a flexible daily checklist; clock scheduling is an optional layer rather than the product's organizing premise.
@@ -30,7 +32,7 @@ Today’s activity list is the home screen. Activities are the primary context b
 - Keep unfinished checklist order stable. Completed activities leave the working list for the compact Highlights panel; skipped activities remain in place and reversible.
 - Separate activity origin from daily commitment. `starter`, `user`, `luna`, and `imported` describe where an activity came from; `essential` and `extra` describe how a scheduled occurrence participates in a day. Origin is useful for onboarding, analytics, and recommendations but is not a daily status badge.
 - Make commitment schedule-step scoped and snapshot it onto each dated occurrence. The same activity may be essential in one schedule and optional in another without changing its identity or history.
-- Show Essentials as the normal working list. Only unfinished Essentials determine the day-success denominator; completing an extra is still real completion and appears in Highlights, but ignoring an extra never turns the day into a failure.
+- Show Essentials as the normal working list and use them as the initial denominator for today's progress. Choosing a Go Further activity explicitly adds it to today's working denominator without changing its recurring role; skipping it removes it again. Ignoring an unchosen extra never turns the day into a failure.
 - Put unchosen extras in a bounded `Go Further` pool below Essentials. These are calm opportunities, not a second backlog: show three by default with a deliberate reveal for the rest, omit completion circles, and let the whole row add the option to today.
 - At the top of Go Further, show `Keep it going` when an eligible extra was deliberately added and completed on its immediately previous matching schedule occurrence. Match by schedule step rather than naive calendar distance so daily, interval, weekly, and rotating patterns behave consistently. These are optional continuation cues, never overdue work; prioritize them within the same bounded preview and put the remaining extras under `More to choose from`.
 - Put filed open loops above Keep it going as `Needs attention`. A message such as “I need more oranges” is first saved into an existing owned activity's item list without changing that activity's Essential/Go Further role. If its timing is unspecified, site-wide Luna confirms where it was saved and offers Today, Tomorrow, or Later; Today/Tomorrow activates only that dated occurrence. Matching Go Further activities remain optional until the person chooses a date or activates the row.
@@ -69,7 +71,7 @@ Completion has two affordances:
 Completion changes today’s execution view:
 
 - After its completion feedback settles, an activity moves into the compact Highlights panel above the working list. The panel shows the completed count and every completed activity as an icon grid, and expands into completion history.
-- Highlights expresses essential progress as a fraction such as `2/6`. Luna may replace the supporting line with one high-confidence editorial highlight; until then, always show an immediate factual fallback based on the longest completed block so the panel never contains an unexplained blank.
+- Highlights expresses progress across activities selected for today as a fraction such as `2/6`. Essentials establish the starting total and activated Go Further activities expand it for that date. Luna may replace the supporting line with one high-confidence editorial highlight; until then, always show an immediate factual fallback based on the longest completed block so the panel never contains an unexplained blank.
 - Luna may add one short day highlight only when the stored evidence supports a real streak, milestone, completion cluster, substantial effort, comeback, or personal best. She ranks the supported candidates and names only the single strongest fact—never an overview or list. Ordinary progress gets no canned narrative.
 - By default, later activities keep their existing planned times; completing early does not pull the remaining schedule forward.
 - Marking it incomplete again leaves it above the Now line as unfinished/overdue rather than automatically reinserting it into the future schedule.
