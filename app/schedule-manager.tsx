@@ -8,8 +8,18 @@ import { groupRoutinePatterns, isRotationPattern, type RoutinePatternView } from
 type Activity = { id: string; clientKey: string; title: string; category: string };
 type Variant = { id: string; activityId: string; clientKey: string; name: string; defaultDurationMinutes: number | null };
 type PatternView = RoutinePatternView & { preview: Array<{ date: string; activityId: string; activityVariantId: string | null; durationMinutes: number }> };
+type NestedScheduledStep = {
+  id: string;
+  activityId: string;
+  activityTitle: string;
+  title: string;
+  cadence: string;
+  completedThisCycle: boolean;
+  dueToday: boolean;
+  nextDue: string | null;
+};
 type Props = { open: boolean; initialActivityId?: string | null; onAskLuna: (draft: string) => void; onClose: () => void; onSaved: () => void };
-type LoadState = { revision: number; patterns: PatternView[]; activities: Activity[]; variants: Variant[] };
+type LoadState = { revision: number; patterns: PatternView[]; nestedScheduledSteps: NestedScheduledStep[]; activities: Activity[]; variants: Variant[] };
 type EditorKind = "simple" | "rotation";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -25,6 +35,18 @@ function cadenceLabel(cadence: ScheduleCadence) {
   if (cadence.kind === "interval_days") return cadence.every === 2 ? "Every other day" : `Every ${cadence.every} days`;
   const days = cadence.weekdays.map((day) => WEEKDAYS[day]).join(", ");
   return cadence.intervalWeeks > 1 ? `${days}, every ${cadence.intervalWeeks} weeks` : days;
+}
+
+function relativeDateLabel(dateKey: string | null) {
+  if (!dateKey) return null;
+  const target = new Date(`${dateKey}T12:00:00`);
+  const todayKey = localDate();
+  const today = new Date(`${todayKey}T12:00:00`);
+  const dayOffset = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  if (dayOffset === 0) return "Today";
+  if (dayOffset === 1) return "Tomorrow";
+  if (dayOffset > 1 && dayOffset < 7) return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(target);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(target);
 }
 
 function patternForEditing(pattern: SchedulePattern) {
@@ -82,7 +104,13 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
       fetch("/api/activities", { cache: "no-store" }).then((response) => response.json()),
     ]).then(([schedule, catalog]) => {
       if (cancelled) return;
-      const nextData: LoadState = { revision: schedule.revision, patterns: schedule.patterns, activities: catalog.activities, variants: catalog.variants };
+      const nextData: LoadState = {
+        revision: schedule.revision,
+        patterns: schedule.patterns,
+        nestedScheduledSteps: schedule.nestedScheduledSteps ?? [],
+        activities: catalog.activities,
+        variants: catalog.variants,
+      };
       setData(nextData);
       if (!initialActivityId) return;
       const existing = nextData.patterns.find((pattern) => !pattern.archived && pattern.steps.some((step) => step.activityId === initialActivityId));
@@ -112,6 +140,21 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
     title: activityMap.get(entry.step.activityId)?.title ?? "Activity",
     variant: entry.step.activityVariantId ? variantMap.get(entry.step.activityVariantId)?.name : null,
   })) : [], [activityMap, editing, variantMap]);
+  const nestedScheduleGroups = useMemo(() => {
+    const grouped = new Map<string, { activityId: string; activityTitle: string; parentSchedule: string; steps: NestedScheduledStep[] }>();
+    for (const step of data?.nestedScheduledSteps ?? []) {
+      const parentPatterns = data?.patterns.filter((pattern) => !pattern.archived && pattern.steps.some((candidate) => candidate.activityId === step.activityId)) ?? [];
+      const parentSchedule = parentPatterns.length === 1
+        ? isRotationPattern(parentPatterns[0])
+          ? `${cadenceLabel(parentPatterns[0].cadence)} rotation`
+          : cadenceLabel(parentPatterns[0].cadence)
+        : parentPatterns.length > 1 ? `${parentPatterns.length} routine rules` : "In your routine";
+      const current = grouped.get(step.activityId) ?? { activityId: step.activityId, activityTitle: step.activityTitle, parentSchedule, steps: [] };
+      current.steps.push(step);
+      grouped.set(step.activityId, current);
+    }
+    return [...grouped.values()];
+  }, [data]);
 
   if (!open) return null;
 
@@ -266,6 +309,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
     `${groups.daily.length} daily`,
     groups.customCount ? `${groups.customCount} custom` : null,
     groups.rotationCount ? `${groups.rotationCount} ${groups.rotationCount === 1 ? "rotation" : "rotations"}` : null,
+    data?.nestedScheduledSteps.length ? `${data.nestedScheduledSteps.length} scheduled ${data.nestedScheduledSteps.length === 1 ? "step" : "steps"}` : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -333,8 +377,24 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
 
               <section className="routine-group" aria-labelledby="custom-routines-heading">
                 <div className="routine-group-heading"><div><span>Custom</span><h3 id="custom-routines-heading">Custom days & rotations</h3></div><button type="button" onClick={beginRotation}><Plus aria-hidden="true" size={15} /> New rotation</button></div>
-                {groups.custom.length ? <div className="routine-rule-list">{groups.custom.map((rule) => <RuleRow pattern={rule as PatternView} key={rule.id} />)}</div> : <div className="routine-group-empty"><CalendarDays aria-hidden="true" size={18} /><span><strong>No custom activity days or rotations yet.</strong>Weekly steps within an activity still live inside that activity.</span></div>}
+                {groups.custom.length ? <div className="routine-rule-list">{groups.custom.map((rule) => <RuleRow pattern={rule as PatternView} key={rule.id} />)}</div> : <div className="routine-group-empty"><CalendarDays aria-hidden="true" size={18} /><span><strong>No custom activity days or rotations yet.</strong></span></div>}
               </section>
+
+              {nestedScheduleGroups.length ? <section className="routine-group" aria-labelledby="nested-routines-heading">
+                <div className="routine-group-heading"><div><span>Within activities</span><h3 id="nested-routines-heading">Scheduled steps</h3></div></div>
+                <div className="routine-nested-list">{nestedScheduleGroups.map((group) => <article className="routine-nested-row" key={group.activityId}>
+                  <span className="routine-rule-icon" aria-hidden="true"><CalendarDays size={17} /></span>
+                  <div className="routine-nested-copy">
+                    <strong>{group.activityTitle}</strong>
+                    <span>{group.parentSchedule}</span>
+                    <div>{group.steps.map((step) => {
+                      const next = relativeDateLabel(step.nextDue);
+                      const status = step.dueToday ? "Due today" : next ? `Next ${next}` : step.completedThisCycle ? "Done this cycle" : null;
+                      return <p key={step.id}><b>{step.title}</b><small>{[step.cadence, status].filter(Boolean).join(" · ")}</small></p>;
+                    })}</div>
+                  </div>
+                </article>)}</div>
+              </section> : null}
 
               <section className="routine-group is-collapsible" aria-labelledby="daily-routines-heading">
                 <button aria-expanded={dailyOpen} className="routine-group-toggle" type="button" onClick={() => setDailyOpen((current) => !current)}><span><small>Every day</small><strong id="daily-routines-heading">Daily activities</strong></span><span>{groups.daily.length}<ChevronDown aria-hidden="true" size={17} /></span></button>

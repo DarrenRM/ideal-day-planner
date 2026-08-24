@@ -464,6 +464,9 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(store, /SET activated_at = COALESCE\(activated_at, CURRENT_TIMESTAMP\)/);
   assert.match(store, /previous\.completed_at IS NOT NULL/);
   assert.match(scheduleRoute, /includeArchived: true/);
+  assert.match(scheduleRoute, /record\.record_type = 'recurring_step'/);
+  assert.match(scheduleRoute, /recurringStepRepresentsParentActivity/);
+  assert.match(scheduleRoute, /nestedScheduledSteps/);
   assert.match(scheduleRoute, /mode === "restore"/);
   assert.match(occurrenceRoute, /applyOccurrenceAction/);
   assert.match(occurrenceActions, /parseOccurrenceAction/);
@@ -475,7 +478,11 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(manager, /Adjust with Luna/);
   assert.match(manager, /Custom days & rotations/);
   assert.match(manager, /No custom activity days or rotations yet/);
-  assert.match(manager, /Weekly steps within an activity still live inside that activity/);
+  assert.match(manager, /Within activities/);
+  assert.match(manager, /Scheduled steps/);
+  assert.match(manager, /nestedScheduledSteps/);
+  assert.match(manager, /scheduled \$\{data\.nestedScheduledSteps\.length === 1 \? "step" : "steps"\}/);
+  assert.doesNotMatch(manager, /Weekly steps within an activity still live inside that activity/);
   assert.match(manager, /Daily activities/);
   assert.match(manager, /routine-rule-menu[\s\S]*routine-rule-disclosure/);
   assert.match(css, /\.routine-rule-menu \{[^}]*display: flex;[^}]*align-items: center;[^}]*flex: 0 0 40px;[^}]*justify-content: center/s);

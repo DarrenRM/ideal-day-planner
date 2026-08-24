@@ -1,4 +1,7 @@
 import { getD1 } from "../../../db";
+import { parseActivityRecord } from "../../activity-record-model";
+import { recurringStepRepresentsParentActivity } from "../../activity-cadence-guard";
+import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "../../recurring-step-schedule";
 import { isLocalDate, parseSchedulePattern, previewPattern } from "../../schedule-model";
 import { apiFailure, requestIdentity, safeId } from "../agent-store";
 import { readSchedulePatterns } from "../schedule-store";
@@ -10,6 +13,69 @@ async function routineFor(userId: string) {
   `).bind(userId).first<{ id: string; revision: number }>();
 }
 
+type RecurringStepRow = {
+  id: string;
+  activityId: string;
+  activityTitle: string;
+  activityClientKey: string;
+  recordKey: string;
+  subjectKey: string | null;
+  recordType: string;
+  title: string;
+  scope: string;
+  scopeDate: string | null;
+  version: number;
+  payloadJson: string;
+  updatedAt: string;
+};
+
+async function readNestedScheduledSteps(userId: string, routineId: string, fromDate: string) {
+  const rows = await getD1().prepare(`
+    SELECT record.id, record.activity_id AS activityId, activity.title AS activityTitle,
+           activity.client_key AS activityClientKey, record.record_key AS recordKey,
+           record.subject_key AS subjectKey, record.record_type AS recordType, record.title,
+           record.scope, record.scope_date AS scopeDate, record.version,
+           record.payload_json AS payloadJson, record.updated_at AS updatedAt
+    FROM activity_records record
+    JOIN activities activity ON activity.id = record.activity_id
+    WHERE record.user_id = ? AND activity.user_id = ? AND record.record_type = 'recurring_step'
+      AND record.archived_at IS NULL
+      AND record.scope IN ('activity', 'variant')
+      AND EXISTS (
+        SELECT 1
+        FROM schedule_pattern_steps step
+        JOIN schedule_patterns pattern ON pattern.id = step.pattern_id
+        WHERE step.activity_id = record.activity_id
+          AND pattern.user_id = ? AND pattern.routine_id = ? AND pattern.archived_at IS NULL
+      )
+    ORDER BY activity.title COLLATE NOCASE, record.created_at, record.id
+    LIMIT 200
+  `).bind(userId, userId, userId, routineId).all<RecurringStepRow>();
+
+  return rows.results.flatMap((row) => {
+    const record = parseActivityRecord(row);
+    if (!record || record.type !== "recurring_step") return [];
+    if (recurringStepRepresentsParentActivity(record, { title: row.activityTitle, clientKey: row.activityClientKey })) return [];
+    const data = record.data as {
+      anchorDate?: string;
+      cadence?: RecurringCadence;
+      completedDates?: string[];
+    };
+    const cadence = recurringCadenceLabel(data.cadence);
+    const status = recurringStepScheduleStatus(data, fromDate);
+    return [{
+      id: record.id,
+      activityId: row.activityId,
+      activityTitle: row.activityTitle,
+      title: compactRecurringTitle(record.title, cadence),
+      cadence,
+      completedThisCycle: status.completedThisCycle,
+      dueToday: status.dueToday,
+      nextDue: status.nextDue,
+    }];
+  });
+}
+
 export async function GET(request: Request) {
   const userId = requestIdentity(request);
   if (!userId) return Response.json({ error: "Sign in to manage your schedule." }, { status: 401 });
@@ -18,9 +84,13 @@ export async function GET(request: Request) {
     if (!routine) return Response.json({ error: "Your routine is not ready yet." }, { status: 409 });
     const fromDate = new URL(request.url).searchParams.get("from") ?? "";
     const previewFrom = isLocalDate(fromDate) ? fromDate : new Date().toISOString().slice(0, 10);
-    const patterns = await readSchedulePatterns(userId, routine.id, { includeArchived: true });
+    const [patterns, nestedScheduledSteps] = await Promise.all([
+      readSchedulePatterns(userId, routine.id, { includeArchived: true }),
+      readNestedScheduledSteps(userId, routine.id, previewFrom),
+    ]);
     return Response.json({
       revision: routine.revision,
+      nestedScheduledSteps,
       patterns: patterns.map(({ pattern, state, archivedAt }) => ({
         ...pattern,
         state,
