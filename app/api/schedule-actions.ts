@@ -120,9 +120,13 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
     `).bind(action.activityVariantId, variantName, occurrence.id).run();
   } else if (action.type === "set_status" && occurrence) {
     const values = statusValues(action.status);
+    const activated = action.status === "completed"
+      ? "CASE WHEN plan_role = 'extra' THEN COALESCE(activated_at, CURRENT_TIMESTAMP) ELSE activated_at END"
+      : "activated_at";
     await db.prepare(`
       UPDATE daily_plan_items
       SET completed_at = ${values.completed}, skipped_at = ${values.skipped}, removed_at = ${values.removed},
+          activated_at = ${activated},
           revision = revision + 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(occurrence.id).run();

@@ -321,20 +321,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .is-checklist-mode .daily-list-heading { margin-left: 0; }
 .daily-list-heading span, .go-further header > div > span { color: var(--accent-bright); font: 680 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .12em; text-transform: uppercase; }
 .daily-list-heading small { color: #68726d; font: 540 var(--type-label)/var(--leading-label) var(--type-sans); }
-.keep-going { display: grid; gap: 8px; margin: 14px 0 12px 74px; }
-.is-checklist-mode .keep-going { margin-left: 0; }
-.keep-going > header { padding: 0 2px; }
-.keep-going h3 { color: var(--accent-bright); font: 720 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .12em; margin: 0; text-transform: uppercase; }
-.keep-going-list { display: grid; gap: 7px; }
-.keep-going-option { align-items: center; background: radial-gradient(circle at 88% 10%, rgba(232, 190, 103, .065), transparent 32%), radial-gradient(circle at 8% 50%, color-mix(in srgb, var(--item-color) 8%, transparent), transparent 34%), var(--surface-raised); border: 1px solid #272d31; border-radius: 10px; color: inherit; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 22px minmax(0, 1fr) auto; min-height: 64px; padding: 9px 12px; text-align: left; transition: background .18s, border-color .18s, box-shadow .18s, transform .18s; width: 100%; }
-.keep-going-option:hover { background: radial-gradient(circle at 88% 10%, rgba(232, 190, 103, .09), transparent 34%), radial-gradient(circle at 8% 50%, color-mix(in srgb, var(--item-color) 11%, transparent), transparent 36%), #181d21; border-color: #343b40; box-shadow: 0 10px 30px rgba(0, 0, 0, .16); transform: translateY(-1px); }
-.keep-going-option:disabled { cursor: wait; opacity: .7; }
-.keep-going-activity-icon { align-items: center; color: var(--item-color); display: inline-flex; justify-content: center; }
-.keep-going-copy { display: grid; gap: 3px; min-width: 0; }
-.keep-going-copy strong { color: var(--text); font: 620 var(--type-body-lg)/var(--leading-body-lg) var(--type-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.keep-going-copy small { color: var(--muted); font: 500 var(--type-body-sm)/var(--leading-body-sm) var(--type-sans); }
-.keep-going-trailing { align-items: center; display: flex; gap: 9px; }
-.keep-going-add { align-items: center; border: 1px solid color-mix(in srgb, var(--item-color) 32%, #30383b); border-radius: 8px; color: var(--item-color); display: inline-flex; height: 34px; justify-content: center; width: 34px; }
+.keep-going-heading { color: var(--accent-bright); font: 720 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .12em; margin: 14px 2px 4px 76px; text-transform: uppercase; }
+.is-checklist-mode .keep-going-heading { margin-left: 2px; }
 .go-further { background: linear-gradient(145deg, rgba(19, 24, 27, .92), rgba(14, 18, 20, .98)); border: 1px solid #293135; border-radius: 13px; margin: 14px 0 2px 74px; overflow: hidden; padding: 14px; }
 .is-checklist-mode .go-further { margin-left: 0; }
 .go-further > header { align-items: end; display: flex; gap: 14px; justify-content: space-between; margin-bottom: 10px; }
@@ -492,7 +480,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .is-dragging .routine-card { opacity: .32; transform: scale(.99); }
 .item-copy[draggable="true"] { cursor: grab; }
 .item-copy[draggable="true"]:active { cursor: grabbing; }
-.duration-control button:focus-visible, .add-block-button:focus-visible, .cancel-add-button:focus-visible, .confirm-add-button:focus-visible, .edit-item-button:focus-visible, .delete-item-button:focus-visible, .closed-status-button:focus-visible, .inline-edit-actions button:focus-visible, .planner-menu-trigger:focus-visible, .planner-menu-item:focus-visible, .mobile-activity-menu-trigger:focus-visible, .mobile-activity-menu-panel button:focus-visible, .item-copy:focus-visible, .collapse-activity-button:focus-visible, .activity-footer-menu-trigger:focus-visible, .activity-footer-menu-panel button:focus-visible, .activity-follow-up-menu summary:focus-visible, .activity-follow-up-menu-panel button:focus-visible, .skip-activity-button:focus-visible, .complete-activity-button:focus-visible, .conversation-drawer-toggle:focus-visible, .conversation-composer button:focus-visible, .workspace-ready-notice:focus-visible, .workspace-luna-invitation:focus-visible, .dev-clock-trigger:focus-visible, .dev-clock-popover button:focus-visible, .settings-trigger:focus-visible, .settings-modal button:focus-visible, .settings-toggle-row:focus-within, .start-day-button:focus-visible, .keep-going-option:focus-visible, .go-further-option:focus-visible, .go-further-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.duration-control button:focus-visible, .add-block-button:focus-visible, .cancel-add-button:focus-visible, .confirm-add-button:focus-visible, .edit-item-button:focus-visible, .delete-item-button:focus-visible, .closed-status-button:focus-visible, .inline-edit-actions button:focus-visible, .planner-menu-trigger:focus-visible, .planner-menu-item:focus-visible, .mobile-activity-menu-trigger:focus-visible, .mobile-activity-menu-panel button:focus-visible, .item-copy:focus-visible, .collapse-activity-button:focus-visible, .activity-footer-menu-trigger:focus-visible, .activity-footer-menu-panel button:focus-visible, .activity-follow-up-menu summary:focus-visible, .activity-follow-up-menu-panel button:focus-visible, .skip-activity-button:focus-visible, .complete-activity-button:focus-visible, .conversation-drawer-toggle:focus-visible, .conversation-composer button:focus-visible, .workspace-ready-notice:focus-visible, .workspace-luna-invitation:focus-visible, .dev-clock-trigger:focus-visible, .dev-clock-popover button:focus-visible, .settings-trigger:focus-visible, .settings-modal button:focus-visible, .settings-toggle-row:focus-within, .start-day-button:focus-visible, .go-further-option:focus-visible, .go-further-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mobile-time-label { display: none; }
 .item-copy { align-items: center; background: transparent; border: 0; cursor: pointer; display: flex; gap: 9px; min-width: 0; padding: 0; text-align: left; }
 .item-title { align-items: center; display: flex; flex-wrap: nowrap; gap: 8px; min-width: 0; }
@@ -1271,7 +1259,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .start-day-button { width: 100%; }
   .schedule { padding: 8px 0 16px; }
   .daily-list-heading { margin: 8px 2px 2px; min-height: 22px; }
-  .keep-going { margin: 12px 0 10px; }
+  .keep-going-heading { margin: 12px 2px 2px; }
   .go-further { margin: 10px 0 4px; padding: 12px; }
   .go-further > header { align-items: start; display: grid; gap: 4px; }
   .go-further > header > small { text-align: left; }

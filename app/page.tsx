@@ -14,7 +14,7 @@ import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 import { ScheduleManager } from "./schedule-manager";
 import { GlobalLuna } from "./global-luna";
 import { OccurrenceEditor } from "./occurrence-editor";
-import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionAvailableExtras, partitionDayItems, type PlanRole } from "./day-role";
+import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionDayItems, type PlanRole } from "./day-role";
 import { fallbackDayHighlight } from "./day-highlight";
 import type { CaptureAttention } from "./capture-model";
 
@@ -426,16 +426,6 @@ function formatTodayHeading(date = new Date()) {
   const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
   const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
   return `${weekday}, ${month} ${formatDayOrdinal(date.getDate())}`;
-}
-
-function formatPreviousOccurrence(dateKey: string | null | undefined) {
-  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return "Completed last time";
-  const [year, month, day] = dateKey.split("-").map(Number);
-  const [todayYear, todayMonth, todayDay] = localDateKey().split("-").map(Number);
-  const elapsedDays = Math.round((Date.UTC(todayYear, todayMonth - 1, todayDay) - Date.UTC(year, month - 1, day)) / 86_400_000);
-  if (elapsedDays === 1) return "Last done yesterday";
-  const label = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, day)));
-  return `Last done ${label}`;
 }
 
 function conversationTime(value: string) {
@@ -1433,10 +1423,8 @@ export default function Home() {
   const [celebratingActivityId, setCelebratingActivityId] = useState<string | null>(null);
   const [skippingActivityId, setSkippingActivityId] = useState<string | null>(null);
   const [showAllExtras, setShowAllExtras] = useState(false);
-  const [showAllKeepGoing, setShowAllKeepGoing] = useState(false);
   const [promotingExtraId, setPromotingExtraId] = useState<string | null>(null);
   const [extraPromotionError, setExtraPromotionError] = useState<string | null>(null);
-  const [extraPromotionErrorSection, setExtraPromotionErrorSection] = useState<"keep" | "more" | null>(null);
   const [settlingCompletedIds, setSettlingCompletedIds] = useState<Set<string>>(() => new Set());
   const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1713,7 +1701,8 @@ export default function Home() {
     }));
   }, [dayStartedAt, items]);
 
-  const { active: activeDayItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
+  const { active: activeDayItems, keepGoing: keepGoingItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
+  const keepGoingItemIds = useMemo(() => new Set(keepGoingItems.map((item) => item.id)), [keepGoingItems]);
   const attentionByActivity = useMemo(() => captureAttention.reduce<Map<string, CaptureAttention[]>>((map, capture) => {
     const entries = map.get(capture.activityId) ?? [];
     entries.push(capture);
@@ -1722,13 +1711,11 @@ export default function Home() {
   }, new Map()), [captureAttention]);
   const attentionExtras = useMemo(() => availableExtras.filter((item) => item.activityId && attentionByActivity.has(item.activityId)), [attentionByActivity, availableExtras]);
   const ordinaryExtras = useMemo(() => availableExtras.filter((item) => !item.activityId || !attentionByActivity.has(item.activityId)), [attentionByActivity, availableExtras]);
-  const { keepGoing: keepGoingExtras, moreOptions: otherExtras } = useMemo(() => partitionAvailableExtras(ordinaryExtras), [ordinaryExtras]);
   const dayProgress = useMemo(() => dayProgressCounts(items), [items]);
-  const goFurtherExtras = useMemo(() => [...attentionExtras, ...otherExtras], [attentionExtras, otherExtras]);
+  const goFurtherExtras = useMemo(() => [...attentionExtras, ...ordinaryExtras], [attentionExtras, ordinaryExtras]);
   const visibleGoFurtherExtras = showAllExtras ? goFurtherExtras : goFurtherExtras.slice(0, GO_FURTHER_PREVIEW_LIMIT);
   const visibleGoFurtherIds = useMemo(() => new Set(visibleGoFurtherExtras.map((item) => item.id)), [visibleGoFurtherExtras]);
-  const visibleKeepGoingExtras = showAllKeepGoing ? keepGoingExtras : keepGoingExtras.slice(0, GO_FURTHER_PREVIEW_LIMIT);
-  const visibleOtherExtras = otherExtras.filter((item) => visibleGoFurtherIds.has(item.id));
+  const visibleOtherExtras = ordinaryExtras.filter((item) => visibleGoFurtherIds.has(item.id));
   const visibleAttentionExtras = attentionExtras.filter((item) => visibleGoFurtherIds.has(item.id));
 
   const scheduledItems = useMemo(() => {
@@ -1773,6 +1760,7 @@ export default function Home() {
     }
     return visibleItems;
   }, [completedIds, isDayStarted, passedItemIds, scheduledItems, selectedActivityId, settlingCompletedIds, timelineEnabled]);
+  const firstVisibleKeepGoingId = displayedScheduledItems.find((item) => keepGoingItemIds.has(item.id))?.id ?? null;
   const settledCompletedItems = useMemo(() => scheduledItems
     .filter((item) => completedIds.has(item.id) && !settlingCompletedIds.has(item.id))
     .sort((left, right) => (storedTimestampMillis(left.completedAt) ?? 0) - (storedTimestampMillis(right.completedAt) ?? 0)),
@@ -1859,6 +1847,7 @@ export default function Home() {
   const unfinishedChosenExtras = activeDayItems.filter((item) => normalizePlanRole(item.planRole) === "extra"
     && !item.skippedAt
     && (!completedIds.has(item.id) || settlingCompletedIds.has(item.id)));
+  const unfinishedOtherChosenExtras = unfinishedChosenExtras.filter((item) => !keepGoingItemIds.has(item.id));
   const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras.length === 0;
   const isDayBloom = dayAchievementReady && Boolean(celebratingActivityId);
 
@@ -2003,11 +1992,8 @@ export default function Home() {
     );
     extraPromotionOrigins.current.set(item.id, origin);
     const activatedAt = new Date().toISOString();
-    const wasKeepGoing = keepGoingExtras.some((candidate) => candidate.id === item.id);
     setExtraPromotionError(null);
-    setExtraPromotionErrorSection(null);
     setShowAllExtras(false);
-    setShowAllKeepGoing(false);
     setPromotingExtraId(item.id);
     setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt } : candidate));
     setSaveState("saving");
@@ -2023,10 +2009,8 @@ export default function Home() {
     } catch {
       extraPromotionOrigins.current.delete(item.id);
       setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt: null } : candidate));
-      if (wasKeepGoing) setShowAllKeepGoing(true);
-      else setShowAllExtras(true);
+      setShowAllExtras(true);
       setExtraPromotionError(`${item.title} wasn’t added. Try it again.`);
-      setExtraPromotionErrorSection(wasKeepGoing ? "keep" : "more");
       setSaveState("saved");
     } finally {
       setPromotingExtraId(null);
@@ -3075,9 +3059,9 @@ export default function Home() {
                 onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
               /> : null}
               {dayAchievementReady ? <DayVictory isArriving={isDayBloom} /> : null}
-              {activeDayItems.length && !dayAchievementReady ? <div className="daily-list-heading">
+              {!dayAchievementReady && (!settledEssentialsComplete || unfinishedOtherChosenExtras.length) ? <div className="daily-list-heading">
                 <span>{settledEssentialsComplete ? "Going further" : "Essentials"}</span>
-                <small>{settledEssentialsComplete ? unfinishedChosenExtras.length : Math.max(0, activeItemCount - completedItemCount)} left</small>
+                <small>{settledEssentialsComplete ? unfinishedOtherChosenExtras.length : Math.max(0, activeItemCount - completedItemCount)} left</small>
               </div> : null}
               {displayedScheduledItems.map((item, displayIndex) => {
                 const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);
@@ -3106,6 +3090,7 @@ export default function Home() {
 
                 return (
                   <Fragment key={item.id}>
+                    {firstVisibleKeepGoingId === item.id ? <h3 className="keep-going-heading">Keep it going</h3> : null}
                     {dayMode.showClockState && nowLineIndex === displayIndex ? (
                       <div className="now-line" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
                         <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
@@ -3328,40 +3313,13 @@ export default function Home() {
                 );
               })}
 
-              {keepGoingExtras.length ? (
-                <section className="keep-going" aria-labelledby="keep-going-title">
-                  <header><h3 id="keep-going-title">Keep it going</h3></header>
-                  {extraPromotionError && extraPromotionErrorSection === "keep" ? <p className="go-further-error" role="alert">{extraPromotionError}</p> : null}
-                  <div className="keep-going-list">
-                    {visibleKeepGoingExtras.map((item) => {
-                      const ExtraIcon = activityIconFor(item);
-                      return <button
-                        aria-label={`Add ${activityDisplayTitle(item)} to today`}
-                        className="keep-going-option"
-                        data-extra-id={item.id}
-                        disabled={promotingExtraId === item.id}
-                        key={item.id}
-                        style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
-                        type="button"
-                        onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
-                      >
-                        <span className="keep-going-activity-icon" aria-hidden="true"><ExtraIcon size={18} strokeWidth={1.9} /></span>
-                        <span className="keep-going-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatPreviousOccurrence(item.previousEligibleDate)} · {formatDuration(item.duration)}</small></span>
-                        <span className="keep-going-trailing" aria-hidden="true"><span className="category-chip">{item.category}</span><span className="keep-going-add">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span></span>
-                      </button>;
-                    })}
-                  </div>
-                  {keepGoingExtras.length > GO_FURTHER_PREVIEW_LIMIT ? <button className="go-further-toggle" type="button" onClick={() => setShowAllKeepGoing((current) => !current)}>{showAllKeepGoing ? "Show less" : `See all ${keepGoingExtras.length}`}</button> : null}
-                </section>
-              ) : null}
-
               {goFurtherExtras.length ? (
                 <section className={`go-further ${settledEssentialsComplete ? "is-after-essentials" : ""} ${isDayBloom ? "is-day-bloom-handoff" : ""}`} aria-labelledby="go-further-title">
                   <header>
                     <div><span>More for today</span><h3 id="go-further-title">Go Further</h3></div>
                     <small>{settledEssentialsComplete ? "Essentials complete. Anything else is a bonus." : "Choose one when you have more in you."}</small>
                   </header>
-                  {extraPromotionError && extraPromotionErrorSection === "more" ? <p className="go-further-error" role="alert">{extraPromotionError}</p> : null}
+                  {extraPromotionError ? <p className="go-further-error" role="alert">{extraPromotionError}</p> : null}
                   {visibleAttentionExtras.length ? <div className="go-further-group is-attention">
                     <div className="go-further-group-heading">
                       <div><span>Needs attention</span><small>You asked Luna to keep these close.</small></div>

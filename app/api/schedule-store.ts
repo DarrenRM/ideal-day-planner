@@ -283,6 +283,31 @@ export async function resolveDay(userId: string, date: string, routineId: string
     });
     if (statements.length) await db.batch(statements);
   }
+
+  await db.prepare(`
+    UPDATE daily_plan_items
+    SET activated_at = COALESCE(activated_at, CURRENT_TIMESTAMP),
+        revision = revision + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE daily_plan_id = ?
+      AND plan_role = 'extra'
+      AND activated_at IS NULL
+      AND 1 = (
+        SELECT CASE
+          WHEN previous.plan_role = 'extra'
+            AND previous.activated_at IS NOT NULL
+            AND previous.completed_at IS NOT NULL
+          THEN 1 ELSE 0
+        END
+        FROM daily_plan_items previous
+        WHERE previous.schedule_pattern_id = daily_plan_items.schedule_pattern_id
+          AND previous.schedule_pattern_step_id = daily_plan_items.schedule_pattern_step_id
+          AND previous.source_date < daily_plan_items.source_date
+          AND previous.removed_at IS NULL
+        ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
+        LIMIT 1
+      )
+  `).bind(planId).run();
 }
 
 export async function readResolvedDay(userId: string, planId: string) {

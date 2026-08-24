@@ -27,17 +27,20 @@ export type DayRoleItem = {
 
 export function isActiveDayItem(item: DayRoleItem) {
   return normalizePlanRole(item.planRole) === "essential"
-    || Boolean(item.activatedAt || item.completedAt || item.skippedAt);
+    || Boolean(item.activatedAt || item.completedAt || item.skippedAt)
+    || isKeepGoingCandidate(item);
 }
 
 export function partitionDayItems<T extends DayRoleItem>(items: T[]) {
   const active: T[] = [];
+  const keepGoing: T[] = [];
   const availableExtras: T[] = [];
   for (const item of items) {
-    if (isActiveDayItem(item)) active.push(item);
+    if (normalizePlanRole(item.planRole) === "extra" && isKeepGoingCandidate(item)) keepGoing.push(item);
+    else if (isActiveDayItem(item)) active.push(item);
     else availableExtras.push(item);
   }
-  return { active, availableExtras };
+  return { active: [...active, ...keepGoing], keepGoing, availableExtras };
 }
 
 export function dayProgressCounts(items: DayRoleItem[]) {
@@ -55,14 +58,4 @@ export function isKeepGoingCandidate(item: DayRoleItem) {
   return normalizePlanRole(item.planRole) === "extra"
     && item.previousPlanRole === "extra"
     && Boolean(item.previousEligibleDate && item.previousActivatedAt && item.previousCompletedAt);
-}
-
-export function partitionAvailableExtras<T extends DayRoleItem>(items: T[]) {
-  const keepGoing: T[] = [];
-  const moreOptions: T[] = [];
-  for (const item of items) {
-    if (isKeepGoingCandidate(item)) keepGoing.push(item);
-    else moreOptions.push(item);
-  }
-  return { keepGoing, moreOptions };
 }
