@@ -99,7 +99,7 @@ type ConversationState = {
   failedJob?: { id: string; kind: string; message: string } | null;
 };
 type ActivityScheduleProposal = { id: string; status: string; createdAt: string; document: { summary: string; effectiveDate: string; impact: { todayChanges: number; futurePatternChanges: number } } };
-type LunaSummary = { unreadCount: number; pendingDecisionCount: number; captureRevision: string | null };
+type LunaSummary = { unreadCount: number; pendingDecisionCount: number; captureRevision: string | null; agentOnline: boolean };
 
 const START_MINUTES = 8 * 60;
 const DEFAULT_DEV_MINUTES = 7 * 60 + 30;
@@ -1045,7 +1045,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   }
 
   return (
-    <div className={`activity-expansion ${isSoftwareKeyboardOpen ? "is-software-keyboard-open" : ""}`}>
+    <div className={`activity-expansion ${isOpeningActivity ? "is-opening-activity" : ""} ${isSoftwareKeyboardOpen ? "is-software-keyboard-open" : ""}`}>
       <div className={`activity-workbench-grid ${isOpeningActivity ? "is-opening" : ""}`}>
         {isOpeningActivity ? (
           <div className="activity-opening-state" role="status" aria-live="polite">
@@ -1442,7 +1442,7 @@ export default function Home() {
   const [daySettings, setDaySettings] = useState<DaySettings>(DEFAULT_DAY_SETTINGS);
   const [dayHighlight, setDayHighlight] = useState<DayHighlight>(EMPTY_DAY_HIGHLIGHT);
   const [captureAttention, setCaptureAttention] = useState<CaptureAttention[]>([]);
-  const [lunaSummary, setLunaSummary] = useState<LunaSummary>({ unreadCount: 0, pendingDecisionCount: 0, captureRevision: null });
+  const [lunaSummary, setLunaSummary] = useState<LunaSummary>({ unreadCount: 0, pendingDecisionCount: 0, captureRevision: null, agentOnline: false });
   const [settingsSaveState, setSettingsSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [resetTodayState, setResetTodayState] = useState<"idle" | "confirming" | "resetting" | "error">("idle");
   const [mobileResetActivity, setMobileResetActivity] = useState<{ id: string; state: "confirming" | "resetting" | "error" } | null>(null);
@@ -3438,6 +3438,23 @@ export default function Home() {
           </aside>
         </div>
       </div>
+      {hasLoaded && !isGlobalLunaOpen && !expandedActivityId ? (
+        <button
+          aria-expanded="false"
+          aria-haspopup="dialog"
+          aria-label={lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? "Open notes and conversation, update available" : "Open notes and conversation"}
+          className="global-luna-dock"
+          type="button"
+          onClick={() => { setIsDevMenuOpen(false); setIsSettingsOpen(false); setIsGlobalLunaOpen(true); }}
+        >
+          <strong>Notes &amp; conversation</strong>
+          <span className="global-luna-dock-state">
+            <span className={`global-luna-dock-status ${lunaSummary.agentOnline ? "is-online" : ""}`}><i aria-hidden="true" /> {lunaSummary.agentOnline ? "Connected" : "Will catch up"}</span>
+            {lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? <span className="global-luna-dock-badge" aria-label={`${lunaSummary.unreadCount + lunaSummary.pendingDecisionCount} update${lunaSummary.unreadCount + lunaSummary.pendingDecisionCount === 1 ? "" : "s"}`}>{Math.min(9, lunaSummary.unreadCount + lunaSummary.pendingDecisionCount)}{lunaSummary.unreadCount + lunaSummary.pendingDecisionCount > 9 ? "+" : ""}</span> : null}
+            <ChevronUp aria-hidden="true" size={17} />
+          </span>
+        </button>
+      ) : null}
     </main>
   );
 }

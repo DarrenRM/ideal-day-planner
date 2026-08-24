@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, Inbox, Send, Sparkles, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Inbox, Send, Sparkles, X } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { PendingCapture } from "./capture-model";
 
@@ -180,8 +180,8 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRea
     <div className="global-luna-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section aria-label="Talk with Luna" aria-modal="true" className="global-luna-sheet" role="dialog">
         <header className="global-luna-header">
-          <div className="global-luna-heading"><span><Sparkles aria-hidden="true" size={18} /></span><div><strong>Luna</strong><small><i className={state.agentOnline ? "is-online" : ""} />{state.agentOnline ? "Connected" : "Will catch up"}</small></div></div>
-          <button aria-label="Close Luna" type="button" onClick={onClose}><X aria-hidden="true" size={20} /></button>
+          <div className="global-luna-heading"><span><Sparkles aria-hidden="true" size={18} /></span><div><strong><span className="global-luna-title-desktop">Luna</span><span className="global-luna-title-mobile">Notes &amp; conversation</span></strong><small><i className={state.agentOnline ? "is-online" : ""} />{state.agentOnline ? "Connected" : "Will catch up"}</small></div></div>
+          <button aria-label="Close notes and conversation" type="button" onClick={onClose}><X className="global-luna-close-desktop" aria-hidden="true" size={20} /><ChevronDown className="global-luna-close-mobile" aria-hidden="true" size={18} /></button>
         </header>
         <div className="global-luna-scroll" ref={scrollRef}>
           {!state.messages.length ? (

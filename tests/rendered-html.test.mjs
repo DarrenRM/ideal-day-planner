@@ -261,7 +261,15 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /transform: translate\(var\(--activity-origin-left\), var\(--activity-origin-top\)\)/);
   assert.match(css, /\.routine-card\.is-expanded\.is-mobile-opening \.activity-expansion/);
   assert.match(css, /is-drawer-collapsed/);
-  assert.match(css, /translateY\(calc\(100% - 58px\)\)/);
+  assert.match(css, /--conversation-dock-height: calc\(58px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(css, /translateY\(calc\(100% - var\(--conversation-dock-height\)\)\)/);
+  assert.match(css, /grid-template-rows: minmax\(0, 1fr\) auto var\(--conversation-dock-height\)/);
+  assert.match(css, /\.activity-footer \{[^}]*grid-row: 2;[^}]*z-index: 4;/s);
+  assert.match(css, /\.activity-conversation \{[^}]*z-index: 10;/s);
+  assert.match(page, /className="global-luna-dock"/);
+  assert.match(page, /hasLoaded && !isGlobalLunaOpen && !expandedActivityId/);
+  assert.match(css, /\.luna-shell-trigger \{ display: none; \}/);
+  assert.match(css, /\.global-luna-dock \{[^}]*bottom: 0;[^}]*position: fixed;/s);
   assert.match(css, /\.activity-conversation\.has-workspace-peek \{ top: 96px; \}/);
   assert.match(css, /\.activity-conversation\.has-workspace-work-peek \{ top: 112px; \}/);
   assert.match(css, /\.activity-workspace\.workspace-building \{ justify-content: flex-start; padding-top: 12px; \}/);

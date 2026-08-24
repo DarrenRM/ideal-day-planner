@@ -157,6 +157,22 @@ test("keeps mobile composer focus from changing footer layout and follows drawer
   assert.doesNotMatch(page, /setArtifacts\(\(current\) => current\.filter/);
 });
 
+test("layers the mobile conversation drawer over actions and shares its handle with site-wide Luna", async () => {
+  const [page, globalLuna, css] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/global-luna.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(css, /\.activity-expansion \{[^}]*grid-template-rows: minmax\(0, 1fr\) auto var\(--conversation-dock-height\)/s);
+  assert.match(css, /\.activity-footer \{[^}]*grid-row: 2;[^}]*z-index: 4;/s);
+  assert.match(css, /\.activity-conversation \{[^}]*z-index: 10;/s);
+  assert.match(css, /\.activity-expansion\.is-opening-activity \{ grid-template-rows: minmax\(0, 1fr\) auto; \}/);
+  assert.match(page, /className="global-luna-dock"/);
+  assert.match(page, /Notes &amp; conversation/);
+  assert.match(globalLuna, /global-luna-title-mobile/);
+  assert.match(globalLuna, /Notes &amp; conversation/);
+});
+
 test("lets the mobile activity row receive bottom-half taps around the duration controls", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*pointer-events: none;/s);
