@@ -120,7 +120,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activeJob\.status !== "retryable_failure"/);
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
   assert.match(page, /hasWorkspaceJob/);
-  assert.match(page, /workspace-ready-notice/);
+  assert.match(page, /conversation-work-receipt/);
+  assert.match(page, /mode: "view_artifact"/);
+  assert.doesNotMatch(page, /workspaceReadyLabel/);
   assert.match(page, /useMobileConversationDrawer/);
   assert.match(page, /conversation-unread-badge/);
   assert.match(page, /isOpeningActivity = connectionState === "joining" \|\| !conversationDrawer\.isPreferenceReady/);
@@ -533,7 +535,7 @@ test("applies explicit one-activity cadence changes without fake typing or hidde
   assert.match(bridge, /DirectScheduleAction/);
   assert.match(bridge, /Updating \$\{activityTitle\}'s schedule/);
   assert.match(surface, /kind === "workspace_refresh" \|\| kind === "variant_setup" \|\| kind === "global_message"/);
-  assert.match(page, /state\.scheduleSummary\.cadenceLabel/);
+  assert.match(page, /scheduleSummary=\{scheduleSummary\}/);
 });
 
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
@@ -560,6 +562,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
 
   assert.match(schema, /export const conversations/);
   assert.match(schema, /export const conversationMessages/);
+  assert.match(schema, /export const conversationArtifacts/);
   assert.match(schema, /export const activityVisits/);
   assert.match(schema, /contextJson/);
   assert.match(schema, /export const agentJobs/);
@@ -581,6 +584,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.doesNotMatch(activityRoute, /'activity_opened'/);
   assert.doesNotMatch(activityRoute, /queueActivitySetup/);
   assert.match(activityRoute, /safeActivityContext/);
+  assert.match(activityRoute, /mode === "view_artifact"/);
   assert.match(resetActivityRoute, /requestIdentity/);
   assert.match(resetActivityRoute, /findActivity\(userId, activityKey\)/);
   assert.match(resetActivityRoute, /DELETE FROM activity_records WHERE user_id = \? AND activity_id = \?/);
@@ -620,6 +624,9 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /Could not release an incomplete agent lease/);
   assert.match(jobRoute, /activityContext/);
   assert.match(jobRoute, /INSERT OR IGNORE INTO conversation_messages/);
+  assert.match(jobRoute, /INSERT OR IGNORE INTO conversation_artifacts/);
+  assert.match(jobRoute, /activityWorkReceipt/);
+  assert.match(jobRoute, /scheduleWorkReceipt/);
   assert.match(jobRoute, /validateWorkspaceActions/);
   assert.match(jobRoute, /validateRecordActions/);
   assert.match(jobRoute, /persistRecordActions/);

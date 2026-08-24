@@ -55,7 +55,17 @@ type MobileActivityTransition = {
   right: number;
   height: number;
 };
-type ConversationMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string; pending?: boolean };
+type ConversationMessage = { id: string; author: "user" | "luna"; body: string; agentJobId?: string | null; createdAt: string; pending?: boolean };
+type ConversationArtifact = {
+  id: string;
+  kind: "activity_update" | "schedule_update" | "subject_move" | "check_in";
+  title: string;
+  detail: string;
+  meta: { secondary?: string; target?: "workspace" };
+  viewedAt: string | null;
+  sourceAgentJobId: string;
+  createdAt: string;
+};
 type ConversationJob = {
   status: "queued" | "leased" | "running" | "retryable_failure";
   kind: AgentJobKind;
@@ -71,6 +81,7 @@ type DayHighlight = {
 };
 type ConversationState = {
   messages: ConversationMessage[];
+  artifacts?: ConversationArtifact[];
   activeJob: ConversationJob | null;
   agentOnline: boolean;
   workspace: { revisionId: string | null; revisionNumber: number; document: WorkspaceDocument };
@@ -437,15 +448,6 @@ function conversationTime(value: string) {
   return isToday ? `Today · ${time}` : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
-function conversationWorkspaceSignature(state: Pick<ConversationState, "workspace" | "records" | "followUps" | "scheduleSummary">) {
-  const recordVersions = state.records.map((record) => `${record.key}:${record.version}`).sort().join("|");
-  const followUps = (state.followUps ?? []).map((followUp) => `${followUp.id}:${followUp.status}:${followUp.dueDate}`).join("|");
-  const schedule = state.scheduleSummary
-    ? `${state.scheduleSummary.patternId}:${state.scheduleSummary.cadenceLabel}:${state.scheduleSummary.upcoming.map((entry) => entry.date).join(",")}`
-    : "daily";
-  return `${state.workspace.revisionId ?? "none"}::${recordVersions}::${followUps}::${schedule}`;
-}
-
 type ActivityWorkbenchProps = {
   completionActionRef: MutableRefObject<(() => void) | null>;
   item: ScheduledItem;
@@ -467,12 +469,12 @@ type ActivityWorkbenchProps = {
 
 function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule, onSetRole }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [artifacts, setArtifacts] = useState<ConversationArtifact[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceDocument>(EMPTY_WORKSPACE);
   const [records, setRecords] = useState<ActivityRecord[]>([]);
   const [recordError, setRecordError] = useState<string | null>(null);
-  const [workspaceReadyLabel, setWorkspaceReadyLabel] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<"joining" | "ready" | "error">("joining");
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -498,8 +500,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const conversationProgrammaticScrollRef = useRef(false);
   const conversationScrollTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const conversationAnchorTopRef = useRef<number | null>(null);
-  const hasAppliedConversationStateRef = useRef(false);
-  const workspaceSignatureRef = useRef<string | null>(null);
+  const durableSurfaceSignatureRef = useRef("");
   const footerMenuRef = useRef<HTMLDivElement>(null);
   const { hasConversationJob, hasWorkspaceJob } = agentSurfaceState(activeJob?.kind);
   const activeJobHasWorker = Boolean(activeJob
@@ -525,8 +526,17 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
           ? "Working"
           : "Connected";
   const workspaceActivity = useMemo(() => ({ ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns }), [isComplete, isPreviewingCompletion, item, recentRuns, timelineEnabled]);
-  const workspaceActivityRef = useRef(workspaceActivity);
-  useEffect(() => { workspaceActivityRef.current = workspaceActivity; }, [workspaceActivity]);
+  const ReceiptIcon = activityIconFor(item);
+  const hasUnreadWorkReceipt = artifacts.some((artifact) => !artifact.viewedAt);
+  const conversationFeed = useMemo(() => [
+    ...messages.map((message) => ({ type: "message" as const, createdAt: message.createdAt, sourceAgentJobId: message.agentJobId ?? "", value: message })),
+    ...artifacts.map((artifact) => ({ type: "artifact" as const, createdAt: artifact.createdAt, sourceAgentJobId: artifact.sourceAgentJobId, value: artifact })),
+  ].sort((left, right) => {
+    const timestampDifference = (storedTimestampMillis(left.createdAt) ?? 0) - (storedTimestampMillis(right.createdAt) ?? 0);
+    if (timestampDifference) return timestampDifference;
+    if (left.sourceAgentJobId && left.sourceAgentJobId === right.sourceAgentJobId && left.type !== right.type) return left.type === "message" ? -1 : 1;
+    return left.value.id.localeCompare(right.value.id);
+  }), [artifacts, messages]);
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records) || followUps.length > 0 || Boolean(scheduleSummary);
   const hasActiveWorkspaceSurface = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
   const showEmptyWorkspace = !hasActiveWorkspaceSurface;
@@ -600,21 +610,18 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
 
     function applyConversationState(state: ConversationState) {
       if (cancelled) return;
-      const nextWorkspaceSignature = conversationWorkspaceSignature(state);
-      if (hasAppliedConversationStateRef.current && nextWorkspaceSignature !== workspaceSignatureRef.current) {
+      const nextSurfaceSignature = `${state.workspace.revisionId || "none"}:${state.records.map((record) => `${record.key}:${record.version}`).join("|")}:${(state.followUps ?? []).map((followUp) => `${followUp.id}:${followUp.status}:${followUp.dueDate}`).join("|")}:${state.scheduleSummary?.cadenceLabel || "daily"}`;
+      if (durableSurfaceSignatureRef.current && durableSurfaceSignatureRef.current !== nextSurfaceSignature) {
         const conversationSection = conversationSectionRef.current;
         const bounds = conversationSection?.getBoundingClientRect();
         if (bounds && bounds.bottom > 0 && bounds.top < window.innerHeight) conversationAnchorTopRef.current = bounds.top;
-        const nextHasWorkspace = hasVisibleActivityWorkspace(workspaceActivityRef.current, state.workspace.document, state.records ?? [])
-          || Boolean(state.followUps?.length) || Boolean(state.scheduleSummary);
-        setWorkspaceReadyLabel(nextHasWorkspace && !state.failedJob ? `${item.title} updated` : null);
       }
-      workspaceSignatureRef.current = nextWorkspaceSignature;
-      hasAppliedConversationStateRef.current = true;
+      durableSurfaceSignatureRef.current = nextSurfaceSignature;
       setMessages((current) => current.length === state.messages.length && current.every((message, index) => {
         const next = state.messages[index];
         return message.id === next.id && message.body === next.body && message.createdAt === next.createdAt;
       }) ? current : state.messages);
+      setArtifacts(state.artifacts ?? []);
       setActiveJob((current) => current?.status === state.activeJob?.status
         && current?.kind === state.activeJob?.kind
         && current?.progressTitle === state.activeJob?.progressTitle
@@ -708,7 +715,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
     ));
     return () => window.cancelAnimationFrame(frame);
-  }, [messages, isLunaThinking, workspaceReadyLabel, scrollConversationToBottom]);
+  }, [messages, artifacts, isLunaThinking, scrollConversationToBottom]);
 
   useEffect(() => {
     if (!isConversationDrawerOpen) return;
@@ -801,6 +808,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       if (!response.ok) throw new Error("Message could not be saved.");
       const state = await response.json() as ConversationState;
       setMessages(state.messages);
+      setArtifacts(state.artifacts ?? []);
       setActiveJob(state.activeJob);
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
@@ -810,9 +818,6 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setFollowUps(state.followUps ?? []);
       setScheduleSummary(state.scheduleSummary ?? null);
       setFailedJob(state.failedJob ?? null);
-      workspaceSignatureRef.current = conversationWorkspaceSignature(state);
-      hasAppliedConversationStateRef.current = true;
-      setWorkspaceReadyLabel(null);
       setConnectionState("ready");
     } catch {
       setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id));
@@ -826,23 +831,31 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     }
   }
 
-  function viewWorkspaceUpdate() {
+  function viewWorkspaceUpdate(artifact: ConversationArtifact) {
     if (isViewingWorkspace) return;
     setIsViewingWorkspace(true);
+    setArtifacts((current) => current.map((entry) => entry.id === artifact.id ? { ...entry, viewedAt: entry.viewedAt || new Date().toISOString() } : entry));
+    void fetch("/api/activity", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "view_artifact", activityId: item.activityId ?? item.id, artifactId: artifact.id }),
+    });
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const revealWorkspace = () => {
+      const target = document.getElementById(`activity-workspace-${item.id}`);
+      target?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      target?.classList.remove("is-receipt-target");
+      if (target) void target.offsetWidth;
+      target?.classList.add("is-receipt-target");
+      window.setTimeout(() => target?.classList.remove("is-receipt-target"), reducedMotion ? 180 : 900);
+      setIsViewingWorkspace(false);
+    };
     if (window.matchMedia("(max-width: 680px)").matches) {
       conversationDrawer.setOpen(false);
-      window.setTimeout(() => {
-        setWorkspaceReadyLabel(null);
-        setIsViewingWorkspace(false);
-      }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 20 : 280);
+      window.setTimeout(revealWorkspace, reducedMotion ? 20 : 280);
       return;
     }
-    setWorkspaceReadyLabel(null);
-    setIsViewingWorkspace(false);
-    document.getElementById(`activity-workspace-${item.id}`)?.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      block: "start",
-    });
+    revealWorkspace();
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -1005,6 +1018,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       onComplete(null);
       onSkip(null);
       setMessages(state.messages ?? []);
+      setArtifacts(state.artifacts ?? []);
       setActiveJob(state.activeJob ?? null);
       setAgentOnline(Boolean(state.agentOnline));
       setWorkspace(state.workspace?.document ?? EMPTY_WORKSPACE);
@@ -1014,9 +1028,6 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setFollowUps(state.followUps ?? []);
       setScheduleSummary(state.scheduleSummary ?? null);
       setFailedJob(state.failedJob ?? null);
-      workspaceSignatureRef.current = conversationWorkspaceSignature(state);
-      hasAppliedConversationStateRef.current = true;
-      setWorkspaceReadyLabel(null);
       setRecordError(null);
       setDraft("");
       setConnectionState("ready");
@@ -1054,27 +1065,45 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               <strong>Notes & conversation</strong>
               <span className="conversation-drawer-state">
                 <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {conversationStatusLabel}</span>
-                {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">New</span> : null}
+                {conversationDrawer.hasUnreadLuna || hasUnreadWorkReceipt ? <span className="conversation-unread-badge" aria-label="New from Luna">New</span> : null}
                 <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
               </span>
             </button>
           </header>
           <div className="conversation-log" aria-live="polite" ref={conversationLogRef} onScroll={handleConversationScroll}>
-            {messages.length ? <div className="date-separator"><span>Recent</span></div> : null}
-            {messages.map((message) => (
-              <Fragment key={message.id}>
-                {message.id === conversationDrawer.unreadBoundaryLunaMessageId ? (
-                  <div className="unread-message-separator" role="status"><span>New from Luna</span></div>
-                ) : null}
-                <div
-                  className={`message-group message-${message.author} ${message.id === conversationDrawer.unreadBoundaryLunaMessageId ? "is-unread-boundary" : ""}`}
-                  ref={message.id === conversationDrawer.unreadLunaMessageId ? latestUnreadLunaMessageRef : undefined}
-                >
-                  <div className="message-bubble">{message.body}</div>
-                  <div className="message-meta">{conversationTime(message.createdAt)}{message.author === "user" ? message.pending ? <span>Sending…</span> : <span aria-label="Saved message">✓</span> : null}</div>
-                </div>
-              </Fragment>
-            ))}
+            {conversationFeed.length ? <div className="date-separator"><span>Recent</span></div> : null}
+            {conversationFeed.map((feedItem) => {
+              if (feedItem.type === "message") {
+                const message = feedItem.value;
+                return (
+                  <Fragment key={message.id}>
+                    {message.id === conversationDrawer.unreadBoundaryLunaMessageId ? (
+                      <div className="unread-message-separator" role="status"><span>New from Luna</span></div>
+                    ) : null}
+                    <div
+                      className={`message-group message-${message.author} ${message.id === conversationDrawer.unreadBoundaryLunaMessageId ? "is-unread-boundary" : ""}`}
+                      ref={message.id === conversationDrawer.unreadLunaMessageId ? latestUnreadLunaMessageRef : undefined}
+                    >
+                      <div className="message-bubble">{message.body}</div>
+                      <div className="message-meta">{conversationTime(message.createdAt)}{message.author === "user" ? message.pending ? <span>Sending…</span> : <span aria-label="Saved message">✓</span> : null}</div>
+                    </div>
+                  </Fragment>
+                );
+              }
+              const artifact = feedItem.value;
+              return (
+                <article className={`conversation-work-receipt ${artifact.viewedAt ? "is-viewed" : "is-new"}`} key={artifact.id}>
+                  <span className="conversation-work-receipt-icon" aria-hidden="true"><ReceiptIcon size={17} strokeWidth={2} /><Check className="conversation-work-receipt-check" size={10} strokeWidth={2.5} /></span>
+                  <span className="conversation-work-receipt-copy">
+                    <strong>{artifact.title}</strong>
+                    <span>{artifact.detail}</span>
+                    {artifact.meta.secondary ? <small>{artifact.meta.secondary}</small> : null}
+                    <time>{conversationTime(artifact.createdAt)}</time>
+                  </span>
+                  <button aria-label={`View ${artifact.title}`} disabled={isViewingWorkspace} type="button" onClick={() => viewWorkspaceUpdate(artifact)}>View</button>
+                </article>
+              );
+            })}
             {scheduleProposals.map((proposal) => (
               <article className="activity-schedule-proposal" key={proposal.id}>
                 <span><CalendarDays aria-hidden="true" size={14} /> Schedule proposal</span>
@@ -1083,13 +1112,6 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                 <div><button type="button" onClick={() => void updateScheduleProposal(proposal.id, "dismiss")}>Dismiss</button><button type="button" onClick={() => setDraft(`Please revise proposal ${proposal.id}: `)}>Revise</button><button disabled={proposalBusy === proposal.id} type="button" onClick={() => void updateScheduleProposal(proposal.id, "confirm")}>Confirm</button></div>
               </article>
             ))}
-            {workspaceReadyLabel ? (
-              <button className="workspace-ready-notice" disabled={isViewingWorkspace} type="button" onClick={viewWorkspaceUpdate}>
-                <Sparkles aria-hidden="true" size={14} />
-                <span><strong>{workspaceReadyLabel}</strong></span>
-                <b>View</b>
-              </button>
-            ) : null}
             {failedJob ? (
               <div className="workspace-failed-notice" role="alert">
                 <span><strong>{failedJob.message}</strong><small>Your last message is safe.</small></span>

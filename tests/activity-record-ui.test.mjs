@@ -153,7 +153,8 @@ test("keeps mobile composer focus from changing footer layout and follows drawer
   assert.match(css, /\.activity-expansion\.is-software-keyboard-open \.activity-footer \{ display: none; \}/);
   assert.match(page, /\[isConversationDrawerOpen, scrollConversationToBottom\]/);
   assert.match(page, /window\.visualViewport\?\.addEventListener\("resize"/);
-  assert.match(page, /setWorkspaceReadyLabel\(null\)[\s\S]*setIsViewingWorkspace\(false\)/);
+  assert.match(page, /mode: "view_artifact"[\s\S]*setIsViewingWorkspace\(false\)/);
+  assert.doesNotMatch(page, /setArtifacts\(\(current\) => current\.filter/);
 });
 
 test("lets the mobile activity row receive bottom-half taps around the duration controls", async () => {

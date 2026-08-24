@@ -141,6 +141,13 @@
       "when": 1787514425112,
       "tag": "0019_equal_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1787597605428,
+      "tag": "0020_oval_elektra",
+      "breakpoints": true
     }
   ]
 }

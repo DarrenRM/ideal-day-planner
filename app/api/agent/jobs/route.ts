@@ -23,15 +23,40 @@ import { removeParentCadenceRecordActions } from "../../../activity-cadence-guar
 import { validateActivityMoveActions } from "../../../activity-transfer-model";
 import { hasUsefulActivityRecordData, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
 import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
-import { localDateInTimeZone, parseDirectScheduleAction, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
+import { localDateInTimeZone, parseCadence, parseDirectScheduleAction, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
 import { applyDirectScheduleAction, applyOccurrenceAction } from "../../schedule-actions";
 import { readSchedulePatterns } from "../../schedule-store";
 import { messageHasScheduleIntent } from "../../../schedule-intent";
 import { messageRequestsResearch } from "../../../research-intent";
 import { normalizeCaptureLabel, validateCaptureActions } from "../../../capture-model";
 import { applyCaptureAction } from "../../capture-service";
+import { validateFollowUpActions } from "../../../follow-up-model";
+import { activityWorkReceipt, scheduleWorkReceipt, type WorkReceiptDraft } from "../../../work-receipt-model";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
+
+function workReceiptStatement(db: ReturnType<typeof getD1>, input: {
+  job: LeasedJob;
+  receipt: WorkReceiptDraft;
+}) {
+  return db.prepare(`
+    INSERT OR IGNORE INTO conversation_artifacts
+      (id, user_id, conversation_id, activity_id, source_message_id, source_agent_job_id,
+       kind, title, detail, meta_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    `conversation-artifact:${safeId(input.job.id)}`,
+    input.job.userId,
+    input.job.conversationId,
+    input.job.activityId,
+    input.job.sourceMessageId,
+    input.job.id,
+    input.receipt.kind,
+    input.receipt.title,
+    input.receipt.detail,
+    JSON.stringify({ secondary: input.receipt.secondary || "", target: input.receipt.target }),
+  );
+}
 
 type LeasedJob = {
   id: string;
@@ -580,7 +605,17 @@ export async function POST(request: Request) {
         if (!response && !followUpBody && !proposal && !directScheduleActions.length && !occurrenceActions.length && !captureActions.length) {
           return Response.json({ error: "Global Luna must respond, clarify, capture an open item, propose, or make one permitted day change." }, { status: 400 });
         }
+        let scheduleReceipt: WorkReceiptDraft | null = null;
         for (const action of directScheduleActions) {
+          const [activity, pattern] = await Promise.all([
+            db.prepare("SELECT title FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
+              .bind(action.activityId, job.userId).first<{ title: string }>(),
+            db.prepare("SELECT cadence_json AS cadenceJson FROM schedule_patterns WHERE id = ? AND user_id = ? LIMIT 1")
+              .bind(action.patternId, job.userId).first<{ cadenceJson: string }>(),
+          ]);
+          const previousCadence = (() => {
+            try { return pattern ? parseCadence(JSON.parse(pattern.cadenceJson)) : null; } catch { return null; }
+          })();
           await applyDirectScheduleAction(job.userId, action, {
             source: "luna",
             actor: "Luna",
@@ -588,6 +623,11 @@ export async function POST(request: Request) {
             sourceMessageId: job.sourceMessageId,
             sourceAgentJobId: job.id,
             idempotencyKey: `direct-schedule:${job.id}`,
+          });
+          scheduleReceipt = scheduleWorkReceipt({
+            activityTitle: activity?.title || "Activity",
+            previousCadence,
+            cadence: action.cadence,
           });
         }
         for (const action of occurrenceActions) {
@@ -630,6 +670,7 @@ export async function POST(request: Request) {
             (id, conversation_id, role, body, source, agent_job_id)
           VALUES (?, ?, 'luna', ?, 'agent', ?)
         `).bind(messageId, job.conversationId, finalResponse, jobId));
+        if (scheduleReceipt) statements.push(workReceiptStatement(db, { job, receipt: scheduleReceipt }));
         statements.push(
           db.prepare(`
             INSERT INTO agent_session_bindings (id, conversation_id, runtime, runtime_session_id)
@@ -693,7 +734,12 @@ export async function POST(request: Request) {
       ))) {
         return Response.json({ error: "A saved item cannot be edited and moved in the same update." }, { status: 400 });
       }
+      const receiptExistingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);
+      const moveDetails: Array<{ subjectTitle: string; targetTitle: string }> = [];
       for (const [index, action] of activityMoves.entries()) {
+        const root = receiptExistingRecords.find((record) => record.key === action.subjectKey || record.subjectKey === action.subjectKey);
+        const target = await db.prepare("SELECT title FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
+          .bind(action.targetActivityId, job.userId).first<{ title: string }>();
         await moveActivitySubject({
           userId: job.userId,
           sourceActivityId: job.activityId,
@@ -701,6 +747,7 @@ export async function POST(request: Request) {
           actionId: `${jobId}:activity-move:${index}`,
           subjectKey: action.subjectKey,
         });
+        moveDetails.push({ subjectTitle: root?.title || "Saved item", targetTitle: target?.title || "another activity" });
       }
       const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);
       const availableRecords = new Map<string, ActivityRecordContent>(existingRecords.map((record) => [record.key, record]));
@@ -748,14 +795,16 @@ export async function POST(request: Request) {
         availableRecords.clear();
         for (const refreshedRecord of refreshedRecords) availableRecords.set(refreshedRecord.key, refreshedRecord);
       }
+      const followUpLocalDate = schedule?.planDate ?? localDateInTimeZone(new Date(), "America/Phoenix");
+      const followUpActions = validateFollowUpActions(usesReplyFirstProtocol ? [] : payload.followUpActions, followUpLocalDate);
       const followUpResult = await persistFollowUpActions({
         userId: job.userId,
         activityId: job.activityId,
         conversationId: job.conversationId,
         actionId: jobId,
         sourceMessageId: job.sourceMessageId,
-        localDate: schedule?.planDate ?? localDateInTimeZone(new Date(), "America/Phoenix"),
-        actions: usesReplyFirstProtocol ? [] : payload.followUpActions,
+        localDate: followUpLocalDate,
+        actions: followUpActions,
       });
       await reconcileBoundedSessionChoices({ userId: job.userId, activityId: job.activityId, actionId: `${jobId}:bounded-choice` });
       const workspace = await persistWorkspaceActions({
@@ -784,6 +833,17 @@ export async function POST(request: Request) {
           VALUES (?, ?, 'luna', ?, 'agent', ?)
         `).bind(messageId, job.conversationId, response, jobId));
       }
+      const workReceipt = activityWorkReceipt({
+        activityTitle: schedule?.activityTitle || "Activity",
+        jobKind: job.kind,
+        existingRecords: receiptExistingRecords,
+        recordActions,
+        workspaceActions: safeWorkspaceActions,
+        activityMoves,
+        moveDetails,
+        followUpActions,
+      });
+      if (workReceipt) statements.push(workReceiptStatement(db, { job, receipt: workReceipt }));
       if (workspaceFollowup) {
         const followupJobId = `agent-job:${safeId(job.userId)}:workspace:${safeId(job.id)}`;
         statements.push(db.prepare(`

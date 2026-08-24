@@ -172,6 +172,9 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - The conversation follows the latest message only when the user is already near the bottom or has just sent a message.
 - Interface guidance, loading indicators, and empty-state copy must not masquerade as messages from Luna.
 - Human-facing copy describes the person's activity and outcome, never internal component, record, job, or rendering machinery.
+- Durable work appears chronologically in the conversation as a verified work receipt, not as a transient success toast. A receipt uses the activity icon and color, names the result, and includes at most two concise factual detail lines derived from committed typed actions. It is never generated merely because the workspace signature changed.
+- Work receipts cover applied activity updates, direct schedule changes, subject moves, and scheduled check-ins. Proposed, failed, no-op, and acknowledgement-only work produces no success receipt.
+- Receipts remain in history after `View` is pressed. Viewing may quiet the receipt, collapse the mobile conversation drawer, scroll to the workspace result, and briefly trace the target surface; it never deletes the audit artifact. Reduced motion uses a static highlight.
 
 ## Change checklist
 

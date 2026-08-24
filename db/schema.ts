@@ -203,6 +203,25 @@ export const conversationMessages = sqliteTable("conversation_messages", {
   index("conversation_messages_conversation_created_idx").on(table.conversationId, table.createdAt),
 ]);
 
+export const conversationArtifacts = sqliteTable("conversation_artifacts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  conversationId: text("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  activityId: text("activity_id").references(() => activities.id, { onDelete: "set null" }),
+  sourceMessageId: text("source_message_id").references(() => conversationMessages.id, { onDelete: "set null" }),
+  sourceAgentJobId: text("source_agent_job_id").notNull(),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  detail: text("detail").notNull().default(""),
+  metaJson: text("meta_json").notNull().default("{}"),
+  viewedAt: text("viewed_at"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("conversation_artifacts_conversation_job_unique").on(table.conversationId, table.sourceAgentJobId),
+  index("conversation_artifacts_conversation_created_idx").on(table.conversationId, table.createdAt),
+]);
+
 export const capturedIntents = sqliteTable("captured_intents", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

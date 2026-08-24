@@ -122,6 +122,8 @@ The interaction is closer to a quiet chat room than a formal prompt box:
 - An expanded activity shows only its permanent activity conversation.
 - When a global message causes activity-specific work, the relevant output or linked reference must also appear in that activity’s conversation. Example: toothpaste mentioned globally produces a visible Resupply entry so the information can be found from either context.
 - Cross-posted activity output retains a link to its originating global message without duplicating the entire global conversation.
+- A successful durable activity change writes one permanent work receipt into the chronological conversation. The receipt is app-derived from the actions that actually committed—not inferred from a changed render signature and not authored as an unsupported model claim. It uses the activity identity and summarizes the concrete result, such as a cadence change, added routine, moved product bundle, or scheduled check-in.
+- A receipt remains visible after `View`. Viewing marks it as seen and navigates to the resulting activity workspace; it does not remove the artifact. Acknowledgement-only, proposed, failed, and no-op jobs do not create success receipts.
 
 Opening an activity is a deterministic UI event, not a standing invitation for the model to decide whether to speak:
 
@@ -410,6 +412,7 @@ Move durable product state from `localStorage` to the project’s D1 database be
 - `items`
 - `conversations`
 - `messages`
+- `conversation_artifacts`
 - `agent_questions`
 - `agent_runs`
 - `agent_actions`

@@ -4,6 +4,7 @@ import {
   ensureAgentSchema,
   ensureConversation,
   findActivity,
+  markConversationArtifactViewed,
   queueDueFollowUps,
   readConversationState,
   retryFailedConversationJob,
@@ -102,6 +103,14 @@ export async function POST(request: Request) {
     const db = getD1();
     const requestDate = validDate(payload.date);
     const occurrence = await occurrenceContext(userId, payload.occurrenceId, requestDate, activity.id);
+
+    if (mode === "view_artifact") {
+      const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 240) : "";
+      if (!artifactId || !await markConversationArtifactViewed({ userId, conversationId, activityId: activity.id, artifactId })) {
+        return Response.json({ error: "That update could not be found." }, { status: 404 });
+      }
+      return Response.json({ viewed: true });
+    }
 
     if (mode === "open") {
       const clientVisitId = typeof payload.visitId === "string" ? payload.visitId.trim().slice(0, 160) : "";

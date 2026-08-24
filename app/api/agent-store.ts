@@ -66,6 +66,27 @@ export async function ensureAgentSchema() {
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       )`),
       db.prepare("CREATE INDEX IF NOT EXISTS conversation_messages_conversation_created_idx ON conversation_messages (conversation_id, created_at)"),
+      db.prepare(`CREATE TABLE IF NOT EXISTS conversation_artifacts (
+        id text PRIMARY KEY NOT NULL,
+        user_id text NOT NULL,
+        conversation_id text NOT NULL,
+        activity_id text,
+        source_message_id text,
+        source_agent_job_id text NOT NULL,
+        kind text NOT NULL,
+        title text NOT NULL,
+        detail text DEFAULT '' NOT NULL,
+        meta_json text DEFAULT '{}' NOT NULL,
+        viewed_at text,
+        created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE SET NULL,
+        FOREIGN KEY (source_message_id) REFERENCES conversation_messages(id) ON DELETE SET NULL
+      )`),
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS conversation_artifacts_conversation_job_unique ON conversation_artifacts (conversation_id, source_agent_job_id)"),
+      db.prepare("CREATE INDEX IF NOT EXISTS conversation_artifacts_conversation_created_idx ON conversation_artifacts (conversation_id, created_at)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS captured_intents (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
@@ -523,13 +544,51 @@ export async function readGlobalConversationState(conversationId: string, userId
 
 export async function readConversationMessages(conversationId: string) {
   const result = await getD1().prepare(`
-    SELECT id, role AS author, body, created_at AS createdAt
+    SELECT id, role AS author, body, agent_job_id AS agentJobId, created_at AS createdAt
     FROM conversation_messages
     WHERE conversation_id = ?
     ORDER BY created_at ASC, id ASC
     LIMIT 200
-  `).bind(conversationId).all<{ id: string; author: "user" | "luna"; body: string; createdAt: string }>();
+  `).bind(conversationId).all<{ id: string; author: "user" | "luna"; body: string; agentJobId: string | null; createdAt: string }>();
   return result.results;
+}
+
+export async function readConversationArtifacts(conversationId: string) {
+  const result = await getD1().prepare(`
+    SELECT id, kind, title, detail, meta_json AS metaJson, viewed_at AS viewedAt,
+           source_agent_job_id AS sourceAgentJobId, created_at AS createdAt
+    FROM conversation_artifacts
+    WHERE conversation_id = ?
+    ORDER BY created_at ASC, id ASC
+    LIMIT 200
+  `).bind(conversationId).all<{
+    id: string; kind: string; title: string; detail: string; metaJson: string;
+    viewedAt: string | null; sourceAgentJobId: string; createdAt: string;
+  }>();
+  return result.results.map((artifact) => {
+    let meta: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(artifact.metaJson) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) meta = parsed as Record<string, unknown>;
+    } catch {
+      meta = {};
+    }
+    return { ...artifact, meta };
+  });
+}
+
+export async function markConversationArtifactViewed(input: {
+  userId: string;
+  conversationId: string;
+  activityId: string;
+  artifactId: string;
+}) {
+  const result = await getD1().prepare(`
+    UPDATE conversation_artifacts
+    SET viewed_at = COALESCE(viewed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND user_id = ? AND conversation_id = ? AND activity_id = ?
+  `).bind(input.artifactId, input.userId, input.conversationId, input.activityId).run();
+  return Number(result.meta.changes || 0) > 0;
 }
 
 type WorkspaceRecord = {
@@ -2286,7 +2345,9 @@ export async function readConversationState(conversationId: string, planDate?: s
     ORDER BY created_at DESC LIMIT 10
   `).bind(conversationId).all<{ id: string; status: string; documentJson: string; createdAt: string }>();
   return {
-    messages: await readConversationMessages(conversationId), activeJob: activeJob ?? null,
+    messages: await readConversationMessages(conversationId),
+    artifacts: await readConversationArtifacts(conversationId),
+    activeJob: activeJob ?? null,
     failedJob: latestDurableJob?.status === "failed" ? {
       id: latestDurableJob.id,
       kind: latestDurableJob.kind,
