@@ -3330,15 +3330,14 @@ export default function Home() {
 
               {keepGoingExtras.length ? (
                 <section className="keep-going" aria-labelledby="keep-going-title">
-                  <header>
-                    <div><h3 id="keep-going-title">Keep it going</h3><small>Build on what worked last time.</small></div>
-                  </header>
+                  <header><h3 id="keep-going-title">Keep it going</h3></header>
                   {extraPromotionError && extraPromotionErrorSection === "keep" ? <p className="go-further-error" role="alert">{extraPromotionError}</p> : null}
                   <div className="keep-going-list">
                     {visibleKeepGoingExtras.map((item) => {
                       const ExtraIcon = activityIconFor(item);
                       return <button
-                        className="go-further-option keep-going-option"
+                        aria-label={`Add ${activityDisplayTitle(item)} to today`}
+                        className="keep-going-option"
                         data-extra-id={item.id}
                         disabled={promotingExtraId === item.id}
                         key={item.id}
@@ -3346,9 +3345,9 @@ export default function Home() {
                         type="button"
                         onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
                       >
-                        <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
-                        <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatPreviousOccurrence(item.previousEligibleDate)} · {formatDuration(item.duration)}</small></span>
-                        <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
+                        <span className="keep-going-activity-icon" aria-hidden="true"><ExtraIcon size={18} strokeWidth={1.9} /></span>
+                        <span className="keep-going-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatPreviousOccurrence(item.previousEligibleDate)} · {formatDuration(item.duration)}</small></span>
+                        <span className="keep-going-trailing" aria-hidden="true"><span className="category-chip">{item.category}</span><span className="keep-going-add">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span></span>
                       </button>;
                     })}
                   </div>
