@@ -525,14 +525,16 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const workspaceActivityRef = useRef(workspaceActivity);
   useEffect(() => { workspaceActivityRef.current = workspaceActivity; }, [workspaceActivity]);
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records) || followUps.length > 0 || Boolean(scheduleSummary);
-  const showWorkspace = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
+  const hasActiveWorkspaceSurface = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
+  const showEmptyWorkspace = !hasActiveWorkspaceSurface;
   const conversationDrawer = useMobileConversationDrawer({
     activityId: item.activityId ?? item.id,
-    canCollapse: showWorkspace,
+    canCollapse: true,
     contentReady: connectionState !== "joining",
     hasConversationJob,
     messages,
     openOnMount: openConversationOnMount,
+    preferConversation: showEmptyWorkspace,
   });
   const {
     isOpen: isConversationDrawerOpen,
@@ -1024,7 +1026,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
 
   return (
     <div className={`activity-expansion ${isSoftwareKeyboardOpen ? "is-software-keyboard-open" : ""}`}>
-      <div className={`activity-workbench-grid ${isOpeningActivity ? "is-opening" : showWorkspace ? "" : "is-conversation-only"}`}>
+      <div className={`activity-workbench-grid ${isOpeningActivity ? "is-opening" : ""}`}>
         {isOpeningActivity ? (
           <div className="activity-opening-state" role="status" aria-live="polite">
             <span className="activity-opening-mark" aria-hidden="true"><Sparkles size={17} strokeWidth={1.8} /></span>
@@ -1033,13 +1035,12 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
             <span className="activity-opening-progress" aria-hidden="true" />
           </div>
         ) : <>
-          <ActivityWorkspace activity={workspaceActivity} followUps={followUps} onFollowUpMutation={mutateFollowUp} onManageSchedule={onManageSchedule} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} scheduleSummary={scheduleSummary} workspace={workspace} workDetail={workspaceWorkDetail} workState={workspaceWorkState} workTitle={workspaceWorkTitle} />
+          <ActivityWorkspace activity={workspaceActivity} followUps={followUps} onFollowUpMutation={mutateFollowUp} onManageSchedule={onManageSchedule} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} scheduleSummary={scheduleSummary} showEmptyState={showEmptyWorkspace} workspace={workspace} workDetail={workspaceWorkDetail} workState={workspaceWorkState} workTitle={workspaceWorkTitle} />
 
-          <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${workspaceWorkState ? "has-workspace-work-peek" : showWorkspace ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
+          <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${workspaceWorkState ? "has-workspace-work-peek" : hasActiveWorkspaceSurface ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
             <button
               aria-expanded={conversationDrawer.isOpen}
-              disabled={!showWorkspace}
               className="conversation-drawer-toggle"
               type="button"
               onClick={conversationDrawer.toggle}
@@ -1051,7 +1052,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               <span className="conversation-drawer-state">
                 <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {conversationStatusLabel}</span>
                 {conversationDrawer.hasUnreadLuna ? <span className="conversation-unread-badge" aria-label="New message from Luna">New</span> : null}
-                {showWorkspace ? <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} /> : null}
+                <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
               </span>
             </button>
           </header>

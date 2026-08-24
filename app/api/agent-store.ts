@@ -5,7 +5,7 @@ import { resolveSubjectMoveRecordKeys } from "../activity-transfer-model";
 import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type WorkspaceAction, type WorkspaceDocument } from "../workspace-model";
 import { validateFollowUpActions, type ActivityFollowUp, type FollowUpAction } from "../follow-up-model";
 import { addLocalDays, localDateInTimeZone, parseCadence } from "../schedule-model";
-import { recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
+import { parentScheduleCadenceFromRecurringStep, recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 import { measuredSessionFields, type SessionChoiceData } from "../session-log-model";
 import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
@@ -884,6 +884,82 @@ export async function archiveParentCadenceRecords(userId: string) {
     WHERE user_id = ? AND id IN (${invalidIds.map(() => "?").join(", ")})
   `).bind(userId, ...invalidIds).run();
   return invalidIds.length;
+}
+
+const PARENT_CADENCE_SCHEDULE_BACKFILL = "parent-cadence-schedules-v1";
+
+export async function backfillParentCadenceSchedules(userId: string, routineId: string) {
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, PARENT_CADENCE_SCHEDULE_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+
+  const rows = await db.prepare(`
+    SELECT record.id, record.activity_id AS activityId, record.record_key AS recordKey,
+           record.subject_key AS subjectKey, record.record_type AS recordType,
+           record.title, record.scope, record.scope_date AS scopeDate, record.version,
+           record.payload_json AS payloadJson, record.updated_at AS updatedAt,
+           activity.title AS activityTitle, activity.client_key AS clientKey
+    FROM activity_records record
+    JOIN activities activity ON activity.id = record.activity_id
+    WHERE record.user_id = ? AND record.record_type = 'recurring_step'
+    ORDER BY record.updated_at DESC, record.id
+  `).bind(userId).all<ActivityRecordRow & { activityId: string; activityTitle: string; clientKey: string }>();
+
+  const candidates = new Map<string, NonNullable<ReturnType<typeof parentScheduleCadenceFromRecurringStep>>>();
+  for (const row of rows.results) {
+    if (candidates.has(row.activityId)) continue;
+    const record = parseActivityRecord(row);
+    if (!record || !recurringStepRepresentsParentActivity(record, { title: row.activityTitle, clientKey: row.clientKey })) continue;
+    const cadence = parentScheduleCadenceFromRecurringStep(record);
+    if (cadence) candidates.set(row.activityId, cadence);
+  }
+
+  const statements = [];
+  let migrated = 0;
+  for (const [activityId, cadence] of candidates) {
+    const pattern = await db.prepare(`
+      SELECT pattern.id, pattern.cadence_json AS cadenceJson, pattern.revision
+      FROM schedule_patterns pattern
+      JOIN schedule_pattern_steps step ON step.pattern_id = pattern.id
+      WHERE pattern.user_id = ? AND pattern.routine_id = ? AND pattern.archived_at IS NULL
+        AND step.activity_id = ?
+        AND (SELECT COUNT(*) FROM schedule_pattern_steps count_steps WHERE count_steps.pattern_id = pattern.id) = 1
+      ORDER BY pattern.position, pattern.id
+      LIMIT 1
+    `).bind(userId, routineId, activityId).first<{ id: string; cadenceJson: string; revision: number }>();
+    const existingCadence = pattern ? (() => { try { return parseCadence(JSON.parse(pattern.cadenceJson)); } catch { return null; } })() : null;
+    if (!pattern || existingCadence?.kind !== "daily") continue;
+    statements.push(
+      db.prepare(`
+        UPDATE schedule_patterns
+        SET cadence_json = ?, anchor_date = ?, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND routine_id = ? AND revision = ?
+      `).bind(JSON.stringify(cadence), "anchorDate" in cadence ? cadence.anchorDate : "1970-01-01", pattern.id, userId, routineId, pattern.revision),
+      db.prepare(`
+        INSERT INTO schedule_action_events
+          (id, user_id, action_type, action_json, source, actor, idempotency_key)
+        VALUES (?, ?, 'migrate_parent_cadence', ?, 'system', 'system', ?)
+      `).bind(
+        `schedule-event:${safeId(userId)}:${crypto.randomUUID()}`,
+        userId,
+        JSON.stringify({ patternId: pattern.id, activityId, cadence }),
+        `${PARENT_CADENCE_SCHEDULE_BACKFILL}:${pattern.id}`,
+      ),
+    );
+    migrated += 1;
+  }
+  if (migrated) {
+    statements.push(db.prepare(`
+      UPDATE routine_templates
+      SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(routineId, userId));
+  }
+  statements.push(db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(`migration:${safeId(userId)}:${PARENT_CADENCE_SCHEDULE_BACKFILL}`, userId, PARENT_CADENCE_SCHEDULE_BACKFILL));
+  await db.batch(statements);
+  return migrated;
 }
 
 const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";

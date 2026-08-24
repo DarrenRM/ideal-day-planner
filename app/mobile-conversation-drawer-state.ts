@@ -3,6 +3,7 @@ export type MobileDrawerInitialState = {
   hasConversation: boolean;
   hasConversationJob: boolean;
   openOnMount: boolean;
+  preferConversation?: boolean;
   savedOpen: boolean | null;
 };
 
@@ -21,9 +22,10 @@ export function resolveMobileDrawerInitialOpen({
   hasConversation,
   hasConversationJob,
   openOnMount,
+  preferConversation = false,
   savedOpen,
 }: MobileDrawerInitialState) {
   if (!canCollapse || openOnMount) return true;
   if (savedOpen !== null) return savedOpen;
-  return hasConversation || hasConversationJob;
+  return preferConversation || hasConversation || hasConversationJob;
 }

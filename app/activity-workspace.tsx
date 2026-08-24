@@ -34,6 +34,7 @@ type ActivityWorkspaceProps = {
   workDetail?: string | null;
   followUps?: ActivityFollowUp[];
   scheduleSummary?: ActivityScheduleSummary | null;
+  showEmptyState?: boolean;
   onFollowUpMutation?: (id: string, operation: "reschedule" | "dismiss", dueDate?: string) => void;
   onManageSchedule?: () => void;
 };
@@ -336,7 +337,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, showEmptyState = false, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const visibleComponents = workspace.components.filter((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
@@ -428,9 +429,9 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     const record = recordsByKey.get(dataComponent.recordKey);
     return record ? <ActivityRecordComponent key={strengthSessionItem.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation="featured" record={record} relatedRecords={records} /> : null;
   }
-  if (!hasVisibleWorkspace && !workState && !recordError) return null;
+  if (!hasVisibleWorkspace && !workState && !recordError && !showEmptyState) return null;
   return (
-    <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
+    <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : showEmptyState && !workState && !recordError ? "workspace-empty" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
       {workState ? (
         <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""}`} role="status">
           <span className="workspace-working-mark"><Sparkles size={15} /></span>
@@ -460,7 +461,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             })}
             {scheduleSummary ? (
               <section className="workspace-block activity-schedule-summary" aria-label={`${activity.title} schedule`}>
-                <div><span className="workspace-overline">Schedule</span><strong>{scheduleSummary.cadenceLabel}</strong><small>{scheduleSummary.name}</small></div>
+                <div><span className="workspace-overline">Schedule</span><strong>{scheduleSummary.cadenceLabel}</strong>{scheduleSummary.name.trim().toLocaleLowerCase() !== activity.title.trim().toLocaleLowerCase() ? <small>{scheduleSummary.name}</small> : null}</div>
                 {onManageSchedule ? <button type="button" onClick={onManageSchedule}>Manage</button> : <CalendarClock aria-hidden="true" size={17} />}
               </section>
             ) : null}
@@ -502,6 +503,15 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             <span><strong>Want something else here?</strong> Talk with Luna.</span>
           </button>
         </>
+      ) : null}
+      {showEmptyState && !hasVisibleWorkspace && !workState && !recordError ? (
+        <div className="workspace-empty-guidance">
+          <span aria-hidden="true"><MessageCircle size={17} /></span>
+          <div>
+            <strong>Shape this with Luna</strong>
+            <p>Talk with Luna about this activity, and she’ll keep useful notes and tools here.</p>
+          </div>
+        </div>
       ) : null}
     </section>
   );

@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
+import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillParentCadenceSchedules, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
 import { ensureDayRoles, ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 import { readCaptureAttention } from "../capture-service";
 
@@ -347,7 +347,9 @@ export async function GET(request: Request) {
   try {
     await ensureAgentSchema();
     const templateId = await ensureAccount(userId, date);
+    await ensureDefaultSchedule(userId, templateId);
     await archiveParentCadenceRecords(userId);
+    await backfillParentCadenceSchedules(userId, templateId);
     await backfillExplicitFollowUps(userId);
     await backfillBoundedSessionChoices(userId);
     await backfillMeasuredSessionLogs(userId);

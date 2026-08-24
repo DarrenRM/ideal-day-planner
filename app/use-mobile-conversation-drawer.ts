@@ -42,6 +42,7 @@ export function useMobileConversationDrawer({
   contentReady,
   hasConversationJob,
   openOnMount = false,
+  preferConversation = false,
   messages,
 }: {
   activityId: string;
@@ -49,6 +50,7 @@ export function useMobileConversationDrawer({
   contentReady: boolean;
   hasConversationJob: boolean;
   openOnMount?: boolean;
+  preferConversation?: boolean;
   messages: DrawerMessage[];
 }) {
   const [preferredOpen, setPreferredOpen] = useState(false);
@@ -75,6 +77,7 @@ export function useMobileConversationDrawer({
       hasConversation: messages.length > 0,
       hasConversationJob,
       openOnMount,
+      preferConversation,
       savedOpen: preference.open,
     });
     explicitOpenRef.current = preference.open;
@@ -89,7 +92,7 @@ export function useMobileConversationDrawer({
       setReadyActivityId(activityId);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activityId, canCollapse, contentReady, hasConversationJob, messages, openOnMount]);
+  }, [activityId, canCollapse, contentReady, hasConversationJob, messages, openOnMount, preferConversation]);
 
   useEffect(() => {
     const latestMessageId = latestLunaMessageId(messages);

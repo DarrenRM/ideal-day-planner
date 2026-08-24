@@ -127,6 +127,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activity-opening-state/);
   assert.match(page, /Getting things ready…/);
   assert.match(page, /openConversationOnMount/);
+  assert.match(page, /showEmptyState=\{showEmptyWorkspace\}/);
+  assert.match(page, /preferConversation: showEmptyWorkspace/);
+  assert.doesNotMatch(page, /disabled=\{!showWorkspace\}/);
   assert.match(page, /setStartConversationActivityId\(launchedItems\.find/);
   assert.match(drawer, /idealized-day-mobile-drawer-v2/);
   assert.match(drawer, /resolveMobileDrawerInitialOpen/);

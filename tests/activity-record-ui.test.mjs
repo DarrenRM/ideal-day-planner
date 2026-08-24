@@ -310,6 +310,14 @@ test("presents pending check-ins as upcoming commitments rather than date forms"
   assert.doesNotMatch(followUpRenderer, /activity-follow-up-actions/);
 });
 
+test("gives an activity without components a truthful Luna workspace invitation", async () => {
+  const workspace = await readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8");
+  assert.match(workspace, /workspace-empty-guidance/);
+  assert.match(workspace, /Shape this with Luna/);
+  assert.match(workspace, /keep useful notes and tools here/);
+  assert.doesNotMatch(workspace, /Luna is working/);
+});
+
 test("uses one activity-colored overline primitive across workspace components", async () => {
   const [records, workspace, css] = await Promise.all([
     readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),

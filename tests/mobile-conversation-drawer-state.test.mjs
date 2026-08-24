@@ -23,6 +23,11 @@ test("starts open when conversation is the only useful surface", () => {
   assert.equal(resolveMobileDrawerInitialOpen({ ...workspaceWithoutConversation, canCollapse: false }), true);
 });
 
+test("prefers conversation for an empty workspace without overriding the person's saved drawer state", () => {
+  assert.equal(resolveMobileDrawerInitialOpen({ ...workspaceWithoutConversation, preferConversation: true }), true);
+  assert.equal(resolveMobileDrawerInitialOpen({ ...workspaceWithoutConversation, preferConversation: true, savedOpen: false }), false);
+});
+
 test("starts open for conversation history or an active conversation job", () => {
   assert.equal(resolveMobileDrawerInitialOpen({ ...workspaceWithoutConversation, hasConversation: true }), true);
   assert.equal(resolveMobileDrawerInitialOpen({ ...workspaceWithoutConversation, hasConversationJob: true }), true);
