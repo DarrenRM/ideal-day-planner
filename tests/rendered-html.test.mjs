@@ -121,9 +121,15 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
   assert.match(page, /hasWorkspaceJob/);
   assert.match(page, /conversation-work-receipt/);
-  assert.match(page, /conversation-work-receipt-footer/);
-  assert.match(css, /\.conversation-work-receipt \{[^}]*flex: 0 0 auto;[^}]*grid-template-columns: 38px minmax\(0, 1fr\);/);
-  assert.match(css, /\.conversation-work-receipt-footer \{[^}]*justify-content: space-between;/);
+  assert.match(page, /conversation-work-receipt-entry/);
+  assert.match(page, /conversation-work-receipt-action/);
+  assert.match(page, /conversation-work-receipt-meta/);
+  assert.doesNotMatch(page, /conversation-work-receipt-check/);
+  assert.match(css, /\.conversation-work-receipt-entry \{[^}]*flex: 0 0 auto;/);
+  assert.match(css, /\.conversation-work-receipt \{[^}]*grid-template-columns: 38px minmax\(0, 1fr\) 62px;/);
+  assert.match(css, /\.conversation-work-receipt-detail \{[^}]*-webkit-line-clamp: 2;/);
+  assert.match(css, /\.conversation-work-receipt-action \{[^}]*align-self: stretch;[^}]*border-left:/);
+  assert.match(css, /\.conversation-work-receipt-meta \{[^}]*justify-content: flex-start;[^}]*margin: 4px 3px 0;/);
   assert.match(page, /mode: "view_artifact"/);
   assert.doesNotMatch(page, /workspaceReadyLabel/);
   assert.match(page, /useMobileConversationDrawer/);

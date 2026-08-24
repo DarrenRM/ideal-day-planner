@@ -1092,18 +1092,20 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               }
               const artifact = feedItem.value;
               return (
-                <article className={`conversation-work-receipt ${artifact.viewedAt ? "is-viewed" : "is-new"}`} key={artifact.id}>
-                  <span className="conversation-work-receipt-icon" aria-hidden="true"><ReceiptIcon size={17} strokeWidth={2} /><Check className="conversation-work-receipt-check" size={10} strokeWidth={2.5} /></span>
-                  <span className="conversation-work-receipt-copy">
-                    <strong>{artifact.title}</strong>
-                    <span>{artifact.detail}</span>
-                    {artifact.meta.secondary ? <small>{artifact.meta.secondary}</small> : null}
-                    <span className="conversation-work-receipt-footer">
-                      <time>{conversationTime(artifact.createdAt)}</time>
+                <div className="conversation-work-receipt-entry" key={artifact.id}>
+                  <article className={`conversation-work-receipt ${artifact.viewedAt ? "is-viewed" : "is-new"}`}>
+                    <span className="conversation-work-receipt-icon" aria-hidden="true"><ReceiptIcon size={17} strokeWidth={2} /></span>
+                    <span className="conversation-work-receipt-copy">
+                      <strong>{artifact.title}</strong>
+                      <span className="conversation-work-receipt-detail">{artifact.detail}</span>
+                      {artifact.meta.secondary ? <small>{artifact.meta.secondary}</small> : null}
+                    </span>
+                    <span className="conversation-work-receipt-action">
                       <button aria-label={`View ${artifact.title}`} disabled={isViewingWorkspace} type="button" onClick={() => viewWorkspaceUpdate(artifact)}>View</button>
                     </span>
-                  </span>
-                </article>
+                  </article>
+                  <div className="conversation-work-receipt-meta"><time>{conversationTime(artifact.createdAt)}</time></div>
+                </div>
               );
             })}
             {scheduleProposals.map((proposal) => (

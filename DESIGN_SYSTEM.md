@@ -30,7 +30,7 @@ Rules:
 - Prefer sentence case. Reserve uppercase plus letter spacing for short overlines, statuses, and categories.
 - Every true activity-workspace overline uses one shared primitive: activity color, Micro type with a 16px line box, 720 weight, `.09em` letter spacing, and uppercase rendering. This includes temporal labels, component types, cadence labels, product/device kinds, schedules, timers, streaks, and check-ins. Keep locations, timestamps, field labels, and explanatory metadata muted rather than treating them as overlines.
 - Text must reflow without clipping at 200% browser text size and with user text-spacing overrides.
-- Truncate only genuinely single-line schedule labels. Never truncate conversation or explanatory content.
+- Truncate only genuinely single-line schedule labels. Never truncate conversation or explanatory content, except the deliberately concise two-line detail preview on a durable work receipt; `View` exposes the committed result.
 
 ## Color
 
