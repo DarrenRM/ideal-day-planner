@@ -11,11 +11,11 @@ const IDLE_SURFACES: AgentSurfaceState = {
 };
 
 export function agentSurfaceState(kind: AgentJobKind | null | undefined): AgentSurfaceState {
-  if (kind === "activity_setup" || kind === "user_message" || kind === "global_message" || kind === "follow_up") {
+  if (kind === "activity_setup" || kind === "user_message" || kind === "follow_up") {
     return { hasConversationJob: true, hasWorkspaceJob: false };
   }
 
-  if (kind === "workspace_refresh" || kind === "variant_setup") {
+  if (kind === "workspace_refresh" || kind === "variant_setup" || kind === "global_message") {
     return { hasConversationJob: false, hasWorkspaceJob: true };
   }
 

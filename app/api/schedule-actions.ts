@@ -1,5 +1,5 @@
 import { getD1 } from "../../db";
-import { parseOccurrenceAction } from "../schedule-model";
+import { cadenceTriggers, parseDirectScheduleAction, parseOccurrenceAction } from "../schedule-model";
 import { safeId } from "./agent-store";
 import { resolveDay } from "./schedule-store";
 
@@ -16,6 +16,101 @@ function statusValues(status: "planned" | "completed" | "skipped" | "removed") {
   if (status === "skipped") return { completed: "NULL", skipped: "CURRENT_TIMESTAMP", removed: "NULL" };
   if (status === "removed") return { completed: "NULL", skipped: "NULL", removed: "CURRENT_TIMESTAMP" };
   return { completed: "NULL", skipped: "NULL", removed: "NULL" };
+}
+
+export async function applyDirectScheduleAction(
+  userId: string,
+  rawAction: unknown,
+  source: ApplySource & { idempotencyKey: string },
+) {
+  const action = parseDirectScheduleAction(rawAction);
+  if (!action) throw new Error("That schedule change is not valid.");
+  const db = getD1();
+  const routine = await db.prepare(`
+    SELECT id, schedule_revision AS revision, start_minutes AS startMinutes
+    FROM routine_templates
+    WHERE user_id = ?
+    ORDER BY created_at
+    LIMIT 1
+  `).bind(userId).first<{ id: string; revision: number; startMinutes: number }>();
+  if (!routine) throw new Error("Your routine is not ready yet.");
+  const reconcileEffectiveDate = async () => {
+    if (cadenceTriggers(action.cadence, action.effectiveDate, action.effectiveDate)) {
+      await resolveDay(userId, action.effectiveDate, routine.id, `plan:${safeId(userId)}:${action.effectiveDate}`, routine.startMinutes);
+    } else {
+      await db.prepare(`
+        UPDATE daily_plan_items
+        SET removed_at = CURRENT_TIMESTAMP, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE schedule_pattern_id = ? AND source_date = ?
+          AND completed_at IS NULL AND skipped_at IS NULL AND removed_at IS NULL
+      `).bind(action.patternId, action.effectiveDate).run();
+    }
+  };
+  const existingEvent = await db.prepare(`
+    SELECT id FROM schedule_action_events WHERE user_id = ? AND idempotency_key = ?
+  `).bind(userId, source.idempotencyKey).first<{ id: string }>();
+  if (existingEvent) {
+    await reconcileEffectiveDate();
+    return { action, idempotent: true };
+  }
+  if (routine.revision !== action.baseRevision) throw new Error("Your schedule changed while Luna was preparing this update.");
+
+  const pattern = await db.prepare(`
+    SELECT pattern.id, pattern.revision,
+           COUNT(step.id) AS stepCount,
+           SUM(CASE WHEN step.activity_id = ? THEN 1 ELSE 0 END) AS matchingSteps
+    FROM schedule_patterns pattern
+    JOIN schedule_pattern_steps step ON step.pattern_id = pattern.id
+    WHERE pattern.id = ? AND pattern.user_id = ? AND pattern.routine_id = ?
+      AND pattern.archived_at IS NULL
+    GROUP BY pattern.id, pattern.revision
+  `).bind(action.activityId, action.patternId, userId, routine.id).first<{
+    id: string;
+    revision: number;
+    stepCount: number;
+    matchingSteps: number;
+  }>();
+  if (!pattern) throw new Error("That schedule is no longer available.");
+  if (pattern.revision !== action.expectedRevision) throw new Error("That schedule changed while Luna was preparing this update.");
+  if (Number(pattern.stepCount) !== 1 || Number(pattern.matchingSteps) !== 1) {
+    throw new Error("This change affects a rotation and needs review before it can be applied.");
+  }
+
+  const anchorDate = action.cadence.kind === "interval_days" ? action.cadence.anchorDate : action.effectiveDate;
+  await db.batch([
+    db.prepare(`
+      UPDATE schedule_patterns
+      SET cadence_json = ?, anchor_date = ?, effective_date = ?, revision = revision + 1,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ? AND routine_id = ? AND revision = ? AND archived_at IS NULL
+    `).bind(
+      JSON.stringify(action.cadence), anchorDate, action.effectiveDate,
+      action.patternId, userId, routine.id, action.expectedRevision,
+    ),
+    db.prepare(`
+      UPDATE routine_templates
+      SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ? AND schedule_revision = ?
+    `).bind(routine.id, userId, action.baseRevision),
+    db.prepare(`
+      INSERT INTO schedule_action_events
+        (id, user_id, conversation_id, source_message_id, source_agent_job_id,
+         action_type, action_json, source, actor, idempotency_key)
+      VALUES (?, ?, ?, ?, ?, 'set_pattern_cadence', ?, ?, ?, ?)
+    `).bind(
+      `schedule-event:${safeId(userId)}:${safeId(source.idempotencyKey)}`,
+      userId,
+      source.conversationId ?? null,
+      source.sourceMessageId ?? null,
+      source.sourceAgentJobId ?? null,
+      JSON.stringify(action),
+      source.source,
+      source.actor,
+      source.idempotencyKey,
+    ),
+  ]);
+  await reconcileEffectiveDate();
+  return { action, idempotent: false, revision: action.expectedRevision + 1 };
 }
 
 export async function applyOccurrenceAction(userId: string, rawAction: unknown, source: ApplySource) {

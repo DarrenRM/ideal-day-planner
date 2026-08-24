@@ -23,8 +23,8 @@ import { removeParentCadenceRecordActions } from "../../../activity-cadence-guar
 import { validateActivityMoveActions } from "../../../activity-transfer-model";
 import { hasUsefulActivityRecordData, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
 import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
-import { localDateInTimeZone, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
-import { applyOccurrenceAction } from "../../schedule-actions";
+import { localDateInTimeZone, parseDirectScheduleAction, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
+import { applyDirectScheduleAction, applyOccurrenceAction } from "../../schedule-actions";
 import { readSchedulePatterns } from "../../schedule-store";
 import { messageHasScheduleIntent } from "../../../schedule-intent";
 import { messageRequestsResearch } from "../../../research-intent";
@@ -544,6 +544,21 @@ export async function POST(request: Request) {
         const followUpBody = typeof followUpSource?.body === "string" ? followUpSource.body.trim().slice(0, 4000) : "";
         const proposal = payload.scheduleProposal === null || payload.scheduleProposal === undefined ? null : parseScheduleProposal(payload.scheduleProposal);
         if (payload.scheduleProposal && !proposal) return Response.json({ error: "The schedule proposal did not pass validation." }, { status: 400 });
+        const directScheduleSource = Array.isArray(payload.scheduleActions) ? payload.scheduleActions.slice(0, 2) : [];
+        const directScheduleAction = directScheduleSource.length === 1 ? parseDirectScheduleAction(directScheduleSource[0]) : null;
+        if (directScheduleSource.length > 1 || directScheduleSource.length === 1 && !directScheduleAction) {
+          return Response.json({ error: "The direct schedule change did not pass validation." }, { status: 400 });
+        }
+        const directScheduleActions = directScheduleAction ? [directScheduleAction] : [];
+        if (proposal && directScheduleActions.length) {
+          return Response.json({ error: "A schedule update cannot be both immediate and proposed." }, { status: 400 });
+        }
+        if (directScheduleActions.length && !messageHasScheduleIntent(sourceMessage?.body || "")) {
+          return Response.json({ error: "A direct schedule change requires an explicit user request." }, { status: 400 });
+        }
+        if (directScheduleAction && job.activityId && directScheduleAction.activityId !== job.activityId) {
+          return Response.json({ error: "An activity conversation can only apply its own cadence directly." }, { status: 400 });
+        }
         const occurrenceSource = Array.isArray(payload.occurrenceActions) ? payload.occurrenceActions.slice(0, 20) : [];
         const occurrenceActions = occurrenceSource.map(parseOccurrenceAction);
         if (occurrenceActions.includes(null)) return Response.json({ error: "A day action did not pass validation." }, { status: 400 });
@@ -562,8 +577,18 @@ export async function POST(request: Request) {
             return Response.json({ error: "The schedule changed while Luna was preparing this proposal. Please ask her to refresh it." }, { status: 409 });
           }
         }
-        if (!response && !followUpBody && !proposal && !occurrenceActions.length && !captureActions.length) {
+        if (!response && !followUpBody && !proposal && !directScheduleActions.length && !occurrenceActions.length && !captureActions.length) {
           return Response.json({ error: "Global Luna must respond, clarify, capture an open item, propose, or make one permitted day change." }, { status: 400 });
+        }
+        for (const action of directScheduleActions) {
+          await applyDirectScheduleAction(job.userId, action, {
+            source: "luna",
+            actor: "Luna",
+            conversationId: job.conversationId,
+            sourceMessageId: job.sourceMessageId,
+            sourceAgentJobId: job.id,
+            idempotencyKey: `direct-schedule:${job.id}`,
+          });
         }
         for (const action of occurrenceActions) {
           await applyOccurrenceAction(job.userId, action, {
@@ -619,7 +644,14 @@ export async function POST(request: Request) {
           `).bind(jobId, leaseToken),
         );
         await db.batch(statements);
-        return Response.json({ completed: true, messageId, proposalId, occurrenceActionsApplied: occurrenceActions.length, capturesApplied: captureActions.length });
+        return Response.json({
+          completed: true,
+          messageId,
+          proposalId,
+          scheduleActionsApplied: directScheduleActions.length,
+          occurrenceActionsApplied: occurrenceActions.length,
+          capturesApplied: captureActions.length,
+        });
       }
       if (!job.activityId) return Response.json({ error: "An activity job is missing its activity." }, { status: 409 });
       const schedule = await db.prepare(`

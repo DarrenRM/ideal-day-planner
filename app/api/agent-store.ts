@@ -1486,7 +1486,7 @@ export async function retryFailedConversationJob(userId: string, conversationId:
     SET status = 'queued', attempts = 0, error = NULL, lease_token = NULL,
         lease_owner = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND user_id = ? AND conversation_id = ? AND status = 'failed'
-      AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up')
+      AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up', 'global_message')
   `).bind(jobId, userId, conversationId).run();
   return Boolean(result.meta.changes ?? 0);
 }
@@ -2175,7 +2175,7 @@ export async function readConversationState(conversationId: string, planDate?: s
   const latestDurableJob = await db.prepare(`
     SELECT id, status, kind, error
     FROM agent_jobs
-    WHERE conversation_id = ? AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up')
+    WHERE conversation_id = ? AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up', 'global_message')
       AND status IN ('succeeded', 'failed')
     ORDER BY updated_at DESC, created_at DESC
     LIMIT 1
@@ -2292,7 +2292,9 @@ export async function readConversationState(conversationId: string, planDate?: s
       kind: latestDurableJob.kind,
       message: latestDurableJob.kind === "follow_up"
         ? "Luna couldn’t send this check-in."
-        : "Luna couldn’t save the latest activity update.",
+        : latestDurableJob.kind === "global_message"
+          ? "Luna couldn’t update the schedule."
+          : "Luna couldn’t save the latest activity update.",
     } : null,
     agentOnline: Boolean(onlineWorker), workspace, records, recentRuns, followUps, scheduleSummary,
     proposals: proposals.results.flatMap((proposal) => {

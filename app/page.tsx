@@ -440,7 +440,10 @@ function conversationTime(value: string) {
 function conversationWorkspaceSignature(state: Pick<ConversationState, "workspace" | "records" | "followUps" | "scheduleSummary">) {
   const recordVersions = state.records.map((record) => `${record.key}:${record.version}`).sort().join("|");
   const followUps = (state.followUps ?? []).map((followUp) => `${followUp.id}:${followUp.status}:${followUp.dueDate}`).join("|");
-  return `${state.workspace.revisionId ?? "none"}::${recordVersions}::${followUps}::${state.scheduleSummary?.patternId ?? "daily"}`;
+  const schedule = state.scheduleSummary
+    ? `${state.scheduleSummary.patternId}:${state.scheduleSummary.cadenceLabel}:${state.scheduleSummary.upcoming.map((entry) => entry.date).join(",")}`
+    : "daily";
+  return `${state.workspace.revisionId ?? "none"}::${recordVersions}::${followUps}::${schedule}`;
 }
 
 type ActivityWorkbenchProps = {

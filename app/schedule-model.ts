@@ -82,6 +82,17 @@ export type ScheduleProposalDocument = {
   actions: ScheduleProposalAction[];
 };
 
+export type DirectScheduleAction = {
+  type: "set_pattern_cadence";
+  baseRevision: number;
+  activityId: string;
+  patternId: string;
+  expectedRevision: number;
+  cadence: ScheduleCadence;
+  effectiveDate: string;
+  summary: string;
+};
+
 const LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9:._~-]{0,199}$/;
 const SAFE_OCCURRENCE_ID = /^[A-Za-z0-9][A-Za-z0-9:._~-]{0,511}$/;
@@ -479,5 +490,36 @@ export function parseScheduleProposal(value: unknown): ScheduleProposalDocument 
     summary,
     impact: { todayChanges, futurePatternChanges },
     actions: actions as ScheduleProposalAction[],
+  };
+}
+
+export function parseDirectScheduleAction(value: unknown): DirectScheduleAction | null {
+  const source = recordValue(value);
+  if (!source || source.type !== "set_pattern_cadence") return null;
+  const baseRevision = boundedInteger(source.baseRevision, 1, Number.MAX_SAFE_INTEGER);
+  const activityId = boundedText(source.activityId, 200);
+  const patternId = boundedText(source.patternId, 200);
+  const expectedRevision = boundedInteger(source.expectedRevision, 1, Number.MAX_SAFE_INTEGER);
+  const cadence = parseCadence(source.cadence);
+  const effectiveDate = isLocalDate(source.effectiveDate) ? source.effectiveDate : null;
+  const summary = boundedText(source.summary, 240);
+  if (
+    baseRevision === null
+    || !activityId || !SAFE_ID.test(activityId)
+    || !patternId || !SAFE_ID.test(patternId)
+    || expectedRevision === null
+    || !cadence
+    || !effectiveDate
+    || !summary
+  ) return null;
+  return {
+    type: "set_pattern_cadence",
+    baseRevision,
+    activityId,
+    patternId,
+    expectedRevision,
+    cadence,
+    effectiveDate,
+    summary,
   };
 }

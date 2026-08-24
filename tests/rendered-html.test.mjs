@@ -515,6 +515,27 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(migration, /CREATE UNIQUE INDEX `daily_plan_items_plan_occurrence_key_unique`/);
 });
 
+test("applies explicit one-activity cadence changes without fake typing or hidden failures", async () => {
+  const [jobRoute, agentStore, scheduleActions, bridge, surface, page] = await Promise.all([
+    readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/schedule-actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../app/agent-surface-state.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(jobRoute, /applyDirectScheduleAction/);
+  assert.match(jobRoute, /direct-schedule:\$\{job\.id\}/);
+  assert.match(scheduleActions, /Number\(pattern\.stepCount\) !== 1/);
+  assert.match(scheduleActions, /action_type, action_json, source, actor, idempotency_key/);
+  assert.match(agentStore, /'workspace_refresh', 'variant_setup', 'follow_up', 'global_message'/);
+  assert.match(agentStore, /Luna couldn’t update the schedule/);
+  assert.match(bridge, /DirectScheduleAction/);
+  assert.match(bridge, /Updating \$\{activityTitle\}'s schedule/);
+  assert.match(surface, /kind === "workspace_refresh" \|\| kind === "variant_setup" \|\| kind === "global_message"/);
+  assert.match(page, /state\.scheduleSummary\.cadenceLabel/);
+});
+
 test("keeps Luna, setup blueprints, runs, and workspace writes behind durable typed boundaries", async () => {
   const [schema, activityRoute, resetActivityRoute, runRoute, dayRoute, settingsRoute, jobRoute, store, workspaceModel, bridge, startup, watchdog, watchdogLauncher, taskInstaller, agents, productSpec, smartFlowGuide, packageJson] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),

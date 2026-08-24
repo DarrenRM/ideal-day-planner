@@ -8,6 +8,7 @@ import {
   nextCompletionStep,
   parseAdvancement,
   parseCadence,
+  parseDirectScheduleAction,
   parseOccurrenceAction,
   parseSchedulePattern,
   parseScheduleProposal,
@@ -187,6 +188,23 @@ test("validates a bounded recurring proposal without weakening its typed pattern
   assert.equal(proposed.actions[0].pattern.name, "Test sequence");
   assert.equal(proposed.actions[0].pattern.steps.length, 2);
   assert.equal(parseScheduleProposal({ ...proposed, baseRevision: 0 }), null);
+});
+
+test("validates a narrow direct cadence change without accepting a partial target", () => {
+  const action = parseDirectScheduleAction({
+    type: "set_pattern_cadence",
+    baseRevision: 9,
+    activityId: "activity:shower",
+    patternId: "schedule-pattern:shower",
+    expectedRevision: 3,
+    cadence: { kind: "interval_days", every: 3, anchorDate: "2026-08-23" },
+    effectiveDate: "2026-08-24",
+    summary: "Shower every third day, counted from yesterday.",
+  });
+  assert.ok(action);
+  assert.deepEqual(action.cadence, { kind: "interval_days", every: 3, anchorDate: "2026-08-23" });
+  assert.equal(parseDirectScheduleAction({ ...action, patternId: "" }), null);
+  assert.equal(parseDirectScheduleAction({ ...action, cadence: { kind: "interval_days", every: 0, anchorDate: "2026-08-23" } }), null);
 });
 
 test("validates proposal-owned activities, variants, and an explicit dated occurrence", () => {
