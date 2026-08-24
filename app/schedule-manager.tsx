@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Archive, ArrowDown, ArrowUp, CalendarDays, ChevronDown, ChevronRight, MessageCircle, MoreVertical, Plus, RotateCcw, X } from "lucide-react";
 import { previewPattern, type AdvancementPolicy, type ScheduleCadence, type SchedulePattern } from "./schedule-model";
-import { groupRoutinePatterns, isRotationPattern, type RoutinePatternView } from "./routine-schedule-view";
+import { groupRoutinePatterns, isRotationPattern, isSimpleDailyPattern, type RoutinePatternView } from "./routine-schedule-view";
 
 type Activity = { id: string; clientKey: string; title: string; category: string };
 type Variant = { id: string; activityId: string; clientKey: string; name: string; defaultDurationMinutes: number | null };
@@ -47,6 +47,14 @@ function relativeDateLabel(dateKey: string | null) {
   if (dayOffset === 1) return "Tomorrow";
   if (dayOffset > 1 && dayOffset < 7) return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(target);
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(target);
+}
+
+function upcomingPatternLabel(pattern: PatternView) {
+  const labels = pattern.preview
+    .slice(0, 3)
+    .map((entry) => relativeDateLabel(entry.date))
+    .filter((label): label is string => Boolean(label));
+  return labels.length ? `Upcoming · ${labels.join(", ")}` : null;
 }
 
 function patternForEditing(pattern: SchedulePattern) {
@@ -285,6 +293,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
   function RuleRow({ pattern, paused = false }: { pattern: PatternView; paused?: boolean }) {
     const rotation = isRotationPattern(pattern);
     const title = patternTitle(pattern);
+    const upcoming = !paused && !rotation && !isSimpleDailyPattern(pattern) ? upcomingPatternLabel(pattern) : null;
     return <article className={`routine-rule-row ${paused ? "is-paused" : ""}`}>
       <button className="routine-rule-open" type="button" onClick={() => beginEditing(pattern)}>
         <span className="routine-rule-icon" aria-hidden="true">{rotation ? <RotateCcw size={17} /> : <CalendarDays size={17} />}</span>
@@ -292,6 +301,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
           <strong>{title}</strong>
           <span>{paused ? `Paused · ${cadenceLabel(pattern.cadence)}` : rotation ? `${cadenceLabel(pattern.cadence)} · ${pattern.steps.length}-step rotation` : cadenceLabel(pattern.cadence)}</span>
           {rotation ? <small>{rotationSteps(pattern)}</small> : null}
+          {upcoming ? <small className="routine-rule-upcoming">{upcoming}</small> : null}
         </span>
       </button>
       <details className="routine-rule-menu">
@@ -381,7 +391,13 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
               </section>
 
               {nestedScheduleGroups.length ? <section className="routine-group" aria-labelledby="nested-routines-heading">
-                <div className="routine-group-heading"><div><span>Within activities</span><h3 id="nested-routines-heading">Scheduled steps</h3></div></div>
+                <div className="routine-group-heading"><div><span>Within activities</span><h3 id="nested-routines-heading">Scheduled steps</h3></div><button type="button" onClick={() => {
+                  const onlyGroup = nestedScheduleGroups.length === 1 ? nestedScheduleGroups[0] : null;
+                  const onlyStep = onlyGroup?.steps.length === 1 ? onlyGroup.steps[0] : null;
+                  onAskLuna(onlyGroup && onlyStep
+                    ? `Help me adjust the ${onlyStep.title} schedule inside ${onlyGroup.activityTitle}. Ask only what you need before proposing a change to future occurrences.`
+                    : "Help me adjust a scheduled step inside one of my activities. Start by asking which activity or step I mean, then prepare any future change for confirmation.");
+                }}><MessageCircle aria-hidden="true" size={15} /> Adjust</button></div>
                 <div className="routine-nested-list">{nestedScheduleGroups.map((group) => <article className="routine-nested-row" key={group.activityId}>
                   <span className="routine-rule-icon" aria-hidden="true"><CalendarDays size={17} /></span>
                   <div className="routine-nested-copy">
@@ -390,7 +406,7 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
                     <div>{group.steps.map((step) => {
                       const next = relativeDateLabel(step.nextDue);
                       const status = step.dueToday ? "Due today" : next ? `Next ${next}` : step.completedThisCycle ? "Done this cycle" : null;
-                      return <p key={step.id}><b>{step.title}</b><small>{[step.cadence, status].filter(Boolean).join(" · ")}</small></p>;
+                      return <p className="routine-nested-step" key={step.id}><b>{step.title}</b><small><span>{step.cadence}</span>{status ? <><i aria-hidden="true">·</i><em>{status}</em></> : null}</small></p>;
                     })}</div>
                   </div>
                 </article>)}</div>

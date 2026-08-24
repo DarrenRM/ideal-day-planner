@@ -481,12 +481,18 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(manager, /Within activities/);
   assert.match(manager, /Scheduled steps/);
   assert.match(manager, /nestedScheduledSteps/);
+  assert.match(manager, /routine-rule-upcoming/);
+  assert.match(manager, /Upcoming ·/);
+  assert.match(manager, /Help me adjust a scheduled step/);
+  assert.match(manager, /routine-nested-step/);
   assert.match(manager, /scheduled \$\{data\.nestedScheduledSteps\.length === 1 \? "step" : "steps"\}/);
   assert.doesNotMatch(manager, /Weekly steps within an activity still live inside that activity/);
   assert.match(manager, /Daily activities/);
   assert.match(manager, /routine-rule-menu[\s\S]*routine-rule-disclosure/);
   assert.match(css, /\.routine-rule-menu \{[^}]*display: flex;[^}]*align-items: center;[^}]*flex: 0 0 40px;[^}]*justify-content: center/s);
   assert.match(css, /\.routine-rule-disclosure \{[^}]*flex: 0 0 40px/s);
+  assert.match(css, /\.routine-rule-copy small\.routine-rule-upcoming \{[^}]*color: var\(--accent\)/s);
+  assert.match(css, /\.routine-nested-step::before/);
   assert.match(manager, /Future routine/);
   assert.match(manager, /Advanced options/);
   assert.match(manager, /Pause future days/);
