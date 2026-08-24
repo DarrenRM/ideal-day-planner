@@ -34,12 +34,22 @@
 .schedule-manager-loading { min-height: 220px; display: grid; place-content: center; gap: 10px; color: var(--muted); text-align: center; }
 .schedule-manager-loading svg { margin: auto; animation: spin 1.2s linear infinite; }
 .routine-manager { display: grid; gap: 18px; }
-.routine-manager-overview { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--surface-raised) 88%, var(--accent) 12%); }
-.routine-manager-overview > div > span, .routine-group-heading span, .routine-editor-heading span, .routine-editor-section-heading > span, .routine-editor-section-heading > div > span, .routine-preview > span { color: var(--accent); font-size: var(--type-label); font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
-.routine-manager-overview strong { display: block; margin-top: 3px; font-size: var(--type-title); line-height: 1.35; }
-.routine-manager-overview p { margin: 3px 0 0; color: var(--muted); font-size: var(--type-body-sm); }
-.routine-manager-overview > div > small { display: block; margin-top: 6px; color: var(--accent); font-size: var(--type-label); }
+.routine-manager-overview { display: grid; gap: 14px; padding: 18px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--surface-raised) 88%, var(--accent) 12%); }
+.routine-plan-summary > span, .routine-group-heading span, .routine-editor-heading span, .routine-editor-section-heading > span, .routine-editor-section-heading > div > span, .routine-preview > span { color: var(--accent); font-size: var(--type-label); font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+.routine-plan-summary > strong { display: block; margin-top: 3px; font-size: var(--type-title); line-height: 1.35; }
+.routine-plan-summary > p { margin: 3px 0 0; color: var(--muted); font-size: var(--type-body-sm); }
+.routine-plan-summary > small { display: block; margin-top: 6px; color: var(--accent); font-size: var(--type-label); }
 .routine-manager-overview > button, .routine-group-heading > button, .routine-editor-section-heading > button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 10px; background: transparent; color: var(--accent); font-weight: 700; white-space: nowrap; }
+.routine-plan-accordions { overflow: hidden; border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 11px; background: color-mix(in srgb, var(--surface) 78%, transparent); }
+.routine-plan-accordion + .routine-plan-accordion { border-top: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border)); }
+.routine-plan-toggle { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 13px; border: 0; background: transparent; text-align: left; }
+.routine-plan-toggle:hover { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.routine-plan-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.routine-plan-toggle > strong { font-size: var(--type-body); }
+.routine-plan-toggle > span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--type-body-sm); }
+.routine-plan-toggle[aria-expanded="true"] { color: var(--accent-bright); }
+.routine-plan-toggle[aria-expanded="true"] > span svg { transform: rotate(180deg); }
+.routine-plan-accordions .routine-rule-list { background: color-mix(in srgb, var(--surface-soft) 82%, transparent); }
 .routine-group { border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); }
 .routine-group-heading { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; }
 .routine-group-heading h3 { margin: 3px 0 0; font-size: var(--type-body-lg); }
@@ -147,7 +157,6 @@
   .schedule-manager-backdrop { align-items: stretch; padding: 0; }
   .schedule-manager-modal { width: 100%; max-height: 100dvh; min-height: 100dvh; border-radius: 0; }
   .schedule-manager-body { padding: 14px; }
-  .routine-manager-overview { align-items: stretch; flex-direction: column; gap: 13px; }
   .routine-manager-overview > button { width: 100%; }
   .routine-group-heading { align-items: flex-start; }
   .routine-group-heading > button { flex: 0 0 auto; }

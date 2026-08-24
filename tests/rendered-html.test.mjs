@@ -479,10 +479,12 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(manager, /essentialActivityCount/);
   assert.match(manager, /in All Activities/);
   assert.match(manager, /Adjust with Luna/);
-  assert.match(manager, /Core set/);
+  assert.match(manager, /openPlanSection/);
+  assert.match(manager, /routine-plan-accordions/);
   assert.match(manager, /Essentials/);
-  assert.match(manager, /Activity library/);
   assert.match(manager, /All Activities/);
+  assert.doesNotMatch(manager, /Core set/);
+  assert.doesNotMatch(manager, /Activity library/);
   assert.match(manager, /Custom days & rotations/);
   assert.match(manager, /No custom activity days or rotations yet/);
   assert.match(manager, /Within activities/);
@@ -497,6 +499,8 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.doesNotMatch(manager, /Daily activities/);
   assert.match(manager, /routine-rule-menu[\s\S]*routine-rule-disclosure/);
   assert.match(css, /\.routine-rule-menu \{[^}]*display: flex;[^}]*align-items: center;[^}]*flex: 0 0 40px;[^}]*justify-content: center/s);
+  assert.match(css, /\.routine-plan-accordions \{/);
+  assert.match(css, /\.routine-plan-toggle\[aria-expanded="true"\] > span svg/);
   assert.match(css, /\.routine-rule-disclosure \{[^}]*flex: 0 0 40px/s);
   assert.match(css, /\.routine-rule-copy small\.routine-rule-upcoming \{[^}]*color: var\(--accent\)/s);
   assert.match(css, /\.routine-nested-step::before/);
