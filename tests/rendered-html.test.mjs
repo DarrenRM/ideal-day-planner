@@ -28,7 +28,7 @@ test("server-renders the idealized day planner", async () => {
   assert.doesNotMatch(html, /Adjust minutes on any block/);
   assert.match(html, /class="app-shell is-checklist-mode"/);
   assert.match(html, /aria-label="Open settings"/);
-  assert.match(html, /Add Activity/);
+  assert.match(html, />\+<\/span> Add<\/button>/);
   assert.doesNotMatch(html, /Reset order/);
   assert.match(html, /aria-label="Idealized day schedule"/);
   assert.doesNotMatch(html, /Mobility · breathe and open up/);
@@ -57,6 +57,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(dayRoute, /restore-template/);
   assert.match(dayRoute, /queueDayHighlightIfNeeded/);
   assert.match(page, /<ScheduleManager/);
+  assert.match(page, /className="planner-menu-trigger"[\s\S]*?<MoreVertical/);
+  assert.doesNotMatch(page, /planner-menu-label/);
+  assert.doesNotMatch(page, /MoreHorizontal/);
   assert.match(page, /\/api\/occurrences/);
   assert.match(page, /MIGRATION_KEY/);
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);

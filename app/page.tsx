@@ -3,7 +3,7 @@
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Trophy, Utensils, Vibrate, Waves, X } from "lucide-react";
+import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Trophy, Utensils, Vibrate, Waves, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -2942,10 +2942,9 @@ export default function Home() {
                     disabled={!hasLoaded}
                     type="button"
                     onClick={() => setIsMenuOpen((current) => !current)}
-                  ><MoreHorizontal aria-hidden="true" size={16} strokeWidth={1.8} /></button>
+                  ><MoreVertical aria-hidden="true" size={16} strokeWidth={1.8} /></button>
                   {isMenuOpen ? (
                     <div className="planner-menu-popover" role="menu">
-                      <p className="planner-menu-label">Routine</p>
                       <button className="planner-menu-item" role="menuitem" type="button" onClick={() => { setIsMenuOpen(false); setScheduleManagerActivityId(null); setIsScheduleManagerOpen(true); }}>
                         <CalendarDays aria-hidden="true" size={15} strokeWidth={1.8} />
                         <span>Manage routine</span>
@@ -2960,7 +2959,7 @@ export default function Home() {
                   disabled={!hasLoaded}
                   type="button"
                   onClick={() => setIsAdding((current) => !current)}
-                ><span aria-hidden="true">+</span> Add Activity</button>
+                ><span aria-hidden="true">+</span> Add</button>
               </div>
             </header>
 
