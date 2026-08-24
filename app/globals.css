@@ -321,6 +321,15 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .is-checklist-mode .daily-list-heading { margin-left: 0; }
 .daily-list-heading span, .go-further header > div > span { color: var(--accent-bright); font: 680 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .12em; text-transform: uppercase; }
 .daily-list-heading small { color: #68726d; font: 540 var(--type-label)/var(--leading-label) var(--type-sans); }
+.keep-going { display: grid; gap: 8px; margin: 14px 0 12px 74px; }
+.is-checklist-mode .keep-going { margin-left: 0; }
+.keep-going > header { align-items: end; display: flex; justify-content: space-between; }
+.keep-going > header > div { display: grid; gap: 2px; }
+.keep-going h3 { color: var(--accent-bright); font: 720 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .12em; margin: 0; text-transform: uppercase; }
+.keep-going header small { color: #7e8983; font: 500 var(--type-label)/var(--leading-label) var(--type-sans); }
+.keep-going-list { display: grid; gap: 7px; }
+.go-further-option.keep-going-option { background: radial-gradient(circle at 86% 12%, rgba(232, 190, 103, .1), transparent 34%), radial-gradient(circle at 10% 50%, color-mix(in srgb, var(--item-color) 15%, transparent), transparent 34%), linear-gradient(112deg, rgba(20, 28, 24, .98), rgba(15, 20, 20, .98) 58%, rgba(27, 24, 19, .97)); border-color: color-mix(in srgb, var(--item-color) 34%, rgba(206, 240, 154, .28)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 8px 22px rgba(0, 0, 0, .13), 0 0 18px color-mix(in srgb, var(--item-color) 5%, transparent); min-height: 58px; }
+.go-further-option.keep-going-option:hover { background: radial-gradient(circle at 86% 12%, rgba(232, 190, 103, .14), transparent 36%), radial-gradient(circle at 10% 50%, color-mix(in srgb, var(--item-color) 20%, transparent), transparent 36%), linear-gradient(112deg, rgba(23, 32, 27, .99), rgba(17, 23, 22, .99) 58%, rgba(31, 27, 20, .98)); border-color: color-mix(in srgb, var(--item-color) 48%, rgba(206, 240, 154, .36)); }
 .go-further { background: linear-gradient(145deg, rgba(19, 24, 27, .92), rgba(14, 18, 20, .98)); border: 1px solid #293135; border-radius: 13px; margin: 14px 0 2px 74px; overflow: hidden; padding: 14px; }
 .is-checklist-mode .go-further { margin-left: 0; }
 .go-further > header { align-items: end; display: flex; gap: 14px; justify-content: space-between; margin-bottom: 10px; }
@@ -1257,6 +1266,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .start-day-button { width: 100%; }
   .schedule { padding: 8px 0 16px; }
   .daily-list-heading { margin: 8px 2px 2px; min-height: 22px; }
+  .keep-going { margin: 12px 0 10px; }
   .go-further { margin: 10px 0 4px; padding: 12px; }
   .go-further > header { align-items: start; display: grid; gap: 4px; }
   .go-further > header > small { text-align: left; }
