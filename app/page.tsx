@@ -3,7 +3,7 @@
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Utensils, Vibrate, Waves, X } from "lucide-react";
+import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreHorizontal, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Trophy, Utensils, Vibrate, Waves, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -1268,6 +1268,20 @@ function DayHighlights({
           </button>;
         })}
       </div> : null}
+    </section>
+  );
+}
+
+function DayVictory({ isArriving }: { isArriving: boolean }) {
+  return (
+    <section className={`day-victory ${isArriving ? "is-arriving" : ""}`} aria-labelledby="day-victory-title">
+      <span className="day-victory-medal" aria-hidden="true"><Trophy size={24} strokeWidth={1.8} /></span>
+      <div className="day-victory-copy">
+        <span>Today’s achievement</span>
+        <h3 id="day-victory-title">Essentials complete</h3>
+        <p>The rest of today is yours.</p>
+      </div>
+      <Sparkles className="day-victory-spark" aria-hidden="true" size={21} strokeWidth={1.6} />
     </section>
   );
 }
@@ -3042,6 +3056,7 @@ export default function Home() {
                 totalActivities={activeItemCount}
                 onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
               /> : null}
+              {settledEssentialsComplete ? <DayVictory isArriving={isDayBloom} /> : null}
               {activeDayItems.length && !settledEssentialsComplete ? <div className="daily-list-heading">
                 <span>Essentials</span>
                 <small>{Math.max(0, activeItemCount - completedItemCount)} left</small>

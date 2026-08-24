@@ -291,6 +291,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /isDayBloom \? "Essentials complete" : "Highlights"/);
   assert.match(page, /activeDayItems\.length && !settledEssentialsComplete/);
   assert.match(page, /Essentials complete\. Anything else is a bonus\./);
+  assert.match(page, /settledEssentialsComplete \? <DayVictory isArriving=\{isDayBloom\}/);
+  assert.match(page, /Today’s achievement/);
+  assert.match(page, /The rest of today is yours\./);
+  assert.match(css, /\.day-victory \{[^}]*min-height: 92px/);
+  assert.match(css, /@keyframes day-victory-arrive/);
   assert.match(css, /@keyframes day-highlight-border-trace/);
   assert.match(css, /@keyframes day-highlight-check-flash/);
   assert.match(css, /@keyframes day-highlight-icon-illuminate/);
