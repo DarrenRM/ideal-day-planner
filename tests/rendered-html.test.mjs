@@ -62,9 +62,10 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
   assert.match(page, /hasLoaded \? <>[\s\S]*displayedScheduledItems\.map/);
   assert.match(page, /<DayHighlights/);
-  assert.match(page, /Go Further/);
   assert.match(page, /Keep it going/);
-  assert.match(page, /More for today/);
+  assert.match(page, /<h3 id="go-further-title">More for today<\/h3>/);
+  assert.match(page, /Still going strong\? Here are some stretch goals\./);
+  assert.doesNotMatch(page, /<h3 id="go-further-title">Go Further<\/h3>/);
   assert.match(page, /More to choose from/);
   assert.ok(page.indexOf('className="keep-going-heading"') < page.indexOf('className={`go-further'), "Keep it going should precede Go Further");
   assert.match(page, /promoteExtra/);
@@ -296,7 +297,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras\.length === 0/);
   assert.match(page, /isDayBloom \? "Today complete" : "Highlights"/);
   assert.match(page, /!dayAchievementReady && \(!settledEssentialsComplete \|\| unfinishedOtherChosenExtras\.length\)/);
-  assert.match(page, /Essentials complete\. Anything else is a bonus\./);
+  assert.match(page, /Still going strong\? Here are some stretch goals\./);
   assert.match(page, /dayAchievementReady \? <DayVictory isArriving=\{isDayBloom\}/);
   assert.match(page, /setShowAllExtras\(false\)/);
   assert.match(page, /window\.setTimeout\(\(\) => cueNextActivity\(item\.id\), 80\)/);

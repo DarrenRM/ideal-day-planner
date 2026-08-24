@@ -3316,8 +3316,8 @@ export default function Home() {
               {goFurtherExtras.length ? (
                 <section className={`go-further ${settledEssentialsComplete ? "is-after-essentials" : ""} ${isDayBloom ? "is-day-bloom-handoff" : ""}`} aria-labelledby="go-further-title">
                   <header>
-                    <div><span>More for today</span><h3 id="go-further-title">Go Further</h3></div>
-                    <small>{settledEssentialsComplete ? "Essentials complete. Anything else is a bonus." : "Choose one when you have more in you."}</small>
+                    <div><h3 id="go-further-title">More for today</h3></div>
+                    <small>Still going strong? Here are some stretch goals.</small>
                   </header>
                   {extraPromotionError ? <p className="go-further-error" role="alert">{extraPromotionError}</p> : null}
                   {visibleAttentionExtras.length ? <div className="go-further-group is-attention">
