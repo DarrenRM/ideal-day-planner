@@ -2,7 +2,7 @@ import type { RecordAction } from "./activity-record-model";
 import type { ActivityMoveAction } from "./activity-transfer-model";
 import type { FollowUpAction } from "./follow-up-model";
 import type { ScheduleCadence } from "./schedule-model";
-import type { WorkspaceAction } from "./workspace-model";
+import type { WorkspaceAction, WorkspaceComponent } from "./workspace-model";
 
 export type WorkReceiptKind = "activity_update" | "schedule_update" | "subject_move" | "check_in";
 
@@ -15,6 +15,7 @@ export type WorkReceiptDraft = {
 };
 
 type ExistingRecord = { key: string; title: string };
+type HistoricalComponent = Pick<WorkspaceComponent, "id" | "type" | "title">;
 
 export function scheduleCadenceLabel(cadence: ScheduleCadence) {
   if (cadence.kind === "daily") return "Every day";
@@ -31,6 +32,76 @@ function humanList(values: string[]) {
 
 function shortRecordTitle(title: string) {
   return title.trim().replace(/\s+/g, " ").slice(0, 64);
+}
+
+function componentFeature(component: HistoricalComponent) {
+  if (component.type === "product") return "product";
+  if (component.type === "protocol" || component.type === "routine" || component.type === "checklist") return "routine steps";
+  if (component.type === "recurring_step") return /weekly/i.test(component.title) ? "a weekly schedule" : "a recurring schedule";
+  if (component.type === "activity_event" || component.type === "history") return "use history";
+  if (component.type === "resources") return "references";
+  return "saved section";
+}
+
+function relatedTitle(candidate: string, subject: string) {
+  const normalizedCandidate = candidate.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const normalizedSubject = subject.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return normalizedSubject.length >= 4 && normalizedCandidate.includes(normalizedSubject);
+}
+
+export function historicalWorkspaceReceipt(input: {
+  activityTitle: string;
+  before: HistoricalComponent[];
+  after: HistoricalComponent[];
+  moveTargetTitle?: string | null;
+}): WorkReceiptDraft | null {
+  const beforeIds = new Set(input.before.map((component) => component.id));
+  const afterIds = new Set(input.after.map((component) => component.id));
+  const added = input.after.filter((component) => !beforeIds.has(component.id));
+  const removed = input.before.filter((component) => !afterIds.has(component.id));
+  if (!added.length && !removed.length) return null;
+
+  const movedSubject = removed.find((component) => component.type === "product");
+  if (input.moveTargetTitle && movedSubject) {
+    const movedFeatures = removed.map(componentFeature);
+    const stayed = input.after.find((component) => relatedTitle(component.title, movedSubject.title));
+    return {
+      kind: "subject_move",
+      title: `${movedSubject.title} moved to ${input.moveTargetTitle}`,
+      detail: `Moved the ${humanList(movedFeatures)} to ${input.moveTargetTitle}.${stayed ? ` ${componentFeature(stayed).replace(/^./, (letter) => letter.toUpperCase())} stayed in ${input.activityTitle}.` : ""}`,
+      target: "workspace",
+    };
+  }
+
+  const addedSubject = added.find((component) => component.type === "product");
+  if (addedSubject) {
+    const features = added.filter((component) => component.id !== addedSubject.id).map(componentFeature);
+    return {
+      kind: "activity_update",
+      title: `${addedSubject.title} added`,
+      detail: features.length
+        ? `Added ${addedSubject.title} with ${humanList(features)} to ${input.activityTitle}.`
+        : `Added ${addedSubject.title} to ${input.activityTitle}.`,
+      target: "workspace",
+    };
+  }
+
+  if (removed.length === 1 && (removed[0].type === "activity_event" || removed[0].type === "history")) {
+    const subject = removed[0].title.replace(/\s+(use|history)$/i, "");
+    return {
+      kind: "activity_update",
+      title: `${subject} history removed`,
+      detail: `Removed the remaining use history from ${input.activityTitle}.`,
+      target: "workspace",
+    };
+  }
+
+  return {
+    kind: "activity_update",
+    title: `${input.activityTitle} updated`,
+    detail: added.length ? `Added ${humanList(added.map((component) => component.title))}.` : `Removed ${humanList(removed.map((component) => component.title))}.`,
+    target: "workspace",
+  };
 }
 
 export function scheduleWorkReceipt(input: {

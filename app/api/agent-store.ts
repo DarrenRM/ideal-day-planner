@@ -11,6 +11,7 @@ import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-c
 import { measuredSessionFields, type SessionChoiceData } from "../session-log-model";
 import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
 import { mergeMealLogData, type MealLogData } from "../meal-log-model";
+import { historicalWorkspaceReceipt } from "../work-receipt-model";
 
 export type ActivityRecord = {
   id: string;
@@ -611,6 +612,115 @@ function parseWorkspaceDocument(value: string | null): WorkspaceDocument {
   } catch {
     return EMPTY_WORKSPACE;
   }
+}
+
+const SKIN_ROUTINE_ARTIFACT_BACKFILL = "conversation-artifacts-skin-routine-review-v1";
+
+export async function backfillHistoricalSkinRoutineArtifacts(input: {
+  userId: string;
+  activity: ActivityRecord;
+  conversationId: string;
+}) {
+  const normalizedActivity = `${input.activity.clientKey} ${input.activity.title}`.toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  if (!normalizedActivity.includes("skin routine")) return 0;
+
+  const db = getD1();
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(input.userId, SKIN_ROUTINE_ARTIFACT_BACKFILL).first<{ id: string }>();
+  if (completed) return 0;
+
+  const revisions = await db.prepare(`
+    SELECT revision.workspace_id AS workspaceId, revision.revision_number AS revisionNumber,
+           revision.document_json AS documentJson, revision.source_agent_job_id AS sourceAgentJobId,
+           revision.created_at AS createdAt
+    FROM workspace_revisions revision
+    JOIN activity_workspaces workspace ON workspace.id = revision.workspace_id
+    WHERE workspace.user_id = ? AND workspace.activity_id = ?
+      AND revision.source_agent_job_id LIKE 'agent-job:%'
+    ORDER BY revision.revision_number, revision.created_at, revision.id
+    LIMIT 50
+  `).bind(input.userId, input.activity.id).all<{
+    workspaceId: string;
+    revisionNumber: number;
+    documentJson: string;
+    sourceAgentJobId: string;
+    createdAt: string;
+  }>();
+
+  const statements = [];
+  const seenJobs = new Set<string>();
+  let recovered = 0;
+  for (const revision of revisions.results) {
+    const parentJobId = revision.sourceAgentJobId.replace(/:activity-move:\d+$/, "");
+    if (seenJobs.has(parentJobId)) continue;
+    seenJobs.add(parentJobId);
+    const job = await db.prepare(`
+      SELECT id, source_message_id AS sourceMessageId, kind, status, conversation_id AS conversationId
+      FROM agent_jobs
+      WHERE id = ? AND user_id = ? AND activity_id = ?
+      LIMIT 1
+    `).bind(parentJobId, input.userId, input.activity.id).first<{
+      id: string;
+      sourceMessageId: string | null;
+      kind: string;
+      status: string;
+      conversationId: string;
+    }>();
+    if (!job || job.kind !== "workspace_refresh" || job.status !== "succeeded" || job.conversationId !== input.conversationId) continue;
+
+    const previous = await db.prepare(`
+      SELECT document_json AS documentJson
+      FROM workspace_revisions
+      WHERE workspace_id = ? AND revision_number < ?
+      ORDER BY revision_number DESC, created_at DESC
+      LIMIT 1
+    `).bind(revision.workspaceId, revision.revisionNumber).first<{ documentJson: string }>();
+    const moveTarget = revision.sourceAgentJobId !== parentJobId
+      ? await db.prepare(`
+          SELECT activity.title
+          FROM workspace_revisions sibling
+          JOIN activity_workspaces workspace ON workspace.id = sibling.workspace_id
+          JOIN activities activity ON activity.id = workspace.activity_id
+          WHERE sibling.source_agent_job_id = ? AND workspace.activity_id <> ?
+          ORDER BY sibling.created_at, sibling.id
+          LIMIT 1
+        `).bind(revision.sourceAgentJobId, input.activity.id).first<{ title: string }>()
+      : null;
+    const receipt = historicalWorkspaceReceipt({
+      activityTitle: input.activity.title,
+      before: parseWorkspaceDocument(previous?.documentJson ?? null).components,
+      after: parseWorkspaceDocument(revision.documentJson).components,
+      moveTargetTitle: moveTarget?.title ?? null,
+    });
+    if (!receipt) continue;
+
+    statements.push(db.prepare(`
+      INSERT OR IGNORE INTO conversation_artifacts
+        (id, user_id, conversation_id, activity_id, source_message_id, source_agent_job_id,
+         kind, title, detail, meta_json, viewed_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      `conversation-artifact:historical:${safeId(parentJobId)}`,
+      input.userId,
+      input.conversationId,
+      input.activity.id,
+      job.sourceMessageId,
+      parentJobId,
+      receipt.kind,
+      receipt.title,
+      receipt.detail,
+      JSON.stringify({ target: receipt.target, backfilled: true }),
+      revision.createdAt,
+      revision.createdAt,
+      revision.createdAt,
+    ));
+    recovered += 1;
+  }
+
+  statements.push(db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(`migration:${safeId(input.userId)}:${SKIN_ROUTINE_ARTIFACT_BACKFILL}`, input.userId, SKIN_ROUTINE_ARTIFACT_BACKFILL));
+  await db.batch(statements);
+  return recovered;
 }
 
 export type ActivitySetupProfile = {

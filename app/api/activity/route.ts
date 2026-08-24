@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import {
   apiFailure,
+  backfillHistoricalSkinRoutineArtifacts,
   ensureAgentSchema,
   ensureConversation,
   findActivity,
@@ -81,6 +82,7 @@ export async function GET(request: Request) {
     if (!activity) return Response.json({ error: "Activity not found." }, { status: 404 });
     const occurrence = await occurrenceContext(userId, occurrenceId, date, activity.id);
     const conversationId = await ensureConversation(userId, activity);
+    await backfillHistoricalSkinRoutineArtifacts({ userId, activity, conversationId });
     return Response.json({ conversationId, occurrence, ...await readConversationState(conversationId, date, occurrence?.activityVariantId) });
   } catch (error) {
     return apiFailure(error);

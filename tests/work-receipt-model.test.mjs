@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { activityWorkReceipt, scheduleWorkReceipt } from "../app/work-receipt-model.ts";
+import { activityWorkReceipt, historicalWorkspaceReceipt, scheduleWorkReceipt } from "../app/work-receipt-model.ts";
 
 test("describes a committed cadence change with the activity name", () => {
   assert.deepEqual(scheduleWorkReceipt({
@@ -47,4 +47,54 @@ test("does not create a receipt when no durable activity work was committed", ()
     activityMoves: [],
     followUpActions: [],
   }), null);
+});
+
+test("reconstructs a specific historical product setup from workspace revisions", () => {
+  assert.deepEqual(historicalWorkspaceReceipt({
+    activityTitle: "Skin Routine",
+    before: [],
+    after: [
+      { id: "roller", type: "product", title: "Beard Grooming Roller" },
+      { id: "protocol", type: "protocol", title: "Skin Routine Protocol" },
+      { id: "weekly", type: "recurring_step", title: "Weekly Beard Grooming Roller" },
+      { id: "history", type: "activity_event", title: "Beard Grooming Roller Use" },
+    ],
+  }), {
+    kind: "activity_update",
+    title: "Beard Grooming Roller added",
+    detail: "Added Beard Grooming Roller with routine steps, a weekly schedule, and use history to Skin Routine.",
+    target: "workspace",
+  });
+});
+
+test("reconstructs a partial historical move without claiming the history moved", () => {
+  assert.deepEqual(historicalWorkspaceReceipt({
+    activityTitle: "Skin Routine",
+    moveTargetTitle: "Hair Routine",
+    before: [
+      { id: "roller", type: "product", title: "Beard Grooming Roller" },
+      { id: "protocol", type: "protocol", title: "Skin Routine Protocol" },
+      { id: "weekly", type: "recurring_step", title: "Weekly Beard Grooming Roller" },
+      { id: "history", type: "activity_event", title: "Beard Grooming Roller Use" },
+    ],
+    after: [{ id: "history", type: "activity_event", title: "Beard Grooming Roller Use" }],
+  }), {
+    kind: "subject_move",
+    title: "Beard Grooming Roller moved to Hair Routine",
+    detail: "Moved the product, routine steps, and a weekly schedule to Hair Routine. Use history stayed in Skin Routine.",
+    target: "workspace",
+  });
+});
+
+test("reconstructs cleanup of a leftover historical activity event", () => {
+  assert.deepEqual(historicalWorkspaceReceipt({
+    activityTitle: "Skin Routine",
+    before: [{ id: "history", type: "activity_event", title: "Beard Grooming Roller Use" }],
+    after: [],
+  }), {
+    kind: "activity_update",
+    title: "Beard Grooming Roller history removed",
+    detail: "Removed the remaining use history from Skin Routine.",
+    target: "workspace",
+  });
 });
