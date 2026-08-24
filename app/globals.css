@@ -38,6 +38,7 @@
 .routine-manager-overview > div > span, .routine-group-heading span, .routine-editor-heading span, .routine-editor-section-heading > span, .routine-editor-section-heading > div > span, .routine-preview > span { color: var(--accent); font-size: var(--type-label); font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
 .routine-manager-overview strong { display: block; margin-top: 3px; font-size: var(--type-title); line-height: 1.35; }
 .routine-manager-overview p { margin: 3px 0 0; color: var(--muted); font-size: var(--type-body-sm); }
+.routine-manager-overview > div > small { display: block; margin-top: 6px; color: var(--accent); font-size: var(--type-label); }
 .routine-manager-overview > button, .routine-group-heading > button, .routine-editor-section-heading > button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 10px; background: transparent; color: var(--accent); font-weight: 700; white-space: nowrap; }
 .routine-group { border: 1px solid var(--border); border-radius: 14px; background: var(--surface-raised); }
 .routine-group-heading { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; }

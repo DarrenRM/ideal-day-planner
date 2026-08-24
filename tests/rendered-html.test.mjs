@@ -475,7 +475,14 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(proposalService, /stale_revision/);
   assert.match(lunaRoute, /ensureGlobalConversation/);
   assert.match(manager, /Manage routine/);
+  assert.match(manager, /Your plan/);
+  assert.match(manager, /essentialActivityCount/);
+  assert.match(manager, /in All Activities/);
   assert.match(manager, /Adjust with Luna/);
+  assert.match(manager, /Core set/);
+  assert.match(manager, /Essentials/);
+  assert.match(manager, /Activity library/);
+  assert.match(manager, /All Activities/);
   assert.match(manager, /Custom days & rotations/);
   assert.match(manager, /No custom activity days or rotations yet/);
   assert.match(manager, /Within activities/);
@@ -487,7 +494,7 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(manager, /routine-nested-step/);
   assert.match(manager, /scheduled \$\{data\.nestedScheduledSteps\.length === 1 \? "step" : "steps"\}/);
   assert.doesNotMatch(manager, /Weekly steps within an activity still live inside that activity/);
-  assert.match(manager, /Daily activities/);
+  assert.doesNotMatch(manager, /Daily activities/);
   assert.match(manager, /routine-rule-menu[\s\S]*routine-rule-disclosure/);
   assert.match(css, /\.routine-rule-menu \{[^}]*display: flex;[^}]*align-items: center;[^}]*flex: 0 0 40px;[^}]*justify-content: center/s);
   assert.match(css, /\.routine-rule-disclosure \{[^}]*flex: 0 0 40px/s);

@@ -100,7 +100,8 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
   const [editorKind, setEditorKind] = useState<EditorKind>("simple");
   const [isCreating, setIsCreating] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
-  const [dailyOpen, setDailyOpen] = useState(false);
+  const [essentialsOpen, setEssentialsOpen] = useState(false);
+  const [allActivitiesOpen, setAllActivitiesOpen] = useState(false);
   const [pausedOpen, setPausedOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -143,6 +144,8 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
   const activityMap = useMemo(() => new Map(data?.activities.map((activity) => [activity.id, activity]) ?? []), [data]);
   const variantMap = useMemo(() => new Map(data?.variants.map((variant) => [variant.id, variant]) ?? []), [data]);
   const groups = useMemo(() => groupRoutinePatterns(data?.patterns ?? []), [data]);
+  const essentialPatterns = useMemo(() => groups.active.filter((pattern) => pattern.steps.some((step) => step.planRole === "essential")), [groups]);
+  const essentialActivityCount = useMemo(() => new Set(essentialPatterns.flatMap((pattern) => pattern.steps.filter((step) => step.planRole === "essential").map((step) => step.activityId))).size, [essentialPatterns]);
   const draftPreview = useMemo(() => editing?.steps.length ? previewPattern(editing, localDate(), 3).map((entry) => ({
     date: entry.triggerDate,
     title: activityMap.get(entry.step.activityId)?.title ?? "Activity",
@@ -315,10 +318,8 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
     </article>;
   }
 
-  const summaryParts = [
-    `${groups.daily.length} daily`,
-    groups.customCount ? `${groups.customCount} custom` : null,
-    groups.rotationCount ? `${groups.rotationCount} ${groups.rotationCount === 1 ? "rotation" : "rotations"}` : null,
+  const scheduleSummaryParts = [
+    groups.custom.length ? `${groups.custom.length} custom ${groups.custom.length === 1 ? "schedule" : "schedules"}` : null,
     data?.nestedScheduledSteps.length ? `${data.nestedScheduledSteps.length} scheduled ${data.nestedScheduledSteps.length === 1 ? "step" : "steps"}` : null,
   ].filter(Boolean).join(" · ");
 
@@ -381,9 +382,19 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
           ) : (
             <div className="routine-manager">
               <div className="routine-manager-overview">
-                <div><span>Your routine</span><strong>{groups.activityCount} {groups.activityCount === 1 ? "activity" : "activities"}</strong><p>{summaryParts || "Nothing is scheduled yet"}</p></div>
-                <button type="button" onClick={() => onAskLuna("Help me adjust my routine. Ask only what you need before proposing changes to future days.")}><MessageCircle aria-hidden="true" size={16} /> Adjust with Luna</button>
+                <div><span>Your plan</span><strong>{essentialActivityCount} {essentialActivityCount === 1 ? "essential" : "essentials"}</strong><p>{groups.activityCount} {groups.activityCount === 1 ? "activity" : "activities"} in All Activities</p>{scheduleSummaryParts ? <small>{scheduleSummaryParts}</small> : null}</div>
+                <button type="button" onClick={() => onAskLuna("Help me adjust my plan, including which activities are essential and how future activities are scheduled. Ask only what you need before proposing changes.")}><MessageCircle aria-hidden="true" size={16} /> Adjust with Luna</button>
               </div>
+
+              <section className="routine-group is-collapsible" aria-labelledby="essential-routines-heading">
+                <button aria-expanded={essentialsOpen} className="routine-group-toggle" type="button" onClick={() => setEssentialsOpen((current) => !current)}><span><small>Core set</small><strong id="essential-routines-heading">Essentials</strong></span><span>{essentialActivityCount}<ChevronDown aria-hidden="true" size={17} /></span></button>
+                {essentialsOpen ? <div className="routine-rule-list">{essentialPatterns.map((rule) => <RuleRow pattern={rule as PatternView} key={rule.id} />)}</div> : null}
+              </section>
+
+              <section className="routine-group is-collapsible" aria-labelledby="all-routines-heading">
+                <button aria-expanded={allActivitiesOpen} className="routine-group-toggle" type="button" onClick={() => setAllActivitiesOpen((current) => !current)}><span><small>Activity library</small><strong id="all-routines-heading">All Activities</strong></span><span>{groups.activityCount}<ChevronDown aria-hidden="true" size={17} /></span></button>
+                {allActivitiesOpen ? <div className="routine-rule-list">{groups.active.map((rule) => <RuleRow pattern={rule as PatternView} key={rule.id} />)}</div> : null}
+              </section>
 
               <section className="routine-group" aria-labelledby="custom-routines-heading">
                 <div className="routine-group-heading"><div><span>Custom</span><h3 id="custom-routines-heading">Custom days & rotations</h3></div><button type="button" onClick={beginRotation}><Plus aria-hidden="true" size={15} /> New rotation</button></div>
@@ -411,11 +422,6 @@ export function ScheduleManager({ open, initialActivityId, onAskLuna, onClose, o
                   </div>
                 </article>)}</div>
               </section> : null}
-
-              <section className="routine-group is-collapsible" aria-labelledby="daily-routines-heading">
-                <button aria-expanded={dailyOpen} className="routine-group-toggle" type="button" onClick={() => setDailyOpen((current) => !current)}><span><small>Every day</small><strong id="daily-routines-heading">Daily activities</strong></span><span>{groups.daily.length}<ChevronDown aria-hidden="true" size={17} /></span></button>
-                {dailyOpen ? <div className="routine-rule-list">{groups.daily.map((rule) => <RuleRow pattern={rule as PatternView} key={rule.id} />)}</div> : null}
-              </section>
 
               {groups.paused.length ? <section className="routine-group is-collapsible" aria-labelledby="paused-routines-heading">
                 <button aria-expanded={pausedOpen} className="routine-group-toggle" type="button" onClick={() => setPausedOpen((current) => !current)}><span><small>Not appearing</small><strong id="paused-routines-heading">Paused</strong></span><span>{groups.paused.length}<ChevronDown aria-hidden="true" size={17} /></span></button>
