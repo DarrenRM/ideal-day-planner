@@ -121,6 +121,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
   assert.match(page, /hasWorkspaceJob/);
   assert.match(page, /conversation-work-receipt/);
+  assert.match(page, /conversation-work-receipt-footer/);
+  assert.match(css, /\.conversation-work-receipt \{[^}]*flex: 0 0 auto;[^}]*grid-template-columns: 38px minmax\(0, 1fr\);/);
+  assert.match(css, /\.conversation-work-receipt-footer \{[^}]*justify-content: space-between;/);
   assert.match(page, /mode: "view_artifact"/);
   assert.doesNotMatch(page, /workspaceReadyLabel/);
   assert.match(page, /useMobileConversationDrawer/);

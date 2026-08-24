@@ -1098,9 +1098,11 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                     <strong>{artifact.title}</strong>
                     <span>{artifact.detail}</span>
                     {artifact.meta.secondary ? <small>{artifact.meta.secondary}</small> : null}
-                    <time>{conversationTime(artifact.createdAt)}</time>
+                    <span className="conversation-work-receipt-footer">
+                      <time>{conversationTime(artifact.createdAt)}</time>
+                      <button aria-label={`View ${artifact.title}`} disabled={isViewingWorkspace} type="button" onClick={() => viewWorkspaceUpdate(artifact)}>View</button>
+                    </span>
                   </span>
-                  <button aria-label={`View ${artifact.title}`} disabled={isViewingWorkspace} type="button" onClick={() => viewWorkspaceUpdate(artifact)}>View</button>
                 </article>
               );
             })}
