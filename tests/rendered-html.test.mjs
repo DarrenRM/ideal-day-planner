@@ -125,8 +125,13 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /conversation-work-receipt-action/);
   assert.match(page, /conversation-work-receipt-meta/);
   assert.doesNotMatch(page, /conversation-work-receipt-check/);
+  assert.match(page, /subject_move: "Activity moved"/);
+  assert.match(page, /<strong>\{WORK_RECEIPT_LABELS\[artifact\.kind\]\}<\/strong>/);
+  assert.match(page, /conversation-work-receipt-detail">\{artifact\.title\}/);
+  assert.doesNotMatch(page, /conversation-work-receipt-detail">\{artifact\.detail\}/);
   assert.match(css, /\.conversation-work-receipt-entry \{[^}]*flex: 0 0 auto;/);
-  assert.match(css, /\.conversation-work-receipt \{[^}]*grid-template-columns: 38px minmax\(0, 1fr\) 62px;/);
+  assert.match(css, /\.conversation-work-receipt \{[^}]*grid-template-columns: 58px minmax\(0, 1fr\) 62px;/);
+  assert.match(css, /\.conversation-work-receipt-icon \{[^}]*align-self: center;[^}]*justify-self: center;/);
   assert.match(css, /\.conversation-work-receipt-detail \{[^}]*-webkit-line-clamp: 2;/);
   assert.match(css, /\.conversation-work-receipt-action \{[^}]*align-self: stretch;[^}]*border-left:/);
   assert.match(css, /\.conversation-work-receipt-meta \{[^}]*justify-content: flex-start;[^}]*margin: 4px 3px 0;/);

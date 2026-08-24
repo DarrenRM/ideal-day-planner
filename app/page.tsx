@@ -66,6 +66,12 @@ type ConversationArtifact = {
   sourceAgentJobId: string;
   createdAt: string;
 };
+const WORK_RECEIPT_LABELS: Record<ConversationArtifact["kind"], string> = {
+  activity_update: "Activity updated",
+  schedule_update: "Schedule updated",
+  subject_move: "Activity moved",
+  check_in: "Check-in scheduled",
+};
 type ConversationJob = {
   status: "queued" | "leased" | "running" | "retryable_failure";
   kind: AgentJobKind;
@@ -1096,9 +1102,8 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                   <article className={`conversation-work-receipt ${artifact.viewedAt ? "is-viewed" : "is-new"}`}>
                     <span className="conversation-work-receipt-icon" aria-hidden="true"><ReceiptIcon size={17} strokeWidth={2} /></span>
                     <span className="conversation-work-receipt-copy">
-                      <strong>{artifact.title}</strong>
-                      <span className="conversation-work-receipt-detail">{artifact.detail}</span>
-                      {artifact.meta.secondary ? <small>{artifact.meta.secondary}</small> : null}
+                      <strong>{WORK_RECEIPT_LABELS[artifact.kind]}</strong>
+                      <span className="conversation-work-receipt-detail">{artifact.title}</span>
                     </span>
                     <span className="conversation-work-receipt-action">
                       <button aria-label={`View ${artifact.title}`} disabled={isViewingWorkspace} type="button" onClick={() => viewWorkspaceUpdate(artifact)}>View</button>
