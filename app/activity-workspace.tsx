@@ -8,8 +8,15 @@ import { hasUsefulRoutineComponent, type CountdownWorkspaceComponent, type DataW
 import { orderWorkspaceDisplayItems, type WorkspaceDisplayRole } from "./workspace-order";
 import type { ActivityFollowUp } from "./follow-up-model";
 import { selectedSessionOptionId, type SessionChoiceData, type SessionLogData } from "./session-log-model";
+import { formatScheduleOccurrenceDate, scheduleOccurrenceDetail } from "./schedule-summary";
 
-export type ActivityScheduleSummary = { patternId: string; name: string; cadenceLabel: string };
+export type ActivityScheduleSummary = {
+  patternId: string;
+  name: string;
+  referenceDate: string;
+  cadenceLabel: string;
+  upcoming: Array<{ date: string; title: string }>;
+};
 
 export type WorkspaceActivity = {
   id: string;
@@ -461,7 +468,22 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             })}
             {scheduleSummary ? (
               <section className="workspace-block activity-schedule-summary" aria-label={`${activity.title} schedule`}>
-                <div><span className="workspace-overline">Schedule</span><strong>{scheduleSummary.cadenceLabel}</strong>{scheduleSummary.name.trim().toLocaleLowerCase() !== activity.title.trim().toLocaleLowerCase() ? <small>{scheduleSummary.name}</small> : null}</div>
+                <div className="activity-schedule-summary-copy">
+                  <span className="workspace-overline">Schedule</span>
+                  <strong>{scheduleSummary.cadenceLabel}</strong>
+                  {scheduleSummary.name.trim().toLocaleLowerCase() !== activity.title.trim().toLocaleLowerCase() ? <small>{scheduleSummary.name}</small> : null}
+                  {scheduleSummary.upcoming.length ? (
+                    <div className="activity-schedule-upcoming">
+                      <span className="workspace-overline">Upcoming</span>
+                      <div className="activity-schedule-upcoming-list">
+                        {scheduleSummary.upcoming.map((occurrence, index) => {
+                          const detail = scheduleOccurrenceDetail(occurrence.title, activity.title);
+                          return <span className="activity-schedule-occurrence" key={`${occurrence.date}-${index}`}><b>{formatScheduleOccurrenceDate(occurrence.date, scheduleSummary.referenceDate)}</b>{detail ? <small>{detail}</small> : null}</span>;
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
                 {onManageSchedule ? <button type="button" onClick={onManageSchedule}>Manage</button> : <CalendarClock aria-hidden="true" size={17} />}
               </section>
             ) : null}

@@ -1100,11 +1100,18 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .workspace-failed-notice strong { color: #e1b2ac; font-size: var(--type-label); }
 .workspace-failed-notice small { color: #8d7774; font-size: var(--type-micro); }
 .workspace-failed-notice button { background: transparent; border: 1px solid rgba(207, 112, 100, .34); border-radius: 6px; color: #dfaaa3; cursor: pointer; font-size: var(--type-micro); font-weight: 700; min-height: 30px; padding: 0 9px; text-transform: uppercase; }
-.activity-schedule-summary { align-items: center; display: flex; justify-content: space-between; }
-.activity-schedule-summary > div { display: grid; gap: 3px; }
+.activity-schedule-summary { align-items: start; display: flex; gap: 16px; justify-content: space-between; }
+.activity-schedule-summary-copy { display: grid; gap: 3px; min-width: 0; }
 .activity-schedule-summary strong, .activity-follow-up-heading strong { color: #dce3dc; font-size: var(--type-body-sm); }
 .activity-schedule-summary small { color: #78827d; font-size: var(--type-label); }
-.activity-schedule-summary button { background: transparent; border: 1px solid #35403c; border-radius: 7px; color: var(--accent-bright); cursor: pointer; font-size: var(--type-label); min-height: 32px; padding: 0 10px; }
+.activity-schedule-summary button { background: transparent; border: 1px solid #35403c; border-radius: 7px; color: var(--accent-bright); cursor: pointer; flex: 0 0 auto; font-size: var(--type-label); min-height: 32px; padding: 0 10px; }
+.activity-schedule-upcoming { display: grid; gap: 3px; margin-top: 7px; }
+.activity-schedule-upcoming-list { align-items: start; display: flex; flex-wrap: wrap; gap: 5px 0; }
+.activity-schedule-occurrence { color: #9ba69f; display: grid; gap: 1px; font-size: var(--type-label); line-height: 16px; padding-right: 10px; position: relative; }
+.activity-schedule-occurrence:not(:last-child)::after { color: #46504b; content: "·"; position: absolute; right: 4px; top: 0; }
+.activity-schedule-occurrence b { color: #aab4ad; font: inherit; font-weight: 520; }
+.activity-schedule-occurrence:first-child b { color: #e0e7e1; font-weight: 680; }
+.activity-schedule-occurrence small { color: #78827d; display: block; font-size: var(--type-micro); line-height: 16px; }
 .activity-follow-up { display: grid; gap: 10px; overflow: visible; position: relative; }
 .activity-follow-up.is-due { border-color: color-mix(in srgb, var(--accent) 32%, #293033); }
 .activity-follow-up-heading { align-items: start; display: flex; justify-content: space-between; }

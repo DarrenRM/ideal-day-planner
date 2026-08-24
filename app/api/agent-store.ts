@@ -4,7 +4,8 @@ import { activitySetupKey, activitySetupKeyMatches } from "../activity-setup-pol
 import { resolveSubjectMoveRecordKeys } from "../activity-transfer-model";
 import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type WorkspaceAction, type WorkspaceDocument } from "../workspace-model";
 import { validateFollowUpActions, type ActivityFollowUp, type FollowUpAction } from "../follow-up-model";
-import { addLocalDays, localDateInTimeZone, parseCadence } from "../schedule-model";
+import { addLocalDays, localDateInTimeZone, parseAdvancement, parseCadence, previewPattern, type SchedulePattern } from "../schedule-model";
+import { shouldShowActivitySchedule } from "../schedule-summary";
 import { parentScheduleCadenceFromRecurringStep, recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 import { measuredSessionFields, type SessionChoiceData } from "../session-log-model";
@@ -2187,27 +2188,6 @@ export async function readConversationState(conversationId: string, planDate?: s
   const workspace = conversation ? await readActivityWorkspace(conversation.activityId, activityVariantId) : { revisionId: null, revisionNumber: 0, document: EMPTY_WORKSPACE };
   const records = conversation ? await readActivityRecords(conversation.activityId, planDate, activityVariantId) : [];
   const followUps = conversation ? await readActivityFollowUps(conversation.activityId) : [];
-  const scheduleRow = conversation ? await db.prepare(`
-    SELECT pattern.id, pattern.name, pattern.cadence_json AS cadenceJson,
-           (SELECT COUNT(*) FROM schedule_pattern_steps count_steps WHERE count_steps.pattern_id = pattern.id) AS stepCount
-    FROM schedule_patterns pattern
-    JOIN schedule_pattern_steps step ON step.pattern_id = pattern.id
-    WHERE step.activity_id = ? AND pattern.archived_at IS NULL
-    ORDER BY pattern.position, step.position
-    LIMIT 1
-  `).bind(conversation.activityId).first<{ id: string; name: string; cadenceJson: string; stepCount: number }>() : null;
-  const scheduleCadence = scheduleRow ? (() => { try { return parseCadence(JSON.parse(scheduleRow.cadenceJson)); } catch { return null; } })() : null;
-  const scheduleSummary = scheduleRow && scheduleCadence && (scheduleCadence.kind !== "daily" || scheduleRow.stepCount > 1)
-    ? {
-        patternId: scheduleRow.id,
-        name: scheduleRow.name,
-        cadenceLabel: scheduleCadence.kind === "daily"
-          ? "Rotates daily"
-          : scheduleCadence.kind === "interval_days"
-            ? scheduleCadence.every === 2 ? "Every other day" : `Every ${scheduleCadence.every} days`
-            : scheduleCadence.weekdays.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", "),
-      }
-    : null;
   const recentRuns = conversation
     ? (await db.prepare(`
         SELECT plan_date AS planDate, status, completed_at AS completedAt
@@ -2217,6 +2197,88 @@ export async function readConversationState(conversationId: string, planDate?: s
         LIMIT 90
       `).bind(conversation.activityId).all<{ planDate: string; status: string; completedAt: string | null }>()).results
     : [];
+  const scheduleRow = conversation ? await db.prepare(`
+    SELECT pattern.id, pattern.name, pattern.position, pattern.cadence_json AS cadenceJson,
+           pattern.advancement_json AS advancementJson, pattern.anchor_date AS anchorDate,
+           pattern.initial_step_position AS initialStepPosition, pattern.effective_date AS effectiveDate,
+           pattern.end_date AS endDate, pattern.revision,
+           state.current_step_position AS currentStepPosition
+    FROM schedule_patterns pattern
+    JOIN schedule_pattern_steps step ON step.pattern_id = pattern.id
+    LEFT JOIN schedule_pattern_state state ON state.pattern_id = pattern.id
+    WHERE step.activity_id = ? AND pattern.archived_at IS NULL
+    ORDER BY pattern.position, step.position
+    LIMIT 1
+  `).bind(conversation.activityId).first<{
+    id: string; name: string; position: number; cadenceJson: string; advancementJson: string;
+    anchorDate: string; initialStepPosition: number; effectiveDate: string; endDate: string | null;
+    revision: number; currentStepPosition: number | null;
+  }>() : null;
+  const scheduleSteps = scheduleRow ? (await db.prepare(`
+    SELECT step.id, step.activity_id AS activityId, step.activity_variant_id AS activityVariantId,
+           step.position, step.duration_minutes AS durationMinutes,
+           step.display_label_override AS displayLabelOverride,
+           CASE WHEN step.plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole,
+           activity.title AS activityTitle, variant.name AS variantName
+    FROM schedule_pattern_steps step
+    JOIN activities activity ON activity.id = step.activity_id
+    LEFT JOIN activity_variants variant ON variant.id = step.activity_variant_id
+    WHERE step.pattern_id = ?
+    ORDER BY step.position
+  `).bind(scheduleRow.id).all<{
+    id: string; activityId: string; activityVariantId: string | null; position: number;
+    durationMinutes: number; displayLabelOverride: string | null; planRole: "essential" | "extra";
+    activityTitle: string; variantName: string | null;
+  }>()).results : [];
+  const scheduleCadence = scheduleRow ? (() => { try { return parseCadence(JSON.parse(scheduleRow.cadenceJson)); } catch { return null; } })() : null;
+  const scheduleAdvancement = scheduleRow ? (() => { try { return parseAdvancement(JSON.parse(scheduleRow.advancementJson)); } catch { return null; } })() : null;
+  const schedulePattern: SchedulePattern | null = scheduleRow && scheduleCadence && scheduleAdvancement && scheduleSteps.length ? {
+    id: scheduleRow.id,
+    name: scheduleRow.name,
+    position: scheduleRow.position,
+    cadence: scheduleCadence,
+    advancement: scheduleAdvancement,
+    anchorDate: scheduleRow.anchorDate,
+    initialStepPosition: scheduleRow.initialStepPosition,
+    effectiveDate: scheduleRow.effectiveDate,
+    endDate: scheduleRow.endDate,
+    revision: scheduleRow.revision,
+    steps: scheduleSteps.map((step) => ({
+      id: step.id,
+      activityId: step.activityId,
+      activityVariantId: step.activityVariantId,
+      position: step.position,
+      durationMinutes: step.durationMinutes,
+      displayLabelOverride: step.displayLabelOverride,
+      planRole: step.planRole,
+    })),
+  } : null;
+  const showScheduleSummary = schedulePattern && shouldShowActivitySchedule({
+    cadenceKind: schedulePattern.cadence.kind,
+    advancementKind: schedulePattern.advancement.kind,
+    endDate: schedulePattern.endDate,
+    stepCount: schedulePattern.steps.length,
+  });
+  const scheduleReferenceDate = planDate || localDateInTimeZone(new Date(), "America/Phoenix");
+  const currentRun = recentRuns.find((run) => run.planDate === scheduleReferenceDate);
+  const previewFrom = currentRun && (currentRun.status === "completed" || currentRun.status === "skipped")
+    ? addLocalDays(scheduleReferenceDate, 1)
+    : scheduleReferenceDate;
+  const stepTitles = new Map(scheduleSteps.map((step) => [step.id, step.displayLabelOverride || step.variantName || step.activityTitle]));
+  const scheduleSummary = schedulePattern && showScheduleSummary
+    ? {
+        patternId: schedulePattern.id,
+        name: schedulePattern.name,
+        referenceDate: scheduleReferenceDate,
+        cadenceLabel: schedulePattern.cadence.kind === "daily"
+          ? "Rotates daily"
+          : schedulePattern.cadence.kind === "interval_days"
+            ? schedulePattern.cadence.every === 2 ? "Every other day" : `Every ${schedulePattern.cadence.every} days`
+            : schedulePattern.cadence.weekdays.map((day) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]).join(", "),
+        upcoming: previewPattern(schedulePattern, previewFrom, 3, scheduleRow.currentStepPosition === null ? null : { currentStepPosition: scheduleRow.currentStepPosition })
+          .map((occurrence) => ({ date: occurrence.triggerDate, title: stepTitles.get(occurrence.step.id) || schedulePattern.name })),
+      }
+    : null;
   const proposals = await db.prepare(`
     SELECT id, status, document_json AS documentJson, created_at AS createdAt
     FROM schedule_proposals
