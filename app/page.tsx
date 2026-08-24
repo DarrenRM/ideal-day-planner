@@ -1228,6 +1228,8 @@ function DayHighlights({
   const [isOpen, setIsOpen] = useState(false);
   const completedEssentials = completedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
   const progress = totalActivities ? Math.min(100, (completedEssentials / totalActivities) * 100) : 0;
+  const essentialsComplete = totalActivities > 0 && completedEssentials >= totalActivities;
+  const isDayBloom = essentialsComplete && Boolean(celebratingActivityId);
   const density = completedItems.length === 1 ? "is-single" : completedItems.length <= 3 ? "is-sparse" : "";
   const visibleCopy = highlight.body || fallbackDayHighlight(completedItems.map((item) => ({
     title: item.title,
@@ -1238,19 +1240,20 @@ function DayHighlights({
   const history = [...completedItems].sort((left, right) => (storedTimestampMillis(right.completedAt) ?? 0) - (storedTimestampMillis(left.completedAt) ?? 0));
 
   return (
-    <section className={`day-highlights ${density} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
+    <section className={`day-highlights ${density} ${essentialsComplete ? "is-essentials-complete" : ""} ${isDayBloom ? "is-day-bloom" : ""} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
+      {isDayBloom ? <span aria-atomic="true" className="visually-hidden" role="status">Essentials complete.</span> : null}
       <button className="day-highlights-overview" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        {completedItems.length > 1 ? <span aria-label={`${completedEssentials} of ${totalActivities} essential activities complete`} className={`day-highlights-count ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
+        {completedItems.length > 1 ? <span aria-label={`${completedEssentials} of ${totalActivities} essential activities complete`} className={`day-highlights-count ${essentialsComplete ? "is-complete" : ""} ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
           <strong>{completedEssentials}/{totalActivities}</strong>
         </span> : null}
         <span className="day-highlights-copy">
-          <strong id="day-highlights-title">Highlights</strong>
+          <strong id="day-highlights-title">{isDayBloom ? "Essentials complete" : "Highlights"}</strong>
           {visibleCopy ? <span>{visibleCopy}</span> : null}
         </span>
         <span className="day-highlights-icon-grid" aria-label={`${completedItems.length} completed activities`} style={{ "--highlight-columns": Math.min(completedItems.length, 6), "--highlight-mobile-columns": Math.min(completedItems.length, 4) } as CSSProperties}>
-          {completedItems.map((item) => {
+          {completedItems.map((item, index) => {
             const ActivityIcon = activityIconFor(item);
-            return <span className={`day-highlight-icon ${celebratingActivityId === item.id ? "is-new" : ""}`} key={item.id} style={{ "--highlight-color": CATEGORY_META[item.category].color } as CSSProperties} title={activityDisplayTitle(item)}><ActivityIcon aria-hidden="true" size={17} strokeWidth={2} /></span>;
+            return <span className={`day-highlight-icon ${celebratingActivityId === item.id ? "is-new" : ""}`} key={item.id} style={{ "--highlight-color": CATEGORY_META[item.category].color, "--highlight-index": index } as CSSProperties} title={activityDisplayTitle(item)}><ActivityIcon aria-hidden="true" size={17} strokeWidth={2} /></span>;
           })}
         </span>
         <ChevronDown className="day-highlights-chevron" aria-hidden="true" size={18} />
@@ -1831,6 +1834,10 @@ export default function Home() {
   const nextStartBoundary = Math.min(1435, Math.ceil(displayedMinutes / 5) * 5);
   const activeItemCount = essentialItems.filter((item) => !item.skippedAt).length;
   const completedItemCount = essentialItems.filter((item) => item.completedAt).length;
+  const essentialsComplete = activeItemCount > 0 && completedItemCount >= activeItemCount;
+  const settledEssentialCount = settledCompletedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
+  const settledEssentialsComplete = activeItemCount > 0 && settledEssentialCount >= activeItemCount;
+  const isDayBloom = settledEssentialsComplete && Boolean(celebratingActivityId);
 
   async function setTimelineEnabled(enabled: boolean) {
     if (settingsSaveState === "saving" || enabled === timelineEnabled) return;
@@ -2905,8 +2912,8 @@ export default function Home() {
                   <span className="mobile-schedule-title">{formatTodayHeading()}</span>
                 </h2>
                 <p>
-                  <span className="desktop-schedule-summary">{hasLoaded ? timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
-                  <span className="mobile-schedule-summary">{hasLoaded ? <>{activeItemCount} essentials <i aria-hidden="true">·</i> {availableExtras.length} more</> : "Loading your saved day…"}</span>
+                  <span className="desktop-schedule-summary">{hasLoaded ? essentialsComplete ? `Essentials complete · ${availableExtras.length} optional` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
+                  <span className="mobile-schedule-summary">{hasLoaded ? essentialsComplete ? <>Essentials complete <i aria-hidden="true">·</i> {availableExtras.length} optional</> : <>{activeItemCount} essentials <i aria-hidden="true">·</i> {availableExtras.length} more</> : "Loading your saved day…"}</span>
                 </p>
               </div>
               <div className="planner-actions">
@@ -3035,7 +3042,7 @@ export default function Home() {
                 totalActivities={activeItemCount}
                 onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
               /> : null}
-              {activeDayItems.length ? <div className="daily-list-heading">
+              {activeDayItems.length && !settledEssentialsComplete ? <div className="daily-list-heading">
                 <span>Essentials</span>
                 <small>{Math.max(0, activeItemCount - completedItemCount)} left</small>
               </div> : null}
@@ -3289,10 +3296,10 @@ export default function Home() {
               })}
 
               {availableExtras.length ? (
-                <section className="go-further" aria-labelledby="go-further-title">
+                <section className={`go-further ${settledEssentialsComplete ? "is-after-essentials" : ""} ${isDayBloom ? "is-day-bloom-handoff" : ""}`} aria-labelledby="go-further-title">
                   <header>
                     <div><span>Optional</span><h3 id="go-further-title">Go Further</h3></div>
-                    <small>Choose one when you have more in you.</small>
+                    <small>{settledEssentialsComplete ? "Essentials complete. Anything else is a bonus." : "Choose one when you have more in you."}</small>
                   </header>
                   {visibleAttentionExtras.length ? <div className="go-further-group is-attention">
                     <div className="go-further-group-heading">

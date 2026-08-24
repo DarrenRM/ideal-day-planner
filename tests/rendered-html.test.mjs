@@ -287,6 +287,14 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /highlight\.body \|\| fallbackDayHighlight/);
   assert.match(page, /\{completedEssentials\}\/\{totalActivities\}/);
   assert.doesNotMatch(page, /day-highlight-thinking/);
+  assert.match(page, /const settledEssentialsComplete = activeItemCount > 0 && settledEssentialCount >= activeItemCount/);
+  assert.match(page, /isDayBloom \? "Essentials complete" : "Highlights"/);
+  assert.match(page, /activeDayItems\.length && !settledEssentialsComplete/);
+  assert.match(page, /Essentials complete\. Anything else is a bonus\./);
+  assert.match(css, /@keyframes day-highlight-border-trace/);
+  assert.match(css, /@keyframes day-highlight-check-flash/);
+  assert.match(css, /@keyframes day-highlight-icon-illuminate/);
+  assert.match(css, /prefers-reduced-motion:[\s\S]*\.day-highlights\.is-day-bloom/);
   assert.match(page, /function cueNextActivity/);
   assert.match(page, /window\.scrollBy\(\{/);
   assert.match(page, /nextActivityCueId === item\.id \? "is-next-cue"/);
