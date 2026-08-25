@@ -2913,14 +2913,14 @@ export default function Home() {
         onClose={() => { setIsScheduleManagerOpen(false); setScheduleManagerActivityId(null); }}
         onSaved={() => void reloadToday()}
       /> : null}
-      {isGlobalLunaOpen ? <GlobalLuna
+      <GlobalLuna
         initialDraft={globalLunaDraft}
         open={isGlobalLunaOpen}
         onClose={() => setIsGlobalLunaOpen(false)}
         onDraftConsumed={() => setGlobalLunaDraft("")}
         onRead={() => setLunaSummary((current) => ({ ...current, unreadCount: 0 }))}
         onScheduleChanged={() => { void reloadToday(); }}
-      /> : null}
+      />
       <OccurrenceEditor
         item={occurrenceEditorItem}
         onClose={() => setOccurrenceEditorItem(null)}
@@ -3438,9 +3438,9 @@ export default function Home() {
           </aside>
         </div>
       </div>
-      {hasLoaded && !isGlobalLunaOpen && !expandedActivityId ? (
+      {hasLoaded && !expandedActivityId ? (
         <button
-          aria-expanded="false"
+          aria-expanded={isGlobalLunaOpen}
           aria-haspopup="dialog"
           aria-label={lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? "Open notes and conversation, update available" : "Open notes and conversation"}
           className="global-luna-dock"

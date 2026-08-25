@@ -267,7 +267,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.activity-footer \{[^}]*grid-row: 2;[^}]*z-index: 4;/s);
   assert.match(css, /\.activity-conversation \{[^}]*z-index: 10;/s);
   assert.match(page, /className="global-luna-dock"/);
-  assert.match(page, /hasLoaded && !isGlobalLunaOpen && !expandedActivityId/);
+  assert.match(page, /hasLoaded && !expandedActivityId/);
   assert.match(css, /\.luna-shell-trigger \{ display: none; \}/);
   assert.match(css, /\.global-luna-dock \{[^}]*bottom: 0;[^}]*position: fixed;/s);
   assert.match(css, /\.activity-conversation\.has-workspace-peek \{ top: 96px; \}/);

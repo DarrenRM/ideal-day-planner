@@ -1563,8 +1563,10 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .inline-edit-actions { grid-column: 1; }
 }
 
-.global-luna-backdrop { align-items: stretch; background: rgba(2, 4, 5, .64); display: flex; inset: 0; justify-content: flex-end; position: fixed; z-index: 80; }
-.global-luna-sheet { background: #101518; border-left: 1px solid var(--border-strong); box-shadow: -24px 0 70px rgba(0, 0, 0, .38); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; max-width: 480px; width: min(100%, 480px); }
+.global-luna-backdrop { align-items: stretch; background: rgba(2, 4, 5, .64); display: flex; inset: 0; justify-content: flex-end; opacity: 0; pointer-events: none; position: fixed; transition: opacity 240ms ease; z-index: 80; }
+.global-luna-backdrop.is-visible { opacity: 1; pointer-events: auto; }
+.global-luna-sheet { background: #101518; border-left: 1px solid var(--border-strong); box-shadow: -24px 0 70px rgba(0, 0, 0, .38); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; max-width: 480px; transform: translateX(28px); transition: transform 320ms cubic-bezier(.22, .76, .24, 1); width: min(100%, 480px); }
+.global-luna-backdrop.is-visible .global-luna-sheet { transform: translateX(0); }
 .global-luna-header { align-items: center; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; min-height: 72px; padding: 14px 18px; }
 .global-luna-heading { align-items: center; display: flex; gap: 11px; }
 .global-luna-heading > span { align-items: center; background: rgba(178, 222, 112, .12); border: 1px solid rgba(178, 222, 112, .3); border-radius: 10px; color: var(--accent); display: flex; height: 38px; justify-content: center; width: 38px; }
@@ -1662,7 +1664,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .global-luna-dock-status.is-online i { background: var(--accent); box-shadow: 0 0 8px rgba(178, 222, 112, .65); }
   .global-luna-dock-badge { align-items: center; background: var(--accent); border-radius: 99px; color: var(--accent-ink); display: inline-flex; font: 800 var(--type-micro)/1 var(--type-sans); height: 18px; justify-content: center; min-width: 18px; padding: 0 5px; }
   .global-luna-dock:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
-  .global-luna-sheet { border-left: 0; max-width: none; width: 100%; }
+  .global-luna-sheet { border-left: 0; max-width: none; transform: translateY(100%); width: 100%; }
+  .global-luna-backdrop.is-visible .global-luna-sheet { transform: translateY(0); }
   .global-luna-header { min-height: 58px; padding: 0 14px; }
   .global-luna-heading > span, .global-luna-title-desktop, .global-luna-close-desktop { display: none; }
   .global-luna-title-mobile, .global-luna-close-mobile { display: block; }

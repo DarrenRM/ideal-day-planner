@@ -168,9 +168,18 @@ test("layers the mobile conversation drawer over actions and shares its handle w
   assert.match(css, /\.activity-conversation \{[^}]*z-index: 10;/s);
   assert.match(css, /\.activity-expansion\.is-opening-activity \{ grid-template-rows: minmax\(0, 1fr\) auto; \}/);
   assert.match(page, /className="global-luna-dock"/);
+  assert.match(page, /aria-expanded=\{isGlobalLunaOpen\}/);
+  assert.match(page, /\{hasLoaded && !expandedActivityId \? \(/);
+  assert.doesNotMatch(page, /\{isGlobalLunaOpen \? <GlobalLuna/);
   assert.match(page, /Notes &amp; conversation/);
+  assert.match(globalLuna, /const \[isPresent, setIsPresent\] = useState\(open\)/);
+  assert.match(globalLuna, /const \[isVisible, setIsVisible\] = useState\(false\)/);
+  assert.match(globalLuna, /global-luna-backdrop \$\{isVisible \? "is-visible" : ""\}/);
   assert.match(globalLuna, /global-luna-title-mobile/);
   assert.match(globalLuna, /Notes &amp; conversation/);
+  assert.match(css, /\.global-luna-backdrop \{[^}]*transition: opacity 240ms ease;/s);
+  assert.match(css, /\.global-luna-sheet \{[^}]*transition: transform 320ms cubic-bezier/s);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-sheet \{[^}]*transform: translateY\(100%\)/s);
 });
 
 test("lets the mobile activity row receive bottom-half taps around the duration controls", async () => {

@@ -57,10 +57,33 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRea
   const [captureBusy, setCaptureBusy] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [revisionText, setRevisionText] = useState("");
+  const [isPresent, setIsPresent] = useState(open);
+  const [isVisible, setIsVisible] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const onReadRef = useRef(onRead);
   useEffect(() => { onReadRef.current = onRead; }, [onRead]);
+
+  useEffect(() => {
+    let mountFrame = 0;
+    let revealFrame = 0;
+    let dismissTimer = 0;
+    if (open) {
+      mountFrame = window.requestAnimationFrame(() => {
+        setIsPresent(true);
+        revealFrame = window.requestAnimationFrame(() => setIsVisible(true));
+      });
+    } else {
+      revealFrame = window.requestAnimationFrame(() => setIsVisible(false));
+      dismissTimer = window.setTimeout(() => setIsPresent(false), 320);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(mountFrame);
+      window.cancelAnimationFrame(revealFrame);
+      window.clearTimeout(dismissTimer);
+    };
+  }, [open]);
 
   async function load() {
     const response = await fetch("/api/luna", { cache: "no-store" });
@@ -175,9 +198,9 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRea
     }
   }
 
-  if (!open) return null;
+  if (!isPresent) return null;
   return (
-    <div className="global-luna-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className={`global-luna-backdrop ${isVisible ? "is-visible" : ""}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section aria-label="Talk with Luna" aria-modal="true" className="global-luna-sheet" role="dialog">
         <header className="global-luna-header">
           <div className="global-luna-heading"><span><Sparkles aria-hidden="true" size={18} /></span><div><strong><span className="global-luna-title-desktop">Luna</span><span className="global-luna-title-mobile">Notes &amp; conversation</span></strong><small><i className={state.agentOnline ? "is-online" : ""} />{state.agentOnline ? "Connected" : "Will catch up"}</small></div></div>
