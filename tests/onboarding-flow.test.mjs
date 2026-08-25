@@ -23,7 +23,19 @@ test("builds six to eight concrete candidates and preselects by coaching pace", 
     assert.ok(parsed.activities.every((activity) => activity.durationMinutes >= 5));
     assert.ok(parsed.activities.every((activity) => activity.durationMinutes <= 480));
     assert.ok(parsed.activities.every((activity) => !/reset|important progress|move your body|ease into/i.test(activity.title)));
+    assert.ok(parsed.activities.filter((activity) => activity.choices).every((activity) => activity.choices.length === 3 && activity.choices.some((choice) => choice.key === activity.choiceKey)));
   }
+});
+
+test("repairs generic, mismatched candidate names and adds concrete choices", () => {
+  const proposal = deterministicOnboardingProposal(answers());
+  const generic = { ...proposal, activities: proposal.activities.map((activity) => activity.key === "focus-block" ? { ...activity, title: "Focus block", category: "Training", choices: undefined, choiceKey: undefined } : activity) };
+  const parsed = parseOnboardingProposal(generic, "balanced");
+  assert.ok(parsed);
+  const focus = parsed.activities.find((activity) => activity.key === "focus-block");
+  assert.equal(focus.title, "Deep work session");
+  assert.equal(focus.category, "Creativity");
+  assert.deepEqual(focus.choices.map((choice) => choice.title), ["Deep work session", "Creative project time", "Planning session"]);
 });
 
 test("rejects candidate sets with too few selections or non-actionable selections", () => {
@@ -59,6 +71,12 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /Reset onboarding/);
   assert.match(page, /ActivityDurationControl/);
   assert.match(page, /category-chip/);
+  assert.match(page, /YOUR ESSENTIALS/);
+  assert.match(page, /OTHER SUGGESTIONS/);
+  assert.match(page, /Which do you prefer\?/);
+  assert.match(page, /Add to Essentials/);
+  assert.match(page, /Activity length/);
+  assert.doesNotMatch(page, /activity\.reason|onboarding-edit-meta|onboarding-candidate-select/);
   assert.match(page, /window\.location\.assign\("\/testing"\)/);
   assert.doesNotMatch(page, /No activities have been created yet/);
   assert.doesNotMatch(page, /Why these\?|Not saved yet/);
@@ -69,5 +87,6 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.doesNotMatch(page, /MORE FOR TODAY|stretch goals/i);
   assert.doesNotMatch(rootPage, /Reset onboarding/);
   assert.match(bridge, /six to eight candidate activities/);
+  assert.match(bridge, /Category and title must agree/);
   assert.match(spec, /Onboarding is not the home screen/);
 });

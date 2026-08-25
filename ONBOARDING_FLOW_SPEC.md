@@ -265,20 +265,24 @@ Possible heading:
 > **Confirm your Essentials**
 > Based on your answers, Luna recommends this starting set. Choose what fits and adjust any activity before you begin.
 
-The screen contains six to eight concrete candidates. Each candidate has:
+The screen contains six to eight concrete candidates. Titles name the action rather than a generic container: use `Morning walk`, `Bodyweight strength workout`, `Yoga session`, `Deep work session`, `Breakfast`, `Bed routine`, `Guided meditation`, or `10-minute tidy`; never `Focus block`, `Strength session`, or another label that hides what the person will actually do. Category and title must agree.
 
-- A familiar activity title such as `Morning walk`, `Strength session`, `Focus block`, `Breakfast`, `Bed routine`, `Meditation`, or `Tidy reset`.
+The preselected candidates appear first inside one visually unified **Your Essentials** group. Selection is implied by membership in this group; do not repeat a large selected check on every activity. Each Essential has:
+
+- A familiar, concrete activity title.
 - An activity icon and category color.
 - The same category tag used by Today activity cards.
 - A realistic duration estimate.
-- One short, specific reason tied to a selected priority, friction, or rhythm.
-- A large whole-card selection control with a visible checked state.
+- A small edit affordance.
+- For preference-sensitive actions such as training, meditation, creative practice, or an evening routine, an inline `Which do you prefer?` choice with exactly three concrete alternatives and one recommended option selected.
 
-Luna preselects three, four, or five based on the chosen coaching pace. The person may select between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
+Do not show the generated recommendation reason under each card. The answer-to-recommendation logic belongs to Luna; this screen should help the person make the concrete activity theirs.
+
+Luna preselects three, four, or five based on the chosen coaching pace. Remaining candidates appear afterward under **Other suggestions**, each with an explicit **Add to Essentials** action instead of an empty completion circle. The person may keep between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
 
 Do not show Highlights, a progress denominator, selection count, saved-state badge, recommendation-explanation card, achievements, completion controls, More for Today, stretch goals, future candidates, or a calibration card on this screen. Those concepts are intentionally deferred.
 
-The person may tap a small edit affordance to change a title or duration without leaving the review. Duration editing reuses the same direct minute value with minus/plus controls as a Today activity. A secondary **Rethink these with Luna** action can revise the candidate set as one coherent update.
+The person may tap a small edit affordance to change a title or duration without leaving the review. The edit sheet contains no category tag. `Activity length` uses the same field-label hierarchy as `Activity name`, then reuses the direct minute value with minus/plus controls from a Today activity. A secondary **Rethink these with Luna** action can revise the candidate set as one coherent update.
 
 Primary action:
 
