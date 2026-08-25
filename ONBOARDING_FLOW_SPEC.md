@@ -42,7 +42,7 @@ Useful references:
 
 ### 3.1 The first plan is a proposal
 
-Luna's initial activities are not silently committed to the person's routine. They form a reversible proposal shown in the real Today interface.
+Luna's initial activities are not silently committed to the person's routine. They form a reversible proposal shown only after the person has answered the focused onboarding questions.
 
 The experience should communicate:
 
@@ -52,18 +52,20 @@ The person can:
 
 - Accept the proposal.
 - Edit or remove an activity.
-- Move an activity between Essential and Go Further.
+- Select or deselect a proposed Essential.
 - Reorder the proposed day.
 - Ask Luna to make the day lighter, fuller, more specific, or otherwise different.
 - Add something Luna missed.
 
 Only confirmation creates durable activities, schedule patterns, follow-ups, activity setup jobs, and workspace records.
 
-### 3.2 The proposal may use the real home screen
+### 3.2 Onboarding is not the home screen
 
-The proposal should look and behave like the normal home screen wherever practical. This lets the person learn the product by shaping their real day and makes the transition into normal use feel continuous.
+The first-run flow is a dedicated, full-screen experience. It should not populate a miniature home screen before it understands the person, and it should not expose Highlights, achievements, Go Further, Keep It Going, or other day-state surfaces during intake.
 
-The proposal must still have an unmistakable draft state. It must not be possible to mistake tentative activities for an already-saved routine.
+The last onboarding screen may reuse normal activity-card anatomy for recognition, but it is still an Essential-selection review rather than a draft Today page. This keeps the decision focused: choose the small set that should define a successful first day.
+
+The real Today screen appears only after confirmation. It contains only the selected Essentials on the first day; optional and historical surfaces appear later when real behavior justifies them.
 
 ### 3.3 Origin and commitment remain independent
 
@@ -100,15 +102,33 @@ Avoid tones that feel clinical, judgmental, overly inspirational, or mechanicall
 
 ```text
 Welcome
-  -> goals and desired change
-  -> preferred day capacity
+  -> priorities
+  -> friction and constraints
+  -> preferred rhythms
+  -> coaching pace
   -> Luna prepares a proposal
-  -> proposal in the real Today UI
+  -> choose starting Essentials
   -> user revises or confirms
+  -> real Today screen
   -> first useful action
   -> real completion reward
   -> first-week calibration
 ```
+
+The questionnaire consists of four focused pages after the welcome. Each page has one job, one short explanation, one ambient visual treatment, and tap-based choices. It should feel more like a thoughtful conversation with momentum than a settings form.
+
+Progress is always visible. Back preserves every answer. The primary action remains near the mobile safe area, and Continue stays disabled only when an answer is required.
+
+### 5.0.1 Ambient art direction
+
+Background art sits behind the interface rather than competing with it. It is low-contrast, partially obscured by UI surfaces, and primarily visible through negative space. It should feel like an environmental mood layer, not an illustration placed behind the app. Brightness and saturation remain restrained enough that white text, tap targets, and card hierarchy stay dominant.
+
+The first prototype uses two treatments:
+
+- **Topographic dusk landscape** — near-black contour lines around the edges and upper area, with a low hazy mountain horizon and a muted amber, dusty mauve, violet, and charcoal dusk glow.
+- **Abstract orbital glow** — large, subtle orbital paths across near-black, with a quiet green-gold atmospheric bloom and only a few sparse dim nodes.
+
+Never use a stock-photo look, neon cyberpunk, obvious wallpaper, busy texture, literal motivational symbols, or more than one main visual motif on a screen. The imagery does not replace a question, explain a feature, or consume the primary reading area.
 
 ### 5.1 Welcome
 
@@ -124,43 +144,91 @@ Primary action:
 
 Do not explain components, activity conversations, universal scheduling, variants, Timeline, or the distinction between global and activity Luna here.
 
-### 5.2 Goals and desired change
+### 5.2 Page one — priorities
 
-Purpose: give Luna enough direction to build a meaningful day rather than a generic collection of habits.
+Purpose: learn what this season of life should support before suggesting any activity.
 
 Primary prompt:
 
-> What are you hoping to change, protect, or make progress on?
+> What should your days help you make room for?
 
-The input should accept natural language. A few tappable examples may reduce blank-page anxiety, but they should populate or guide the same answer rather than create a separate rigid path.
+The person chooses up to three recognizable priorities:
 
-Example themes may include:
+- More energy
+- Strength and movement
+- Focused work
+- Better sleep
+- Calm and recovery
+- Nourishment
+- Self-care
+- Home and order
+- Creativity
+- Connection
 
-- Feel healthier.
-- Have a calmer morning.
-- Make progress on important work.
-- Take better care of myself.
-- Build consistency without overloading my day.
+An optional **Something else** field accepts a short natural-language goal. The selected labels and optional words become proposal evidence; they are never treated as activity titles.
 
-The examples are inspiration, not a starter activity pack.
+### 5.3 Page two — friction
 
-### 5.3 Preferred day capacity
+Purpose: prevent an appealing but unrealistic plan by understanding what commonly breaks a day.
 
-Purpose: avoid both an underwhelming three-checkbox demo and an unrealistic ideal-life overhaul.
+Primary prompt:
 
-Suggested question:
+> What usually gets in the way?
 
-> How full should the first version of your day feel?
+The person chooses up to two:
+
+- Low energy
+- An unpredictable schedule
+- Starting is the hard part
+- Too many priorities
+- Evenings fall apart
+- I forget
+- Pain or physical limits
+- Nothing obvious
+
+This answer must visibly affect the proposal. For example, low energy favors shorter actions, an unpredictable schedule avoids fragile clock-based commitments, and physical limits prevent unsupported exercise suggestions.
+
+### 5.4 Page three — rhythm
+
+Purpose: learn where support belongs without forcing the person to configure schedules.
+
+Primary prompt:
+
+> Where would a little structure help most?
+
+The person chooses one or two day rhythms:
+
+- A morning anchor
+- A midday reset
+- An evening wind-down
+- Movement somewhere in the day
+- Keep it flexible
+
+The copy explains one core behavior:
+
+> Ideal Day starts as a flexible checklist. You can add exact times later if they help.
+
+### 5.5 Page four — coaching pace
+
+Purpose: choose the weight of the first Essential set and how assertively Luna should calibrate it.
+
+Primary prompt:
+
+> How should Luna start with you?
 
 Working options:
 
-- **Gentle start** — protect the most important few things.
-- **Balanced** — a meaningful day with breathing room.
-- **Give me a push** — a fuller plan that still aims to be realistic.
+- **Keep it light** — preselect three Essentials and protect breathing room.
+- **Find my balance** — preselect four Essentials with a mix of care and progress.
+- **Challenge me** — preselect five Essentials while keeping each one concrete.
 
-The exact labels remain open for iteration. The answer changes the amount of proposed effort, not merely decorative wording.
+The page teaches the commitment model in one line:
 
-### 5.4 Clarification
+> Essentials are the small set that make a day count. Everything else can wait until it earns a place.
+
+These labels replace the vague capacity language. The answer changes the amount and effort of the proposal, not merely decorative wording.
+
+### 5.6 Clarification
 
 Luna may ask at most one concise clarification before producing the first proposal when the answer materially changes the plan.
 
@@ -173,7 +241,7 @@ Good clarification subjects include:
 
 Do not ask for details that can be safely deferred until the person first opens the relevant activity.
 
-### 5.5 Preparing the proposal
+### 5.7 Preparing the proposal
 
 The user receives an immediate acknowledgment before durable Luna work begins. A bounded visible work state explains that Luna is preparing a starting day.
 
@@ -181,65 +249,48 @@ The transition should not expose an empty home screen, a partially populated lis
 
 When the proposal is ready, transition once into the complete draft.
 
-### 5.6 Proposal in the real Today interface
+### 5.8 Choose starting Essentials
 
-The proposed day uses normal activity-card anatomy inside the actual home shell. A draft banner sits above it.
+This is the first time activities appear. It is a dedicated review screen, not Today and not a populated home-page preview.
 
-Possible banner structure:
+Possible heading:
 
-> **Your starting day**  
-> Luna put together an Essential set based on your goals. Nothing is locked in.
+> **Choose your starting Essentials**
+> Based on what you told me, these are the actions most likely to help. Pick three to six; you can change them later.
 
-The draft contains:
+The screen contains six to eight concrete candidates. Each candidate has:
 
-- Approximately three to six Essentials, adapted to stated capacity.
-- A logical sequence.
-- Useful duration estimates, without requiring Timeline.
-- Clear activity titles and category identity.
-- A small number of future candidates presented separately.
-- A visible calibration promise when Luna has identified likely next additions.
+- A familiar activity title such as `Morning walk`, `Strength session`, `Focus block`, `Breakfast`, `Bed routine`, `Meditation`, or `Tidy reset`.
+- An activity icon and category color.
+- A realistic duration estimate.
+- One short, specific reason tied to a selected priority, friction, or rhythm.
+- A large whole-card selection control with a visible checked state.
 
-The person may tap an activity to inspect why it is present or make a focused edit. Draft activities must not launch normal activity setup jobs or create permanent conversations.
+Luna preselects three, four, or five based on the chosen coaching pace. The person may select between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
 
-Primary proposal actions:
+Do not show Highlights, a progress denominator, achievements, completion controls, More for Today, stretch goals, future candidates, or a calibration card on this screen. Those concepts are intentionally deferred.
 
-- **Start with this**
-- **Adjust with Luna**
+The person may tap a small edit affordance to change a title or duration without leaving the review. A secondary **Rethink these with Luna** action can revise the candidate set as one coherent update.
 
-Possible secondary action:
+Primary action:
 
-- **Start lighter**
+- **Start with these Essentials**
 
-The primary action should remain reachable without scrolling through the entire proposal.
-
-### 5.7 Where the plan can grow
-
-If the person's goals imply more than the initial Essential set should reasonably contain, acknowledge that ambition directly rather than omitting it or creating everything immediately.
-
-Example:
-
-> **Where we can go next**  
-> Once you have tried this for a few days, Luna will check whether you want to add strength training, meal planning, or an evening wind-down.
-
-These are candidates, not Go Further activities and not durable activity definitions yet.
-
-The user may deliberately add one before confirming, but the interface should not encourage selecting every possibility.
-
-### 5.8 Confirmation
+### 5.9 Confirmation
 
 Confirmation is one atomic product boundary:
 
 1. Create accepted durable activities with correct origin metadata.
 2. Create validated schedule patterns and ordered steps.
-3. Snapshot Essential or Go Further roles onto the relevant steps.
+3. Mark every accepted starting step Essential.
 4. Create explicit onboarding follow-ups.
 5. Queue only the activity setup jobs justified by accepted activities.
 6. Resolve today's occurrences.
-7. Move directly into the confirmed home screen.
+7. Move directly into the confirmed home screen with the selected Essentials and no pre-populated optional pool.
 
 If any required operation fails, preserve the draft and show a specific retry state. Never leave the person with a partially created routine while claiming setup is complete.
 
-### 5.9 First useful action
+### 5.10 First useful action
 
 After confirmation, identify one approachable next action. This can be the first Essential or something the person has already done today and can truthfully mark complete.
 
@@ -255,14 +306,15 @@ The first day should be judged by coverage and effort, not by a universal activi
 
 Before showing the proposal, verify:
 
-- Every explicitly named goal is represented by at least one activity or an acknowledged future candidate.
-- The Essential set contains approximately three to six meaningful activities unless the person clearly asks for otherwise.
-- Estimated effort fits the selected day capacity.
+- Every selected priority is represented by at least one candidate or acknowledged in Luna's concise summary.
+- The candidate set contains six to eight distinct, concrete activities.
+- The preselected Essential set contains three, four, or five activities according to coaching pace.
+- Estimated effort accounts for stated friction and preferred rhythm.
 - The plan contains meaningful progress as well as maintenance when the person's goals support both.
 - No Essential depends on an unanswered question that makes it impossible or unsafe to perform.
 - At least one activity is immediately actionable.
-- The plan is not composed entirely of generic starter habits.
-- Future ideas are bounded and prioritized rather than dumped into a long list.
+- Titles describe recognizable actions rather than abstract outcomes or moods.
+- No optional backlog, stretch list, or future-idea dump is created during onboarding.
 
 ### 6.2 Confidence levels
 
@@ -292,7 +344,7 @@ Ideal Day already supports a broad set of activity and agent capabilities. Onboa
 | Capability | First proposal | Contextual introduction | Advanced or explicit use |
 | --- | --- | --- | --- |
 | Goals | Ask early and use visibly | Revisit during check-ins | Edit in routine management |
-| Essentials and Go Further | Core proposal decision | Adjust from observed behavior | Per-pattern role editing |
+| Essentials and Go Further | Essentials only; choose the first small set | Introduce Go Further after observed behavior or an explicit addition | Per-pattern role editing |
 | Origin metadata | Store silently | Use for recommendations and analytics | Audit or import tooling |
 | Category, icon, color | Infer and render | Editable with the activity | Design settings if ever needed |
 | Duration estimate | Include quietly | Adjust on cards | Timeline placement |
@@ -307,7 +359,7 @@ Ideal Day already supports a broad set of activity and agent capabilities. Onboa
 | Item lists and open loops | Not required during first setup | Introduce when the user mentions a need | Global capture and scheduling |
 | Timers and countdowns | Only when inherent to the activity | Add by request or supported protocol | Timeline-independent use |
 | Adherence, history, metrics, trends | Do not show empty trackers | Appear as real data accumulates | Long-term review |
-| Highlights and achievements | Teach through first completion | Daily reward loop | Historical reflection |
+| Highlights and achievements | Do not show during questionnaire or review | Teach through the first real completion | Historical reflection |
 | Keep It Going | No history yet | Appears after eligible prior behavior | Schedule-aware continuation |
 | Needs Attention | No open loops yet | Appears when Luna files an unresolved item | Global Luna decisions |
 | Global Luna | Present as onboarding guide | Cross-activity conversation | Routine and schedule proposals |
@@ -432,40 +484,41 @@ Until behavioral triggers exist, Luna should choose a sensible date and inspect 
 
 ### 11.1 Continuity
 
-Avoid a stack of full-screen questionnaire pages followed by an unrelated home screen. The visual language should progressively become the real product.
+Use a short stack of full-screen, single-purpose questionnaire pages. Continuity comes from shared typography, color, motion, icons, and activity-card anatomy—not from showing the home screen prematurely.
 
 Suggested progression:
 
-1. Focused welcome and goal input.
-2. Compact capacity choice.
-3. Stable preparation state.
-4. Real home screen in draft mode.
-5. Draft banner resolves away after confirmation while cards remain in place.
+1. Focused welcome.
+2. Priorities.
+3. Friction.
+4. Rhythm.
+5. Coaching pace.
+6. Stable preparation state.
+7. Dedicated Essential-selection review.
+8. Real Today screen after confirmation.
 
 ### 11.2 Draft-to-live transition
 
-After **Start with this**:
+After **Start with these Essentials**:
 
-- Keep accepted cards in their positions.
-- Resolve the draft banner into a brief confirmation state.
-- Remove rejected and unaccepted candidate surfaces.
-- Introduce normal completion affordances without a full-page reload.
-- Move focus to the first actionable card.
+- Briefly settle the selected cards into a concise ready state.
+- Remove rejected and unaccepted candidates.
+- Transition once into the real Today screen.
+- Introduce completion affordances only after the transition.
+- Move focus to the first actionable Essential.
 - Respect reduced-motion settings.
 
-The transition should feel like the day becoming active, not like navigating to another product.
+The transition should feel like the plan becoming real, while maintaining a clear boundary between onboarding and Today.
 
 ### 11.3 Editing the proposal
 
 Whole-card taps open a lightweight draft editor. The editor should prioritize:
 
 - Title or intended action.
-- Essential versus Go Further.
 - Duration estimate.
-- Simple frequency when needed.
-- Remove from proposal.
+- Selected versus not selected.
 
-Advanced cadence, variants, component selection, product ownership, and workspace binding do not belong in this editor.
+Cadence, Essential versus Go Further, variants, component selection, product ownership, and workspace binding do not belong in this editor.
 
 ### 11.4 Adjusting with Luna
 
@@ -487,7 +540,7 @@ Leaving onboarding should preserve the draft. Returning should resume at the sam
 
 - Keep primary actions reachable above the mobile safe area.
 - Use normal readable body text and existing design-system tokens.
-- Ensure capacity choices and activity roles are not communicated by color alone.
+- Ensure coaching-pace choices and Essential selection are not communicated by color alone.
 - Announce proposal completion and confirmation through an accessible status region.
 - Move focus intentionally after generation, revision, and confirmation.
 - Reduce or remove decorative transitions under `prefers-reduced-motion`.
@@ -560,10 +613,10 @@ The existing schedule-proposal pattern is a useful precedent for revision, confi
 The first implementation lives at `/testing` and is deliberately isolated from the signed-in person's production routine:
 
 - The server derives a testing-only user identity from the authenticated owner; the browser cannot choose or submit an arbitrary sandbox identity.
-- Goals, pace, Luna jobs, and draft proposals live in a provisional onboarding session. Ordinary activities, schedules, day items, activity conversations, runs, and workspaces do not exist before confirmation.
+- Priority, friction, rhythm, coaching-pace answers, Luna jobs, and candidate proposals live in a provisional onboarding session. Ordinary activities, schedules, day items, activity conversations, runs, and workspaces do not exist before confirmation.
 - Luna's proposal runs through the existing local bridge as a dedicated Terra-backed durable job. A bounded deterministic starter remains available if the bridge cannot finish.
-- `Start with this` validates the edited proposal, then atomically materializes the accepted activities into the real activity, daily schedule, role, day-plan, conversation, profile, and completion tables for the testing identity only.
-- The post-confirmation screen reads and changes those real sandbox records, including Essential counts, More-for-today activation, completion, uncompletion, Highlights, and the first achievement.
+- `Start with these Essentials` validates that three to six candidates are selected, then atomically materializes only those selected activities into the real activity, daily schedule, Essential role, day-plan, conversation, and profile tables for the testing identity only.
+- The post-confirmation screen may read and change those real sandbox records, but begins with the selected Essential list rather than Highlights or optional surfaces.
 - The three-dot menu exposes `Reset onboarding` only on `/testing`. Reset deletes the exact derived testing user and relies on foreign-key cascades; it never targets the owner identity.
 - Initial accepted activities are intentionally actionable without generated workspaces. The normal activity setup/compiler path can run later when a person adds details that justify a component, which avoids a burst of speculative setup work at confirmation.
 
@@ -571,27 +624,28 @@ This route is a product test surface, not a second implementation of the product
 
 ## 15. Open decisions
 
-1. What exact wording should replace **Gentle start**, **Balanced**, and **Give me a push**?
-2. Should the first prompt begin as an open text field, selectable themes, or the proposed hybrid?
-3. Should three to six Essentials be a validation boundary or only Luna guidance?
-4. How should the draft show estimated effort without making Timeline feel enabled?
-5. Should the user be allowed to complete an activity before confirming the whole proposal?
-6. What is the smallest deterministic fallback when Luna is unavailable?
-7. Should sign-in occur before goal capture, after proposal preview, or after the first useful action?
-8. Which onboarding follow-ups should be date-based initially, and which justify event-trigger support before launch?
-9. How much of Luna's rationale belongs directly on the proposal versus behind activity inspection?
-10. What does a successful first-day proposal look like for someone onboarding late at night?
+1. Should the maximum priority count remain three after usability testing?
+2. Should the optional free-text goal appear on the first page or behind **Something else**?
+3. Is three to six selected Essentials the right hard validation boundary?
+4. Should the Essential review support title and duration editing in the first test, or wait until selection quality is proven?
+5. What is the smallest deterministic fallback when Luna is unavailable?
+6. Should sign-in occur before question one, before proposal generation, or after the preview in a public version?
+7. Which onboarding follow-ups should be date-based initially, and which justify event-trigger support before launch?
+8. What does a successful first-day proposal look like for someone onboarding late at night?
 
 ## 16. Working recommendation
 
 Build onboarding as a short co-authored first-day experience:
 
 1. Ask what matters.
-2. Ask how much the person wants to carry.
-3. Let Luna create one complete, bounded proposal.
-4. Review it in the real Today UI.
-5. Confirm before creating durable activity machinery.
-6. Deliver one real completion and reward.
-7. Grow the routine through explicit, evidence-backed check-ins.
+2. Ask what makes follow-through difficult.
+3. Ask where support should fit.
+4. Ask how strongly Luna should coach.
+5. Let Luna create one complete set of concrete candidates.
+6. Let the person choose three to six starting Essentials on a dedicated review screen.
+7. Confirm before creating durable activity machinery.
+8. Enter the real Today screen only after confirmation.
+9. Deliver one real completion and reward.
+10. Grow the routine through explicit, evidence-backed check-ins.
 
 The product should feel capable from the first session without attempting to display every capability. Depth should appear as the person's life supplies reasons for it.

@@ -3,145 +3,110 @@ import { addLocalDays, isLocalDate } from "./schedule-model.ts";
 export const ONBOARDING_CAPACITIES = ["gentle", "balanced", "push"] as const;
 export type OnboardingCapacity = typeof ONBOARDING_CAPACITIES[number];
 
+export const ONBOARDING_PRIORITIES = ["energy", "strength", "focus", "sleep", "calm", "nourishment", "self-care", "home", "creativity", "connection"] as const;
+export type OnboardingPriority = typeof ONBOARDING_PRIORITIES[number];
+export const ONBOARDING_FRICTIONS = ["low-energy", "unpredictable", "starting", "too-many", "evenings", "forgetting", "physical-limits", "none"] as const;
+export type OnboardingFriction = typeof ONBOARDING_FRICTIONS[number];
+export const ONBOARDING_RHYTHMS = ["morning", "midday", "evening", "movement", "flexible"] as const;
+export type OnboardingRhythm = typeof ONBOARDING_RHYTHMS[number];
 export const ONBOARDING_CATEGORIES = ["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"] as const;
 export type OnboardingCategory = typeof ONBOARDING_CATEGORIES[number];
 
-export type OnboardingActivityCandidate = {
-  key: string;
-  title: string;
-  category: OnboardingCategory;
-  durationMinutes: number;
-  planRole: "essential" | "extra";
-  reason: string;
-  immediatelyActionable: boolean;
-};
-
-export type OnboardingFutureCandidate = {
-  title: string;
-  reason: string;
-};
-
-export type OnboardingProposal = {
-  summary: string;
-  activities: OnboardingActivityCandidate[];
-  futureCandidates: OnboardingFutureCandidate[];
-  calibration: {
-    afterDays: number;
-    note: string;
-  };
-};
-
-export type OnboardingStage = "welcome" | "goals" | "capacity" | "preparing" | "proposal" | "active" | "error";
+export type OnboardingAnswers = { version: 2; priorities: OnboardingPriority[]; frictions: OnboardingFriction[]; rhythms: OnboardingRhythm[]; capacity: OnboardingCapacity | null; note: string };
+export type OnboardingActivityCandidate = { key: string; title: string; category: OnboardingCategory; durationMinutes: number; reason: string; selected: boolean; immediatelyActionable: boolean };
+export type OnboardingProposal = { summary: string; activities: OnboardingActivityCandidate[]; calibration: { afterDays: number; note: string } };
+export type OnboardingStage = "welcome" | "priorities" | "friction" | "rhythm" | "coaching" | "preparing" | "proposal" | "active" | "error";
 
 const SAFE_KEY = /^[a-z0-9][a-z0-9-]{0,59}$/;
-const CAPACITY_ESSENTIAL_RANGE: Record<OnboardingCapacity, [number, number]> = {
-  gentle: [3, 4],
-  balanced: [4, 5],
-  push: [5, 6],
-};
+const TARGET_SELECTIONS: Record<OnboardingCapacity, number> = { gentle: 3, balanced: 4, push: 5 };
+const PRIORITY_LABELS: Record<OnboardingPriority, string> = { energy: "more energy", strength: "strength and movement", focus: "focused work", sleep: "better sleep", calm: "calm and recovery", nourishment: "nourishment", "self-care": "self-care", home: "home and order", creativity: "creativity", connection: "connection" };
+const RHYTHM_LABELS: Record<OnboardingRhythm, string> = { morning: "a morning anchor", midday: "a midday reset", evening: "an evening wind-down", movement: "movement somewhere in the day", flexible: "a flexible day" };
 
-function recordValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+function recordValue(value: unknown): Record<string, unknown> | null { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null; }
+function boundedText(value: unknown, maximum: number, allowEmpty = false) { if (typeof value !== "string") return null; const result = value.trim().replace(/\s+/g, " "); if (!result && allowEmpty) return ""; return result && result.length <= maximum ? result : null; }
+function boundedInteger(value: unknown, minimum: number, maximum: number) { return typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum ? value : null; }
+function enumArray<T extends string>(value: unknown, allowed: readonly T[], maximum: number): T[] | null { if (!Array.isArray(value) || value.length > maximum) return null; const result = [...new Set(value.filter((item): item is T => allowed.includes(item as T)))]; return result.length === value.length ? result : null; }
+
+export function emptyOnboardingAnswers(): OnboardingAnswers { return { version: 2, priorities: [], frictions: [], rhythms: [], capacity: null, note: "" }; }
+export function parseOnboardingCapacity(value: unknown): OnboardingCapacity | null { return ONBOARDING_CAPACITIES.includes(value as OnboardingCapacity) ? value as OnboardingCapacity : null; }
+
+export function parseOnboardingAnswers(value: unknown): OnboardingAnswers | null {
+  const source = recordValue(value);
+  if (!source || source.version !== 2) return null;
+  const priorities = enumArray(source.priorities, ONBOARDING_PRIORITIES, 3);
+  const frictions = enumArray(source.frictions, ONBOARDING_FRICTIONS, 2);
+  const rhythms = enumArray(source.rhythms, ONBOARDING_RHYTHMS, 2);
+  const capacity = source.capacity === null || source.capacity === undefined ? null : parseOnboardingCapacity(source.capacity);
+  const note = boundedText(source.note ?? "", 280, true);
+  if (!priorities || !frictions || !rhythms || note === null) return null;
+  if (frictions.includes("none") && frictions.length > 1) return null;
+  if (rhythms.includes("flexible") && rhythms.length > 1) return null;
+  return { version: 2, priorities, frictions, rhythms, capacity, note };
 }
 
-function boundedText(value: unknown, maximum: number) {
-  if (typeof value !== "string") return null;
-  const result = value.trim().replace(/\s+/g, " ");
-  return result && result.length <= maximum ? result : null;
-}
-
-function boundedInteger(value: unknown, minimum: number, maximum: number) {
-  return typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum ? value : null;
-}
-
-export function parseOnboardingCapacity(value: unknown): OnboardingCapacity | null {
-  return ONBOARDING_CAPACITIES.includes(value as OnboardingCapacity) ? value as OnboardingCapacity : null;
+export function onboardingAnswersSummary(answers: OnboardingAnswers) {
+  const priorities = answers.priorities.map((item) => PRIORITY_LABELS[item]).join(", ");
+  const rhythms = answers.rhythms.map((item) => RHYTHM_LABELS[item]).join(", ");
+  const friction = answers.frictions.length && !answers.frictions.includes("none") ? ` Friction to account for: ${answers.frictions.join(", ")}.` : "";
+  const note = answers.note ? ` In their words: ${answers.note}` : "";
+  return `Priorities: ${priorities || "not chosen"}. Preferred rhythm: ${rhythms || "not chosen"}.${friction}${note}`;
 }
 
 export function parseOnboardingProposal(value: unknown, capacity: OnboardingCapacity): OnboardingProposal | null {
   const source = recordValue(value);
-  if (!source || !Array.isArray(source.activities) || !Array.isArray(source.futureCandidates)) return null;
+  if (!source || !Array.isArray(source.activities)) return null;
   const summary = boundedText(source.summary, 240);
   const calibrationSource = recordValue(source.calibration);
   const afterDays = boundedInteger(calibrationSource?.afterDays, 3, 7);
   const calibrationNote = boundedText(calibrationSource?.note, 240);
-  if (!summary || afterDays === null || !calibrationNote) return null;
-
+  if (!summary || afterDays === null || !calibrationNote || !TARGET_SELECTIONS[capacity]) return null;
   const activities: OnboardingActivityCandidate[] = [];
-  const seenKeys = new Set<string>();
-  const seenTitles = new Set<string>();
-  for (const candidate of source.activities.slice(0, 8)) {
-    const item = recordValue(candidate);
-    if (!item) return null;
-    const key = boundedText(item.key, 60);
-    const title = boundedText(item.title, 60);
+  const seenKeys = new Set<string>(); const seenTitles = new Set<string>();
+  for (const candidate of source.activities) {
+    const item = recordValue(candidate); if (!item) return null;
+    const key = boundedText(item.key, 60); const title = boundedText(item.title, 60);
     const category = ONBOARDING_CATEGORIES.includes(item.category as OnboardingCategory) ? item.category as OnboardingCategory : null;
-    const durationMinutes = boundedInteger(item.durationMinutes, 5, 180);
-    const planRole = item.planRole === "essential" || item.planRole === "extra" ? item.planRole : null;
-    const reason = boundedText(item.reason, 180);
-    if (!key || !SAFE_KEY.test(key) || !title || !category || durationMinutes === null || !planRole || !reason || typeof item.immediatelyActionable !== "boolean") return null;
-    const normalizedTitle = title.toLocaleLowerCase();
-    if (seenKeys.has(key) || seenTitles.has(normalizedTitle)) return null;
-    seenKeys.add(key);
-    seenTitles.add(normalizedTitle);
-    activities.push({ key, title, category, durationMinutes, planRole, reason, immediatelyActionable: item.immediatelyActionable });
+    const durationMinutes = boundedInteger(item.durationMinutes, 5, 180); const reason = boundedText(item.reason, 180);
+    if (!key || !SAFE_KEY.test(key) || !title || !category || durationMinutes === null || !reason || typeof item.selected !== "boolean" || typeof item.immediatelyActionable !== "boolean") return null;
+    const normalizedTitle = title.toLocaleLowerCase(); if (seenKeys.has(key) || seenTitles.has(normalizedTitle)) return null;
+    seenKeys.add(key); seenTitles.add(normalizedTitle);
+    activities.push({ key, title, category, durationMinutes, reason, selected: item.selected, immediatelyActionable: item.immediatelyActionable });
   }
-
-  const [minimumEssentials, maximumEssentials] = CAPACITY_ESSENTIAL_RANGE[capacity];
-  const essentials = activities.filter((activity) => activity.planRole === "essential");
-  if (essentials.length < minimumEssentials || essentials.length > maximumEssentials || !essentials.some((activity) => activity.immediatelyActionable)) return null;
-  if (activities.length < essentials.length || activities.length > essentials.length + 2) return null;
-
-  const futureCandidates: OnboardingFutureCandidate[] = [];
-  for (const candidate of source.futureCandidates.slice(0, 3)) {
-    const item = recordValue(candidate);
-    const title = boundedText(item?.title, 60);
-    const reason = boundedText(item?.reason, 180);
-    if (!title || !reason || seenTitles.has(title.toLocaleLowerCase())) return null;
-    futureCandidates.push({ title, reason });
-  }
-
-  return { summary, activities, futureCandidates, calibration: { afterDays, note: calibrationNote } };
+  if (activities.length < 6 || activities.length > 8) return null;
+  const selected = activities.filter((activity) => activity.selected);
+  if (selected.length < 3 || selected.length > 6 || !selected.some((activity) => activity.immediatelyActionable)) return null;
+  return { summary, activities, calibration: { afterDays, note: calibrationNote } };
 }
 
-export function onboardingReviewDate(startDate: string, proposal: OnboardingProposal) {
-  if (!isLocalDate(startDate)) throw new Error("A valid onboarding date is required.");
-  return addLocalDays(startDate, proposal.calibration.afterDays);
-}
+export function onboardingReviewDate(startDate: string, proposal: OnboardingProposal) { if (!isLocalDate(startDate)) throw new Error("A valid onboarding date is required."); return addLocalDays(startDate, proposal.calibration.afterDays); }
 
-export function deterministicOnboardingProposal(goals: string, capacity: OnboardingCapacity): OnboardingProposal {
-  const normalized = goals.toLocaleLowerCase();
-  const pool: OnboardingActivityCandidate[] = [];
-  const add = (candidate: OnboardingActivityCandidate) => {
-    if (!pool.some((item) => item.key === candidate.key)) pool.push(candidate);
-  };
+type CatalogCandidate = Omit<OnboardingActivityCandidate, "selected" | "reason"> & { priorities: OnboardingPriority[]; rhythms: OnboardingRhythm[] };
+const CANDIDATE_CATALOG: CatalogCandidate[] = [
+  { key: "morning-walk", title: "Morning walk", category: "Light", durationMinutes: 20, immediatelyActionable: true, priorities: ["energy", "strength", "calm"], rhythms: ["morning", "movement", "flexible"] },
+  { key: "strength-session", title: "Strength session", category: "Training", durationMinutes: 30, immediatelyActionable: true, priorities: ["strength", "energy"], rhythms: ["movement", "flexible"] },
+  { key: "focus-block", title: "Focus block", category: "Creativity", durationMinutes: 30, immediatelyActionable: true, priorities: ["focus", "creativity"], rhythms: ["morning", "midday", "flexible"] },
+  { key: "bed-routine", title: "Bed routine", category: "Care", durationMinutes: 15, immediatelyActionable: true, priorities: ["sleep", "calm", "self-care"], rhythms: ["evening", "flexible"] },
+  { key: "ten-minute-meditation", title: "10-minute meditation", category: "Recharge", durationMinutes: 10, immediatelyActionable: true, priorities: ["calm", "focus", "sleep"], rhythms: ["morning", "midday", "evening", "flexible"] },
+  { key: "breakfast", title: "Breakfast", category: "Fuel", durationMinutes: 15, immediatelyActionable: true, priorities: ["nourishment", "energy", "self-care"], rhythms: ["morning", "flexible"] },
+  { key: "lunch-away-from-screen", title: "Lunch away from the screen", category: "Fuel", durationMinutes: 20, immediatelyActionable: true, priorities: ["nourishment", "energy", "calm"], rhythms: ["midday", "flexible"] },
+  { key: "skin-routine", title: "Skin routine", category: "Care", durationMinutes: 5, immediatelyActionable: true, priorities: ["self-care", "calm"], rhythms: ["morning", "evening", "flexible"] },
+  { key: "ten-minute-tidy", title: "10-minute tidy", category: "Logistics", durationMinutes: 10, immediatelyActionable: true, priorities: ["home", "calm", "focus"], rhythms: ["midday", "evening", "flexible"] },
+  { key: "creative-practice", title: "Creative practice", category: "Creativity", durationMinutes: 25, immediatelyActionable: true, priorities: ["creativity", "focus", "calm"], rhythms: ["morning", "midday", "evening", "flexible"] },
+  { key: "check-in-with-someone", title: "Check in with someone", category: "Spirit", durationMinutes: 10, immediatelyActionable: true, priorities: ["connection", "calm"], rhythms: ["midday", "evening", "flexible"] },
+  { key: "afternoon-stretch", title: "Afternoon stretch", category: "Training", durationMinutes: 10, immediatelyActionable: true, priorities: ["energy", "strength", "calm"], rhythms: ["midday", "movement", "flexible"] },
+];
 
-  if (/calm|stress|anx|morning|ground/.test(normalized)) add({ key: "quiet-start", title: "Quiet start", category: "Recharge", durationMinutes: 10, planRole: "essential", reason: "Creates a small protected transition into the day.", immediatelyActionable: true });
-  if (/health|fit|move|walk|energy|exercise/.test(normalized)) add({ key: "daily-walk", title: "Daily walk", category: "Light", durationMinutes: 20, planRole: "essential", reason: "Adds approachable movement and outdoor time.", immediatelyActionable: true });
-  if (/work|focus|project|create|progress/.test(normalized)) add({ key: "focus-block", title: "Focus block", category: "Creativity", durationMinutes: 30, planRole: "essential", reason: "Protects visible progress on the work that matters.", immediatelyActionable: true });
-  if (/sleep|night|evening|rest/.test(normalized)) add({ key: "evening-wind-down", title: "Evening wind-down", category: "Care", durationMinutes: 15, planRole: "essential", reason: "Makes the end of the day calmer and more repeatable.", immediatelyActionable: true });
-  if (/eat|food|meal|nutrition|fuel/.test(normalized)) add({ key: "intentional-meal", title: "Intentional meal", category: "Fuel", durationMinutes: 25, planRole: "essential", reason: "Creates one reliable point of nourishment without over-planning food.", immediatelyActionable: true });
-
-  const defaults: OnboardingActivityCandidate[] = [
-    { key: "morning-reset", title: "Morning reset", category: "Care", durationMinutes: 10, planRole: "essential", reason: "Starts the day with one manageable act of self-care.", immediatelyActionable: true },
-    { key: "move-your-body", title: "Move your body", category: "Training", durationMinutes: 15, planRole: "essential", reason: "Builds a flexible movement commitment that can become more specific later.", immediatelyActionable: true },
-    { key: "important-progress", title: "Important progress", category: "Creativity", durationMinutes: 25, planRole: "essential", reason: "Keeps one meaningful goal from being crowded out.", immediatelyActionable: true },
-    { key: "prepare-for-tomorrow", title: "Prepare for tomorrow", category: "Logistics", durationMinutes: 10, planRole: "essential", reason: "Closes one open loop before the next day begins.", immediatelyActionable: true },
-    { key: "evening-reset", title: "Evening reset", category: "Recharge", durationMinutes: 10, planRole: "essential", reason: "Adds a gentle release point at the end of the day.", immediatelyActionable: true },
-    { key: "extra-outdoor-time", title: "Extra outdoor time", category: "Light", durationMinutes: 20, planRole: "extra", reason: "A stretch goal for days when there is more energy.", immediatelyActionable: true },
-  ];
-  defaults.forEach(add);
-
-  const desiredEssentials = capacity === "gentle" ? 3 : capacity === "balanced" ? 4 : 5;
-  const essentials = pool.filter((item) => item.planRole === "essential").slice(0, desiredEssentials);
-  const extra = capacity === "gentle" ? [] : [pool.find((item) => item.planRole === "extra") ?? defaults.at(-1)!];
-  return {
-    summary: "A practical starting day that protects what matters without trying to solve everything at once.",
-    activities: [...essentials, ...extra],
-    futureCandidates: [
-      { title: "A more specific movement plan", reason: "Worth shaping after the first few days show what fits." },
-      { title: "A stronger evening routine", reason: "Can grow from what actually helps you wind down." },
-    ],
-    calibration: { afterDays: 3, note: "After three days, Luna will help you decide what to add, remove, or make more specific." },
-  };
+export function deterministicOnboardingProposal(answers: OnboardingAnswers): OnboardingProposal {
+  if (!answers.capacity || !answers.priorities.length || !answers.rhythms.length) throw new Error("Complete onboarding answers are required.");
+  const lowEffort = answers.frictions.some((item) => ["low-energy", "starting", "physical-limits"].includes(item));
+  const scored = CANDIDATE_CATALOG.map((candidate, index) => ({ candidate, index, score: candidate.priorities.filter((item) => answers.priorities.includes(item)).length * 4 + candidate.rhythms.filter((item) => answers.rhythms.includes(item)).length * 2 })).sort((a, b) => b.score - a.score || a.index - b.index);
+  const target = TARGET_SELECTIONS[answers.capacity];
+  const activities = scored.slice(0, 7).map(({ candidate }, index): OnboardingActivityCandidate => {
+    const matchedPriority = candidate.priorities.find((item) => answers.priorities.includes(item)); const matchedRhythm = candidate.rhythms.find((item) => answers.rhythms.includes(item));
+    const durationMinutes = lowEffort ? Math.max(5, Math.min(candidate.durationMinutes, 20)) : candidate.durationMinutes;
+    const reason = matchedPriority ? `Supports ${PRIORITY_LABELS[matchedPriority]} with a concrete ${durationMinutes}-minute action.` : `Fits ${matchedRhythm ? RHYTHM_LABELS[matchedRhythm] : "the flexible rhythm you chose"} without complicated setup.`;
+    return { key: candidate.key, title: candidate.title, category: candidate.category, durationMinutes, reason, selected: index < target, immediatelyActionable: candidate.immediatelyActionable };
+  });
+  const namedPriorities = answers.priorities.map((item) => PRIORITY_LABELS[item]).join(", ");
+  return { summary: `A concrete starting set shaped around ${namedPriorities}, with the friction you named kept in view.`, activities, calibration: { afterDays: 3, note: "After three days, Luna can help you adjust the set based on what actually fit." } };
 }
