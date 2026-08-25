@@ -69,54 +69,98 @@ function networkFade(distance: number) {
   return Math.pow(normalized, 1.45);
 }
 
+const LUNA_FIELD = (() => {
+  const random = seededRandom(21031989);
+  const nodes: NetworkNode[] = Array.from({ length: 336 }, () => ({
+    angle: random() * TAU,
+    distance: .53 + Math.pow(random(), .72) * .78,
+    phase: random() * TAU,
+    size: .34 + Math.pow(random(), 2) * 1.65,
+  }));
+  const links: Array<[number, number]> = [];
+  for (let first = 0; first < nodes.length; first += 1) {
+    const a = nodes[first];
+    const ax = Math.cos(a.angle) * a.distance;
+    const ay = Math.sin(a.angle) * a.distance;
+    for (let second = first + 1; second < nodes.length; second += 1) {
+      const b = nodes[second];
+      const bx = Math.cos(b.angle) * b.distance;
+      const by = Math.sin(b.angle) * b.distance;
+      if (Math.hypot(ax - bx, ay - by) < .255) links.push([first, second]);
+    }
+  }
+  const stars: NetworkNode[] = Array.from({ length: 420 }, () => ({
+    angle: random() * TAU,
+    distance: .66 + random() * .69,
+    phase: random() * TAU,
+    size: .22 + random() * .66,
+  }));
+  return { links, nodes, stars };
+})();
+
 export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, state = "idle" }: LunaAvatarProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const shellRef = useRef<HTMLSpanElement>(null);
+  const networkCanvasRef = useRef<HTMLCanvasElement>(null);
+  const facetCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const context = canvas.getContext("2d");
-    if (!context) return;
+    const shell = shellRef.current;
+    const networkCanvas = networkCanvasRef.current;
+    const facetCanvas = facetCanvasRef.current;
+    if (!shell || !networkCanvas || !facetCanvas) return;
+    const networkContext = networkCanvas.getContext("2d");
+    const facetContext = facetCanvas.getContext("2d");
+    if (!networkContext || !facetContext) return;
 
-    const random = seededRandom(21031989);
-    const nodes: NetworkNode[] = Array.from({ length: 336 }, () => ({
-      angle: random() * TAU,
-      distance: .53 + Math.pow(random(), .72) * .78,
-      phase: random() * TAU,
-      size: .34 + Math.pow(random(), 2) * 1.65,
-    }));
-    const networkLinks: Array<[number, number]> = [];
-    for (let first = 0; first < nodes.length; first += 1) {
-      const a = nodes[first];
-      const ax = Math.cos(a.angle) * a.distance;
-      const ay = Math.sin(a.angle) * a.distance;
-      for (let second = first + 1; second < nodes.length; second += 1) {
-        const b = nodes[second];
-        const bx = Math.cos(b.angle) * b.distance;
-        const by = Math.sin(b.angle) * b.distance;
-        if (Math.hypot(ax - bx, ay - by) < .255) networkLinks.push([first, second]);
-      }
-    }
-    const stars: NetworkNode[] = Array.from({ length: 420 }, () => ({
-      angle: random() * TAU,
-      distance: .66 + random() * .69,
-      phase: random() * TAU,
-      size: .22 + random() * .66,
-    }));
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reducedMotion = motion.matches;
     let frame = 0;
-    let startedAt = performance.now();
+    let timer = 0;
+    const startedAt = performance.now();
+    let lastFacetFrame = Number.NEGATIVE_INFINITY;
+    let lastNetworkFrame = Number.NEGATIVE_INFINITY;
+    let visible = true;
+    let width = 1;
+    let height = 1;
+    let pixelRatio = 1;
+    let needsResize = true;
+    let activeNodeCount = LUNA_FIELD.nodes.length;
+    let activeStarCount = LUNA_FIELD.stars.length;
+    let activeLinks = LUNA_FIELD.links;
+    let fieldScale = 1;
 
-    const onMotionChange = (event: MediaQueryListEvent) => {
-      const wasReduced = reducedMotion;
-      reducedMotion = event.matches;
-      if (wasReduced && !reducedMotion) frame = window.requestAnimationFrame(draw);
+    const resizeCanvases = () => {
+      const bounds = shell.getBoundingClientRect();
+      width = Math.max(1, bounds.width);
+      height = Math.max(1, bounds.height);
+      pixelRatio = Math.min(window.devicePixelRatio || 1, width < 144 ? 1.5 : 2);
+      const nextWidth = Math.round(width * pixelRatio);
+      const nextHeight = Math.round(height * pixelRatio);
+      for (const canvas of [networkCanvas, facetCanvas]) {
+        if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+          canvas.width = nextWidth;
+          canvas.height = nextHeight;
+        }
+      }
+      networkContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      facetContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+      const compactComplexity = Math.max(.16, Math.pow(Math.min(width, height) / 180, 2));
+      const complexity = Math.min(1, compactComplexity);
+      activeNodeCount = Math.max(42, Math.floor(LUNA_FIELD.nodes.length * complexity));
+      activeStarCount = Math.max(54, Math.floor(LUNA_FIELD.stars.length * complexity));
+      activeLinks = complexity === 1
+        ? LUNA_FIELD.links
+        : LUNA_FIELD.links.filter(([first, second]) => first < activeNodeCount && second < activeNodeCount);
+      fieldScale = Math.min(1, Math.max(.28, Math.min(width, height) / 250));
+      needsResize = false;
+      lastFacetFrame = Number.NEGATIVE_INFINITY;
+      lastNetworkFrame = Number.NEGATIVE_INFINITY;
     };
-    motion.addEventListener("change", onMotionChange);
 
     const drawNetwork = (centerX: number, centerY: number, radius: number, emptyRadius: number, time: number, energy: number) => {
-      const positions = nodes.map((node, index) => {
+      const fieldEnergy = energy * fieldScale;
+      const positions = LUNA_FIELD.nodes.slice(0, activeNodeCount).map((node, index) => {
         const drift = Math.sin(time * .35 + node.phase) * radius * .008;
         const orbital = node.angle + Math.sin(time * .14 + node.phase) * .012 + time * (index % 2 ? .0007 : -.00055);
         const nodeRadius = radius * node.distance + drift;
@@ -129,66 +173,69 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         };
       });
 
-      context.save();
-      context.beginPath();
-      context.rect(0, 0, canvas.clientWidth, canvas.clientHeight);
-      context.arc(centerX, centerY, emptyRadius, 0, TAU);
-      context.clip("evenodd");
-      context.globalCompositeOperation = "lighter";
-      for (const [first, second] of networkLinks) {
+      networkContext.clearRect(0, 0, width, height);
+      networkContext.save();
+      networkContext.beginPath();
+      networkContext.rect(0, 0, width, height);
+      networkContext.arc(centerX, centerY, emptyRadius, 0, TAU);
+      networkContext.clip("evenodd");
+      networkContext.globalCompositeOperation = "lighter";
+      for (const [first, second] of activeLinks) {
         const a = positions[first];
         const b = positions[second];
         const distance = Math.hypot(a.x - b.x, a.y - b.y);
         const threshold = radius * .275;
         if (distance > threshold) continue;
-        const opacity = (1 - distance / threshold) * .3 * energy * Math.min(a.fade, b.fade);
-        context.beginPath();
-        context.moveTo(a.x, a.y);
-        context.lineTo(b.x, b.y);
-        context.strokeStyle = colorAt((a.angle + b.angle) / 2, opacity);
-        context.lineWidth = .48;
-        context.stroke();
+        const opacity = (1 - distance / threshold) * .3 * fieldEnergy * Math.min(a.fade, b.fade);
+        networkContext.beginPath();
+        networkContext.moveTo(a.x, a.y);
+        networkContext.lineTo(b.x, b.y);
+        networkContext.strokeStyle = colorAt((a.angle + b.angle) / 2, opacity);
+        networkContext.lineWidth = .48;
+        networkContext.stroke();
       }
 
-      for (const star of stars) {
+      for (let index = 0; index < activeStarCount; index += 1) {
+        const star = LUNA_FIELD.stars[index];
         const distance = radius * (star.distance + Math.sin(time * .24 + star.phase) * .003);
         const fade = networkFade(star.distance);
         const x = centerX + Math.cos(star.angle) * distance;
         const y = centerY + Math.sin(star.angle) * distance;
         const pulse = .7 + Math.sin(time * 1.25 + star.phase) * .22;
-        context.beginPath();
-        context.arc(x, y, star.size * pulse * energy, 0, TAU);
-        context.fillStyle = colorAt(star.angle, .68 * energy * fade, .08);
-        context.fill();
+        networkContext.beginPath();
+        networkContext.arc(x, y, star.size * pulse * fieldEnergy, 0, TAU);
+        networkContext.fillStyle = colorAt(star.angle, .68 * fieldEnergy * fade, .08);
+        networkContext.fill();
       }
 
       for (const point of positions) {
         const pulse = .76 + Math.sin(time * 1.45 + point.angle * 4) * .2;
-        const size = point.size * pulse * energy;
-        if (size > 1.18) {
-          const glow = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, size * 4.4);
-          glow.addColorStop(0, colorAt(point.angle, .62 * energy * point.fade, .28));
-          glow.addColorStop(.28, colorAt(point.angle, .28 * energy * point.fade));
+        const pointSize = point.size * pulse * fieldEnergy;
+        if (pointSize > 1.18) {
+          const glow = networkContext.createRadialGradient(point.x, point.y, 0, point.x, point.y, pointSize * 4.4);
+          glow.addColorStop(0, colorAt(point.angle, .62 * fieldEnergy * point.fade, .28));
+          glow.addColorStop(.28, colorAt(point.angle, .28 * fieldEnergy * point.fade));
           glow.addColorStop(1, colorAt(point.angle, 0));
-          context.fillStyle = glow;
-          context.fillRect(point.x - size * 4.4, point.y - size * 4.4, size * 8.8, size * 8.8);
+          networkContext.fillStyle = glow;
+          networkContext.fillRect(point.x - pointSize * 4.4, point.y - pointSize * 4.4, pointSize * 8.8, pointSize * 8.8);
         }
-        context.beginPath();
-        context.arc(point.x, point.y, Math.max(.3, size), 0, TAU);
-        context.fillStyle = colorAt(point.angle, .9 * energy * point.fade, .08);
-        context.fill();
+        networkContext.beginPath();
+        networkContext.arc(point.x, point.y, Math.max(.24, pointSize), 0, TAU);
+        networkContext.fillStyle = colorAt(point.angle, .9 * fieldEnergy * point.fade, .08);
+        networkContext.fill();
       }
-      context.restore();
+      networkContext.restore();
     };
 
     const drawFacets = (centerX: number, centerY: number, radius: number, coreRadius: number, time: number, energy: number) => {
-      const glow = context.createRadialGradient(centerX, centerY, coreRadius * .92, centerX, centerY, radius * .86);
+      facetContext.clearRect(0, 0, width, height);
+      const glow = facetContext.createRadialGradient(centerX, centerY, coreRadius * .92, centerX, centerY, radius * .86);
       glow.addColorStop(0, "rgba(255,255,255,0)");
       glow.addColorStop(.36, "rgba(220,244,236,.08)");
       glow.addColorStop(.72, "rgba(126,181,190,.025)");
       glow.addColorStop(1, "rgba(0,0,0,0)");
-      context.fillStyle = glow;
-      context.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      facetContext.fillStyle = glow;
+      facetContext.fillRect(0, 0, width, height);
 
       const facets = 42;
       const spacing = TAU / facets;
@@ -213,10 +260,10 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
             fromAngle + (toAngle - fromAngle) * progress,
             fromRadius + (toRadius - fromRadius) * progress,
           );
-          context.lineTo(point.x, point.y);
+          facetContext.lineTo(point.x, point.y);
         }
       };
-      context.save();
+      facetContext.save();
       for (let index = 0; index < facets; index += 1) {
         const angle = index * spacing;
         const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
@@ -224,33 +271,22 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const outwardRadius = centerRadius + radialHalfDiagonal;
         const inwardTip = mapPolarPoint(angle, inwardRadius);
 
-        context.beginPath();
-        context.moveTo(inwardTip.x, inwardTip.y);
+        facetContext.beginPath();
+        facetContext.moveTo(inwardTip.x, inwardTip.y);
         tracePolarEdge(angle, inwardRadius, angle + spacing, centerRadius);
         tracePolarEdge(angle + spacing, centerRadius, angle, outwardRadius);
         tracePolarEdge(angle, outwardRadius, angle - spacing, centerRadius);
         tracePolarEdge(angle - spacing, centerRadius, angle, inwardRadius);
-        context.closePath();
-        context.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
-        context.fill();
+        facetContext.closePath();
+        facetContext.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
+        facetContext.fill();
       }
-      context.restore();
+      facetContext.restore();
     };
 
-    const draw = (now: number) => {
-      const bounds = canvas.getBoundingClientRect();
-      const width = Math.max(1, bounds.width);
-      const height = Math.max(1, bounds.height);
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-      const nextWidth = Math.round(width * pixelRatio);
-      const nextHeight = Math.round(height * pixelRatio);
-      if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
-        canvas.width = nextWidth;
-        canvas.height = nextHeight;
-      }
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      context.clearRect(0, 0, width, height);
-
+    function draw(now: number) {
+      if (!visible || document.hidden) return;
+      if (needsResize) resizeCanvases();
       const elapsed = reducedMotion ? 1.8 : (now - startedAt) / 1000;
       const speed = state === "thinking" ? 1.22 : state === "listening" ? .86 : .54;
       const energy = state === "thinking" ? 1.18 : state === "listening" ? 1.08 : 1;
@@ -261,21 +297,75 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const artRadius = radius * .76;
       const breath = Math.sin(time * TAU / 5.8) * .011 + Math.sin(time * TAU / 11.6 + .7) * .004;
       const coreRadius = artRadius * (.635 + breath);
+      const compact = Math.min(width, height) < 144;
+      const facetInterval = reducedMotion ? Number.POSITIVE_INFINITY : 1000 / (compact ? 18 : 30);
+      const networkInterval = reducedMotion
+        ? Number.POSITIVE_INFINITY
+        : state === "thinking"
+          ? compact ? 600 : 250
+          : state === "listening"
+            ? compact ? 800 : 450
+            : compact ? 1000 : 750;
+      const usesNetwork = layer === "complete" || layer === "network";
+      const usesFacets = layer === "complete" || layer === "facets";
 
-      if (layer === "complete" || layer === "network") drawNetwork(centerX, centerY, artRadius, coreRadius, time, energy);
-      if (layer === "complete" || layer === "facets") drawFacets(centerX, centerY, artRadius, coreRadius, time, energy);
+      if (usesNetwork && now - lastNetworkFrame >= networkInterval) {
+        drawNetwork(centerX, centerY, artRadius, coreRadius, time, energy);
+        lastNetworkFrame = now;
+      }
+      if (usesFacets && now - lastFacetFrame >= facetInterval) {
+        drawFacets(centerX, centerY, artRadius, coreRadius, time, energy);
+        lastFacetFrame = now;
+      }
 
-      if (!reducedMotion) frame = window.requestAnimationFrame(draw);
+      if (reducedMotion) return;
+      const nextNetwork = usesNetwork ? lastNetworkFrame + networkInterval : Number.POSITIVE_INFINITY;
+      const nextFacet = usesFacets ? lastFacetFrame + facetInterval : Number.POSITIVE_INFINITY;
+      const delay = Math.max(8, Math.min(nextNetwork, nextFacet) - performance.now());
+      timer = window.setTimeout(() => { frame = window.requestAnimationFrame(draw); }, delay);
+    }
+
+    function requestDraw(resetFrames = true) {
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frame);
+      if (resetFrames) {
+        lastFacetFrame = Number.NEGATIVE_INFINITY;
+        lastNetworkFrame = Number.NEGATIVE_INFINITY;
+      }
+      if (visible && !document.hidden) frame = window.requestAnimationFrame(draw);
+    }
+
+    const onMotionChange = (event: MediaQueryListEvent) => {
+      reducedMotion = event.matches;
+      requestDraw();
     };
+    const onVisibilityChange = () => requestDraw(false);
+    const resizeObserver = new ResizeObserver(() => {
+      needsResize = true;
+      requestDraw();
+    });
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? true;
+      requestDraw(false);
+    }, { rootMargin: "80px" });
 
-    frame = window.requestAnimationFrame(draw);
-    const restart = () => { startedAt = performance.now(); if (reducedMotion) draw(startedAt); };
-    restart();
+    networkContext.clearRect(0, 0, networkCanvas.width, networkCanvas.height);
+    facetContext.clearRect(0, 0, facetCanvas.width, facetCanvas.height);
+    motion.addEventListener("change", onMotionChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    resizeObserver.observe(shell);
+    visibilityObserver.observe(shell);
+    requestDraw();
+
     return () => {
+      window.clearTimeout(timer);
       window.cancelAnimationFrame(frame);
       motion.removeEventListener("change", onMotionChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      resizeObserver.disconnect();
+      visibilityObserver.disconnect();
     };
   }, [layer, state]);
 
-  return <span className="luna-avatar" data-state={state} role="img" aria-label={`${label} is ${state}`} style={{ "--luna-avatar-size": `${size}px` } as CSSProperties}><canvas ref={canvasRef} /></span>;
+  return <span ref={shellRef} className="luna-avatar" data-state={state} role="img" aria-label={`${label} is ${state}`} style={{ "--luna-avatar-size": `${size}px` } as CSSProperties}><canvas aria-hidden="true" className="luna-avatar-network" ref={networkCanvasRef} /><canvas aria-hidden="true" className="luna-avatar-facets" ref={facetCanvasRef} /></span>;
 }
