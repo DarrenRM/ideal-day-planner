@@ -140,10 +140,10 @@ Purpose: establish the promise without presenting a feature tour.
 
 Possible deterministic interface copy:
 
-> **Build a day around what matters to you.**
-> Turn what matters to you into a clear daily plan—and let Luna help it evolve as your life does.
+> **Make room for the life you want.**
+> Turn your priorities into small, achievable actions—and build momentum one day at a time.
 
-The supporting copy sells the person's resulting capability rather than the questionnaire mechanics. A small footer may say only `Takes about 2 minutes`.
+The supporting copy sells the person's resulting capability rather than the questionnaire mechanics or Luna as a feature. A small footer may say only `Takes about 2 minutes`.
 
 Primary action:
 
