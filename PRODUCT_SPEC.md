@@ -652,7 +652,7 @@ Implementation note (2026-08-24, revised 2026-08-25): site-wide Luna is the conv
 - Moving a missed activity later reschedules all following activities.
 - Activities expand in their existing row/card on desktop and mobile.
 - Mobile begins at Today’s activity list and omits the desktop hero and summary sections.
-- Mobile also omits the branded app bar on the home screen. Its date header owns compact backward/forward day navigation, while desktop retains the full shell.
+- Mobile also omits the branded app bar on the home screen. Its date header keeps the date and day-level actions together, with one quiet `Yesterday` affordance beneath them. Historical review reveals only the additional `Earlier`, conditional `Later`, and `Today` navigation needed to move or return; desktop retains the full shell.
 - Past-day review is a deliberately reduced correction surface: it shows only activities that belonged to that day and permits completing or reopening them. It does not expose planning, activity details, extras, achievements, or Luna-generated day highlights for a retroactive correction.
 - Mobile uses one shared activity header in collapsed and expanded states. It contains title/category, overflow menu, completion, and compact activity-length controls; Timeline mode additionally adds clock time.
 - The expanded mobile footer contains the large `Skip for Today` and `Mark Complete` actions. Overflow and duration controls live in the shared header rather than repeating in the footer.

@@ -3146,19 +3146,19 @@ export default function Home() {
         <div className="main-grid">
           <section className="planner" aria-labelledby="schedule-title">
             <header className="planner-header">
-              <div>
+              <div className="planner-heading-copy">
                 <h2 id="schedule-title">
                   <span className="desktop-schedule-title">{timelineEnabled ? "Schedule" : "Today"}</span>
                   <span className="mobile-schedule-title">{formatTodayHeading(dateFromKey(viewDate))}</span>
                 </h2>
                 <p>
                   <span className="desktop-schedule-summary">{isReviewingPastDay ? `Reviewing ${reviewDayLabel(viewDate, todayDateKey)}` : hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} more` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
-                  <span className="mobile-day-nav" aria-label="Browse days">
-                    <button aria-label="View previous day" type="button" onClick={() => showDay(shiftDateKey(viewDate, -1))}><ChevronLeft aria-hidden="true" size={17} /></button>
-                    <button className="mobile-day-nav-label" disabled={!isReviewingPastDay} type="button" onClick={() => showDay(todayDateKey)}>{reviewDayLabel(viewDate, todayDateKey)}</button>
-                    <button aria-label="View next day" disabled={!isReviewingPastDay} type="button" onClick={() => showDay(shiftDateKey(viewDate, 1))}><ChevronRight aria-hidden="true" size={17} /></button>
-                  </span>
                 </p>
+                <nav className="mobile-day-nav" aria-label="Browse past days">
+                  <button aria-label="View previous day" type="button" onClick={() => showDay(shiftDateKey(viewDate, -1))}><ChevronLeft aria-hidden="true" size={16} /><span>{isReviewingPastDay ? "Earlier" : "Yesterday"}</span></button>
+                  {isReviewingPastDay && viewDate < shiftDateKey(todayDateKey, -1) ? <button aria-label="View next day" type="button" onClick={() => showDay(shiftDateKey(viewDate, 1))}><span>Later</span><ChevronRight aria-hidden="true" size={16} /></button> : null}
+                  {isReviewingPastDay ? <button className="mobile-day-nav-today" type="button" onClick={() => showDay(todayDateKey)}>Today</button> : null}
+                </nav>
               </div>
               {!isReviewingPastDay ? <div className="planner-actions">
                 <div className="planner-menu" ref={menuRef}>
