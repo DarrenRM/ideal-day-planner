@@ -330,14 +330,17 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
 
 export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, showEmptyState = false, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  const visibleRecordKeys = new Set<string>();
   const visibleComponents = workspace.components.filter((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
     if (component.type === "routine") return hasUsefulRoutineComponent(component);
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
-    return Boolean(record && hasUsefulActivityRecordData(record, {
+    if (!record || visibleRecordKeys.has(record.key) || !hasUsefulActivityRecordData(record, {
       activityTitle: activity.title,
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
-    }));
+    })) return false;
+    visibleRecordKeys.add(record.key);
+    return true;
   });
   const productComponents = visibleComponents.flatMap((component) => {
     if (component.type !== "product") return [];

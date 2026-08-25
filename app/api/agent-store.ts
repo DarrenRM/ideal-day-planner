@@ -2104,7 +2104,7 @@ export async function migrateLegacyProductOwnership(userId: string) {
   return { applied: true };
 }
 
-const PRODUCT_SUBJECT_RHYTHMS_MIGRATION = "product-subject-rhythms-v1";
+const PRODUCT_SUBJECT_RHYTHMS_MIGRATION = "product-subject-rhythms-v2";
 
 /**
  * Gives the current Skin routine explicit per-product rhythms. Historical
@@ -2177,16 +2177,28 @@ export async function backfillProductSubjectRhythms(userId: string, referenceDat
     await persistRecordActions({ userId, activityId: activity.id, actionId: `${migrationId}:records`, actions });
   }
 
+  const refreshedRecords = actions.length ? await readActivityRecords(activity.id, referenceDate) : records;
+  const refreshedByKey = new Map(refreshedRecords.map((record) => [record.key, record]));
+  const retinolRhythm = refreshedRecords.find((record) => record.subjectKey === "plainleaf-retinol-night-serum" && (record.type === "recurring_step" || record.type === "adherence"));
+  const desiredComponents = [
+    { id: "castile-soap", type: "product" as const, title: "Castile Soap", recordKey: "castile-soap", presentation: "featured" as const },
+    { id: "castile-soap-adherence", type: "adherence" as const, title: "Castile Soap", recordKey: "castile-soap-adherence", presentation: "compact" as const },
+    { id: "plainleaf-retinol-night-serum", type: "product" as const, title: "Retinol Night Serum", recordKey: "plainleaf-retinol-night-serum", presentation: "featured" as const },
+    ...(retinolRhythm ? [{ id: retinolRhythm.key, type: retinolRhythm.type, title: retinolRhythm.title, recordKey: retinolRhythm.key, presentation: "compact" as const }] : []),
+  ];
+  const currentWorkspace = await readActivityWorkspace(activity.id);
+  const workspaceActions: WorkspaceAction[] = [];
+  for (const desired of desiredComponents) {
+    if (!refreshedByKey.has(desired.recordKey)) continue;
+    const matches = currentWorkspace.document.components.filter((component) => "recordKey" in component && component.recordKey === desired.recordKey);
+    if (!matches.length) workspaceActions.push({ op: "upsert", component: desired });
+    for (const duplicate of matches.slice(1)) workspaceActions.push({ op: "remove", componentId: duplicate.id });
+  }
   await persistWorkspaceActions({
     userId,
     activityId: activity.id,
     agentJobId: `${migrationId}:workspace`,
-    actions: [
-      { op: "upsert", component: { id: "castile-soap", type: "product", title: "Castile Soap", recordKey: "castile-soap", presentation: "featured" } },
-      { op: "upsert", component: { id: "castile-soap-adherence", type: "adherence", title: "Castile Soap", recordKey: "castile-soap-adherence", presentation: "compact" } },
-      { op: "upsert", component: { id: "plainleaf-retinol-night-serum", type: "product", title: "Retinol Night Serum", recordKey: "plainleaf-retinol-night-serum", presentation: "featured" } },
-      ...(!hasRetinolRhythm ? [{ op: "upsert" as const, component: { id: "plainleaf-retinol-night-serum-schedule", type: "recurring_step" as const, title: "Retinol nights", recordKey: "plainleaf-retinol-night-serum-schedule", presentation: "compact" as const } }] : []),
-    ],
+    actions: workspaceActions,
   });
 
   if (runRows.length) {
