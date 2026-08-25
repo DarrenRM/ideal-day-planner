@@ -66,7 +66,7 @@ export function parseOnboardingProposal(value: unknown, capacity: OnboardingCapa
     const item = recordValue(candidate); if (!item) return null;
     const key = boundedText(item.key, 60); const title = boundedText(item.title, 60);
     const category = ONBOARDING_CATEGORIES.includes(item.category as OnboardingCategory) ? item.category as OnboardingCategory : null;
-    const durationMinutes = boundedInteger(item.durationMinutes, 5, 180); const reason = boundedText(item.reason, 180);
+    const durationMinutes = boundedInteger(item.durationMinutes, 5, 480); const reason = boundedText(item.reason, 180);
     if (!key || !SAFE_KEY.test(key) || !title || !category || durationMinutes === null || !reason || typeof item.selected !== "boolean" || typeof item.immediatelyActionable !== "boolean") return null;
     const normalizedTitle = title.toLocaleLowerCase(); if (seenKeys.has(key) || seenTitles.has(normalizedTitle)) return null;
     seenKeys.add(key); seenTitles.add(normalizedTitle);

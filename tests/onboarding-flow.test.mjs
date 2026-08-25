@@ -21,6 +21,7 @@ test("builds six to eight concrete candidates and preselects by coaching pace", 
     assert.ok(parsed.activities.length >= 6 && parsed.activities.length <= 8);
     assert.equal(parsed.activities.filter((activity) => activity.selected).length, expected);
     assert.ok(parsed.activities.every((activity) => activity.durationMinutes >= 5));
+    assert.ok(parsed.activities.every((activity) => activity.durationMinutes <= 480));
     assert.ok(parsed.activities.every((activity) => !/reset|important progress|move your body|ease into/i.test(activity.title)));
   }
 });
@@ -51,13 +52,18 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /What usually gets in the way\?/);
   assert.match(page, /Where would a little structure help most\?/);
   assert.match(page, /How should Luna start with you\?/);
-  assert.match(page, /Choose your Essentials\./);
+  assert.match(page, /Confirm your Essentials\./);
   assert.match(page, /Reset onboarding/);
+  assert.match(page, /ActivityDurationControl/);
+  assert.match(page, /category-chip/);
+  assert.match(page, /window\.location\.assign\("\/testing"\)/);
+  assert.doesNotMatch(page, /No activities have been created yet/);
+  assert.doesNotMatch(page, /Why these\?|Not saved yet/);
   assert.match(page, /priorities: "dusk"/);
   assert.match(page, /friction: "current"/);
   assert.match(page, /rhythm: "orbital"/);
   assert.match(page, /coaching: "veil"/);
-  assert.doesNotMatch(page, /HIGHLIGHTS|MORE FOR TODAY|stretch goals/i);
+  assert.doesNotMatch(page, /MORE FOR TODAY|stretch goals/i);
   assert.doesNotMatch(rootPage, /Reset onboarding/);
   assert.match(bridge, /six to eight candidate activities/);
   assert.match(spec, /Onboarding is not the home screen/);

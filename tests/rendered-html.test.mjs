@@ -40,11 +40,13 @@ test("server-renders the idealized day planner", async () => {
 });
 
 test("keeps the routine data and interactions in the page", async () => {
-  const [page, workspace, drawer, css] = await Promise.all([
+  const [page, workspace, drawer, css, durationControl, activityPresentation] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/use-mobile-conversation-drawer.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-duration-control.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-presentation.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /localStorage/);
@@ -88,21 +90,21 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Math\.floor\(item\.duration \/ DURATION_STEP\)/);
   assert.match(page, /Math\.ceil\(item\.duration \/ DURATION_STEP\)/);
   assert.match(page, /setDuration/);
-  assert.match(page, /onBlur=\{\(\) => onSet\(normalizeActivityDuration\(item\.duration\)\)\}/);
-  assert.match(page, /Length for .* in minutes/);
+  assert.match(durationControl, /onBlur=\{\(\) => onSet\(normalizeActivityDuration\(item\.duration\)\)\}/);
+  assert.match(durationControl, /Length for .* in minutes/);
   assert.doesNotMatch(page, /resetOrder/);
   assert.match(page, /addItem/);
   assert.match(page, /normalizeActivityDuration/);
-  assert.match(page, /Math\.round\(duration \/ 5\) \* 5/);
+  assert.match(durationControl, /Math\.round\(duration \/ DURATION_STEP\) \* DURATION_STEP/);
   assert.match(page, /id="block-duration"[\s\S]*?min="5"[\s\S]*?step="5"/);
   assert.match(page, /custom-/);
-  assert.match(page, /CATEGORY_OPTIONS: Category\[\].*Recharge.*Logistics.*Creativity.*Spirit/s);
-  assert.match(page, /type Category = .*Recharge.*Spirit/);
+  assert.match(activityPresentation, /CATEGORY_OPTIONS: ActivityCategory\[\].*Recharge.*Logistics.*Creativity.*Spirit/s);
+  assert.match(activityPresentation, /type ActivityCategory = .*Recharge.*Spirit/);
   assert.match(page, /normalizeCategory/);
   assert.match(page, /CategoryPicker/);
   assert.match(page, /ChevronDown/);
-  assert.match(page, /Logistics: \{ icon:/);
-  assert.match(page, /Creativity: \{ icon:/);
+  assert.match(activityPresentation, /Logistics: \{ icon:/);
+  assert.match(activityPresentation, /Creativity: \{ icon:/);
   assert.match(page, /Remove \$\{item\.title\}/);
   assert.match(page, /DELETED_KEY/);
   assert.doesNotMatch(page, /setDeletedDefaultIds/);
@@ -193,7 +195,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /Day Timeline/);
   assert.match(page, /fetch\("\/api\/settings"/);
   assert.match(page, /dayMode\.showStartGate && hasLoaded && !isDayStarted/);
-  assert.match(page, /<div className="duration-control" aria-label={`Length for \$\{item\.title\}`}>/);
+  assert.match(page, /<DurationControl/);
+  assert.match(durationControl, /<div className="duration-control" aria-label={`Length for \$\{item\.title\}`}>/);
   assert.match(page, /Your day is a flexible checklist/);
   assert.match(page, /mode: "start-day"/);
   assert.match(page, /completedBeforeLaunchIds/);
@@ -433,8 +436,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner-actions \{[^}]*align-self: center;[^}]*margin-top: 0/s);
   assert.match(page, /mobile-schedule-title/);
   assert.match(page, /formatDuration\(totalMinutes\).*total/s);
-  assert.match(page, /function activityIconFor/);
-  assert.match(page, /CATEGORY_ICONS: Record<Category, LucideIcon>/);
+  assert.match(activityPresentation, /function activityIconFor/);
+  assert.match(activityPresentation, /CATEGORY_ICONS: Record<ActivityCategory, LucideIcon>/);
   assert.match(page, /"--item-color": CATEGORY_META\[item\.category\]\.color/);
   assert.match(page, /const ItemIcon = isSkipped \? SkipForward : isComplete \? Check : ActivityIcon/);
   assert.match(page, /className=\{`activity-title-icon \$\{itemIconState\}`\}/);

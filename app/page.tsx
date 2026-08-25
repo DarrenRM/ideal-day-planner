@@ -2,8 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
-import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Trophy, Utensils, Vibrate, Waves, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MoreVertical, Pencil, Plus, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, Trophy, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -17,8 +16,10 @@ import { OccurrenceEditor } from "./occurrence-editor";
 import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionDayItems, type PlanRole } from "./day-role";
 import { fallbackDayHighlight } from "./day-highlight";
 import type { CaptureAttention } from "./capture-model";
+import { ActivityDurationControl as DurationControl, DURATION_STEP, normalizeActivityDuration } from "./activity-duration-control";
+import { activityIconFor, CATEGORY_META, CATEGORY_OPTIONS, CATEGORY_ORDER, normalizeCategory, type ActivityCategory } from "./activity-presentation";
 
-type Category = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
+type Category = ActivityCategory;
 
 type RoutineItem = {
   id: string;
@@ -103,7 +104,6 @@ type LunaSummary = { unreadCount: number; pendingDecisionCount: number; captureR
 
 const START_MINUTES = 8 * 60;
 const DEFAULT_DEV_MINUTES = 7 * 60 + 30;
-const DURATION_STEP = 5;
 const STORAGE_KEY = "idealized-day-items-v1";
 const DELETED_KEY = "idealized-day-deleted-v1";
 const MIGRATION_KEY = "idealized-day-d1-imported-v1";
@@ -128,66 +128,12 @@ const INITIAL_ITEMS: RoutineItem[] = [
   { id: "sun-tan", title: "Sun tan", detail: "Outdoor time · finish the protocol", duration: 20, category: "Light", icon: "☀", color: "#e8b75f" },
 ];
 
-const CATEGORY_ORDER: Category[] = ["Training", "Fuel", "Light", "Recharge", "Care", "Logistics", "Creativity", "Spirit"];
-const CATEGORY_OPTIONS: Category[] = ["Care", "Training", "Fuel", "Recharge", "Light", "Logistics", "Creativity", "Spirit"];
-const CATEGORY_META: Record<Category, Pick<RoutineItem, "icon" | "color">> = {
-  Care: { icon: "✦", color: "#d58db5" },
-  Training: { icon: "◆", color: "#a8c96d" },
-  Fuel: { icon: "◒", color: "#d59662" },
-  Recharge: { icon: "◌", color: "#67b7ce" },
-  Light: { icon: "☼", color: "#e8b75f" },
-  Logistics: { icon: "↗", color: "#7ba6c9" },
-  Creativity: { icon: "✺", color: "#b58ad6" },
-  Spirit: { icon: "✧", color: "#9a8ed8" },
-};
-const CATEGORY_ICONS: Record<Category, LucideIcon> = {
-  Care: Heart,
-  Training: Dumbbell,
-  Fuel: Utensils,
-  Recharge: Waves,
-  Light: Sun,
-  Logistics: Package,
-  Creativity: Palette,
-  Spirit: Sparkles,
-};
 const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
-
-function activityIconFor(item: Pick<RoutineItem, "title" | "category">): LucideIcon {
-  const title = item.title.toLowerCase();
-  if (/chin-up|pull-up|hang/.test(title)) return BicepsFlexed;
-  if (/kettlebell|\blift\b|weight/.test(title)) return Dumbbell;
-  if (/cardio|run|cycle|bike/.test(title)) return HeartPulse;
-  if (/walk/.test(title)) return Footprints;
-  if (/stretch|yoga/.test(title)) return PersonStanding;
-  if (/shower/.test(title)) return ShowerHead;
-  if (/skin/.test(title)) return Sparkles;
-  if (/hair|serum/.test(title)) return Droplet;
-  if (/red light/.test(title)) return SunMedium;
-  if (/shake|supplement/.test(title)) return Pill;
-  if (/breakfast|lunch|dinner|meal/.test(title)) return Utensils;
-  if (/massage|vibe/.test(title)) return Vibrate;
-  if (/sun|tan/.test(title)) return Sun;
-  if (/food prep|cook/.test(title)) return CookingPot;
-  if (/bed|sleep/.test(title)) return BedDouble;
-  if (/meditat/.test(title)) return Brain;
-  if (/entertain|consume|watch/.test(title)) return Film;
-  if (/resupply|shop|grocery/.test(title)) return ShoppingBasket;
-  if (/build|create|make/.test(title)) return Hammer;
-  return CATEGORY_ICONS[item.category];
-}
 
 function activityDisplayTitle(item: Pick<RoutineItem, "title" | "variantName" | "displayLabel" | "displayTitle">) {
   return item.displayTitle || (item.displayLabel || item.variantName ? `${item.title} — ${item.displayLabel || item.variantName}` : item.title);
 }
 
-function isCategory(value: unknown): value is Category {
-  return CATEGORY_OPTIONS.includes(value as Category);
-}
-
-function normalizeCategory(value: unknown): Category | null {
-  if (value === "Reset") return "Recharge";
-  return isCategory(value) ? value : null;
-}
 
 type CategoryPickerProps = {
   id: string;
@@ -371,41 +317,6 @@ function formatDuration(duration: number) {
   return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
-function DurationControl({
-  inlineMeta,
-  item,
-  onAdjust,
-  onSet,
-}: {
-  inlineMeta?: ReactNode;
-  item: Pick<RoutineItem, "id" | "title" | "duration">;
-  onAdjust: (delta: number) => void;
-  onSet: (value: number) => void;
-}) {
-  return (
-    <div className="duration-control" aria-label={`Length for ${item.title}`}>
-      <div className="duration-value">
-        <input
-          aria-label={`Length for ${item.title} in minutes`}
-          inputMode="numeric"
-          max="480"
-          min="5"
-          onBlur={() => onSet(normalizeActivityDuration(item.duration))}
-          onChange={(event) => onSet(event.target.valueAsNumber)}
-          step="5"
-          type="number"
-          value={item.duration}
-        />
-        <span className="duration-unit">minutes</span>
-      </div>
-      <div className="duration-adjustments">
-        <button disabled={item.duration <= 5} type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjust(-DURATION_STEP)}><Minus aria-hidden="true" size={15} strokeWidth={2} /></button>
-        <button disabled={item.duration >= 480} type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjust(DURATION_STEP)}><Plus aria-hidden="true" size={15} strokeWidth={2} /></button>
-      </div>
-      {inlineMeta ? <div className="duration-inline-meta">{inlineMeta}</div> : null}
-    </div>
-  );
-}
 
 function formatCountdown(duration: number) {
   if (duration <= 0) return "Ready now";
@@ -1232,11 +1143,6 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       </footer>
     </div>
   );
-}
-
-function normalizeActivityDuration(duration: number) {
-  if (!Number.isFinite(duration)) return 15;
-  return Math.min(480, Math.max(5, Math.round(duration / 5) * 5));
 }
 
 function localDateKey() {

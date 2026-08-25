@@ -128,9 +128,9 @@ The first prototype uses four related treatments so each question can have its o
 - **Topographic dusk landscape** — near-black contour lines around the edges and upper area, with a low hazy mountain horizon and a muted amber, dusty mauve, violet, and charcoal dusk glow.
 - **Atmospheric current** — fine, slow current paths around a quiet central reading area, with a desaturated blue-gray, teal, and dusty-violet bloom.
 - **Abstract orbital glow** — large, subtle orbital paths across near-black, with a quiet green-gold atmospheric bloom and only a few sparse dim nodes.
-- **Mineral light veil** — broad translucent planes dissolving into warm charcoal, with restrained copper, dusty rose, smoked violet, and olive-gold light near the lower edge.
+- **Cool light veil** — broad translucent mist planes dissolving into graphite and smoked blue, with a restrained silver-green and muted olive bloom near the lower edge.
 
-The four questions use these in order: topographic dusk for priorities, atmospheric current for real-life friction, orbital glow for daily rhythm, and mineral light veil for Luna's coaching approach. All four are preloaded so moving between pages does not wait for the next background asset.
+The four questions use these in order: topographic dusk for priorities, atmospheric current for real-life friction, orbital glow for daily rhythm, and cool light veil for Luna's coaching approach. All four are preloaded so moving between pages does not wait for the next background asset.
 
 Never use a stock-photo look, neon cyberpunk, obvious wallpaper, busy texture, literal motivational symbols, or more than one main visual motif on a screen. The imagery does not replace a question, explain a feature, or consume the primary reading area.
 
@@ -140,7 +140,10 @@ Purpose: establish the promise without presenting a feature tour.
 
 Possible deterministic interface copy:
 
-> Build a day that helps you take care of what matters.
+> **Build a day around what matters to you.**
+> Turn what matters to you into a clear daily plan—and let Luna help it evolve as your life does.
+
+The supporting copy sells the person's resulting capability rather than the questionnaire mechanics. A small footer may say only `Takes about 2 minutes`.
 
 Primary action:
 
@@ -208,9 +211,7 @@ The person chooses one or two day rhythms:
 - Movement somewhere in the day
 - Keep it flexible
 
-The copy explains one core behavior:
-
-> Ideal Day starts as a flexible checklist. You can add exact times later if they help.
+The supporting line says only `Choose up to two.` The option labels themselves carry the useful rhythm context.
 
 ### 5.5 Page four — coaching pace
 
@@ -228,7 +229,7 @@ Working options:
 
 The page teaches the commitment model in one line:
 
-> Essentials are the small set that make a day count. Everything else can wait until it earns a place.
+> Essentials are your core set of daily goals. Add or remove activities at your pace.
 
 These labels replace the vague capacity language. The answer changes the amount and effort of the proposal, not merely decorative wording.
 
@@ -251,30 +252,33 @@ The user receives an immediate acknowledgment before durable Luna work begins. A
 
 The transition should not expose an empty home screen, a partially populated list, repeated typing states, or activities snapping into place one by one.
 
+Keep this state focused on Luna's current work. Do not add implementation reassurance, creation-state disclaimers, or a manual deterministic-builder link beneath the progress indicator. Recovery choices belong on a real error state if the work fails.
+
 When the proposal is ready, transition once into the complete draft.
 
-### 5.8 Choose starting Essentials
+### 5.8 Confirm starting Essentials
 
 This is the first time activities appear. It is a dedicated review screen, not Today and not a populated home-page preview.
 
 Possible heading:
 
-> **Choose your starting Essentials**
-> Based on what you told me, these are the actions most likely to help. Pick three to six; you can change them later.
+> **Confirm your Essentials**
+> Based on your answers, Luna recommends this starting set. Choose what fits and adjust any activity before you begin.
 
 The screen contains six to eight concrete candidates. Each candidate has:
 
 - A familiar activity title such as `Morning walk`, `Strength session`, `Focus block`, `Breakfast`, `Bed routine`, `Meditation`, or `Tidy reset`.
 - An activity icon and category color.
+- The same category tag used by Today activity cards.
 - A realistic duration estimate.
 - One short, specific reason tied to a selected priority, friction, or rhythm.
 - A large whole-card selection control with a visible checked state.
 
 Luna preselects three, four, or five based on the chosen coaching pace. The person may select between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
 
-Do not show Highlights, a progress denominator, achievements, completion controls, More for Today, stretch goals, future candidates, or a calibration card on this screen. Those concepts are intentionally deferred.
+Do not show Highlights, a progress denominator, selection count, saved-state badge, recommendation-explanation card, achievements, completion controls, More for Today, stretch goals, future candidates, or a calibration card on this screen. Those concepts are intentionally deferred.
 
-The person may tap a small edit affordance to change a title or duration without leaving the review. A secondary **Rethink these with Luna** action can revise the candidate set as one coherent update.
+The person may tap a small edit affordance to change a title or duration without leaving the review. Duration editing reuses the same direct minute value with minus/plus controls as a Today activity. A secondary **Rethink these with Luna** action can revise the candidate set as one coherent update.
 
 Primary action:
 
@@ -505,9 +509,8 @@ Suggested progression:
 
 After **Start with these Essentials**:
 
-- Briefly settle the selected cards into a concise ready state.
 - Remove rejected and unaccepted candidates.
-- Transition once into the real Today screen.
+- Transition directly into the real Today screen without an intermediate `Your first day is ready` page.
 - Introduce completion affordances only after the transition.
 - Move focus to the first actionable Essential.
 - Respect reduced-motion settings.
@@ -620,7 +623,7 @@ The first implementation lives at `/testing` and is deliberately isolated from t
 - Priority, friction, rhythm, coaching-pace answers, Luna jobs, and candidate proposals live in a provisional onboarding session. Ordinary activities, schedules, day items, activity conversations, runs, and workspaces do not exist before confirmation.
 - Luna's proposal runs through the existing local bridge as a dedicated Terra-backed durable job. A bounded deterministic starter remains available if the bridge cannot finish.
 - `Start with these Essentials` validates that three to six candidates are selected, then atomically materializes only those selected activities into the real activity, daily schedule, Essential role, day-plan, conversation, and profile tables for the testing identity only.
-- The post-confirmation screen may read and change those real sandbox records, but begins with the selected Essential list rather than Highlights or optional surfaces.
+- Confirmation reloads directly into the isolated testing identity's current-day shell. It begins with the selected Essential list rather than an onboarding-completion interstitial, optional surfaces, or invented post-setup UI.
 - The three-dot menu exposes `Reset onboarding` only on `/testing`. Reset deletes the exact derived testing user and relies on foreign-key cascades; it never targets the owner identity.
 - Initial accepted activities are intentionally actionable without generated workspaces. The normal activity setup/compiler path can run later when a person adds details that justify a component, which avoids a burst of speculative setup work at confirmation.
 
