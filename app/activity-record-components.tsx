@@ -6,8 +6,8 @@ import { formatActivityRecordDate } from "./activity-record-format";
 import type { ActivityRecord } from "./activity-record-model";
 import { previousDateKey, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
 import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
-import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
-import { dailyCompletionStreak, normalizedCompletionDates, recurringCompletionStreak } from "./streak-model";
+import { recurringCadenceDescription, recurringOccurrenceDates, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
+import { dailyCompletionStreak, normalizedCompletionDates } from "./streak-model";
 import { StreakTrack } from "./streak-track";
 import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
 import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPhaseProtocolData, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
@@ -54,15 +54,27 @@ function ProductRecord({ record, onMutate, supportingRecords = [], completionDat
   const data = record.data as { kind?: "product" | "device"; name: string; manufacturer?: string; variant?: string; notes?: string };
   const kindLabel = data.kind === "device" ? "Device" : "Product";
   const identityDetail = [data.manufacturer, data.variant].filter(Boolean).join(" · ");
+  const detailRecords = supportingRecords.filter((supportingRecord) => supportingRecord.type !== "resources");
+  const resourceRecords = supportingRecords.filter((supportingRecord) => supportingRecord.type === "resources");
+  const IdentityIcon = data.kind === "device" ? Wrench : Package;
   return <section className="workspace-block protocol-block product-record">
-    <div className="product-heading"><div><small className="workspace-overline">{kindLabel}</small><strong>{data.name}</strong>{identityDetail ? <span>{identityDetail}</span> : null}</div><span className="product-mark"><Package size={16} /></span></div>
-    {data.notes ? <p className="record-description">{data.notes}</p> : null}
-    {supportingRecords.length ? <div className="product-supporting-records">{supportingRecords.map((supportingRecord) => supportingRecord.type === "adherence"
+    <div className="product-heading"><div><small className="workspace-overline">{kindLabel}</small><strong>{data.name}</strong>{identityDetail ? <span>{identityDetail}</span> : null}</div><span className="product-mark"><IdentityIcon size={16} /></span></div>
+    {detailRecords.length || resourceRecords.length || data.notes ? <div className="product-supporting-records">{detailRecords.map((supportingRecord) => supportingRecord.type === "adherence"
       ? <AdherenceRecord completionDates={completionDates} key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
       : supportingRecord.type === "recurring_step" ? <RecurringStepRecord completionDates={completionDates} key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
       : supportingRecord.type === "protocol" ? <ProtocolContent key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
-      : supportingRecord.type === "resources" ? <ResourcesContent key={supportingRecord.id} nested record={supportingRecord} /> : null)}</div> : null}
+      : null)}{data.notes || resourceRecords.length ? <ProductAbout notes={data.notes} records={resourceRecords} /> : null}</div> : null}
   </section>;
+}
+
+function ProductAbout({ notes, records }: { notes?: string; records: ActivityRecord[] }) {
+  const entries = records.flatMap((record) => ((record.data as { entries?: Array<{ id: string; label: string; url: string; note?: string }> }).entries ?? [])
+    .map((entry) => ({ ...entry, renderKey: `${record.key}:${entry.id}` })));
+  return <div className="product-supporting-section product-about">
+    <div className="product-about-heading"><span className="workspace-overline">About</span><BookOpen aria-hidden="true" size={15} /></div>
+    {notes ? <p className="record-description">{notes}</p> : null}
+    {entries.length ? <div className="resource-list">{entries.map((entry) => <a href={entry.url} key={entry.renderKey} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div> : null}
+  </div>;
 }
 
 function ProtocolContent({ record, onMutate, nested = false }: Props & { nested?: boolean }) {
@@ -507,22 +519,28 @@ function RecurringStepRecord({ record, onMutate, completionDates = [], nested = 
   const today = localDateKey();
   const allCompletionDates = normalizedCompletionDates([...(data.completedDates ?? []), ...completionDates]);
   const status = recurringStepScheduleStatus({ ...data, completedDates: allCompletionDates }, today);
-  const streak = recurringCompletionStreak({ anchorDate: data.anchorDate, cadence: data.cadence, completedDates: allCompletionDates, today });
-  const cadence = recurringCadenceLabel(data.cadence);
-  const lastValue = status.completedToday ? "Today" : status.lastCompleted ? formatActivityRecordDate(status.lastCompleted) : "Not yet";
+  const occurrences = recurringOccurrenceDates({ ...data, completedDates: allCompletionDates }, today);
+  const cadence = recurringCadenceDescription(data.cadence);
+  const lastValue = status.completedToday ? "Today" : status.lastCompleted ? formatActivityRecordDate(status.lastCompleted) : null;
   const startsLater = Boolean(!status.lastCompleted && data.anchorDate && data.anchorDate > today);
   const nextValue = status.dueToday ? "Due today" : status.nextDue ? formatActivityRecordDate(status.nextDue) : "Not scheduled";
-  const completionLabel = status.completedThisCycle ? "Completed" : "Last completed";
   const completionLocked = status.completedThisCycle && !status.completedToday;
   return <section className={`${nested ? "product-supporting-section product-rhythm recurring-step-record" : "workspace-block recurring-step-record"}`}>
-    {nested ? <StreakTrack ariaLabel={`${record.title} streak`} completedToday={streak.completedToday} count={streak.count} label="Use" nested /> : null}
-    <Heading eyebrow={cadence} title={compactRecurringTitle(record.title, cadence)} icon={<CalendarCheck size={15} />} />
-    <div className="recurring-step-status" aria-label={`Last completed: ${lastValue}. ${status.dueToday ? "Status" : "Next due"}: ${nextValue}.`}>
-      <span><small>{completionLabel}</small><strong>{lastValue}</strong></span>
-      <span><small>{startsLater ? "Starts" : status.dueToday ? "Status" : "Next due"}</small><strong className={status.dueToday ? "is-due" : ""}>{nextValue}</strong></span>
+    <Heading eyebrow="Rhythm" title={cadence} icon={<CalendarCheck size={15} />} />
+    <div className="recurring-rhythm-track" aria-label={`${record.title} schedule`}>
+      {occurrences.map((occurrence) => <div aria-current={occurrence.state === "next" ? "date" : undefined} className={`recurring-rhythm-step is-${occurrence.state}`} key={occurrence.date} aria-label={`${formatActivityRecordDate(occurrence.date)}${occurrence.state === "complete" ? ", used" : occurrence.state === "next" ? ", next" : ""}`}><span>{occurrence.state === "complete" ? <Check aria-hidden="true" size={12} strokeWidth={3} /> : null}</span><small>{compactOccurrenceDate(occurrence.date)}</small></div>)}
     </div>
-    <button className={status.completedThisCycle ? "is-complete" : ""} disabled={completionLocked} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{status.completedThisCycle ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button>
+    <div className={`recurring-step-status ${status.lastCompleted ? "" : "has-one-value"}`} aria-label={status.lastCompleted ? `Last used: ${lastValue}. ${status.dueToday ? "Status" : "Next use"}: ${nextValue}.` : `${startsLater ? "Starts" : status.dueToday ? "First use" : "Next use"}: ${nextValue}.`}>
+      {status.lastCompleted ? <span><small>Last used</small><strong>{lastValue}</strong></span> : null}
+      <span><small>{startsLater ? "Starts" : status.dueToday && !status.lastCompleted ? "First use" : status.dueToday ? "Status" : "Next use"}</small><strong className={status.dueToday ? "is-due" : ""}>{nextValue}</strong></span>
+    </div>
+    {!startsLater ? <button className={status.completedThisCycle ? "is-complete" : ""} disabled={completionLocked} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{status.completedThisCycle ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{status.completedThisCycle ? "Used this cycle" : data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button> : null}
   </section>;
+}
+
+function compactOccurrenceDate(value: string) {
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) ? value : `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
 }
 
 function ActivityEventRecord({ record }: { record: ActivityRecord }) {

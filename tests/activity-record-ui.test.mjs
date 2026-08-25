@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { formatActivityRecordDate } from "../app/activity-record-format.ts";
 import { parseActivityRecord, recurringStepIsDue } from "../app/activity-record-model.ts";
-import { compactRecurringTitle, nextRecurringDate, recurringStepScheduleStatus } from "../app/recurring-step-schedule.ts";
+import { compactRecurringTitle, nextRecurringDate, recurringCadenceDescription, recurringOccurrenceDates, recurringStepScheduleStatus } from "../app/recurring-step-schedule.ts";
 
 test("formats record dates for people without narrow machine-date strings", () => {
   const today = new Date(2026, 7, 20, 12);
@@ -86,6 +86,9 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(productRenderer, /product-supporting-records/);
   assert.match(productRenderer, /<div><small className="workspace-overline">\{kindLabel\}<\/small><strong>\{data\.name\}<\/strong>/);
   assert.match(productRenderer, /<span className="product-mark">/);
+  assert.match(productRenderer, /data\.kind === "device" \? Wrench : Package/);
+  assert.match(component, /function ProductAbout/);
+  assert.match(component, /className="workspace-overline">About/);
   assert.match(component, /eyebrow="Resources"/);
   assert.doesNotMatch(component, /Pinned resources/);
   assert.match(workspace, /nestedSupportingComponents/);
@@ -392,6 +395,14 @@ test("derives recurring-step history and next due dates from the shared cadence 
   assert.equal(nextRecurringDate("2026-08-21", { kind: "interval_days", every: 3 }, "2026-08-22"), "2026-08-24");
   assert.equal(nextRecurringDate("2026-08-21", { kind: "weekdays", weekdays: [1, 3] }, "2026-08-21"), "2026-08-24");
   assert.equal(compactRecurringTitle("Weekly Beard Grooming Roller", "Weekly"), "Beard Grooming Roller");
+  assert.equal(recurringCadenceDescription({ kind: "weekdays", weekdays: [2, 5] }), "Tuesdays & Fridays");
+  assert.deepEqual(recurringOccurrenceDates({ anchorDate: "2026-08-25", cadence: { kind: "weekdays", weekdays: [2, 5] }, completedDates: [] }, "2026-08-24", 5), [
+    { date: "2026-08-25", state: "next" },
+    { date: "2026-08-28", state: "upcoming" },
+    { date: "2026-09-01", state: "upcoming" },
+    { date: "2026-09-04", state: "upcoming" },
+    { date: "2026-09-08", state: "upcoming" },
+  ]);
 });
 
 test("keeps recurring-step status visible between scheduled dates", async () => {
@@ -401,5 +412,8 @@ test("keeps recurring-step status visible between scheduled dates", async () => 
   ]);
   assert.doesNotMatch(workspace, /recurringStepIsDue/);
   assert.match(component, /status\.completedThisCycle/);
+  assert.match(component, /className="recurring-rhythm-track"/);
+  assert.match(component, /has-one-value/);
+  assert.doesNotMatch(component.match(/function RecurringStepRecord[\s\S]*?\n}/)?.[0] || "", /label="Use"/);
   assert.match(component, /disabled=\{completionLocked\}/);
 });

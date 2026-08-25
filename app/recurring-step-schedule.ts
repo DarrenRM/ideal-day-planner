@@ -9,6 +9,11 @@ export type RecurringStepScheduleData = {
   completedDates?: string[];
 };
 
+export type RecurringOccurrence = {
+  date: string;
+  state: "complete" | "next" | "upcoming";
+};
+
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
 
@@ -52,6 +57,24 @@ export function nextRecurringDate(anchorDate: string | undefined, cadence: Recur
   return null;
 }
 
+export function recurringOccurrenceDates(data: RecurringStepScheduleData, today: string, count = 5): RecurringOccurrence[] {
+  const limit = Math.min(7, Math.max(1, Math.round(count)));
+  const completed = [...new Set(data.completedDates ?? [])]
+    .filter((date) => DATE_KEY.test(date) && date <= today)
+    .sort()
+    .slice(-2);
+  const result: RecurringOccurrence[] = completed.map((date) => ({ date, state: "complete" }));
+  const status = recurringStepScheduleStatus(data, today);
+  let candidate = status.dueToday ? today : status.nextDue;
+  while (candidate && result.length < limit) {
+    if (!result.some((entry) => entry.date === candidate)) {
+      result.push({ date: candidate, state: result.some((entry) => entry.state === "next") ? "upcoming" : "next" });
+    }
+    candidate = nextRecurringDate(data.anchorDate, data.cadence, candidate);
+  }
+  return result;
+}
+
 function previousRecurringDate(anchorDate: string | undefined, cadence: RecurringCadence | undefined, onOrBeforeDate: string) {
   if (!anchorDate || !cadence || !dateFromKey(onOrBeforeDate)) return null;
   for (let offset = 0; offset <= 366; offset += 1) {
@@ -84,6 +107,18 @@ export function recurringCadenceLabel(cadence: RecurringCadence | undefined) {
   if (cadence?.kind === "weekly") return cadence.every === 1 || cadence.every === undefined ? "Weekly" : `Every ${cadence.every} weeks`;
   if (cadence?.kind === "interval_days") return cadence.every === 1 ? "Daily" : `Every ${cadence.every ?? 1} days`;
   return "Selected days";
+}
+
+export function recurringCadenceDescription(cadence: RecurringCadence | undefined) {
+  if (cadence?.kind === "weekly") return cadence.every === 1 || cadence.every === undefined ? "Every week" : `Every ${cadence.every} weeks`;
+  if (cadence?.kind === "interval_days") return cadence.every === 1 ? "Every day" : `Every ${cadence.every ?? 1} days`;
+  const weekdays = [...new Set(cadence?.kind === "weekdays" ? cadence.weekdays ?? [] : [])]
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    .sort((left, right) => left - right)
+    .map((day) => ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"][day]);
+  if (weekdays.length < 2) return weekdays[0] ?? "Selected days";
+  if (weekdays.length === 2) return weekdays.join(" & ");
+  return `${weekdays.slice(0, -1).join(", ")} & ${weekdays.at(-1)}`;
 }
 
 export function compactRecurringTitle(title: string, cadenceLabel: string) {
