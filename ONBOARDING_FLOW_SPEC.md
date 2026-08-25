@@ -278,15 +278,15 @@ The preselected candidates appear first inside one visually unified **Your Essen
 
 Do not show the generated recommendation reason under each card. The answer-to-recommendation logic belongs to Luna; this screen should help the person make the concrete activity theirs.
 
-Luna preselects three, four, or five based on the chosen coaching pace. A selected activity uses a compact trash icon to remove it rather than a `Remove` chip. Remaining candidates appear afterward under **Other suggestions**, each with an explicit **Add to Essentials** action instead of an empty completion circle. Their card border, quiet tint, icon, tag, and add action all resolve through the activity's canonical category color rather than global green. The person may keep between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
+Luna preselects three, four, or five based on the chosen coaching pace. A selected activity uses a compact trash icon to remove it rather than a `Remove` chip. Remaining candidates appear afterward under **Other suggestions** as compact whole-row add controls, with an icon, untruncated title, one-line duration/category metadata, a separate edit affordance, and only a short **Add** cue. Their card edge, quiet tint, icon, category text, and add cue all resolve through the activity's canonical category color rather than global green. Adding one uses spatial continuity to carry that candidate into the Essential group in roughly 500ms; reduced motion settles it immediately. The person may keep between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
 
 Do not show Highlights, a progress denominator, selection count, saved-state badge, recommendation-explanation card, achievements, completion controls, More for Today, stretch goals, future candidates, or a calibration card on this screen. Those concepts are intentionally deferred.
 
-The person may tap a small edit affordance to change a title or duration without leaving the review. The edit sheet contains no category tag. `Activity length` uses the same field-label hierarchy as `Activity name`, then reuses the direct minute value with minus/plus controls from a Today activity. A secondary **Rethink these with Luna** action can revise the candidate set as one coherent update.
+The person may tap a small edit affordance to change a title or duration without leaving the review. The edit sheet contains no category tag. `Activity length` uses the same field-label hierarchy as `Activity name`, then reuses the direct minute value with minus/plus controls from a Today activity. A secondary **Rethink with Luna** action can revise the candidate set as one coherent update.
 
 Primary action:
 
-- **Start with these Essentials**
+- **Start my day**
 
 ### 5.9 Confirmation
 
@@ -511,7 +511,7 @@ Suggested progression:
 
 ### 11.2 Draft-to-live transition
 
-After **Start with these Essentials**:
+After **Start my day**:
 
 - Remove rejected and unaccepted candidates.
 - Transition directly into the real Today screen without an intermediate `Your first day is ready` page.
@@ -626,7 +626,7 @@ The first implementation lives at `/testing` and is deliberately isolated from t
 - The server derives a testing-only user identity from the authenticated owner; the browser cannot choose or submit an arbitrary sandbox identity.
 - Priority, friction, rhythm, coaching-pace answers, Luna jobs, and candidate proposals live in a provisional onboarding session. Ordinary activities, schedules, day items, activity conversations, runs, and workspaces do not exist before confirmation.
 - Luna's proposal runs through the existing local bridge as a dedicated Terra-backed durable job. A bounded deterministic starter remains available if the bridge cannot finish.
-- `Start with these Essentials` validates that three to six candidates are selected, then atomically materializes only those selected activities into the real activity, daily schedule, Essential role, day-plan, conversation, and profile tables for the testing identity only.
+- `Start my day` validates that three to six candidates are selected, then atomically materializes only those selected activities into the real activity, daily schedule, Essential role, day-plan, conversation, and profile tables for the testing identity only.
 - Confirmation reloads directly into the isolated testing identity's current-day shell. It begins with the selected Essential list rather than an onboarding-completion interstitial, optional surfaces, or invented post-setup UI.
 - The three-dot menu exposes `Reset onboarding` only on `/testing`. Reset deletes the exact derived testing user and relies on foreign-key cascades; it never targets the owner identity.
 - Initial accepted activities are intentionally actionable without generated workspaces. The normal activity setup/compiler path can run later when a person adds details that justify a component, which avoids a burst of speculative setup work at confirmation.

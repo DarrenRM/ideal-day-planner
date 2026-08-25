@@ -75,7 +75,9 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /YOUR ESSENTIALS/);
   assert.match(page, /OTHER SUGGESTIONS/);
   assert.match(page, /Which do you prefer\?/);
-  assert.match(page, /Add to Essentials/);
+  assert.match(page, /Add \$\{activity\.title\} to Essentials/);
+  assert.match(page, /startViewTransition/);
+  assert.match(page, /Start my day/);
   assert.match(page, /Trash2/);
   assert.match(page, /Activity length/);
   assert.match(page, /Building your starting day/);
@@ -92,4 +94,17 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(bridge, /six to eight candidate activities/);
   assert.match(bridge, /Category and title must agree/);
   assert.match(spec, /Onboarding is not the home screen/);
+});
+
+test("keeps the Luna avatar code-native, stateful, and motion-aware", async () => {
+  const [avatar, demo, design] = await Promise.all([
+    readFile(new URL("../app/luna-avatar.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/luna-demo/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../DESIGN_SYSTEM.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(avatar, /<canvas/);
+  assert.match(avatar, /prefers-reduced-motion/);
+  assert.match(avatar, /"idle" \| "listening" \| "thinking"/);
+  assert.match(demo, /bottom-right assistant/);
+  assert.match(design, /code-native living halo/);
 });

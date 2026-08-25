@@ -79,6 +79,14 @@ The canonical global tokens are:
 - Opening an activity preserves its final header and footer while a quiet middle loading surface waits for both the initial activity state and saved drawer preference. Never render a provisional drawer position that immediately moves.
 - A pending setup question may coexist with the truthful empty workspace. Do not render an empty workout, checklist, protocol, or other domain card merely to fill space.
 
+## Luna visual identity
+
+- Luna is represented by a code-native living halo: a dark faceted center, a restrained multicolor translucent ring, and a sparse connected field around it. It must remain recognizable from a 64px assistant control through a large working-state presentation.
+- Motion behaves like breathing rather than spinning. Idle is slow and quiet, listening is slightly more attentive, and thinking gathers brighter, faster energy without becoming frantic. Color and facets may drift subtly, but the center remains visually stable.
+- Compact assistant placement sits at the lower right and may carry one short speech bubble. The avatar opens the existing Notes & Assistant surface; it does not introduce a second conversation system.
+- Preserve a transparent outer field so the avatar can sit over app surfaces. Avoid mascot faces, literal moons, neon cyberpunk treatment, particle explosions, or animation that competes with the current task.
+- Under reduced motion, render one composed still frame and remove breathing transforms.
+
 ## Responsive layout
 
 Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430, 360px, plus a wide desktop.
