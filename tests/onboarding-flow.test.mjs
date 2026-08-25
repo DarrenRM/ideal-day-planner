@@ -10,7 +10,7 @@ test("validates the focused four-part onboarding answers", () => {
   assert.deepEqual(parseOnboardingAnswers(answers()), answers());
   assert.equal(parseOnboardingAnswers({ ...answers(), priorities: ["energy", "focus", "sleep", "calm"] }), null);
   assert.equal(parseOnboardingAnswers({ ...answers(), frictions: ["none", "low-energy"] }), null);
-  assert.equal(parseOnboardingAnswers({ ...answers(), rhythms: ["flexible", "morning"] }), null);
+  assert.deepEqual(parseOnboardingAnswers({ ...answers(), rhythms: ["flexible", "morning"] })?.rhythms, ["flexible", "morning"]);
 });
 
 test("builds six to eight concrete candidates and preselects by coaching pace", () => {

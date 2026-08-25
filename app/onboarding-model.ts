@@ -40,7 +40,6 @@ export function parseOnboardingAnswers(value: unknown): OnboardingAnswers | null
   const note = boundedText(source.note ?? "", 280, true);
   if (!priorities || !frictions || !rhythms || note === null) return null;
   if (frictions.includes("none") && frictions.length > 1) return null;
-  if (rhythms.includes("flexible") && rhythms.length > 1) return null;
   return { version: 2, priorities, frictions, rhythms, capacity, note };
 }
 

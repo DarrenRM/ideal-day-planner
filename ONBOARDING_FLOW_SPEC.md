@@ -211,7 +211,7 @@ The person chooses one or two day rhythms:
 - Movement somewhere in the day
 - Keep it flexible
 
-The supporting line says only `Choose up to two.` The option labels themselves carry the useful rhythm context.
+The supporting line says only `Choose up to two.` Every pair is valid: `Keep it flexible` means leaving the rest of the day open and can be combined with one anchor. The option labels themselves carry the useful rhythm context.
 
 ### 5.5 Page four — coaching pace
 
