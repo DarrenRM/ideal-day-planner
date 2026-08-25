@@ -12,6 +12,8 @@ export type WorkReceiptDraft = {
   detail: string;
   secondary?: string;
   target: "workspace";
+  targetActivityId?: string;
+  targetActivityClientKey?: string;
 };
 
 type ExistingRecord = { key: string; title: string };
@@ -126,7 +128,7 @@ export function activityWorkReceipt(input: {
   recordActions: RecordAction[];
   workspaceActions: WorkspaceAction[];
   activityMoves: ActivityMoveAction[];
-  moveDetails?: Array<{ subjectTitle: string; targetTitle: string }>;
+  moveDetails?: Array<{ subjectTitle: string; targetTitle: string; targetActivityId: string; targetActivityClientKey: string }>;
   followUpActions: FollowUpAction[];
 }): WorkReceiptDraft | null {
   const move = input.moveDetails?.[0];
@@ -136,6 +138,8 @@ export function activityWorkReceipt(input: {
       title: `${move.subjectTitle} moved to ${move.targetTitle}`,
       detail: "All of its linked details moved together.",
       target: "workspace",
+      targetActivityId: move.targetActivityId,
+      targetActivityClientKey: move.targetActivityClientKey,
     };
   }
 

@@ -49,6 +49,26 @@ test("does not create a receipt when no durable activity work was committed", ()
   }), null);
 });
 
+test("a subject move receipt carries the destination used by View", () => {
+  assert.deepEqual(activityWorkReceipt({
+    activityTitle: "Skin Routine",
+    jobKind: "user_message",
+    existingRecords: [{ key: "retinol", title: "Retinol Night Serum" }],
+    recordActions: [],
+    workspaceActions: [],
+    activityMoves: [{ op: "move_subject", subjectKey: "retinol", targetActivityId: "activity:bed" }],
+    moveDetails: [{ subjectTitle: "Retinol Night Serum", targetTitle: "Bed Routine", targetActivityId: "activity:bed", targetActivityClientKey: "bed-routine" }],
+    followUpActions: [],
+  }), {
+    kind: "subject_move",
+    title: "Retinol Night Serum moved to Bed Routine",
+    detail: "All of its linked details moved together.",
+    target: "workspace",
+    targetActivityId: "activity:bed",
+    targetActivityClientKey: "bed-routine",
+  });
+});
+
 test("reconstructs a specific historical product setup from workspace revisions", () => {
   assert.deepEqual(historicalWorkspaceReceipt({
     activityTitle: "Skin Routine",

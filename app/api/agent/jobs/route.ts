@@ -54,7 +54,12 @@ function workReceiptStatement(db: ReturnType<typeof getD1>, input: {
     input.receipt.kind,
     input.receipt.title,
     input.receipt.detail,
-    JSON.stringify({ secondary: input.receipt.secondary || "", target: input.receipt.target }),
+    JSON.stringify({
+      secondary: input.receipt.secondary || "",
+      target: input.receipt.target,
+      targetActivityId: input.receipt.targetActivityId || "",
+      targetActivityClientKey: input.receipt.targetActivityClientKey || "",
+    }),
   );
 }
 
@@ -856,11 +861,11 @@ export async function POST(request: Request) {
         return Response.json({ error: "A saved item cannot be edited and moved in the same update." }, { status: 400 });
       }
       const receiptExistingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);
-      const moveDetails: Array<{ subjectTitle: string; targetTitle: string }> = [];
+      const moveDetails: Array<{ subjectTitle: string; targetTitle: string; targetActivityId: string; targetActivityClientKey: string }> = [];
       for (const [index, action] of activityMoves.entries()) {
         const root = receiptExistingRecords.find((record) => record.key === action.subjectKey || record.subjectKey === action.subjectKey);
-        const target = await db.prepare("SELECT title FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
-          .bind(action.targetActivityId, job.userId).first<{ title: string }>();
+        const target = await db.prepare("SELECT title, client_key AS clientKey FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
+          .bind(action.targetActivityId, job.userId).first<{ title: string; clientKey: string }>();
         await moveActivitySubject({
           userId: job.userId,
           sourceActivityId: job.activityId,
@@ -868,7 +873,12 @@ export async function POST(request: Request) {
           actionId: `${jobId}:activity-move:${index}`,
           subjectKey: action.subjectKey,
         });
-        moveDetails.push({ subjectTitle: root?.title || "Saved item", targetTitle: target?.title || "another activity" });
+        moveDetails.push({
+          subjectTitle: root?.title || "Saved item",
+          targetTitle: target?.title || "another activity",
+          targetActivityId: action.targetActivityId,
+          targetActivityClientKey: target?.clientKey || "",
+        });
       }
       const existingRecords = await readActivityRecords(job.activityId, schedule?.planDate ?? null, activityVariantId);
       const availableRecords = new Map<string, ActivityRecordContent>(existingRecords.map((record) => [record.key, record]));

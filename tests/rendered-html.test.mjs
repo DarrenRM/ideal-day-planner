@@ -488,6 +488,10 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(store, /previous\.source_date < dpi\.source_date/);
   assert.match(store, /SET activated_at = COALESCE\(activated_at, CURRENT_TIMESTAMP\)/);
   assert.match(store, /previous\.completed_at IS NOT NULL/);
+  assert.match(store, /dueStepsByActivity/);
+  assert.match(store, /record_type = 'recurring_step'/);
+  assert.match(store, /AND activity_id IN/);
+  assert.match(store, /dueStepLabel/);
   assert.match(scheduleRoute, /includeArchived: true/);
   assert.match(scheduleRoute, /record\.record_type = 'recurring_step'/);
   assert.match(scheduleRoute, /recurringStepRepresentsParentActivity/);

@@ -12,6 +12,7 @@ type LunaArtifact = {
   kind: string;
   title: string;
   detail: string;
+  meta?: { targetActivityId?: string; targetActivityClientKey?: string };
   viewedAt: string | null;
   createdAt: string;
 };
@@ -169,7 +170,11 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
       setState(result);
       onClose();
       window.setTimeout(() => {
-        onOpenActivity({ activityId: artifact.activityId!, activityClientKey: artifact.activityClientKey }, origin);
+        const sourceTarget = { activityId: artifact.activityId!, activityClientKey: artifact.activityClientKey };
+        onOpenActivity(artifact.meta?.targetActivityId ? {
+          activityId: artifact.meta.targetActivityId,
+          activityClientKey: artifact.meta.targetActivityClientKey || null,
+        } : sourceTarget, origin);
         setOpeningArtifactId(null);
       }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 20 : 150);
     } catch {

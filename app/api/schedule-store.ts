@@ -7,6 +7,8 @@ import {
   type SchedulePattern,
   type ScheduleStep,
 } from "../schedule-model";
+import { parseActivityRecord, type ActivityRecord } from "../activity-record-model";
+import { dueRecurringSteps } from "../due-recurring-step";
 import { safeId } from "./agent-store";
 
 export type ResolvedDayItem = {
@@ -32,8 +34,51 @@ export type ResolvedDayItem = {
   previousCompletedAt: string | null;
   previousActivatedAt: string | null;
   previousPlanRole: "essential" | "extra" | null;
+  dueStepLabel: string | null;
   revision: number;
 };
+
+type RecurringStepRow = {
+  activityId: string;
+  id: string;
+  recordKey: string;
+  subjectKey: string | null;
+  recordType: string;
+  title: string;
+  scope: string;
+  scopeDate: string | null;
+  version: number;
+  payloadJson: string;
+  updatedAt: string;
+};
+
+async function dueStepsByActivity(userId: string, activityIds: string[], date: string) {
+  const result = new Map<string, ReturnType<typeof dueRecurringSteps>>();
+  if (!activityIds.length || !date) return result;
+  const rows = await getD1().prepare(`
+    SELECT activity_id AS activityId, id, record_key AS recordKey, subject_key AS subjectKey,
+           record_type AS recordType, title, scope, scope_date AS scopeDate, version,
+           payload_json AS payloadJson, updated_at AS updatedAt
+    FROM activity_records
+    WHERE user_id = ? AND archived_at IS NULL AND record_type = 'recurring_step'
+      AND activity_id IN (${activityIds.map(() => "?").join(", ")})
+      AND (scope = 'activity' OR (scope = 'day' AND scope_date = ?))
+    ORDER BY created_at, id
+  `).bind(userId, ...activityIds, date).all<RecurringStepRow>();
+  const records = new Map<string, ActivityRecord[]>();
+  for (const row of rows.results) {
+    const parsed = parseActivityRecord(row);
+    if (!parsed) continue;
+    const list = records.get(row.activityId) ?? [];
+    list.push(parsed);
+    records.set(row.activityId, list);
+  }
+  for (const [activityId, activityRecords] of records) {
+    const due = dueRecurringSteps(activityRecords, date);
+    if (due.length) result.set(activityId, due);
+  }
+  return result;
+}
 
 type PatternRow = {
   id: string;
@@ -282,6 +327,18 @@ export async function resolveDay(userId: string, date: string, routineId: string
       )];
     });
     if (statements.length) await db.batch(statements);
+
+    const dueSteps = await dueStepsByActivity(userId, activityIds, date);
+    if (dueSteps.size) {
+      const dueActivityIds = [...dueSteps.keys()];
+      await db.prepare(`
+        UPDATE daily_plan_items
+        SET activated_at = COALESCE(activated_at, CURRENT_TIMESTAMP),
+            revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE daily_plan_id = ? AND plan_role = 'extra' AND activated_at IS NULL
+          AND activity_id IN (${dueActivityIds.map(() => "?").join(", ")})
+      `).bind(planId, ...dueActivityIds).run();
+    }
   }
 
   await db.prepare(`
@@ -361,16 +418,22 @@ export async function readResolvedDay(userId: string, planId: string) {
              ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
              LIMIT 1
            ) AS previousPlanRole,
-           dpi.revision
+           dpi.activity_id AS databaseActivityId, dp.plan_date AS planDate, dpi.revision
     FROM daily_plan_items dpi
     JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
     WHERE dpi.daily_plan_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
     ORDER BY dpi.position, dpi.created_at, dpi.id
-  `).bind(planId, userId).all<Omit<ResolvedDayItem, "id" | "displayTitle">>();
-  return result.results.map((item) => ({
-    ...item,
-    id: item.occurrenceId,
-    occurrenceKey: item.occurrenceKey || `legacy:${item.occurrenceId}`,
-    displayTitle: derivedDisplayTitle(item.title, item.variantName, item.displayLabel),
-  }));
+  `).bind(planId, userId).all<Omit<ResolvedDayItem, "id" | "displayTitle" | "dueStepLabel"> & { databaseActivityId: string; planDate: string }>();
+  const dueSteps = await dueStepsByActivity(userId, [...new Set(result.results.map((item) => item.databaseActivityId))], result.results[0]?.planDate ?? "");
+  return result.results.map(({ databaseActivityId, planDate, ...item }) => {
+    const dueStepLabel = dueSteps.get(databaseActivityId)?.[0]?.label ?? null;
+    void planDate;
+    return {
+      ...item,
+      id: item.occurrenceId,
+      occurrenceKey: item.occurrenceKey || `legacy:${item.occurrenceId}`,
+      displayTitle: derivedDisplayTitle(item.title, item.variantName, item.displayLabel),
+      dueStepLabel,
+    };
+  });
 }

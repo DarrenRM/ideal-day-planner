@@ -523,6 +523,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .item-meta { align-items: center; display: flex; gap: 8px; }
 .mobile-item-state { display: none; }
 .category-chip { background: color-mix(in srgb, var(--item-color) 7%, transparent); border: 1px solid color-mix(in srgb, var(--item-color) 20%, transparent); color: color-mix(in srgb, var(--item-color) 76%, white); }
+.due-step-chip { color: var(--accent-bright); font-size: var(--type-micro); font-weight: 650; line-height: var(--leading-micro); max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .edit-item-button, .delete-item-button { align-items: center; background: transparent; border: 0; color: #5c6562; cursor: pointer; display: flex; height: 24px; justify-content: center; opacity: 0; padding: 0; transition: color .16s, opacity .16s; width: 24px; }
 .item-controls { align-items: center; display: flex; gap: 5px; grid-column: 2; justify-content: flex-end; }
 .routine-card.is-expanded > .item-controls { display: none; }

@@ -30,6 +30,8 @@ A workout phase is an activity- or variant-scoped `protocol` with no `subjectKey
 
 `move_subject` names one subject root and a destination activity. The server resolves the root and every record with the same `subjectKey`, plus unambiguous dated/cadence records that explicitly reference the subject through `itemKey`. It moves their workspace bindings atomically. Conversation stays in the original activity as audit history.
 
+The durable move receipt remains in that original conversation, but its `View` target is the destination activity. Moving a nested recurring step does not change the destination activity's permanent Essential/Go Further role; when the step is due, day resolution temporarily activates the destination parent and exposes the due-step label on its row.
+
 Luna must keep unrelated subjects in separate protocol and Resources records. This makes movement bounded and prevents a moved device from leaving links or directions behind. Shared or mixed legacy data is migrated or separated before a move; it is never guessed at render time.
 
 ## Changes checklist

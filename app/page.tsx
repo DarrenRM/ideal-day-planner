@@ -42,6 +42,7 @@ type RoutineItem = {
   previousCompletedAt?: string | null;
   previousActivatedAt?: string | null;
   previousPlanRole?: PlanRole | null;
+  dueStepLabel?: string | null;
 };
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
@@ -61,7 +62,7 @@ type ConversationArtifact = {
   kind: "activity_update" | "schedule_update" | "subject_move" | "check_in";
   title: string;
   detail: string;
-  meta: { secondary?: string; target?: "workspace" };
+  meta: { secondary?: string; target?: "workspace"; targetActivityId?: string; targetActivityClientKey?: string };
   viewedAt: string | null;
   sourceAgentJobId: string;
   createdAt: string;
@@ -471,9 +472,10 @@ type ActivityWorkbenchProps = {
   onChangeToday: () => void;
   onManageSchedule: () => void;
   onSetRole: (role: PlanRole) => void;
+  onOpenActivityTarget: (target: { activityId: string; activityClientKey: string | null }, origin?: DOMRect) => void;
 };
 
-function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule, onSetRole }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule, onSetRole, onOpenActivityTarget }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [artifacts, setArtifacts] = useState<ConversationArtifact[]>([]);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
@@ -837,7 +839,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     }
   }
 
-  function viewWorkspaceUpdate(artifact: ConversationArtifact) {
+  function viewWorkspaceUpdate(artifact: ConversationArtifact, origin?: DOMRect) {
     if (isViewingWorkspace) return;
     setIsViewingWorkspace(true);
     setArtifacts((current) => current.map((entry) => entry.id === artifact.id ? { ...entry, viewedAt: entry.viewedAt || new Date().toISOString() } : entry));
@@ -847,6 +849,16 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       body: JSON.stringify({ mode: "view_artifact", activityId: item.activityId ?? item.id, artifactId: artifact.id }),
     });
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const targetActivityId = artifact.meta.targetActivityId?.trim();
+    const targetActivityClientKey = artifact.meta.targetActivityClientKey?.trim() || null;
+    if (artifact.kind === "subject_move" && targetActivityId) {
+      conversationDrawer.setOpen(false);
+      window.setTimeout(() => {
+        onOpenActivityTarget({ activityId: targetActivityId, activityClientKey: targetActivityClientKey }, origin);
+        setIsViewingWorkspace(false);
+      }, reducedMotion ? 20 : 280);
+      return;
+    }
     const revealWorkspace = () => {
       const target = document.getElementById(`activity-workspace-${item.id}`);
       target?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
@@ -1106,7 +1118,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                       <span className="conversation-work-receipt-detail">{artifact.title}</span>
                     </span>
                     <span className="conversation-work-receipt-action">
-                      <button aria-label={`View ${artifact.title}`} disabled={isViewingWorkspace} type="button" onClick={() => viewWorkspaceUpdate(artifact)}>View</button>
+                      <button aria-label={`View ${artifact.title}`} disabled={isViewingWorkspace} type="button" onClick={(event) => viewWorkspaceUpdate(artifact, event.currentTarget.closest("article")?.getBoundingClientRect())}>View</button>
                     </span>
                   </article>
                   <div className="conversation-work-receipt-meta"><time>{conversationTime(artifact.createdAt)}</time></div>
@@ -3216,6 +3228,7 @@ export default function Home() {
                               : isDayStarted
                                 ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                 : <strong>Queued</strong>}</div> : null}
+                            {item.dueStepLabel ? <span className="due-step-chip" title={`${item.dueStepLabel} is due today`}>{item.dueStepLabel}</span> : null}
                             <span className="category-chip">{item.category}</span>
                             <div className="mobile-item-state">
                               {activityState === "current" ? <span className="now-chip">Now</span> : null}
@@ -3316,6 +3329,7 @@ export default function Home() {
                                 : isDayStarted
                                   ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                   : <strong>Queued</strong>}</div> : null}
+                              {item.dueStepLabel ? <span className="due-step-chip" title={`${item.dueStepLabel} is due today`}>{item.dueStepLabel}</span> : null}
                               <span className="category-chip">{item.category}</span>
                               <div className="mobile-item-state">
                                 {activityState === "current" ? <span className="now-chip">Now</span> : null}
@@ -3346,6 +3360,10 @@ export default function Home() {
                           onChangeToday={() => setOccurrenceEditorItem(item)}
                           onManageSchedule={() => { setScheduleManagerActivityId(item.activityId ?? item.id); setIsScheduleManagerOpen(true); }}
                           onSetRole={(role) => void setActivityRole(item, role)}
+                          onOpenActivityTarget={(target, origin) => {
+                            const destination = items.find((candidate) => candidate.activityId === target.activityClientKey || candidate.activityId === target.activityId || candidate.id === target.activityId);
+                            if (destination) openActivity(destination.id, origin);
+                          }}
                         />
                       ) : null}
 

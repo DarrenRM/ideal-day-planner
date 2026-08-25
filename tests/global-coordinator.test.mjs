@@ -100,6 +100,8 @@ test("root receipts can open long delegated artifact IDs and transition into the
   assert.match(drawer, /getBoundingClientRect\(\)/);
   assert.match(agentStore, /activity\.client_key AS activityClientKey/);
   assert.match(drawer, /activityClientKey: artifact\.activityClientKey/);
+  assert.match(drawer, /artifact\.meta\?\.targetActivityId/);
+  assert.match(drawer, /artifact\.meta\.targetActivityClientKey/);
   assert.match(page, /candidate\.activityId === target\.activityClientKey/);
   assert.match(page, /openActivity\(item\.id, origin\)/);
 });
