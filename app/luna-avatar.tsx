@@ -192,28 +192,26 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
       const facets = 42;
       const spacing = TAU / facets;
-      const inwardRatio = 1.38;
-      const outwardRatio = .82;
+      const radialStretch = 1.14;
       context.save();
       for (let index = 0; index < facets; index += 1) {
         const angle = index * spacing;
         const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
-        const centerRadius = (coreRadius + radius * .008) / (1 - inwardRatio * Math.tan(spacing));
+        const centerRadius = coreRadius + radius * .143;
         const centerPointX = centerX + Math.cos(angle) * centerRadius;
         const centerPointY = centerY + Math.sin(angle) * centerRadius;
         const radialX = Math.cos(angle);
         const radialY = Math.sin(angle);
         const tangentX = -radialY;
         const tangentY = radialX;
-        const sideLength = centerRadius * Math.tan(spacing);
-        const inwardLength = sideLength * inwardRatio;
-        const outwardLength = sideLength * outwardRatio;
+        const tangentHalfDiagonal = centerRadius * Math.tan(spacing);
+        const radialHalfDiagonal = tangentHalfDiagonal * radialStretch;
 
         context.beginPath();
-        context.moveTo(centerPointX - radialX * inwardLength, centerPointY - radialY * inwardLength);
-        context.lineTo(centerPointX + tangentX * sideLength, centerPointY + tangentY * sideLength);
-        context.lineTo(centerPointX + radialX * outwardLength, centerPointY + radialY * outwardLength);
-        context.lineTo(centerPointX - tangentX * sideLength, centerPointY - tangentY * sideLength);
+        context.moveTo(centerPointX - radialX * radialHalfDiagonal, centerPointY - radialY * radialHalfDiagonal);
+        context.lineTo(centerPointX + tangentX * tangentHalfDiagonal, centerPointY + tangentY * tangentHalfDiagonal);
+        context.lineTo(centerPointX + radialX * radialHalfDiagonal, centerPointY + radialY * radialHalfDiagonal);
+        context.lineTo(centerPointX - tangentX * tangentHalfDiagonal, centerPointY - tangentY * tangentHalfDiagonal);
         context.closePath();
         context.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
         context.fill();

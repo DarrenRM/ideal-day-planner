@@ -12,7 +12,7 @@ const STATES: Array<{ id: LunaAvatarState; label: string; detail: string }> = [
 
 const LAYERS: Array<{ id: LunaAvatarLayer; label: string }> = [
   { id: "complete", label: "Complete" },
-  { id: "facets", label: "Kite row" },
+  { id: "facets", label: "Lozenge row" },
   { id: "network", label: "Network" },
 ];
 
