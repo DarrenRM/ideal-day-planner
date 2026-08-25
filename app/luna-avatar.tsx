@@ -202,16 +202,16 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const centerPointY = centerY + Math.sin(angle) * centerRadius;
         const radialX = Math.cos(angle);
         const radialY = Math.sin(angle);
-        const tangentX = -radialY;
-        const tangentY = radialX;
-        const tangentHalfDiagonal = centerRadius * Math.tan(spacing);
-        const radialHalfDiagonal = tangentHalfDiagonal * radialStretch;
+        const neighborChord = 2 * centerRadius * Math.sin(spacing / 2);
+        const radialHalfDiagonal = neighborChord * radialStretch;
+        const clockwiseAngle = angle + spacing;
+        const counterclockwiseAngle = angle - spacing;
 
         context.beginPath();
         context.moveTo(centerPointX - radialX * radialHalfDiagonal, centerPointY - radialY * radialHalfDiagonal);
-        context.lineTo(centerPointX + tangentX * tangentHalfDiagonal, centerPointY + tangentY * tangentHalfDiagonal);
+        context.lineTo(centerX + Math.cos(clockwiseAngle) * centerRadius, centerY + Math.sin(clockwiseAngle) * centerRadius);
         context.lineTo(centerPointX + radialX * radialHalfDiagonal, centerPointY + radialY * radialHalfDiagonal);
-        context.lineTo(centerPointX - tangentX * tangentHalfDiagonal, centerPointY - tangentY * tangentHalfDiagonal);
+        context.lineTo(centerX + Math.cos(counterclockwiseAngle) * centerRadius, centerY + Math.sin(counterclockwiseAngle) * centerRadius);
         context.closePath();
         context.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
         context.fill();
