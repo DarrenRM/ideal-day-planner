@@ -53,6 +53,7 @@ test("keeps testing onboarding isolated and only materializes after confirmation
   assert.match(route, /mode === "confirm"/);
   assert.match(page, /Reset onboarding/);
   assert.match(page, /Your real Ideal Day stays untouched/);
+  assert.match(page, /Adding a stretch goal makes it part of today and expands this count/);
   assert.doesNotMatch(rootPage, /Reset onboarding/);
   assert.match(bridge, /onboarding_proposal/);
   assert.match(bridge, /provisional proposal, not durable activity data/);

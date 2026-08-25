@@ -215,6 +215,10 @@ export default function TestingOnboardingPage() {
   const activeEssentials = state?.items.filter((item) => item.planRole === "essential") || [];
   const activeExtras = state?.items.filter((item) => item.planRole === "extra" && item.activatedAt) || [];
   const availableExtras = state?.items.filter((item) => item.planRole === "extra" && !item.activatedAt) || [];
+  const activeCommitments = [...activeEssentials, ...activeExtras];
+  const completedCommitments = activeCommitments.filter((item) => item.completedAt).length;
+  const remainingEssentials = activeEssentials.length - completedEssentials;
+  const remainingStretchGoals = activeExtras.filter((item) => !item.completedAt).length;
 
   return <main className="onboarding-shell">
     <TestingHeader onReset={() => act("reset")} />
@@ -275,8 +279,8 @@ export default function TestingOnboardingPage() {
 
       {stage === "active" ? <section className="onboarding-active">
         <div className="onboarding-active-heading"><div><span className="onboarding-kicker">YOUR FIRST REAL DAY</span><h1>{prettyDate(state.session.confirmationDate || date)}</h1></div><span className="onboarding-live-badge"><Check size={14} /> Saved to testing</span></div>
-        <section className="onboarding-highlights"><div className="onboarding-score">{completedEssentials}/{activeEssentials.length}</div><div><span className="onboarding-kicker">HIGHLIGHTS</span><strong>{completedEssentials === activeEssentials.length ? "Essentials complete" : `${activeEssentials.length - completedEssentials} essentials left`}</strong><small>This is the real completion model inside your testing profile.</small></div></section>
-        {completedEssentials === activeEssentials.length && activeEssentials.length ? <section className="onboarding-achievement"><span className="onboarding-trophy">✦</span><p><span className="onboarding-kicker">TODAY’S ACHIEVEMENT</span><strong>Your first Ideal Day is underway.</strong><small>The rest of today is yours.</small></p><Sparkles size={20} /></section> : null}
+        <section className="onboarding-highlights"><div className="onboarding-score">{completedCommitments}/{activeCommitments.length}</div><div><span className="onboarding-kicker">HIGHLIGHTS</span><strong>{remainingEssentials ? `${remainingEssentials} essentials left` : remainingStretchGoals ? `${remainingStretchGoals} stretch ${remainingStretchGoals === 1 ? "goal" : "goals"} left` : "Today’s commitments complete"}</strong><small>Adding a stretch goal makes it part of today and expands this count.</small></div></section>
+        {completedCommitments === activeCommitments.length && activeCommitments.length ? <section className="onboarding-achievement"><span className="onboarding-trophy">✦</span><p><span className="onboarding-kicker">TODAY’S ACHIEVEMENT</span><strong>Your first Ideal Day is underway.</strong><small>The rest of today is yours.</small></p><Sparkles size={20} /></section> : null}
         <div className="onboarding-section-heading"><span><b>ESSENTIALS</b><small>The starting set you approved.</small></span></div>
         <div className="onboarding-active-list">{activeEssentials.map((item) => <button key={item.id} className={item.completedAt ? "is-complete" : ""} type="button" disabled={busy} onClick={() => act("toggle", { itemId: item.id, completed: !item.completedAt })}><ActivityIcon category={item.category} color={item.color} /><span><strong>{item.title}</strong><small>{item.completedAt ? "Completed today" : `${item.durationMinutes} min · ${item.category}`}</small></span><i><Check size={17} /></i></button>)}</div>
         {activeExtras.length ? <><div className="onboarding-section-heading is-more"><span><b>MORE FOR TODAY</b><small>Stretch goals you chose for today.</small></span></div><div className="onboarding-active-list">{activeExtras.map((item) => <button key={item.id} className={item.completedAt ? "is-complete" : ""} type="button" disabled={busy} onClick={() => act("toggle", { itemId: item.id, completed: !item.completedAt })}><ActivityIcon category={item.category} color={item.color} /><span><strong>{item.title}</strong><small>{item.completedAt ? "Completed today" : `${item.durationMinutes} min · ${item.category}`}</small></span><i><Check size={17} /></i></button>)}</div></> : null}
