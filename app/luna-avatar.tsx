@@ -3,7 +3,7 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 
 export type LunaAvatarState = "idle" | "listening" | "thinking";
-export type LunaAvatarLayer = "complete" | "aperture" | "facets" | "network";
+export type LunaAvatarLayer = "complete" | "facets" | "network";
 
 type LunaAvatarProps = {
   label?: string;
@@ -115,7 +115,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
     };
     motion.addEventListener("change", onMotionChange);
 
-    const drawNetwork = (centerX: number, centerY: number, radius: number, time: number, energy: number) => {
+    const drawNetwork = (centerX: number, centerY: number, radius: number, emptyRadius: number, time: number, energy: number) => {
       const positions = nodes.map((node, index) => {
         const drift = Math.sin(time * .35 + node.phase) * radius * .008;
         const orbital = node.angle + Math.sin(time * .14 + node.phase) * .012 + time * (index % 2 ? .0007 : -.00055);
@@ -130,6 +130,10 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       });
 
       context.save();
+      context.beginPath();
+      context.rect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      context.arc(centerX, centerY, emptyRadius, 0, TAU);
+      context.clip("evenodd");
       context.globalCompositeOperation = "lighter";
       for (const [first, second] of networkLinks) {
         const a = positions[first];
@@ -188,43 +192,32 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
       const facets = 42;
       const spacing = TAU / facets;
+      const inwardRatio = 1.38;
+      const outwardRatio = .82;
       context.save();
       for (let index = 0; index < facets; index += 1) {
         const angle = index * spacing;
         const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
-        const centerRadius = coreRadius + radius * .105;
+        const centerRadius = (coreRadius + radius * .008) / (1 - inwardRatio * Math.tan(spacing));
         const centerPointX = centerX + Math.cos(angle) * centerRadius;
         const centerPointY = centerY + Math.sin(angle) * centerRadius;
         const radialX = Math.cos(angle);
         const radialY = Math.sin(angle);
         const tangentX = -radialY;
         const tangentY = radialX;
-        // This exact half-diagonal makes the clockwise tip of diamond n
-        // coincide with the counter-clockwise tip of diamond n + 2.
-        const halfDiagonal = centerRadius * Math.tan(spacing);
-        const halfRadial = halfDiagonal;
-        const halfTangent = halfDiagonal;
+        const sideLength = centerRadius * Math.tan(spacing);
+        const inwardLength = sideLength * inwardRatio;
+        const outwardLength = sideLength * outwardRatio;
 
         context.beginPath();
-        context.moveTo(centerPointX - radialX * halfRadial, centerPointY - radialY * halfRadial);
-        context.lineTo(centerPointX + tangentX * halfTangent, centerPointY + tangentY * halfTangent);
-        context.lineTo(centerPointX + radialX * halfRadial, centerPointY + radialY * halfRadial);
-        context.lineTo(centerPointX - tangentX * halfTangent, centerPointY - tangentY * halfTangent);
+        context.moveTo(centerPointX - radialX * inwardLength, centerPointY - radialY * inwardLength);
+        context.lineTo(centerPointX + tangentX * sideLength, centerPointY + tangentY * sideLength);
+        context.lineTo(centerPointX + radialX * outwardLength, centerPointY + radialY * outwardLength);
+        context.lineTo(centerPointX - tangentX * sideLength, centerPointY - tangentY * sideLength);
         context.closePath();
         context.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
         context.fill();
       }
-      context.restore();
-    };
-
-    const drawAperture = (centerX: number, centerY: number, coreRadius: number, radius: number) => {
-      context.save();
-      context.shadowColor = state === "thinking" ? "rgba(178,220,122,.2)" : "rgba(92,190,185,.11)";
-      context.shadowBlur = radius * .055;
-      context.beginPath();
-      context.ellipse(centerX, centerY, coreRadius * 1.012, coreRadius * .996, 0, 0, TAU);
-      context.fillStyle = "#010203";
-      context.fill();
       context.restore();
     };
 
@@ -253,9 +246,8 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const breath = Math.sin(time * TAU / 5.8) * .011 + Math.sin(time * TAU / 11.6 + .7) * .004;
       const coreRadius = artRadius * (.635 + breath);
 
-      if (layer === "complete" || layer === "network") drawNetwork(centerX, centerY, artRadius, time, energy);
+      if (layer === "complete" || layer === "network") drawNetwork(centerX, centerY, artRadius, coreRadius, time, energy);
       if (layer === "complete" || layer === "facets") drawFacets(centerX, centerY, artRadius, coreRadius, time, energy);
-      if (layer !== "network") drawAperture(centerX, centerY, coreRadius, artRadius);
 
       if (!reducedMotion) frame = window.requestAnimationFrame(draw);
     };

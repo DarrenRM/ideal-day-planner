@@ -232,7 +232,7 @@
 .luna-state-options button.is-active { border-color: color-mix(in srgb, var(--accent) 58%, var(--border)); background: color-mix(in srgb, var(--surface-soft) 86%, var(--accent) 14%); }
 .luna-state-options button.is-active > svg { color: var(--accent-bright); }
 .luna-geometry-study { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
-.luna-geometry-study > div { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+.luna-geometry-study > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
 .luna-geometry-study button { min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-soft); color: var(--muted); font-size: var(--type-label); font-weight: 680; }
 .luna-geometry-study button.is-active { border-color: color-mix(in srgb, var(--accent) 58%, var(--border)); background: color-mix(in srgb, var(--surface-soft) 86%, var(--accent) 14%); color: var(--accent-bright); }
 .luna-scale-study { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
