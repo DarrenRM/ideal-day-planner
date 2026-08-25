@@ -82,6 +82,8 @@ The canonical global tokens are:
 ## Luna visual identity
 
 - Luna is represented by a code-native living halo: a dark faceted center, a restrained multicolor translucent ring, and a sparse connected field around it. It must remain recognizable from a 64px assistant control through a large working-state presentation.
+- The black aperture is the dominant mass. Its boundary is a near-circle with restrained polygonal irregularity, surrounded by an interleaved lattice of overlapping translucent diamonds—not a smooth gradient ring, radial sunburst, or rotating rosette. The middle of the lattice may resolve toward pearly white while its inner and outer facets retain the quiet spectral color path.
+- Treat the aperture, facet lattice, and connected outer field as independently tunable layers. The field dissolves radially before the canvas edge so compact placements never reveal a square image boundary.
 - Motion behaves like breathing rather than spinning. Idle is slow and quiet, listening is slightly more attentive, and thinking gathers brighter, faster energy without becoming frantic. Color and facets may drift subtly, but the center remains visually stable.
 - Compact assistant placement sits at the lower right and may carry one short speech bubble. The avatar opens the existing Notes & Assistant surface; it does not introduce a second conversation system.
 - Preserve a transparent outer field so the avatar can sit over app surfaces. Avoid mascot faces, literal moons, neon cyberpunk treatment, particle explosions, or animation that competes with the current task.

@@ -208,10 +208,7 @@
 
 /* Luna avatar study */
 .luna-avatar { --luna-avatar-size: 240px; position: relative; width: var(--luna-avatar-size); max-width: 100%; aspect-ratio: 1; display: inline-grid; place-items: center; flex: 0 0 auto; isolation: isolate; }
-.luna-avatar canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
-.luna-avatar > i { position: absolute; inset: 31%; z-index: -1; border-radius: 50%; background: #030405; box-shadow: 0 0 28px rgba(2, 4, 5, .9); animation: luna-core-breath 4.8s ease-in-out infinite; }
-.luna-avatar[data-state="listening"] > i { animation-duration: 3.3s; }
-.luna-avatar[data-state="thinking"] > i { animation-duration: 2.2s; }
+.luna-avatar canvas { width: 100%; height: 100%; display: block; }
 
 .luna-demo-page { min-height: 100dvh; overflow: hidden; padding: clamp(28px, 5vw, 68px); background: radial-gradient(circle at 18% 12%, rgba(79, 116, 107, .12), transparent 30%), radial-gradient(circle at 84% 78%, rgba(112, 83, 130, .12), transparent 34%), var(--bg); color: var(--text); }
 .luna-demo-page::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .22; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(circle at center, black, transparent 76%); }
@@ -235,6 +232,10 @@
 .luna-state-options small { color: var(--muted); font-size: var(--type-micro); line-height: var(--leading-micro); }
 .luna-state-options button.is-active { border-color: color-mix(in srgb, var(--accent) 58%, var(--border)); background: color-mix(in srgb, var(--surface-soft) 86%, var(--accent) 14%); }
 .luna-state-options button.is-active > svg { color: var(--accent-bright); }
+.luna-geometry-study { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+.luna-geometry-study > div { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+.luna-geometry-study button { min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-soft); color: var(--muted); font-size: var(--type-label); font-weight: 680; }
+.luna-geometry-study button.is-active { border-color: color-mix(in srgb, var(--accent) 58%, var(--border)); background: color-mix(in srgb, var(--surface-soft) 86%, var(--accent) 14%); color: var(--accent-bright); }
 .luna-scale-study { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
 .luna-scale-study > div { min-height: 164px; display: flex; align-items: end; justify-content: space-around; gap: 6px; margin-top: 10px; }
 .luna-scale-study > div > span { display: grid; justify-items: center; gap: 3px; color: var(--subtle); }
@@ -249,8 +250,6 @@
 .luna-widget-bubble > span { display: grid; gap: 2px; }
 .luna-widget-bubble strong { font-size: var(--type-body); }
 .luna-widget-bubble small { color: var(--muted); font-size: var(--type-label); line-height: var(--leading-label); }
-
-@keyframes luna-core-breath { 0%, 100% { transform: scale(.985); opacity: .82; } 50% { transform: scale(1.025); opacity: 1; } }
 
 @media (max-width: 800px) {
   .luna-demo-page { padding: 28px 18px 42px; }
@@ -276,7 +275,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .luna-avatar > i { animation: none; }
+  .luna-avatar { transform: none; }
 }
 @media (max-width: 360px) {
   .onboarding-choice-grid { grid-template-columns: 1fr; }
