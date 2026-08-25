@@ -554,6 +554,13 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(migration, /CREATE UNIQUE INDEX `daily_plan_items_plan_occurrence_key_unique`/);
 });
 
+test("schedule proposals preserve historical step identities when updating a rule", async () => {
+  const service = await readFile(new URL("../app/api/schedule-proposal-service.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(service, /DELETE FROM schedule_pattern_steps WHERE pattern_id/);
+  assert.match(service, /UPDATE schedule_pattern_steps[\s\S]*WHERE id = \? AND pattern_id = \?/);
+  assert.match(service, /changes the structure of an existing schedule/);
+});
+
 test("applies explicit one-activity cadence changes without fake typing or hidden failures", async () => {
   const [jobRoute, agentStore, scheduleActions, bridge, surface, page] = await Promise.all([
     readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),

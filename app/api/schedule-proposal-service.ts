@@ -34,7 +34,6 @@ function patternStatements(db: ReturnType<typeof getD1>, userId: string, routine
           pattern.anchorDate, pattern.initialStepPosition, pattern.effectiveDate, pattern.endDate,
           patternId, userId, routineId, expectedRevision,
         ),
-        db.prepare("DELETE FROM schedule_pattern_steps WHERE pattern_id = ?").bind(patternId),
       ]
     : [db.prepare(`
         INSERT INTO schedule_patterns
@@ -46,7 +45,21 @@ function patternStatements(db: ReturnType<typeof getD1>, userId: string, routine
         JSON.stringify(pattern.cadence), JSON.stringify(pattern.advancement), pattern.anchorDate,
         pattern.initialStepPosition, pattern.effectiveDate, pattern.endDate,
       )];
-  statements.push(...pattern.steps.map((step, index) => db.prepare(`
+  statements.push(...pattern.steps.map((step, index) => mode === "replace" ? db.prepare(`
+    UPDATE schedule_pattern_steps
+    SET activity_id = ?, activity_variant_id = ?, position = ?, duration_minutes = ?,
+        display_label_override = ?, plan_role = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND pattern_id = ?
+  `).bind(
+    step.activityId,
+    step.activityVariantId,
+    index,
+    step.durationMinutes,
+    step.displayLabelOverride,
+    step.planRole,
+    step.id,
+    patternId,
+  ) : db.prepare(`
     INSERT INTO schedule_pattern_steps
       (id, pattern_id, activity_id, activity_variant_id, position, duration_minutes, display_label_override, plan_role)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -116,6 +129,18 @@ export async function applyScheduleProposal(userId: string, proposalId: string) 
   const patterns = await db.prepare("SELECT id, revision FROM schedule_patterns WHERE user_id = ? AND routine_id = ?")
     .bind(userId, routine.id).all<{ id: string; revision: number }>();
   const ownedPatterns = new Map(patterns.results.map((row) => [row.id, row.revision]));
+  const patternSteps = await db.prepare(`
+    SELECT step.id, step.pattern_id AS patternId
+    FROM schedule_pattern_steps step
+    JOIN schedule_patterns pattern ON pattern.id = step.pattern_id
+    WHERE pattern.user_id = ? AND pattern.routine_id = ?
+  `).bind(userId, routine.id).all<{ id: string; patternId: string }>();
+  const ownedPatternSteps = patternSteps.results.reduce<Map<string, Set<string>>>((map, step) => {
+    const ids = map.get(step.patternId) ?? new Set<string>();
+    ids.add(step.id);
+    map.set(step.patternId, ids);
+    return map;
+  }, new Map());
   const createdActivityIds = new Map<string, string>();
   const createdVariantIds = new Map<string, string>();
 
@@ -157,11 +182,19 @@ export async function applyScheduleProposal(userId: string, proposalId: string) 
       if (ownedPatterns.get(action.patternId) !== action.expectedRevision) return { error: "A schedule in this proposal changed elsewhere.", code: "stale_revision", status: 409 } as const;
     }
     if (action.type === "create_pattern" || action.type === "replace_pattern") {
-      const validSteps = resolvePattern(action.pattern).steps.every((step) => (
+      const resolvedSteps = resolvePattern(action.pattern).steps;
+      const validSteps = resolvedSteps.every((step) => (
         ownedActivities.has(step.activityId)
         && (!step.activityVariantId || ownedVariants.get(step.activityVariantId) === step.activityId)
       ));
       if (!validSteps) return { error: "A proposed schedule step references an unavailable activity or variant.", status: 400 } as const;
+      if (action.type === "replace_pattern") {
+        const existingStepIds = ownedPatternSteps.get(action.patternId) ?? new Set<string>();
+        const proposedStepIds = new Set(resolvedSteps.map((step) => step.id));
+        if (existingStepIds.size !== proposedStepIds.size || [...existingStepIds].some((id) => !proposedStepIds.has(id))) {
+          return { error: "This proposal changes the structure of an existing schedule. Ask Luna to prepare a new rule instead.", status: 409 } as const;
+        }
+      }
     } else if (action.type === "add_occurrence") {
       const activityId = resolveActivityId(action.activityId);
       const variantId = action.activityVariantId ? createdVariantIds.get(action.activityVariantId) ?? action.activityVariantId : null;
