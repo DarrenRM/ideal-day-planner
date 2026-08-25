@@ -64,6 +64,11 @@ function colorAt(angle: number, alpha = 1, light = 0) {
   return `rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, ${alpha})`;
 }
 
+function networkFade(distance: number) {
+  const normalized = Math.max(0, Math.min(1, (1.34 - distance) / .48));
+  return Math.pow(normalized, 1.45);
+}
+
 export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, state = "idle" }: LunaAvatarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -119,7 +124,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
           x: centerX + Math.cos(orbital) * nodeRadius,
           y: centerY + Math.sin(orbital) * nodeRadius,
           angle: orbital,
-          fade: Math.max(0, Math.min(1, (1.3 - node.distance) / .18)),
+          fade: networkFade(node.distance),
           size: node.size,
         };
       });
@@ -143,7 +148,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
       for (const star of stars) {
         const distance = radius * (star.distance + Math.sin(time * .24 + star.phase) * .003);
-        const fade = Math.max(0, Math.min(1, (1.3 - star.distance) / .18));
+        const fade = networkFade(star.distance);
         const x = centerX + Math.cos(star.angle) * distance;
         const y = centerY + Math.sin(star.angle) * distance;
         const pulse = .7 + Math.sin(time * 1.25 + star.phase) * .22;
@@ -184,7 +189,6 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const facets = 42;
       const spacing = TAU / facets;
       context.save();
-      context.globalCompositeOperation = "lighter";
       for (let index = 0; index < facets; index += 1) {
         const angle = index * spacing;
         const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
@@ -195,8 +199,11 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const radialY = Math.sin(angle);
         const tangentX = -radialY;
         const tangentY = radialX;
-        const halfRadial = radius * .14;
-        const halfTangent = radius * .14;
+        // This exact half-diagonal makes the clockwise tip of diamond n
+        // coincide with the counter-clockwise tip of diamond n + 2.
+        const halfDiagonal = centerRadius * Math.tan(spacing);
+        const halfRadial = halfDiagonal;
+        const halfTangent = halfDiagonal;
 
         context.beginPath();
         context.moveTo(centerPointX - radialX * halfRadial, centerPointY - radialY * halfRadial);

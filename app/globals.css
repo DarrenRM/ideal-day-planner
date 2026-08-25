@@ -218,7 +218,6 @@
 .luna-demo-grid { position: relative; z-index: 1; width: min(1040px, 100%); display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 20px; margin: 0 auto; }
 .luna-demo-stage, .luna-demo-controls, .luna-widget-study { border: 1px solid var(--border); border-radius: 16px; background: rgba(16, 19, 22, .78); box-shadow: 0 28px 80px rgba(0, 0, 0, .28); backdrop-filter: blur(20px); }
 .luna-demo-stage { position: relative; min-height: 560px; display: grid; place-items: center; overflow: hidden; padding: 32px; }
-.luna-demo-atmosphere { position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle, rgba(7, 9, 11, .04) 28%, rgba(122, 202, 184, .06) 43%, rgba(144, 110, 189, .035) 62%, transparent 72%); filter: blur(10px); }
 .luna-demo-state-copy { position: absolute; right: 24px; bottom: 22px; left: 24px; display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }
 .luna-demo-state-copy span { color: var(--accent-bright); font-size: var(--type-label); font-weight: 760; text-transform: uppercase; letter-spacing: .08em; }
 .luna-demo-state-copy p { max-width: 330px; margin: 0; color: var(--muted); font-size: var(--type-body-sm); line-height: var(--leading-body-sm); text-align: right; }
