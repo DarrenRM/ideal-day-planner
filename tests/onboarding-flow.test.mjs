@@ -29,7 +29,7 @@ test("builds six to eight concrete candidates and preselects by coaching pace", 
 
 test("repairs generic, mismatched candidate names and adds concrete choices", () => {
   const proposal = deterministicOnboardingProposal(answers());
-  const generic = { ...proposal, activities: proposal.activities.map((activity) => activity.key === "focus-block" ? { ...activity, title: "Focus block", category: "Training", choices: undefined, choiceKey: undefined } : activity) };
+  const generic = { ...proposal, activities: proposal.activities.map((activity) => activity.key === "focus-block" ? { ...activity, title: "30-minute Focus block", category: "Training", choices: undefined, choiceKey: undefined } : activity) };
   const parsed = parseOnboardingProposal(generic, "balanced");
   assert.ok(parsed);
   const focus = parsed.activities.find((activity) => activity.key === "focus-block");
@@ -75,8 +75,10 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /OTHER SUGGESTIONS/);
   assert.match(page, /Which do you prefer\?/);
   assert.match(page, /Add to Essentials/);
+  assert.match(page, /Trash2/);
   assert.match(page, /Activity length/);
-  assert.doesNotMatch(page, /activity\.reason|onboarding-edit-meta|onboarding-candidate-select/);
+  assert.match(page, /Building your starting day/);
+  assert.doesNotMatch(page, /progressTitle|activity\.reason|onboarding-edit-meta|onboarding-candidate-select|>Remove</);
   assert.match(page, /window\.location\.assign\("\/testing"\)/);
   assert.doesNotMatch(page, /No activities have been created yet/);
   assert.doesNotMatch(page, /Why these\?|Not saved yet/);

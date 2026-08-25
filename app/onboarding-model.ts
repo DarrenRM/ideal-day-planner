@@ -27,6 +27,7 @@ function recordValue(value: unknown): Record<string, unknown> | null { return va
 function boundedText(value: unknown, maximum: number, allowEmpty = false) { if (typeof value !== "string") return null; const result = value.trim().replace(/\s+/g, " "); if (!result && allowEmpty) return ""; return result && result.length <= maximum ? result : null; }
 function boundedInteger(value: unknown, minimum: number, maximum: number) { return typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum ? value : null; }
 function enumArray<T extends string>(value: unknown, allowed: readonly T[], maximum: number): T[] | null { if (!Array.isArray(value) || value.length > maximum) return null; const result = [...new Set(value.filter((item): item is T => allowed.includes(item as T)))]; return result.length === value.length ? result : null; }
+function cleanActivityTitle(value: string) { return value.replace(/^\d+\s*(?:-|–|—)?\s*minute\s+/i, "").trim(); }
 
 const ACTIVITY_CHOICE_SETS: Record<string, OnboardingActivityChoice[]> = {
   movement: [
@@ -83,7 +84,7 @@ function parseActivityChoices(value: unknown): OnboardingActivityChoice[] | unde
   const choices: OnboardingActivityChoice[] = []; const seen = new Set<string>();
   for (const candidate of value) {
     const item = recordValue(candidate); if (!item) return undefined;
-    const key = boundedText(item.key, 60); const title = boundedText(item.title, 60);
+    const key = boundedText(item.key, 60); const rawTitle = boundedText(item.title, 60); const title = rawTitle ? cleanActivityTitle(rawTitle) : null;
     const category = ONBOARDING_CATEGORIES.includes(item.category as OnboardingCategory) ? item.category as OnboardingCategory : null;
     const durationMinutes = boundedInteger(item.durationMinutes, 5, 480);
     if (!key || !SAFE_KEY.test(key) || !title || !category || durationMinutes === null || seen.has(key)) return undefined;
@@ -128,7 +129,7 @@ export function parseOnboardingProposal(value: unknown, capacity: OnboardingCapa
   const seenKeys = new Set<string>(); const seenTitles = new Set<string>();
   for (const candidate of source.activities) {
     const item = recordValue(candidate); if (!item) return null;
-    const key = boundedText(item.key, 60); const rawTitle = boundedText(item.title, 60);
+    const key = boundedText(item.key, 60); const boundedTitle = boundedText(item.title, 60); const rawTitle = boundedTitle ? cleanActivityTitle(boundedTitle) : null;
     const rawCategory = ONBOARDING_CATEGORIES.includes(item.category as OnboardingCategory) ? item.category as OnboardingCategory : null;
     const durationMinutes = boundedInteger(item.durationMinutes, 5, 480); const reason = boundedText(item.reason, 180);
     if (!key || !SAFE_KEY.test(key) || !rawTitle || !rawCategory || durationMinutes === null || !reason || typeof item.selected !== "boolean" || typeof item.immediatelyActionable !== "boolean") return null;
@@ -158,11 +159,11 @@ const CANDIDATE_CATALOG: CatalogCandidate[] = [
   { key: "strength-session", title: "Bodyweight strength workout", category: "Training", durationMinutes: 25, immediatelyActionable: true, priorities: ["strength", "energy"], rhythms: ["movement", "flexible"] },
   { key: "focus-block", title: "Deep work session", category: "Creativity", durationMinutes: 30, immediatelyActionable: true, priorities: ["focus", "creativity"], rhythms: ["morning", "midday", "flexible"] },
   { key: "bed-routine", title: "Bed routine", category: "Care", durationMinutes: 15, immediatelyActionable: true, priorities: ["sleep", "calm", "self-care"], rhythms: ["evening", "flexible"] },
-  { key: "ten-minute-meditation", title: "10-minute meditation", category: "Recharge", durationMinutes: 10, immediatelyActionable: true, priorities: ["calm", "focus", "sleep"], rhythms: ["morning", "midday", "evening", "flexible"] },
+  { key: "ten-minute-meditation", title: "Guided meditation", category: "Recharge", durationMinutes: 10, immediatelyActionable: true, priorities: ["calm", "focus", "sleep"], rhythms: ["morning", "midday", "evening", "flexible"] },
   { key: "breakfast", title: "Breakfast", category: "Fuel", durationMinutes: 15, immediatelyActionable: true, priorities: ["nourishment", "energy", "self-care"], rhythms: ["morning", "flexible"] },
   { key: "lunch-away-from-screen", title: "Lunch away from the screen", category: "Fuel", durationMinutes: 20, immediatelyActionable: true, priorities: ["nourishment", "energy", "calm"], rhythms: ["midday", "flexible"] },
   { key: "skin-routine", title: "Skin routine", category: "Care", durationMinutes: 5, immediatelyActionable: true, priorities: ["self-care", "calm"], rhythms: ["morning", "evening", "flexible"] },
-  { key: "ten-minute-tidy", title: "10-minute tidy", category: "Logistics", durationMinutes: 10, immediatelyActionable: true, priorities: ["home", "calm", "focus"], rhythms: ["midday", "evening", "flexible"] },
+  { key: "ten-minute-tidy", title: "Quick tidy", category: "Logistics", durationMinutes: 10, immediatelyActionable: true, priorities: ["home", "calm", "focus"], rhythms: ["midday", "evening", "flexible"] },
   { key: "creative-practice", title: "Creative practice", category: "Creativity", durationMinutes: 25, immediatelyActionable: true, priorities: ["creativity", "focus", "calm"], rhythms: ["morning", "midday", "evening", "flexible"] },
   { key: "check-in-with-someone", title: "Check in with someone", category: "Spirit", durationMinutes: 10, immediatelyActionable: true, priorities: ["connection", "calm"], rhythms: ["midday", "evening", "flexible"] },
   { key: "afternoon-stretch", title: "Afternoon stretch", category: "Training", durationMinutes: 10, immediatelyActionable: true, priorities: ["energy", "strength", "calm"], rhythms: ["midday", "movement", "flexible"] },

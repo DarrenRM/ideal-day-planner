@@ -250,7 +250,7 @@ Do not ask for details that can be safely deferred until the person first opens 
 
 The user receives an immediate acknowledgment before durable Luna work begins. A bounded visible work state explains that Luna is preparing a starting day.
 
-The transition should not expose an empty home screen, a partially populated list, repeated typing states, or activities snapping into place one by one.
+The transition should not expose an empty home screen, a partially populated list, repeated typing states, or activities snapping into place one by one. Keep one stable `Building your starting day` headline and support line for the whole job; backend progress may update one quiet status line, but must never replace the primary loading composition after it appears.
 
 Keep this state focused on Luna's current work. Do not add implementation reassurance, creation-state disclaimers, or a manual deterministic-builder link beneath the progress indicator. Recovery choices belong on a real error state if the work fails.
 
@@ -274,11 +274,11 @@ The preselected candidates appear first inside one visually unified **Your Essen
 - The same category tag used by Today activity cards.
 - A realistic duration estimate.
 - A small edit affordance.
-- For preference-sensitive actions such as training, meditation, creative practice, or an evening routine, an inline `Which do you prefer?` choice with exactly three concrete alternatives and one recommended option selected.
+- For preference-sensitive actions such as training, meditation, creative practice, or an evening routine, an inline `Which do you prefer?` choice with exactly three concrete alternatives and one recommended option selected. Present these as three full-width rows, not compressed columns, and show each option's duration and category quietly beneath its title.
 
 Do not show the generated recommendation reason under each card. The answer-to-recommendation logic belongs to Luna; this screen should help the person make the concrete activity theirs.
 
-Luna preselects three, four, or five based on the chosen coaching pace. Remaining candidates appear afterward under **Other suggestions**, each with an explicit **Add to Essentials** action instead of an empty completion circle. The person may keep between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
+Luna preselects three, four, or five based on the chosen coaching pace. A selected activity uses a compact trash icon to remove it rather than a `Remove` chip. Remaining candidates appear afterward under **Other suggestions**, each with an explicit **Add to Essentials** action instead of an empty completion circle. Their card border, quiet tint, icon, tag, and add action all resolve through the activity's canonical category color rather than global green. The person may keep between three and six total. Unselected candidates remain provisional and disappear after confirmation; they do not become Go Further activities or enter the activity library.
 
 Do not show Highlights, a progress denominator, selection count, saved-state badge, recommendation-explanation card, achievements, completion controls, More for Today, stretch goals, future candidates, or a calibration card on this screen. Those concepts are intentionally deferred.
 
