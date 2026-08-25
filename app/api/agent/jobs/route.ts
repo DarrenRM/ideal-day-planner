@@ -754,7 +754,9 @@ export async function POST(request: Request) {
             VALUES (?, ?, ?, ?, ?, 'ready', ?, ?)
           `).bind(proposalId, job.userId, job.conversationId, job.sourceMessageId, job.id, proposal.baseRevision, JSON.stringify(proposal)).run();
         }
-        const finalResponse = followUpBody || response;
+        // A delegated activity compiler owns the eventual outcome. The coordinator
+        // must not narrate success or failure before that bounded write finishes.
+        const finalResponse = activityWorkRequests.length ? "" : followUpBody || response;
         const messageId = finalResponse ? `agent-message:${safeId(jobId)}` : null;
         const statements = [];
         if (finalResponse && messageId) statements.push(db.prepare(`

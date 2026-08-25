@@ -57,7 +57,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   initialDraft: string;
   onDraftConsumed: () => void;
   onClose: () => void;
-  onOpenActivity: (activityId: string) => void;
+  onOpenActivity: (activityId: string, origin?: DOMRect) => void;
   onRead: () => void;
   onScheduleChanged: () => void;
 }) {
@@ -70,6 +70,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   const [revisionText, setRevisionText] = useState("");
   const [isPresent, setIsPresent] = useState(open);
   const [isVisible, setIsVisible] = useState(false);
+  const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const onReadRef = useRef(onRead);
@@ -150,16 +151,29 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
     return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", escape); };
   }, [open, state.messages.length, state.artifacts.length, state.activeJob, state.proposals.length, state.captures.length, onClose]);
 
-  async function viewArtifact(artifact: LunaArtifact) {
-    if (!artifact.activityId) return;
-    const response = await fetch("/api/luna", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mode: "view-artifact", artifactId: artifact.id, activityId: artifact.activityId }),
-    });
-    if (!response.ok) return;
-    onClose();
-    onOpenActivity(artifact.activityId);
+  async function viewArtifact(artifact: LunaArtifact, origin?: DOMRect) {
+    if (!artifact.activityId || openingArtifactId) return;
+    setOpeningArtifactId(artifact.id);
+    try {
+      const response = await fetch("/api/luna", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "view-artifact", artifactId: artifact.id, activityId: artifact.activityId }),
+      });
+      if (!response.ok) {
+        setOpeningArtifactId(null);
+        return;
+      }
+      const result = await response.json() as LunaState;
+      setState(result);
+      onClose();
+      window.setTimeout(() => {
+        onOpenActivity(artifact.activityId!, origin);
+        setOpeningArtifactId(null);
+      }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 20 : 150);
+    } catch {
+      setOpeningArtifactId(null);
+    }
   }
 
   async function send(event: FormEvent) {
@@ -245,12 +259,10 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
             <article className={`global-luna-artifact ${entry.value.viewedAt ? "is-viewed" : "is-new"}`} key={entry.value.id}>
               <span><Sparkles aria-hidden="true" size={16} /></span>
               <div><strong>{entry.value.title}</strong>{entry.value.detail ? <small>{entry.value.detail}</small> : null}</div>
-              {entry.value.activityId ? <button type="button" onClick={() => void viewArtifact(entry.value)}>View</button> : null}
+              {entry.value.activityId ? <button disabled={Boolean(openingArtifactId)} type="button" onClick={(event) => void viewArtifact(entry.value, event.currentTarget.closest("article")?.getBoundingClientRect())}>{openingArtifactId === entry.value.id ? "Opening…" : "View"}</button> : null}
             </article>
           ))}
-          {state.activeJob ? (
-            <div className="global-luna-working" role="status"><span className="luna-thinking-dots"><i /><i /><i /></span><div><strong>{state.activeJob.progressTitle || "Luna is thinking"}</strong><small>{state.activeJob.progressDetail || "Making sense of your request."}</small></div></div>
-          ) : null}
+          {state.activeJob ? <div className="global-luna-message is-luna global-luna-typing" role="status" aria-label="Luna is typing"><div className="message-bubble prototype-typing"><span /><span /><span /></div></div> : null}
           {state.proposals.map((proposal) => (
             <article className="schedule-proposal-card" key={proposal.id}>
               <div className="schedule-proposal-kicker"><Sparkles aria-hidden="true" size={14} /> Schedule proposal</div>

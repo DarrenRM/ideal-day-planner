@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { jsonrepair } from "jsonrepair";
 import { CATALOG_VERSION, activityRecipeHint, catalogInstructions } from "./component-catalog.mjs";
-import { researchAcknowledgement, userMessageRequestsResearch } from "./job-policy.mjs";
+import { globalResearchAcknowledgement, researchAcknowledgement, userMessageRequestsResearch } from "./job-policy.mjs";
 import { researchEvidenceForMessage } from "./source-research.mjs";
 
 const appUrl = (process.env.IDEAL_DAY_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -466,9 +466,11 @@ async function runJob(key, leased) {
     });
     return;
   }
-  if (leased.job.kind === "user_message" && userMessageRequestsResearch(sourceMessage)) {
+  if ((leased.job.kind === "user_message" || leased.job.kind === "global_message") && userMessageRequestsResearch(sourceMessage)) {
     await completeJob(leased, sessionId, {
-      message: researchAcknowledgement(leased.context.activity?.title),
+      message: leased.job.kind === "global_message"
+        ? globalResearchAcknowledgement()
+        : researchAcknowledgement(leased.context.activity?.title),
       workspaceFollowup: true,
       recordActions: [],
       workspaceActions: [],

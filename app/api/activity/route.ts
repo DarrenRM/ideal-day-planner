@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     const occurrence = await occurrenceContext(userId, payload.occurrenceId, requestDate, activity.id);
 
     if (mode === "view_artifact") {
-      const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 240) : "";
+      const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 1024) : "";
       if (!artifactId || !await markConversationArtifactViewed({ userId, conversationId, activityId: activity.id, artifactId })) {
         return Response.json({ error: "That update could not be found." }, { status: 404 });
       }

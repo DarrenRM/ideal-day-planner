@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       return Response.json(await state(conversationId, userId));
     }
     if (payload.mode === "view-artifact") {
-      const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 240) : "";
+      const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 1024) : "";
       const activityId = typeof payload.activityId === "string" ? payload.activityId.trim().slice(0, 240) : "";
       if (!artifactId || !activityId) return Response.json({ error: "That update could not be opened." }, { status: 400 });
       const viewed = await markConversationArtifactViewed({ userId, conversationId, activityId, artifactId });

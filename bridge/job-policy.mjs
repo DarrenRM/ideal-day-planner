@@ -10,3 +10,7 @@ export function researchAcknowledgement(activityTitle) {
     ? `I’ll take a look and keep the useful details with your ${title}.`
     : "I’ll take a look and keep the useful details here.";
 }
+
+export function globalResearchAcknowledgement() {
+  return "I’ll take a look and update the right part of your routine.";
+}

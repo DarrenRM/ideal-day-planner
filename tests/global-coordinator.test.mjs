@@ -81,4 +81,21 @@ test("the app validates coordinator destinations and queues an activity-scoped c
   assert.match(route, /'global_refresh'/);
   assert.match(route, /'activity', \?, \?, 'workspace_refresh'/);
   assert.match(route, /delegation_instruction/);
+  assert.match(route, /const finalResponse = activityWorkRequests\.length \? ""/);
+});
+
+test("root receipts can open long delegated artifact IDs and transition into their activity", async () => {
+  const [lunaRoute, activityRoute, drawer, page] = await Promise.all([
+    readFile(new URL("../app/api/luna/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/global-luna.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(lunaRoute, /artifactId\.trim\(\)\.slice\(0, 1024\)/);
+  assert.match(activityRoute, /artifactId\.trim\(\)\.slice\(0, 1024\)/);
+  assert.match(drawer, /global-luna-typing/);
+  assert.doesNotMatch(drawer, /global-luna-working/);
+  assert.match(drawer, /Opening…/);
+  assert.match(drawer, /getBoundingClientRect\(\)/);
+  assert.match(page, /openActivity\(item\.id, origin\)/);
 });

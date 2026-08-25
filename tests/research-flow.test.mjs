@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { researchAcknowledgement, userMessageRequestsResearch } from "../bridge/job-policy.mjs";
+import { globalResearchAcknowledgement, researchAcknowledgement, userMessageRequestsResearch } from "../bridge/job-policy.mjs";
 import { messageRequestsResearch as appMessageRequestsResearch } from "../app/research-intent.ts";
 
 test("treats pasted links and explicit lookup requests as research work", () => {
@@ -18,6 +18,10 @@ test("acknowledges research immediately in the activity's language", () => {
     researchAcknowledgement("Hair serum"),
     "I’ll take a look and keep the useful details with your hair serum.",
   );
+  assert.equal(
+    globalResearchAcknowledgement(),
+    "I’ll take a look and update the right part of your routine.",
+  );
 });
 
 test("research is acknowledged synchronously and compiled through one final response path", async () => {
@@ -27,7 +31,8 @@ test("research is acknowledged synchronously and compiled through one final resp
     readFile(new URL("../app/api/activity-message-jobs.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(bridge, /leased\.job\.kind === "user_message" && userMessageRequestsResearch\(sourceMessage\)/);
+  assert.match(bridge, /leased\.job\.kind === "user_message" \|\| leased\.job\.kind === "global_message"/);
+  assert.match(bridge, /globalResearchAcknowledgement\(\)/);
   assert.match(bridge, /workspaceFollowup: true/);
   assert.match(bridge, /IDEAL_DAY_WORKSPACE_MODEL \|\| "gpt-5\.6-terra"/);
   assert.match(bridge, /reasoning_effort: "low"/);
