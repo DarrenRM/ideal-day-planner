@@ -27,7 +27,10 @@ function recordValue(value: unknown): Record<string, unknown> | null { return va
 function boundedText(value: unknown, maximum: number, allowEmpty = false) { if (typeof value !== "string") return null; const result = value.trim().replace(/\s+/g, " "); if (!result && allowEmpty) return ""; return result && result.length <= maximum ? result : null; }
 function boundedInteger(value: unknown, minimum: number, maximum: number) { return typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum ? value : null; }
 function enumArray<T extends string>(value: unknown, allowed: readonly T[], maximum: number): T[] | null { if (!Array.isArray(value) || value.length > maximum) return null; const result = [...new Set(value.filter((item): item is T => allowed.includes(item as T)))]; return result.length === value.length ? result : null; }
-function cleanActivityTitle(value: string) { return value.replace(/^\d+\s*(?:-|–|—)?\s*minute\s+/i, "").trim(); }
+function cleanActivityTitle(value: string) {
+  const cleaned = value.replace(/^\d+\s*(?:-|–|—)?\s*minute\s+/i, "").trim();
+  return cleaned.replace(/^[a-z]/, (letter) => letter.toLocaleUpperCase());
+}
 
 const ACTIVITY_CHOICE_SETS: Record<string, OnboardingActivityChoice[]> = {
   movement: [

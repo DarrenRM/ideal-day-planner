@@ -36,6 +36,7 @@ test("repairs generic, mismatched candidate names and adds concrete choices", ()
   assert.equal(focus.title, "Deep work session");
   assert.equal(focus.category, "Creativity");
   assert.deepEqual(focus.choices.map((choice) => choice.title), ["Deep work session", "Creative project time", "Planning session"]);
+  assert.ok(parsed.activities.every((activity) => /^[A-Z]/.test(activity.title)));
 });
 
 test("rejects candidate sets with too few selections or non-actionable selections", () => {
