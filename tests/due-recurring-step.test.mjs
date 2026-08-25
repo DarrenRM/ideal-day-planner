@@ -16,7 +16,7 @@ const retinol = {
   updatedAt: "2026-08-24 12:00:00",
 };
 
-test("surfaces a nested recurring step only on its due dates", () => {
+test("identifies a nested recurring step only on its due dates", () => {
   assert.deepEqual(dueRecurringSteps([retinol], "2026-08-25"), [{ recordKey: "retinol-schedule", subjectKey: "retinol", label: "Use Retinol 1%" }]);
   assert.deepEqual(dueRecurringSteps([retinol], "2026-08-26"), []);
   assert.deepEqual(dueRecurringSteps([retinol], "2026-08-28"), [{ recordKey: "retinol-schedule", subjectKey: "retinol", label: "Use Retinol 1%" }]);

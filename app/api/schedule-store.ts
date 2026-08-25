@@ -34,7 +34,6 @@ export type ResolvedDayItem = {
   previousCompletedAt: string | null;
   previousActivatedAt: string | null;
   previousPlanRole: "essential" | "extra" | null;
-  dueStepLabel: string | null;
   revision: number;
 };
 
@@ -418,22 +417,16 @@ export async function readResolvedDay(userId: string, planId: string) {
              ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
              LIMIT 1
            ) AS previousPlanRole,
-           dpi.activity_id AS databaseActivityId, dp.plan_date AS planDate, dpi.revision
+           dpi.revision
     FROM daily_plan_items dpi
     JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
     WHERE dpi.daily_plan_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
     ORDER BY dpi.position, dpi.created_at, dpi.id
-  `).bind(planId, userId).all<Omit<ResolvedDayItem, "id" | "displayTitle" | "dueStepLabel"> & { databaseActivityId: string; planDate: string }>();
-  const dueSteps = await dueStepsByActivity(userId, [...new Set(result.results.map((item) => item.databaseActivityId))], result.results[0]?.planDate ?? "");
-  return result.results.map(({ databaseActivityId, planDate, ...item }) => {
-    const dueStepLabel = dueSteps.get(databaseActivityId)?.[0]?.label ?? null;
-    void planDate;
-    return {
-      ...item,
-      id: item.occurrenceId,
-      occurrenceKey: item.occurrenceKey || `legacy:${item.occurrenceId}`,
-      displayTitle: derivedDisplayTitle(item.title, item.variantName, item.displayLabel),
-      dueStepLabel,
-    };
-  });
+  `).bind(planId, userId).all<Omit<ResolvedDayItem, "id" | "displayTitle">>();
+  return result.results.map((item) => ({
+    ...item,
+    id: item.occurrenceId,
+    occurrenceKey: item.occurrenceKey || `legacy:${item.occurrenceId}`,
+    displayTitle: derivedDisplayTitle(item.title, item.variantName, item.displayLabel),
+  }));
 }

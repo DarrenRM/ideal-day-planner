@@ -42,7 +42,6 @@ type RoutineItem = {
   previousCompletedAt?: string | null;
   previousActivatedAt?: string | null;
   previousPlanRole?: PlanRole | null;
-  dueStepLabel?: string | null;
 };
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
@@ -3228,7 +3227,6 @@ export default function Home() {
                               : isDayStarted
                                 ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                 : <strong>Queued</strong>}</div> : null}
-                            {item.dueStepLabel ? <span className="due-step-chip" title={`${item.dueStepLabel} is due today`}>{item.dueStepLabel}</span> : null}
                             <span className="category-chip">{item.category}</span>
                             <div className="mobile-item-state">
                               {activityState === "current" ? <span className="now-chip">Now</span> : null}
@@ -3329,7 +3327,6 @@ export default function Home() {
                                 : isDayStarted
                                   ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                   : <strong>Queued</strong>}</div> : null}
-                              {item.dueStepLabel ? <span className="due-step-chip" title={`${item.dueStepLabel} is due today`}>{item.dueStepLabel}</span> : null}
                               <span className="category-chip">{item.category}</span>
                               <div className="mobile-item-state">
                                 {activityState === "current" ? <span className="now-chip">Now</span> : null}

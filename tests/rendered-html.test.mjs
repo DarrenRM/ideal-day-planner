@@ -467,7 +467,7 @@ test("keeps the routine data and interactions in the page", async () => {
 });
 
 test("keeps universal scheduling behind typed, auditable boundaries", async () => {
-  const [model, store, scheduleRoute, occurrenceRoute, occurrenceActions, proposalService, lunaRoute, manager, css, migration] = await Promise.all([
+  const [model, store, scheduleRoute, occurrenceRoute, occurrenceActions, proposalService, lunaRoute, manager, page, css, migration] = await Promise.all([
     readFile(new URL("../app/schedule-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/schedule/route.ts", import.meta.url), "utf8"),
@@ -476,6 +476,7 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
     readFile(new URL("../app/api/schedule-proposal-service.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/luna/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/schedule-manager.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0011_faulty_human_robot.sql", import.meta.url), "utf8"),
   ]);
@@ -491,7 +492,8 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(store, /dueStepsByActivity/);
   assert.match(store, /record_type = 'recurring_step'/);
   assert.match(store, /AND activity_id IN/);
-  assert.match(store, /dueStepLabel/);
+  assert.doesNotMatch(page, /dueStepLabel/);
+  assert.doesNotMatch(css, /due-step-chip/);
   assert.match(scheduleRoute, /includeArchived: true/);
   assert.match(scheduleRoute, /record\.record_type = 'recurring_step'/);
   assert.match(scheduleRoute, /recurringStepRepresentsParentActivity/);
