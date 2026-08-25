@@ -1339,7 +1339,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .mobile-day-nav > button:hover { color: var(--accent-bright); }
   .mobile-day-nav > .mobile-day-nav-today { color: var(--accent); padding: 0 4px; }
   .mobile-day-nav > button:focus-visible { outline: 2px solid rgba(181, 215, 125, .65); outline-offset: 2px; }
-  .planner-actions { flex: 0 0 auto; margin-top: 3px; }
+  .planner-actions { align-self: center; flex: 0 0 auto; margin-top: 0; }
   .planner-menu-trigger { height: 40px; width: 40px; }
   .add-block-form { grid-template-columns: 1fr 1fr; padding: 14px 0 15px; }
   .add-name-field, .add-form-actions { grid-column: 1 / -1; }

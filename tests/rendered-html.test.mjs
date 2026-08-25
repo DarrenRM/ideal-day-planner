@@ -430,6 +430,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /refreshHighlight: false/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*?\.app-header \{ display: none; \}/s);
   assert.match(css, /\.mobile-day-nav \{[^}]*display: flex;[^}]*gap: 14px/s);
+  assert.match(css, /\.planner-actions \{[^}]*align-self: center;[^}]*margin-top: 0/s);
   assert.match(page, /mobile-schedule-title/);
   assert.match(page, /formatDuration\(totalMinutes\).*total/s);
   assert.match(page, /function activityIconFor/);
