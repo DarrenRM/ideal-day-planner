@@ -17,5 +17,6 @@
 - The default day mode is a flexible checklist. The persisted `Day Timeline` setting owns clock placement and scheduling semantics; activity-length controls remain available in either mode.
 - Mobile collapsed and expanded activities share one header contract. Expanded footers keep only the large Skip and Mark Complete actions.
 - Read `DESIGN_SYSTEM.md` before changing UI. It is the visual and interaction source of truth; `PRODUCT_SPEC.md` owns behavior and `app/globals.css` implements the tokens.
+- Product copy should sell the user's capability and transformation, not the mechanism. Lead with what the person can accomplish, feel, or become; mention setup steps, features, components, or Luna only when they are necessary to understand or use the interface.
 - Use `npm run dev` for UI work, `npm test` and `npm run lint` before committing, and the Sites build/hosting workflow for production changes.
 - Never run a bare `git push` to the Sites remote. Obtain the short-lived Sites source credential and pass its authorization header per command; keep this repository's Git credentials noninteractive so a failed push cannot open Git Credential Manager.
