@@ -177,6 +177,24 @@ export const settings = sqliteTable("settings", {
   updatedAt: updatedAt(),
 });
 
+export const onboardingTestSessions = sqliteTable("onboarding_test_sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  ownerUserId: text("owner_user_id").notNull(),
+  stage: text("stage").notNull().default("welcome"),
+  goals: text("goals").notNull().default(""),
+  capacity: text("capacity"),
+  revisionRequest: text("revision_request"),
+  proposalJson: text("proposal_json"),
+  confirmationDate: text("confirmation_date"),
+  error: text("error"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (table) => [
+  uniqueIndex("onboarding_test_sessions_user_unique").on(table.userId),
+  uniqueIndex("onboarding_test_sessions_owner_unique").on(table.ownerUserId),
+]);
+
 export const conversations = sqliteTable("conversations", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

@@ -1,8 +1,8 @@
 # Ideal Day — Onboarding Flow Specification
 
-Status: discovery  
-Last updated: 2026-08-23  
-Owner: Darren  
+Status: testing prototype
+Last updated: 2026-08-25
+Owner: Darren
 
 This document defines the working product and UX direction for introducing a new person to Ideal Day. `PRODUCT_SPEC.md` remains the product source of truth. Decisions here are proposals until they are confirmed and promoted into that specification.
 
@@ -554,6 +554,20 @@ Potential concepts:
 - Later support for behavior-triggered follow-ups in addition to dates.
 
 The existing schedule-proposal pattern is a useful precedent for revision, confirmation, validation, and auditability. Onboarding should not bypass the authoritative activity, schedule, workspace, or follow-up validators when a draft is accepted.
+
+### 14.1 `/testing` prototype contract
+
+The first implementation lives at `/testing` and is deliberately isolated from the signed-in person's production routine:
+
+- The server derives a testing-only user identity from the authenticated owner; the browser cannot choose or submit an arbitrary sandbox identity.
+- Goals, pace, Luna jobs, and draft proposals live in a provisional onboarding session. Ordinary activities, schedules, day items, activity conversations, runs, and workspaces do not exist before confirmation.
+- Luna's proposal runs through the existing local bridge as a dedicated Terra-backed durable job. A bounded deterministic starter remains available if the bridge cannot finish.
+- `Start with this` validates the edited proposal, then atomically materializes the accepted activities into the real activity, daily schedule, role, day-plan, conversation, profile, and completion tables for the testing identity only.
+- The post-confirmation screen reads and changes those real sandbox records, including Essential counts, More-for-today activation, completion, uncompletion, Highlights, and the first achievement.
+- The three-dot menu exposes `Reset onboarding` only on `/testing`. Reset deletes the exact derived testing user and relies on foreign-key cascades; it never targets the owner identity.
+- Initial accepted activities are intentionally actionable without generated workspaces. The normal activity setup/compiler path can run later when a person adds details that justify a component, which avoids a burst of speculative setup work at confirmation.
+
+This route is a product test surface, not a second implementation of the production home page. Promotion to `/` should reuse the same provisional session and confirmation boundary while moving the presentation into the shared Today shell.
 
 ## 15. Open decisions
 

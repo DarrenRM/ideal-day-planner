@@ -38,6 +38,11 @@ import {
   validateHandledOutcomes,
   type HandledOutcome,
 } from "../../../global-request-plan";
+import {
+  completeOnboardingProposal,
+  failOnboardingProposal,
+  onboardingJobContext,
+} from "../../onboarding-testing-store";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
 
@@ -72,13 +77,13 @@ function workReceiptStatement(db: ReturnType<typeof getD1>, input: {
 type LeasedJob = {
   id: string;
   userId: string;
-  scopeType: "activity" | "global";
+  scopeType: "activity" | "global" | "onboarding";
   activityId: string | null;
   activityVariantId: string | null;
   dayPlanId: string | null;
   dayRevision: number | null;
   conversationId: string;
-  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message" | "global_refresh" | "day_highlight" | "follow_up";
+  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message" | "global_refresh" | "day_highlight" | "follow_up" | "onboarding_proposal";
   sourceMessageId: string | null;
   delegationInstruction: string | null;
   attempts: number;
@@ -238,6 +243,18 @@ export async function GET(request: Request) {
     `).bind(leaseToken, workerId, candidate.id).run();
     if (!(leased.meta.changes ?? 0)) return new Response(null, { status: 204 });
     claimedJob = { id: candidate.id, leaseToken };
+
+    if (candidate.kind === "onboarding_proposal") {
+      const context = await onboardingJobContext(candidate.userId);
+      if (!context) throw new Error("The onboarding proposal no longer has a valid draft context.");
+      await db.prepare("UPDATE agent_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND lease_token = ?")
+        .bind(candidate.id, leaseToken).run();
+      return Response.json({
+        job: { ...candidate, leaseToken, attempts: candidate.attempts + 1 },
+        runtimeSessionId: null,
+        context: { ...context, localDate: localDateInTimeZone(new Date(), "America/Phoenix") },
+      });
+    }
 
     if (candidate.kind === "day_highlight") {
       if (!candidate.dayPlanId || candidate.dayRevision === null) throw new Error("A day-highlight job is missing its day revision.");
@@ -548,7 +565,7 @@ export async function POST(request: Request) {
     `).bind(jobId, leaseToken).first<{
       id: string;
       userId: string;
-      scopeType: "activity" | "global";
+      scopeType: "activity" | "global" | "onboarding";
       activityId: string | null;
       activityVariantId: string | null;
       dayPlanId: string | null;
@@ -604,6 +621,25 @@ export async function POST(request: Request) {
         && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
+      if (job.kind === "onboarding_proposal") {
+        const proposal = await completeOnboardingProposal(job.userId, payload.onboardingProposal);
+        if (!proposal) return Response.json({ error: "The onboarding proposal did not pass validation." }, { status: 400 });
+        const bindingId = `agent-binding:${safeId(job.conversationId)}:${safeId(HERMES_RUNTIME)}`;
+        await db.batch([
+          db.prepare(`
+            INSERT INTO agent_session_bindings (id, conversation_id, runtime, runtime_session_id)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(conversation_id, runtime) DO UPDATE SET runtime_session_id = excluded.runtime_session_id, updated_at = CURRENT_TIMESTAMP
+          `).bind(bindingId, job.conversationId, HERMES_RUNTIME, runtimeSessionId),
+          db.prepare(`
+            UPDATE agent_jobs SET status = 'succeeded', lease_token = NULL, lease_owner = NULL,
+              lease_expires_at = NULL, error = NULL, progress_title = NULL,
+              progress_detail = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND lease_token = ?
+          `).bind(jobId, leaseToken),
+        ]);
+        return Response.json({ completed: true, onboarding: true });
+      }
       if (job.kind === "follow_up" && !response) return Response.json({ error: "A due follow-up requires a Luna question." }, { status: 400 });
       if (job.kind === "day_highlight") {
         if (!job.dayPlanId || job.dayRevision === null) return Response.json({ error: "The day highlight lost its day revision." }, { status: 409 });
@@ -1065,6 +1101,9 @@ export async function POST(request: Request) {
           UPDATE daily_plans SET highlight_status = 'queued', updated_at = CURRENT_TIMESTAMP
           WHERE id = ? AND user_id = ? AND highlight_revision = ?
         `).bind(job.dayPlanId, job.userId, job.dayRevision).run();
+      }
+      if (job.kind === "onboarding_proposal" && nextStatus === "failed") {
+        await failOnboardingProposal(job.userId, "Luna could not finish this proposal. You can retry or use the simple starter.");
       }
       return Response.json({ completed: false, status: nextStatus });
     }

@@ -25,7 +25,8 @@ function modelRoute(leased) {
   const workspaceJob = leased.job.kind === "workspace_refresh"
     || leased.job.kind === "activity_setup"
     || leased.job.kind === "variant_setup"
-    || leased.job.kind === "global_refresh";
+    || leased.job.kind === "global_refresh"
+    || leased.job.kind === "onboarding_proposal";
   return workspaceJob
     ? {
         provider: "openai-codex",
@@ -57,6 +58,9 @@ const globalAcknowledgementShape = `Return exactly one JSON object with no markd
 
 const globalCoordinatorShape = `Return exactly one JSON object with no markdown or surrounding prose:
 {"message":string|null,"workspaceFollowup":false,"recordActions":[],"workspaceActions":[],"activityMoves":[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":[],"followUpQuestion":{"body":string}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":null,"handledOutcomes":[{"index":number,"via":"message|activity_work|schedule_change|schedule_proposal|occurrence|capture|clarification"}]}`;
+
+const onboardingProposalShape = `Return exactly one JSON object with no markdown or surrounding prose:
+{"onboardingProposal":{"summary":string,"activities":[{"key":string,"title":string,"category":"Light|Recharge|Training|Fuel|Care|Logistics|Creativity|Spirit","durationMinutes":number,"planRole":"essential|extra","reason":string,"immediatelyActionable":boolean}],"futureCandidates":[{"title":string,"reason":string}],"calibration":{"afterDays":number,"note":string}}}`;
 
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
@@ -152,7 +156,12 @@ const dueFollowUpInstructions = `${personaInstructions}
 ${resultShape}
 This is a due check-in the person previously asked for or implied through a finite trial. Return one concise, context-aware question in message. Return workspaceFollowup:false and all action arrays empty, including captureActions and followUpActions. Do not research, reschedule, or claim an outcome.`;
 
+const onboardingProposalInstructions = `${personaInstructions}
+${onboardingProposalShape}
+Design a complete but deliberately small first version of the person's Ideal Day. This is a provisional proposal, not durable activity data. Make every essential concrete enough to do today, explain why it belongs, and avoid pretending to know details the person did not supply. Respect the requested pace exactly: gentle has 3-4 essentials, balanced has 4-5, and push has 5-6. Include no more than two optional stretch activities and no more than three future candidates. Do not ask questions unless a safe useful proposal is impossible; prefer a reasonable editable draft. Calibration must be 3-7 days from the start.`;
+
 function instructionsForJob(leased) {
+  if (leased.job.kind === "onboarding_proposal") return onboardingProposalInstructions;
   if (leased.job.kind === "day_highlight") return dayHighlightInstructions;
   if (leased.job.kind === "follow_up") return dueFollowUpInstructions;
   if (leased.job.kind === "global_message") return globalMessageInstructions;
@@ -325,6 +334,12 @@ function assertPromptBudget(prompt, kind) {
 }
 
 function eventPrompt(job, options = {}) {
+  if (job.job.kind === "onboarding_proposal" || job.context.scope === "onboarding") {
+    const revision = job.context.revisionRequest
+      ? `\nThe person is revising an existing draft. Preserve useful parts and apply this request: ${job.context.revisionRequest}\nCurrent editable draft: ${JSON.stringify(job.context.currentProposal || null)}`
+      : "";
+    return `Propose the person's first Ideal Day from their own goals. Use plain, human activity names. Essentials should form a credible successful day; optional activities are stretch goals, and future candidates are explicitly deferred ideas. Do not create duplicate activities or pad the plan with generic chores.\n\nGoals in the person's words:\n${job.context.goals}\n\nRequested pace: ${job.context.capacity}\nLocal date: ${job.context.localDate}${revision}`;
+  }
   if (job.job.kind === "day_highlight" || job.context.scope === "day_highlight") {
     return `Review today's completed activities and select the single most significant supported highlight. This is editorial judgment, not a recap or encouragement. Compare candidates before choosing one. Prefer a personal best, comeback, real streak, unusual measured effort, or verified cluster over a raw count; use the count only when it is genuinely the strongest fact. A fast cluster requires timestamps that actually support it; a streak requires consecutive prior days; a personal best requires comparable run measurements. Never mention a second achievement or append examples. Return dayHighlight:null when nothing clears that bar.
 
@@ -430,6 +445,9 @@ function parseAgentResult(content) {
     parsed = JSON.parse(jsonrepair(cleaned));
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Luna returned an invalid result envelope.");
+  const onboardingProposal = parsed.onboardingProposal && typeof parsed.onboardingProposal === "object" && !Array.isArray(parsed.onboardingProposal)
+    ? parsed.onboardingProposal
+    : null;
   const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message.trim() : null;
   const workspaceFollowup = parsed.workspaceFollowup === true;
   const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
@@ -468,10 +486,16 @@ function parseAgentResult(content) {
     && dayHighlightBody
     ? { body: dayHighlightBody, kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
     : null;
-  return { message, workspaceFollowup, requestPlan, handledOutcomes, recordActions, workspaceActions, activityMoves, activityWorkRequests, captureActions, followUpActions, followUpQuestion, scheduleActions, scheduleProposal, occurrenceActions, dayHighlight };
+  return { message, onboardingProposal, workspaceFollowup, requestPlan, handledOutcomes, recordActions, workspaceActions, activityMoves, activityWorkRequests, captureActions, followUpActions, followUpQuestion, scheduleActions, scheduleProposal, occurrenceActions, dayHighlight };
 }
 
 function visibleProgress(leased) {
+  if (leased.job.kind === "onboarding_proposal") {
+    return {
+      title: "Building your starting day",
+      detail: "Connecting your goals to a small set you can actually try.",
+    };
+  }
   if (leased.job.kind === "day_highlight") return null;
   if (leased.job.kind === "global_message") {
     return null;
@@ -534,6 +558,7 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       leaseToken: leased.job.leaseToken,
       runtimeSessionId,
       response: agentResult.message,
+      onboardingProposal: agentResult.onboardingProposal,
       workspaceFollowup: agentResult.workspaceFollowup,
       requestPlan: agentResult.requestPlan,
       handledOutcomes: agentResult.handledOutcomes,
