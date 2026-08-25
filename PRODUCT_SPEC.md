@@ -652,12 +652,15 @@ Implementation note (2026-08-24, revised 2026-08-25): site-wide Luna is the conv
 - Moving a missed activity later reschedules all following activities.
 - Activities expand in their existing row/card on desktop and mobile.
 - Mobile begins at Today’s activity list and omits the desktop hero and summary sections.
+- Mobile also omits the branded app bar on the home screen. Its date header owns compact backward/forward day navigation, while desktop retains the full shell.
+- Past-day review is a deliberately reduced correction surface: it shows only activities that belonged to that day and permits completing or reopening them. It does not expose planning, activity details, extras, achievements, or Luna-generated day highlights for a retroactive correction.
 - Mobile uses one shared activity header in collapsed and expanded states. It contains title/category, overflow menu, completion, and compact activity-length controls; Timeline mode additionally adds clock time.
 - The expanded mobile footer contains the large `Skip for Today` and `Mark Complete` actions. Overflow and duration controls live in the shared header rather than repeating in the footer.
 - Expanded activities contain contextual details and an activity-scoped conversation.
 - Expanded activities move directly from the activity header into workspace components and conversation. They do not repeat the activity category/title or show a permanent “Activity context”/“Live activity” strip; a session-status strip appears only when it has meaningful run state such as started, elapsed, completed, skipped, or a real today-specific warning.
 - Every activity receives the complete details/chat/agent experience at launch; none are held back as prototypes.
 - The main page can show the full cross-activity conversation log.
+- The mobile root-conversation handle is labeled `Notes & Assistant`, uses the primary accent surface for prominence, and omits connection-status text. The whole handle is one touch target.
 - The main page has one unfiltered chronological conversation with a global assistant.
 - Each activity has one permanent dated conversation.
 - Ordinary activity opens never enqueue conversational evaluation; Luna’s visible work comes from explicit setup, user, event, warning, or open-loop triggers.

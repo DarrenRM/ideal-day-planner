@@ -421,7 +421,12 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /More options for/);
   assert.match(page, /Edit activity/);
   assert.match(page, /Skip for today/);
-  assert.match(page, /mobile-schedule-summary/);
+  assert.match(page, /mobile-day-nav/);
+  assert.match(page, /function PastDayReview/);
+  assert.match(page, /View previous day/);
+  assert.match(page, /View next day/);
+  assert.match(page, /refreshHighlight: false/);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*?\.app-header \{ display: none; \}/s);
   assert.match(page, /mobile-schedule-title/);
   assert.match(page, /formatDuration\(totalMinutes\).*total/s);
   assert.match(page, /function activityIconFor/);

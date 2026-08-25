@@ -174,15 +174,28 @@ test("layers the mobile conversation drawer over actions and shares its handle w
   assert.match(page, /aria-expanded=\{isGlobalLunaOpen\}/);
   assert.match(page, /\{hasLoaded && !expandedActivityId \? \(/);
   assert.doesNotMatch(page, /\{isGlobalLunaOpen \? <GlobalLuna/);
-  assert.match(page, /Notes &amp; conversation/);
+  assert.match(page, /Notes &amp; Assistant/);
   assert.match(globalLuna, /const \[isPresent, setIsPresent\] = useState\(open\)/);
   assert.match(globalLuna, /const \[isVisible, setIsVisible\] = useState\(false\)/);
   assert.match(globalLuna, /global-luna-backdrop \$\{isVisible \? "is-visible" : ""\}/);
   assert.match(globalLuna, /global-luna-title-mobile/);
-  assert.match(globalLuna, /Notes &amp; conversation/);
+  assert.match(globalLuna, /Notes &amp; Assistant/);
+  assert.doesNotMatch(page, /global-luna-dock-status/);
+  assert.match(css, /\.global-luna-dock \{[^}]*background: var\(--accent\);[^}]*color: var\(--accent-ink\)/s);
   assert.match(css, /\.global-luna-backdrop \{[^}]*transition: opacity 240ms ease;/s);
   assert.match(css, /\.global-luna-sheet \{[^}]*transition: transform 320ms cubic-bezier/s);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-sheet \{[^}]*transform: translateY\(100%\)/s);
+});
+
+test("keeps retroactive day corrections quiet while updating their dated occurrence", async () => {
+  const [page, runRoute] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /date: viewDate/);
+  assert.match(page, /refreshHighlight: false/);
+  assert.match(runRoute, /const refreshHighlight = payload\.refreshHighlight !== false/);
+  assert.match(runRoute, /refreshHighlight \? await queueDayHighlight/);
 });
 
 test("lets the mobile activity row receive bottom-half taps around the duration controls", async () => {

@@ -3,7 +3,7 @@
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Trophy, Utensils, Vibrate, Waves, X } from "lucide-react";
+import { BedDouble, BicepsFlexed, Brain, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Minus, MoreVertical, Package, Palette, Pencil, PersonStanding, Pill, Plus, RotateCcw, Send, Settings, ShoppingBasket, ShowerHead, SkipForward, Sparkles, Sun, SunMedium, Trash2, Trophy, Utensils, Vibrate, Waves, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -443,6 +443,23 @@ function formatTodayHeading(date = new Date()) {
   const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
   const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
   return `${weekday}, ${month} ${formatDayOrdinal(date.getDate())}`;
+}
+
+function dateFromKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day, 12);
+}
+
+function shiftDateKey(dateKey: string, days: number) {
+  const date = dateFromKey(dateKey);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function reviewDayLabel(dateKey: string, todayKey: string) {
+  if (dateKey === todayKey) return "Today";
+  if (dateKey === shiftDateKey(todayKey, -1)) return "Yesterday";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(dateFromKey(dateKey));
 }
 
 function conversationTime(value: string) {
@@ -1308,6 +1325,56 @@ function DayHighlights({
   );
 }
 
+function PastDayReview({
+  items,
+  state,
+  pendingIds,
+  onToggle,
+}: {
+  items: RoutineItem[];
+  state: "loading" | "ready" | "error";
+  pendingIds: Set<string>;
+  onToggle: (item: RoutineItem) => void;
+}) {
+  if (state === "loading") {
+    return <div className="past-day-review-loading" role="status">Loading this day…</div>;
+  }
+  if (state === "error") {
+    return <div className="past-day-review-empty" role="alert"><strong>This day couldn’t load.</strong><span>Choose another day, then try again.</span></div>;
+  }
+
+  const selectedItems = partitionDayItems(items).active;
+  const completedCount = selectedItems.filter((item) => item.completedAt).length;
+
+  return <section className="past-day-review" aria-labelledby="past-day-review-title">
+    <header>
+      <div><strong id="past-day-review-title">Review this day</strong><span>Tap an activity to correct its completion.</span></div>
+      <small>{completedCount}/{selectedItems.length}</small>
+    </header>
+    {selectedItems.length ? <div className="past-day-review-list">
+      {selectedItems.map((item) => {
+        const ActivityIcon = activityIconFor(item);
+        const isComplete = Boolean(item.completedAt);
+        const isPending = pendingIds.has(item.id);
+        const status = isComplete ? "Completed" : item.skippedAt ? "Skipped" : "Not completed";
+        return <button
+          aria-label={`Mark ${activityDisplayTitle(item)} ${isComplete ? "incomplete" : "complete"}`}
+          aria-pressed={isComplete}
+          disabled={isPending}
+          key={item.id}
+          style={{ "--review-color": CATEGORY_META[item.category].color } as CSSProperties}
+          type="button"
+          onClick={() => onToggle(item)}
+        >
+          <span className="past-day-review-icon" aria-hidden="true"><ActivityIcon size={17} strokeWidth={1.9} /></span>
+          <span className="past-day-review-copy"><strong>{activityDisplayTitle(item)}</strong><small>{isPending ? "Saving…" : status} · {item.duration} minutes</small></span>
+          <span className={`past-day-review-check ${isComplete ? "is-complete" : ""}`} aria-hidden="true">{isComplete ? <Check size={16} strokeWidth={2.4} /> : null}</span>
+        </button>;
+      })}
+    </div> : <div className="past-day-review-empty"><strong>Nothing was scheduled.</strong><span>There’s nothing to correct for this day.</span></div>}
+  </section>;
+}
+
 function DayVictory({ isArriving }: { isArriving: boolean }) {
   return (
     <section className={`day-victory ${isArriving ? "is-arriving" : ""}`} aria-labelledby="day-victory-title">
@@ -1419,6 +1486,10 @@ function hydrateStoredItems(value: unknown): RoutineItem[] {
 
 export default function Home() {
   const [items, setItems] = useState<RoutineItem[]>([]);
+  const [viewDate, setViewDate] = useState(localDateKey);
+  const [pastDayItems, setPastDayItems] = useState<RoutineItem[]>([]);
+  const [pastDayState, setPastDayState] = useState<"loading" | "ready" | "error">("ready");
+  const [pastDayPendingIds, setPastDayPendingIds] = useState<Set<string>>(() => new Set());
   const [startMinutes, setStartMinutes] = useState(START_MINUTES);
   const [preferredStartMinutes, setPreferredStartMinutes] = useState(START_MINUTES);
   const [dayStartedAt, setDayStartedAt] = useState<string | null>(null);
@@ -1576,6 +1647,24 @@ export default function Home() {
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (viewDate === localDateKey()) return;
+
+    let cancelled = false;
+    void fetch(`/api/day?date=${viewDate}`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("That day could not be loaded.");
+        const day = await response.json() as { items: unknown };
+        if (cancelled) return;
+        setPastDayItems(hydrateStoredItems(day.items));
+        setPastDayState("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setPastDayState("error");
+      });
+    return () => { cancelled = true; };
+  }, [viewDate]);
 
   useEffect(() => {
     if (!hasLoaded) return;
@@ -1903,6 +1992,63 @@ export default function Home() {
   const unfinishedOtherChosenExtras = unfinishedChosenExtras.filter((item) => !keepGoingItemIds.has(item.id));
   const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras.length === 0;
   const isDayBloom = dayAchievementReady && Boolean(celebratingActivityId);
+  const todayDateKey = localDateKey();
+  const isReviewingPastDay = viewDate !== todayDateKey;
+
+  function showDay(date: string) {
+    if (date > todayDateKey) return;
+    if (date === todayDateKey) {
+      setPastDayState("ready");
+      setPastDayItems([]);
+    } else {
+      setPastDayState("loading");
+      setPastDayPendingIds(new Set());
+    }
+    setViewDate(date);
+    setIsAdding(false);
+    setIsMenuOpen(false);
+    setSelectedActivityId(null);
+    setReceiptPreviewActivityId(null);
+    setMobileActivityMenuId(null);
+    setIsGlobalLunaOpen(false);
+    window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+
+  async function togglePastDayCompletion(item: RoutineItem) {
+    if (pastDayPendingIds.has(item.id)) return;
+    setPastDayPendingIds((current) => new Set(current).add(item.id));
+    setSaveState("saving");
+    try {
+      const response = await fetch("/api/activity/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: item.completedAt ? "reopen" : "complete",
+          activityId: item.activityId ?? item.id,
+          occurrenceId: item.occurrenceId ?? item.id,
+          date: viewDate,
+          timing: null,
+          refreshHighlight: false,
+        }),
+      });
+      if (!response.ok) throw new Error("That correction could not be saved.");
+      const result = await response.json() as { completed: boolean; completedAt?: string };
+      setPastDayItems((current) => current.map((candidate) => candidate.id === item.id ? {
+        ...candidate,
+        completedAt: result.completed ? result.completedAt ?? new Date().toISOString() : null,
+        skippedAt: result.completed ? null : candidate.skippedAt,
+      } : candidate));
+      setSaveState("saved");
+    } catch {
+      setSaveState("retrying");
+    } finally {
+      setPastDayPendingIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }
 
   async function setTimelineEnabled(enabled: boolean) {
     if (settingsSaveState === "saving" || enabled === timelineEnabled) return;
@@ -3003,14 +3149,18 @@ export default function Home() {
               <div>
                 <h2 id="schedule-title">
                   <span className="desktop-schedule-title">{timelineEnabled ? "Schedule" : "Today"}</span>
-                  <span className="mobile-schedule-title">{formatTodayHeading()}</span>
+                  <span className="mobile-schedule-title">{formatTodayHeading(dateFromKey(viewDate))}</span>
                 </h2>
                 <p>
-                  <span className="desktop-schedule-summary">{hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} more` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
-                  <span className="mobile-schedule-summary">{hasLoaded ? essentialsComplete ? <>Essentials complete {unfinishedChosenExtras.length ? <><i aria-hidden="true">·</i> {unfinishedChosenExtras.length} chosen </> : null}<i aria-hidden="true">·</i> {availableExtras.length} more</> : <>{activeItemCount} essentials <i aria-hidden="true">·</i> {availableExtras.length} more</> : "Loading your saved day…"}</span>
+                  <span className="desktop-schedule-summary">{isReviewingPastDay ? `Reviewing ${reviewDayLabel(viewDate, todayDateKey)}` : hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} more` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
+                  <span className="mobile-day-nav" aria-label="Browse days">
+                    <button aria-label="View previous day" type="button" onClick={() => showDay(shiftDateKey(viewDate, -1))}><ChevronLeft aria-hidden="true" size={17} /></button>
+                    <button className="mobile-day-nav-label" disabled={!isReviewingPastDay} type="button" onClick={() => showDay(todayDateKey)}>{reviewDayLabel(viewDate, todayDateKey)}</button>
+                    <button aria-label="View next day" disabled={!isReviewingPastDay} type="button" onClick={() => showDay(shiftDateKey(viewDate, 1))}><ChevronRight aria-hidden="true" size={17} /></button>
+                  </span>
                 </p>
               </div>
-              <div className="planner-actions">
+              {!isReviewingPastDay ? <div className="planner-actions">
                 <div className="planner-menu" ref={menuRef}>
                   <button
                     aria-expanded={isMenuOpen}
@@ -3038,10 +3188,10 @@ export default function Home() {
                   type="button"
                   onClick={() => setIsAdding((current) => !current)}
                 ><span aria-hidden="true">+</span> Add</button>
-              </div>
+              </div> : null}
             </header>
 
-            {isAdding ? (
+            {!isReviewingPastDay && isAdding ? (
               <form className="add-block-form" id="add-block-form" noValidate onSubmit={addItem}>
                 <div className="add-field add-name-field">
                   <label htmlFor="block-name">Name</label>
@@ -3109,9 +3259,9 @@ export default function Home() {
               </form>
             ) : null}
 
-            <div className="planner-help">Drag an activity to reorder {timelineEnabled ? <><span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</> : null}</div>
+            {!isReviewingPastDay ? <div className="planner-help">Drag an activity to reorder {timelineEnabled ? <><span className="help-divider" aria-hidden="true">·</span> Adjust minutes on any block</> : null}</div> : null}
 
-            {dayMode.showStartGate && hasLoaded && !isDayStarted ? (
+            {!isReviewingPastDay && dayMode.showStartGate && hasLoaded && !isDayStarted ? (
               <section className="day-launch" aria-labelledby="day-launch-title">
                 <div className="day-launch-copy">
                   <p className="eyebrow">{minutesUntilPreferredStart > 0 ? `Begins in ${formatCountdown(minutesUntilPreferredStart)}` : "Whenever you’re ready"}</p>
@@ -3126,7 +3276,12 @@ export default function Home() {
               </section>
             ) : null}
 
-            <div className="schedule" aria-label="Idealized day schedule">
+            {isReviewingPastDay ? <PastDayReview
+              items={pastDayItems}
+              onToggle={(item) => void togglePastDayCompletion(item)}
+              pendingIds={pastDayPendingIds}
+              state={pastDayState}
+            /> : <div className="schedule" aria-label="Idealized day schedule">
               {hasLoaded ? <>
               {settledCompletedItems.length ? <DayHighlights
                 celebratingActivityId={celebratingActivityId}
@@ -3465,7 +3620,7 @@ export default function Home() {
                   {[0, 1, 2, 3].map((row) => <div className="schedule-loading-row" aria-hidden="true" key={row} />)}
                 </div>
               )}
-            </div>
+            </div>}
           </section>
 
           <aside className="summary-rail" aria-label="Plan summary">
@@ -3494,9 +3649,8 @@ export default function Home() {
           type="button"
           onClick={() => { setIsDevMenuOpen(false); setIsSettingsOpen(false); setIsGlobalLunaOpen(true); }}
         >
-          <strong>Notes &amp; conversation</strong>
+          <strong>Notes &amp; Assistant</strong>
           <span className="global-luna-dock-state">
-            <span className={`global-luna-dock-status ${lunaSummary.agentOnline ? "is-online" : ""}`}><i aria-hidden="true" /> {lunaSummary.agentOnline ? "Connected" : "Will catch up"}</span>
             {lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? <span className="global-luna-dock-badge" aria-label={`${lunaSummary.unreadCount + lunaSummary.pendingDecisionCount} update${lunaSummary.unreadCount + lunaSummary.pendingDecisionCount === 1 ? "" : "s"}`}>{Math.min(9, lunaSummary.unreadCount + lunaSummary.pendingDecisionCount)}{lunaSummary.unreadCount + lunaSummary.pendingDecisionCount > 9 ? "+" : ""}</span> : null}
             <ChevronUp aria-hidden="true" size={17} />
           </span>

@@ -109,6 +109,7 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json() as Record<string, unknown>;
     const mode = payload.mode;
+    const refreshHighlight = payload.refreshHighlight !== false;
     const clientKey = typeof payload.activityId === "string" ? payload.activityId.trim().slice(0, 160) : "";
     const occurrenceId = typeof payload.occurrenceId === "string" ? payload.occurrenceId.trim().slice(0, 240) : "";
     const date = validDate(payload.date);
@@ -165,10 +166,10 @@ export async function POST(request: Request) {
       ];
       if (skipped && !item.skippedAt) statements.push(...await completionAdvancementStatements(userId, item, "skipped"));
       await db.batch(statements);
-      const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
+      const highlight = refreshHighlight ? await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
         console.error("Could not refresh the day highlight after changing a skip.", error);
         return null;
-      });
+      }) : null;
       return Response.json({ skipped, skippedAt: skipped ? new Date().toISOString() : null, runId, highlight });
     }
 
@@ -177,10 +178,10 @@ export async function POST(request: Request) {
         db.prepare("UPDATE daily_plan_items SET completed_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(item.id),
         db.prepare("UPDATE activity_runs SET status = 'reopened', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").bind(runId, userId),
       ]);
-      const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
+      const highlight = refreshHighlight ? await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
         console.error("Could not refresh the day highlight after reopening an activity.", error);
         return null;
-      });
+      }) : null;
       return Response.json({ completed: false, runId, highlight });
     }
 
@@ -281,10 +282,10 @@ export async function POST(request: Request) {
         planDate: date,
       }).catch((error) => console.error("Could not finish the strength session after completion.", error));
     }
-    const highlight = await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
+    const highlight = refreshHighlight ? await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
       console.error("Could not queue the day highlight after completion.", error);
       return null;
-    });
+    }) : null;
 
     return Response.json({
       completed: true,
