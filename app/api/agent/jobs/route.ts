@@ -613,7 +613,7 @@ export async function POST(request: Request) {
       const workspaceFollowup = job.kind === "user_message"
         && requestedWorkspaceFollowup
         && !scheduleOnlyRequest;
-      const globalFollowup = job.kind === "global_message" && payload.workspaceFollowup === true;
+      const globalFollowup = job.kind === "global_message";
       const usesReplyFirstProtocol = (job.kind === "user_message" || job.kind === "global_message")
         && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
@@ -699,7 +699,7 @@ export async function POST(request: Request) {
             return Response.json({ error: "The schedule changed while Luna was preparing this proposal. Please ask her to refresh it." }, { status: 409 });
           }
         }
-        if (!response && !followUpBody && !proposal && !directScheduleActions.length && !occurrenceActions.length && !captureActions.length && !activityWorkRequests.length && !globalFollowup) {
+        if (!response && !followUpBody && !proposal && !directScheduleActions.length && !occurrenceActions.length && !captureActions.length && !activityWorkRequests.length && !globalFollowup && job.kind !== "global_refresh") {
           return Response.json({ error: "Global Luna must respond, delegate, clarify, capture an open item, propose, or make one permitted day change." }, { status: 400 });
         }
         let scheduleReceipt: WorkReceiptDraft | null = null;

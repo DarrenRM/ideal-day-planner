@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { eventPrompt, parseAgentResult } from "../bridge/ideal-day-bridge.mjs";
+import { eventPrompt, globalInstructions, globalMessageInstructions, parseAgentResult } from "../bridge/ideal-day-bridge.mjs";
 
 const RETINOL_REQUEST = "I just got this today. https://plainleaf.example/products/retinol-night-serum Can you check how I'm supposed to use vitamin A like this and add it to my skin routine based on what you learn";
 
@@ -74,6 +74,28 @@ test("the coordinator result carries a bounded typed activity handoff", () => {
   }]);
 });
 
+test("the coordinator is instructed to preserve every part of a combined request", () => {
+  const durable = eventPrompt({
+    ...globalJob("global_refresh"),
+    context: {
+      ...globalJob("global_refresh").context,
+      activities: [
+        { id: "activity-skin", title: "Skin routine", category: "Care" },
+        { id: "activity-bed", title: "Bed Routine", category: "Care" },
+      ],
+      sourceMessage: {
+        body: "Can you move the retinol over to my bed routine and put the bed routine in my essentials list?",
+      },
+    },
+  });
+  assert.match(globalInstructions, /Satisfy every explicit clause/);
+  assert.match(globalInstructions, /activityWorkRequests and a ScheduleProposal together/);
+  assert.match(globalInstructions, /currently owns the subject/);
+  assert.match(globalMessageInstructions, /acknowledge every requested outcome together/);
+  assert.match(globalMessageInstructions, /do not claim there is no work/);
+  assert.match(durable, /move the retinol over to my bed routine/);
+});
+
 test("the app validates coordinator destinations and queues an activity-scoped compiler", async () => {
   const route = await readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8");
   assert.match(route, /validateActivityWorkRequests/);
@@ -82,6 +104,10 @@ test("the app validates coordinator destinations and queues an activity-scoped c
   assert.match(route, /'activity', \?, \?, 'workspace_refresh'/);
   assert.match(route, /delegation_instruction/);
   assert.match(route, /const finalResponse = activityWorkRequests\.length \? ""/);
+  assert.match(route, /const globalFollowup = job\.kind === "global_message"/);
+  assert.match(route, /job\.kind !== "global_refresh"/);
+  assert.match(globalInstructions, /Semantically review every latest user message/);
+  assert.match(globalInstructions, /no keyword gate/);
 });
 
 test("root receipts can open long delegated artifact IDs and transition into their activity", async () => {
