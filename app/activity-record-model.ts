@@ -161,7 +161,10 @@ export function hasUsefulActivityRecordData(record: ActivityRecordContent, conte
   if (record.type === "session_log") return nonEmptyArray(data.fields) && Boolean(normalizedText(data.choiceRecordKey) || data.defaultOption);
   if (record.type === "strength_session") return Boolean(normalizedText(data.workoutRecordKey));
   if (record.type === "quick_log") return nonEmptyArray(data.fields);
-  if (record.type === "history" || record.type === "timeline" || record.type === "comparison" || record.type === "adherence" || record.type === "resources") return nonEmptyArray(data.entries);
+  if (record.type === "adherence") {
+    return nonEmptyArray(data.entries) || Boolean(record.subjectKey && /^\d{4}-\d{2}-\d{2}$/.test(String(data.effectiveDate || "")));
+  }
+  if (record.type === "history" || record.type === "timeline" || record.type === "comparison" || record.type === "resources") return nonEmptyArray(data.entries);
   if (record.type === "metric" || record.type === "trend") {
     return typeof data.current === "number" || typeof data.target === "number" || nonEmptyArray(data.entries);
   }
@@ -576,6 +579,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
 
   if (type === "adherence") {
     return {
+      effectiveDate: /^\d{4}-\d{2}-\d{2}$/.test(boundedString(source.effectiveDate, 10)) ? boundedString(source.effectiveDate, 10) : "",
       entries: objectArray(source.entries, 120, (entry, index) => {
         const date = boundedString(entry.date, 40);
         return date ? { id: itemId(entry.id, index), date, completed: entry.completed === true, note: boundedString(entry.note, 300) } : null;

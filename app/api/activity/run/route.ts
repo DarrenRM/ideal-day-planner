@@ -1,6 +1,7 @@
 import { getD1 } from "../../../../db";
 import { parseAdvancement } from "../../../schedule-model";
 import { selectedSessionOptionId, sessionFieldValue, sessionFieldsForOption, type SessionChoiceData, type SessionLogData } from "../../../session-log-model";
+import { recurringDateIsDue, type RecurringCadence } from "../../../recurring-step-schedule";
 import { apiFailure, applyUserRecordMutation, ensureAgentSchema, findActivity, queueDayHighlight, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
 
 function validDate(value: unknown) {
@@ -11,6 +12,32 @@ function boundedSeconds(value: unknown, allowZero = false) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   const rounded = Math.round(value);
   return rounded >= (allowZero ? 0 : 1) && rounded <= 24 * 60 * 60 ? rounded : null;
+}
+
+function completedSubjectKeysForDate(records: Awaited<ReturnType<typeof readActivityRecords>>, date: string) {
+  const productKeys = new Set(records.filter((record) => record.type === "product").map((record) => record.key));
+  return [...productKeys].filter((subjectKey) => records.some((record) => {
+    if (record.subjectKey !== subjectKey) return false;
+    if (record.type === "adherence") {
+      const effectiveDate = typeof record.data.effectiveDate === "string" ? record.data.effectiveDate : "";
+      return /^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) && effectiveDate <= date;
+    }
+    if (record.type !== "recurring_step") return false;
+    return recurringDateIsDue(
+      typeof record.data.anchorDate === "string" ? record.data.anchorDate : undefined,
+      record.data.cadence as RecurringCadence | undefined,
+      date,
+    );
+  }));
+}
+
+function completedSubjectKeysFromDetails(value: string | null | undefined) {
+  try {
+    const parsed = JSON.parse(value || "{}") as { completedSubjectKeys?: unknown };
+    return Array.isArray(parsed.completedSubjectKeys) ? parsed.completedSubjectKeys.filter((key): key is string => typeof key === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 type DayItem = {
@@ -158,7 +185,11 @@ export async function POST(request: Request) {
     }
 
     if (mode !== "complete") return Response.json({ error: "Unsupported run operation." }, { status: 400 });
-    if (item.completedAt) return Response.json({ completed: true, completedAt: item.completedAt, run: { id: runId }, idempotent: true });
+    if (item.completedAt) {
+      const existingRun = await db.prepare("SELECT details_json AS detailsJson FROM activity_runs WHERE id = ? AND user_id = ?")
+        .bind(runId, userId).first<{ detailsJson: string | null }>();
+      return Response.json({ completed: true, completedAt: item.completedAt, completedSubjectKeys: completedSubjectKeysFromDetails(existingRun?.detailsJson), run: { id: runId }, idempotent: true });
+    }
 
     const timing = payload.timing && typeof payload.timing === "object" ? payload.timing as Record<string, unknown> : null;
     const allottedDurationSeconds = dayItem.dayTimelineEnabled ? dayItem.duration * 60 : null;
@@ -168,6 +199,7 @@ export async function POST(request: Request) {
     const timerComponentId = typeof timing?.componentId === "string" ? timing.componentId.trim().slice(0, 64) : null;
     const startedAt = typeof timing?.startedAt === "string" && !Number.isNaN(Date.parse(timing.startedAt)) ? timing.startedAt : null;
     const activityRecords = await readActivityRecords(activity.id, date, item.activityVariantId);
+    const completedSubjectKeys = completedSubjectKeysForDate(activityRecords, date);
     const recordVersions = activityRecords.map((record) => ({
       key: record.key,
       type: record.type,
@@ -175,6 +207,7 @@ export async function POST(request: Request) {
     }));
     const detailsJson = JSON.stringify({
       ...(timerMode ? { timingSource: "workspace", timerMode, timerComponentId } : {}),
+      completedSubjectKeys,
       recordVersions,
     });
     const statements = [
@@ -256,6 +289,7 @@ export async function POST(request: Request) {
     return Response.json({
       completed: true,
       completedAt: new Date().toISOString(),
+      completedSubjectKeys,
       run: { id: runId, allottedDurationSeconds, plannedDurationSeconds, actualElapsedSeconds, timerMode },
       highlight,
     });

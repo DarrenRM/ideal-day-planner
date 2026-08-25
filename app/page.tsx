@@ -78,7 +78,7 @@ type ConversationJob = {
   progressTitle?: string | null;
   progressDetail?: string | null;
 };
-type ActivityRunSummary = { planDate: string; status: string; completedAt?: string | null };
+type ActivityRunSummary = { planDate: string; status: string; completedAt?: string | null; completedSubjectKeys?: string[] };
 type DayHighlight = {
   status: "idle" | "queued" | "running" | "ready" | "quiet";
   body: string | null;
@@ -959,10 +959,10 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         }),
       });
       if (!response.ok) throw new Error("Activity completion could not be saved.");
-      const result = await response.json() as { completed: boolean; completedAt?: string };
+      const result = await response.json() as { completed: boolean; completedAt?: string; completedSubjectKeys?: string[] };
       const today = localDateKey();
       setRecentRuns((current) => result.completed
-        ? [{ planDate: today, status: "completed", completedAt: result.completedAt ?? new Date().toISOString() }, ...current.filter((run) => run.planDate !== today)]
+        ? [{ planDate: today, status: "completed", completedAt: result.completedAt ?? new Date().toISOString(), completedSubjectKeys: result.completedSubjectKeys ?? [] }, ...current.filter((run) => run.planDate !== today)]
         : current.filter((run) => run.planDate !== today));
       onComplete(result.completed ? result.completedAt ?? new Date().toISOString() : null);
       setConnectionState("ready");

@@ -12,11 +12,13 @@ Component order controls presentation only. It never means that one record belon
 
 ## Subject ownership
 
-A product or device record is a subject root. Its `subjectKey` is its own record key. A protocol or Resources record that belongs to that item carries the same `subjectKey`; a Resources entry also carries the same `itemKey`. Genuinely activity-wide records carry no `subjectKey`.
+A product or device record is a subject root. Its `subjectKey` is its own record key. Adherence, recurring-step, protocol, or Resources records that belong to that item carry the same `subjectKey`; a Resources entry also carries the same `itemKey`. Genuinely activity-wide records carry no `subjectKey`.
 
-The renderer may nest only explicitly owned `protocol` and `resources` records inside a matching product/device card. It must not infer ownership from adjacency, titles, card count, or there being one product. Resources are always the last nested section.
+The renderer may nest only explicitly owned `adherence`, `recurring_step`, `protocol`, and `resources` records inside a matching product/device card. It must not infer ownership from adjacency, titles, card count, or there being one product. Rhythm comes first, protocol follows, and Resources are always the last nested section.
 
-Adherence stays first at activity level. Due recurring steps come directly beneath it, followed by countdowns and primary content; Resources remain last. Recurrence, history, equipment, choices, and other activity-level records remain independent cards unless their component contract explicitly introduces subject composition later.
+Activity-wide adherence stays first at activity level. Due activity-wide recurring steps come directly beneath it, followed by countdowns and primary content; Resources remain last. A product-owned daily rhythm uses adherence with an explicit `effectiveDate`; an independently scheduled product uses recurring_step. A newly added subject never inherits the parent activity's earlier runs. Multiple product rhythms collapse to one shared activity streak only when every product has the same cadence, same start boundary, and synchronized completion history.
+
+Completing an activity stores an immutable `completedSubjectKeys` snapshot in that run. The app includes only product/device subjects whose rhythm is due on that date. This lets later products start cleanly without rewriting what older completion rows meant.
 
 A `daily_selection` is activity-wide and carries no `subjectKey`. Its roster and dated entries are one canonical record; recent-history presentation is derived from those entries and must not be split into a peer `history` record.
 

@@ -345,15 +345,16 @@ test("gives an activity without components a truthful Luna workspace invitation"
 });
 
 test("uses one activity-colored overline primitive across workspace components", async () => {
-  const [records, workspace, css] = await Promise.all([
+  const [records, workspace, streakTrack, css] = await Promise.all([
     readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/streak-track.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(records, /className="workspace-overline">\{eyebrow\}/);
   assert.match(records, /className="workspace-overline">Equipment/);
   assert.match(records, /small className="workspace-overline">\{kindLabel\}/);
-  assert.match(workspace, /className="workspace-overline">Streak/);
+  assert.match(streakTrack, /className="workspace-overline">Streak/);
   assert.match(workspace, /className="workspace-overline">Schedule/);
   assert.match(workspace, /className="workspace-overline">\{followUp\.status/);
   assert.match(css, /\.workspace-overline \{[^}]*color: var\(--item-color\)[^}]*font: 720 var\(--type-micro\)\/var\(--leading-micro\)[^}]*letter-spacing: \.09em[^}]*text-transform: uppercase/s);

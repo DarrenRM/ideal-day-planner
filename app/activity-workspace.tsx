@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, EllipsisVertical, Flame, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
+import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
@@ -9,6 +9,9 @@ import { orderWorkspaceDisplayItems, type WorkspaceDisplayRole } from "./workspa
 import type { ActivityFollowUp } from "./follow-up-model";
 import { selectedSessionOptionId, type SessionChoiceData, type SessionLogData } from "./session-log-model";
 import { formatScheduleOccurrenceDate, scheduleOccurrenceDetail } from "./schedule-summary";
+import { dailyCompletionStreak, normalizedCompletionDates, recurringCompletionStreak } from "./streak-model";
+import { StreakTrack } from "./streak-track";
+import type { RecurringCadence } from "./recurring-step-schedule";
 
 export type ActivityScheduleSummary = {
   patternId: string;
@@ -26,7 +29,7 @@ export type WorkspaceActivity = {
   color: string;
   timelineEnabled: boolean;
   completedToday?: boolean;
-  recentRuns?: Array<{ planDate: string; status: string; completedAt?: string | null }>;
+  recentRuns?: Array<{ planDate: string; status: string; completedAt?: string | null; completedSubjectKeys?: string[] }>;
 };
 
 type ActivityWorkspaceProps = {
@@ -85,49 +88,30 @@ function formatFollowUpDate(dateKey: string) {
   }).format(date);
 }
 
-function previousDateKey(dateKey: string) {
-  const date = new Date(`${dateKey}T12:00:00`);
-  date.setDate(date.getDate() - 1);
-  return date.toLocaleDateString("en-CA");
+function activityCompletionDates(activity: WorkspaceActivity) {
+  const today = localDateKey();
+  const completedDates = (activity.recentRuns ?? [])
+    .filter((run) => run.status === "completed")
+    .map((run) => run.planDate);
+  if (activity.completedToday) completedDates.push(today);
+  return normalizedCompletionDates(completedDates);
 }
 
-function ActivityStreak({ activity }: { activity: WorkspaceActivity }) {
-  const today = localDateKey();
-  const completedDates = new Set((activity.recentRuns ?? [])
-    .filter((run) => run.status === "completed")
+function productCompletionDates(activity: WorkspaceActivity, subjectKey: string) {
+  return normalizedCompletionDates((activity.recentRuns ?? [])
+    .filter((run) => run.status === "completed" && run.completedSubjectKeys?.includes(subjectKey))
     .map((run) => run.planDate));
-  if (activity.completedToday) completedDates.add(today);
+}
 
-  const todayIsComplete = completedDates.has(today);
-  let cursor = todayIsComplete ? today : previousDateKey(today);
-  let streak = 0;
-  while (completedDates.has(cursor) && streak < 365) {
-    streak += 1;
-    cursor = previousDateKey(cursor);
+function subjectRhythmSignature(record: ActivityRecord) {
+  if (record.type === "adherence") {
+    const effectiveDate = typeof record.data.effectiveDate === "string" ? record.data.effectiveDate : "";
+    return effectiveDate ? `daily:${effectiveDate}` : null;
   }
-
-  const firstDay = streak >= 7 ? streak - 5 : 1;
-  const steps = Array.from({ length: 7 }, (_, index) => firstDay + index);
-  const waitingDay = todayIsComplete ? null : streak + 1;
-
-  return (
-    <section className="workspace-block activity-streak" aria-label={`${activity.title} streak`}>
-      <header className="activity-streak-heading"><span className="workspace-overline">Streak</span><Flame aria-hidden="true" size={16} /></header>
-      <div className="streak-track">
-        {steps.map((dayNumber) => {
-          const complete = dayNumber <= streak;
-          const waiting = dayNumber === waitingDay;
-          const latest = complete && dayNumber === streak;
-          return (
-            <div className={`streak-step ${complete ? "is-complete" : ""} ${waiting ? "is-waiting" : ""} ${latest ? "is-latest" : ""}`} key={dayNumber}>
-              <span className="streak-dot">{complete ? <Check aria-hidden="true" size={13} strokeWidth={3} /> : null}</span>
-              <small>Day {dayNumber}</small>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
+  if (record.type !== "recurring_step") return null;
+  const anchorDate = typeof record.data.anchorDate === "string" ? record.data.anchorDate : "";
+  const cadence = record.data.cadence && typeof record.data.cadence === "object" ? record.data.cadence : null;
+  return anchorDate && cadence ? `recurring:${anchorDate}:${JSON.stringify(cadence)}` : null;
 }
 
 export type ActivityTimingSnapshot = {
@@ -363,7 +347,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   const nestedSupportingComponents = new Map<string, ActivityRecord[]>();
   const nestedComponentIds = new Set<string>();
   for (const component of visibleComponents) {
-    if (component.type !== "protocol" && component.type !== "resources") continue;
+    if (component.type !== "adherence" && component.type !== "recurring_step" && component.type !== "protocol" && component.type !== "resources") continue;
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
     if (!record) continue;
     // Product composition is semantic, not positional. Unowned legacy records stay
@@ -372,11 +356,27 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     if (!owner) continue;
     const supporting = nestedSupportingComponents.get(owner.record.key) ?? [];
     supporting.push(record);
-    supporting.sort((left, right) => (left.type === "resources" ? 1 : 0) - (right.type === "resources" ? 1 : 0));
+    const priority = (candidate: ActivityRecord) => candidate.type === "adherence" || candidate.type === "recurring_step" ? 0 : candidate.type === "protocol" ? 1 : 2;
+    supporting.sort((left, right) => priority(left) - priority(right));
     nestedSupportingComponents.set(owner.record.key, supporting);
     nestedComponentIds.add(component.id);
   }
-  const showStarterStreak = supportsStarterStreak(activity) && !visibleComponents.some((component) => component.type === "adherence");
+  const trackersByProduct = new Map(productComponents.map(({ record }) => [
+    record.key,
+    (nestedSupportingComponents.get(record.key) ?? []).filter((candidate) => candidate.type === "adherence" || candidate.type === "recurring_step"),
+  ]));
+  const trackerSignatures = productComponents.map(({ record }) => {
+    const trackers = trackersByProduct.get(record.key) ?? [];
+    return trackers.length === 1 ? subjectRhythmSignature(trackers[0]) : null;
+  });
+  const sharedProductRhythm = productComponents.length > 1
+    && trackerSignatures.every((signature) => Boolean(signature) && signature === trackerSignatures[0])
+    ? trackersByProduct.get(productComponents[0].record.key)?.[0] ?? null
+    : null;
+  const sharedProductCompletionDates = sharedProductRhythm
+    ? productComponents.map(({ record }) => new Set(productCompletionDates(activity, record.key))).reduce<string[]>((intersection, dates, index) => index === 0 ? [...dates] : intersection.filter((date) => dates.has(date)), [])
+    : [];
+  const showStarterStreak = supportsStarterStreak(activity) && productComponents.length === 0 && !visibleComponents.some((component) => component.type === "adherence");
   const hasVisibleWorkspace = visibleComponents.length > 0 || showStarterStreak || followUps.length > 0 || Boolean(scheduleSummary);
   const orderedItems = orderWorkspaceDisplayItems([
     ...visibleComponents.filter((component) => !nestedComponentIds.has(component.id)).map((component) => ({
@@ -454,8 +454,23 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       {hasVisibleWorkspace ? (
         <>
           <div className="workspace-stack">
+            {sharedProductRhythm ? (() => {
+              const today = localDateKey();
+              const rhythm = sharedProductRhythm.type === "recurring_step"
+                ? recurringCompletionStreak({
+                    anchorDate: typeof sharedProductRhythm.data.anchorDate === "string" ? sharedProductRhythm.data.anchorDate : undefined,
+                    cadence: sharedProductRhythm.data.cadence as RecurringCadence | undefined,
+                    completedDates: sharedProductCompletionDates,
+                    today,
+                  })
+                : dailyCompletionStreak(sharedProductCompletionDates, today);
+              return <StreakTrack ariaLabel={`${activity.title} shared streak`} completedToday={rhythm.completedToday} count={rhythm.count} />;
+            })() : null}
             {orderedItems.filter(({ displayRole }) => displayRole === "streak").map(({ component, id }) => {
-              if (!component) return <ActivityStreak activity={activity} key={id} />;
+              if (!component) {
+                const streak = dailyCompletionStreak(activityCompletionDates(activity), localDateKey());
+                return <StreakTrack ariaLabel={`${activity.title} streak`} completedToday={streak.completedToday} count={streak.count} key={id} />;
+              }
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
               return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} /> : null;
@@ -516,7 +531,16 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
               return record
-                ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation={dataComponent.presentation} record={record} relatedRecords={record.type === "session_log" || record.type === "strength_session" ? records : undefined} supportingRecords={record.type === "product" ? nestedSupportingComponents.get(record.key) : undefined} />
+                ? <ActivityRecordComponent
+                    completionDates={record.type === "product" ? productCompletionDates(activity, record.key) : undefined}
+                    key={component.id}
+                    onMutate={onRecordMutation}
+                    onTalkWithLuna={onTalkWithLuna}
+                    presentation={dataComponent.presentation}
+                    record={record}
+                    relatedRecords={record.type === "session_log" || record.type === "strength_session" ? records : undefined}
+                    supportingRecords={record.type === "product" ? (nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step") : undefined}
+                  />
                 : null;
             })}
           </div>

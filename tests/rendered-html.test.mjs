@@ -227,8 +227,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(workspace, /hasUsefulActivityRecordData/);
   assert.match(workspace, /function TimerComponent/);
   assert.match(workspace, /function CountdownComponent/);
-  assert.match(workspace, /function ActivityStreak/);
-  assert.match(workspace, /Day \{dayNumber\}/);
+  assert.match(workspace, /<StreakTrack/);
+  assert.match(workspace, /completedSubjectKeys/);
+  assert.match(workspace, /dailyCompletionStreak/);
   assert.match(workspace, /supportsStarterStreak/);
   assert.match(workspace, /Want something else here\?/);
   assert.match(workspace, /onTalkWithLuna/);

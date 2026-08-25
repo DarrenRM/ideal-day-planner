@@ -2104,6 +2104,106 @@ export async function migrateLegacyProductOwnership(userId: string) {
   return { applied: true };
 }
 
+const PRODUCT_SUBJECT_RHYTHMS_MIGRATION = "product-subject-rhythms-v1";
+
+/**
+ * Gives the current Skin routine explicit per-product rhythms. Historical
+ * activity completion is attributed only to the product that existed then;
+ * the newly added retinol begins on its first eligible future date.
+ */
+export async function backfillProductSubjectRhythms(userId: string, referenceDate: string) {
+  const db = getD1();
+  const migrationId = `migration:${safeId(userId)}:${PRODUCT_SUBJECT_RHYTHMS_MIGRATION}`;
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, PRODUCT_SUBJECT_RHYTHMS_MIGRATION).first<{ id: string }>();
+  if (completed) return { applied: false };
+
+  const activity = await db.prepare("SELECT id FROM activities WHERE user_id = ? AND client_key = 'skin-routine' LIMIT 1")
+    .bind(userId).first<{ id: string }>();
+  if (!activity) {
+    await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+      .bind(migrationId, userId, PRODUCT_SUBJECT_RHYTHMS_MIGRATION).run();
+    return { applied: false };
+  }
+
+  const records = await readActivityRecords(activity.id, referenceDate);
+  const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  const runRows = (await db.prepare(`
+    SELECT id, plan_date AS planDate, details_json AS detailsJson
+    FROM activity_runs
+    WHERE user_id = ? AND activity_id = ? AND status = 'completed' AND plan_date <= ?
+    ORDER BY plan_date
+  `).bind(userId, activity.id, referenceDate).all<{ id: string; planDate: string; detailsJson: string | null }>()).results;
+  const completedDates = [...new Set(runRows.map((run) => run.planDate))].sort();
+  const firstCompletion = completedDates[0] ?? referenceDate;
+  const retinolAnchor = addLocalDays(referenceDate, 1);
+  const secondRetinolDay = addLocalDays(retinolAnchor, 3);
+  const weekday = (dateKey: string) => new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+
+  const actions: RecordAction[] = [];
+  if (!recordsByKey.has("castile-soap")) {
+    actions.push({ op: "upsert", record: {
+      key: "castile-soap", subjectKey: "castile-soap", type: "product", title: "Castile Soap", scope: "activity",
+      data: { kind: "product", name: "Castile Soap", notes: "Traditional olive-oil cleansing soap." },
+    } });
+  }
+  if (!recordsByKey.has("castile-soap-adherence")) {
+    actions.push({ op: "upsert", record: {
+      key: "castile-soap-adherence", subjectKey: "castile-soap", type: "adherence", title: "Castile Soap", scope: "activity",
+      data: { effectiveDate: firstCompletion, entries: completedDates.map((date) => ({ id: `day-${date}`, date, completed: true, note: "" })) },
+    } });
+  }
+  if (!recordsByKey.has("plainleaf-retinol-night-serum")) {
+    actions.push({ op: "upsert", record: {
+      key: "plainleaf-retinol-night-serum", subjectKey: "plainleaf-retinol-night-serum", type: "product", title: "Retinol Night Serum", scope: "activity",
+      data: { kind: "product", name: "Retinol Night Serum", manufacturer: "Plainleaf", variant: "1%", notes: "High-strength retinol serum for signs of skin aging." },
+    } });
+  }
+  const hasRetinolRhythm = records.some((record) => record.subjectKey === "plainleaf-retinol-night-serum" && (record.type === "recurring_step" || record.type === "adherence"));
+  if (!hasRetinolRhythm) {
+    actions.push({ op: "upsert", record: {
+      key: "plainleaf-retinol-night-serum-schedule", subjectKey: "plainleaf-retinol-night-serum", type: "recurring_step", title: "Retinol nights", scope: "activity",
+      data: {
+        label: "Use Retinol Night Serum",
+        note: "Start twice weekly on nonconsecutive nights; increase only if well tolerated.",
+        itemKey: "plainleaf-retinol-night-serum",
+        anchorDate: retinolAnchor,
+        cadence: { kind: "weekdays", weekdays: [...new Set([weekday(retinolAnchor), weekday(secondRetinolDay)])].sort() },
+        completedDates: [],
+      },
+    } });
+  }
+  if (actions.length) {
+    await persistRecordActions({ userId, activityId: activity.id, actionId: `${migrationId}:records`, actions });
+  }
+
+  await persistWorkspaceActions({
+    userId,
+    activityId: activity.id,
+    agentJobId: `${migrationId}:workspace`,
+    actions: [
+      { op: "upsert", component: { id: "castile-soap", type: "product", title: "Castile Soap", recordKey: "castile-soap", presentation: "featured" } },
+      { op: "upsert", component: { id: "castile-soap-adherence", type: "adherence", title: "Castile Soap", recordKey: "castile-soap-adherence", presentation: "compact" } },
+      { op: "upsert", component: { id: "plainleaf-retinol-night-serum", type: "product", title: "Retinol Night Serum", recordKey: "plainleaf-retinol-night-serum", presentation: "featured" } },
+      ...(!hasRetinolRhythm ? [{ op: "upsert" as const, component: { id: "plainleaf-retinol-night-serum-schedule", type: "recurring_step" as const, title: "Retinol nights", recordKey: "plainleaf-retinol-night-serum-schedule", presentation: "compact" as const } }] : []),
+    ],
+  });
+
+  if (runRows.length) {
+    await db.batch(runRows.map((run) => {
+      let details: Record<string, unknown> = {};
+      try { details = JSON.parse(run.detailsJson || "{}") as Record<string, unknown>; } catch { /* preserve a valid replacement */ }
+      const priorKeys = Array.isArray(details.completedSubjectKeys) ? details.completedSubjectKeys.filter((key): key is string => typeof key === "string") : [];
+      return db.prepare("UPDATE activity_runs SET details_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?")
+        .bind(JSON.stringify({ ...details, completedSubjectKeys: [...new Set([...priorKeys, "castile-soap"])] }), run.id, userId);
+    }));
+  }
+
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, PRODUCT_SUBJECT_RHYTHMS_MIGRATION).run();
+  return { applied: true };
+}
+
 function asObject(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
@@ -2365,15 +2465,23 @@ export async function readConversationState(conversationId: string, planDate?: s
   const workspace = conversation ? await readActivityWorkspace(conversation.activityId, activityVariantId) : { revisionId: null, revisionNumber: 0, document: EMPTY_WORKSPACE };
   const records = conversation ? await readActivityRecords(conversation.activityId, planDate, activityVariantId) : [];
   const followUps = conversation ? await readActivityFollowUps(conversation.activityId) : [];
-  const recentRuns = conversation
+  const recentRunRows = conversation
     ? (await db.prepare(`
-        SELECT plan_date AS planDate, status, completed_at AS completedAt
+        SELECT plan_date AS planDate, status, completed_at AS completedAt, details_json AS detailsJson
         FROM activity_runs
         WHERE activity_id = ?
         ORDER BY plan_date DESC
         LIMIT 90
-      `).bind(conversation.activityId).all<{ planDate: string; status: string; completedAt: string | null }>()).results
+      `).bind(conversation.activityId).all<{ planDate: string; status: string; completedAt: string | null; detailsJson: string | null }>()).results
     : [];
+  const recentRuns = recentRunRows.map(({ detailsJson, ...run }) => {
+    try {
+      const details = JSON.parse(detailsJson || "{}") as { completedSubjectKeys?: unknown };
+      return { ...run, completedSubjectKeys: Array.isArray(details.completedSubjectKeys) ? details.completedSubjectKeys.filter((key): key is string => typeof key === "string") : [] };
+    } catch {
+      return { ...run, completedSubjectKeys: [] as string[] };
+    }
+  });
   const scheduleRow = conversation ? await db.prepare(`
     SELECT pattern.id, pattern.name, pattern.position, pattern.cadence_json AS cadenceJson,
            pattern.advancement_json AS advancementJson, pattern.anchor_date AS anchorDate,
