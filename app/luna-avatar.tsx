@@ -64,15 +64,6 @@ function colorAt(angle: number, alpha = 1, light = 0) {
   return `rgba(${lifted[0]}, ${lifted[1]}, ${lifted[2]}, ${alpha})`;
 }
 
-function apertureContour(angle: number, time: number) {
-  return 1
-    + Math.sin(angle * 3 - .3) * .007
-    + Math.sin(angle * 5 + .45) * .014
-    + Math.sin(angle * 9 - .7) * .009
-    + Math.sin(angle * 13 + .2) * .005
-    + Math.sin(angle * 7 + time * .16) * .003;
-}
-
 export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, state = "idle" }: LunaAvatarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -197,8 +188,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       for (let index = 0; index < facets; index += 1) {
         const angle = index * spacing;
         const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
-        const contour = apertureContour(angle, time);
-        const centerRadius = coreRadius + radius * .105 + (contour - 1) * coreRadius * .62;
+        const centerRadius = coreRadius + radius * .105;
         const centerPointX = centerX + Math.cos(angle) * centerRadius;
         const centerPointY = centerY + Math.sin(angle) * centerRadius;
         const radialX = Math.cos(angle);
@@ -220,20 +210,12 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       context.restore();
     };
 
-    const drawAperture = (centerX: number, centerY: number, coreRadius: number, radius: number, time: number) => {
+    const drawAperture = (centerX: number, centerY: number, coreRadius: number, radius: number) => {
       context.save();
       context.shadowColor = state === "thinking" ? "rgba(178,220,122,.2)" : "rgba(92,190,185,.11)";
       context.shadowBlur = radius * .055;
       context.beginPath();
-      const corePoints = 42;
-      for (let index = 0; index <= corePoints; index += 1) {
-        const angle = index / corePoints * TAU;
-        const currentRadius = coreRadius * apertureContour(angle, time);
-        const x = centerX + Math.cos(angle) * currentRadius * 1.025;
-        const y = centerY + Math.sin(angle) * currentRadius * .985;
-        if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-      }
-      context.closePath();
+      context.ellipse(centerX, centerY, coreRadius * 1.012, coreRadius * .996, 0, 0, TAU);
       context.fillStyle = "#010203";
       context.fill();
       context.restore();
@@ -266,7 +248,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
       if (layer === "complete" || layer === "network") drawNetwork(centerX, centerY, artRadius, time, energy);
       if (layer === "complete" || layer === "facets") drawFacets(centerX, centerY, artRadius, coreRadius, time, energy);
-      if (layer !== "network") drawAperture(centerX, centerY, coreRadius, artRadius, time);
+      if (layer !== "network") drawAperture(centerX, centerY, coreRadius, artRadius);
 
       if (!reducedMotion) frame = window.requestAnimationFrame(draw);
     };
