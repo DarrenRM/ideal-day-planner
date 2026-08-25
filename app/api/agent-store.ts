@@ -183,6 +183,7 @@ export async function ensureAgentSchema() {
         error text,
         progress_title text,
         progress_detail text,
+        delegation_instruction text,
         created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -345,6 +346,9 @@ export async function ensureAgentSchema() {
       }
       if (!jobColumns.results.some((column) => column.name === "progress_detail")) {
         await db.prepare("ALTER TABLE agent_jobs ADD COLUMN progress_detail text").run();
+      }
+      if (!jobColumns.results.some((column) => column.name === "delegation_instruction")) {
+        await db.prepare("ALTER TABLE agent_jobs ADD COLUMN delegation_instruction text").run();
       }
       if (!jobColumns.results.some((column) => column.name === "activity_variant_id")) {
         await db.prepare("ALTER TABLE agent_jobs ADD COLUMN activity_variant_id text REFERENCES activity_variants(id) ON DELETE SET NULL").run();
@@ -521,7 +525,7 @@ export async function readGlobalConversationState(conversationId: string, userId
   const activeJob = await db.prepare(`
     SELECT status, kind, progress_title AS progressTitle, progress_detail AS progressDetail
     FROM agent_jobs
-    WHERE conversation_id = ? AND scope_type = 'global'
+    WHERE conversation_id = ?
       AND kind <> 'day_highlight'
       AND status IN ('queued', 'leased', 'running', 'retryable_failure')
     ORDER BY created_at DESC LIMIT 1
@@ -535,6 +539,7 @@ export async function readGlobalConversationState(conversationId: string, userId
   `).bind(userId, conversationId).all<{ id: string; status: string; documentJson: string; createdAt: string }>();
   return {
     messages: await readConversationMessages(conversationId),
+    artifacts: await readConversationArtifacts(conversationId),
     activeJob: activeJob ?? null,
     agentOnline: Boolean(onlineWorker),
     proposals: proposals.results.flatMap((proposal) => {
@@ -556,14 +561,14 @@ export async function readConversationMessages(conversationId: string) {
 
 export async function readConversationArtifacts(conversationId: string) {
   const result = await getD1().prepare(`
-    SELECT id, kind, title, detail, meta_json AS metaJson, viewed_at AS viewedAt,
+    SELECT id, activity_id AS activityId, kind, title, detail, meta_json AS metaJson, viewed_at AS viewedAt,
            source_agent_job_id AS sourceAgentJobId, created_at AS createdAt
     FROM conversation_artifacts
     WHERE conversation_id = ?
     ORDER BY created_at ASC, id ASC
     LIMIT 200
   `).bind(conversationId).all<{
-    id: string; kind: string; title: string; detail: string; metaJson: string;
+    id: string; activityId: string | null; kind: string; title: string; detail: string; metaJson: string;
     viewedAt: string | null; sourceAgentJobId: string; createdAt: string;
   }>();
   return result.results.map((artifact) => {
@@ -1655,7 +1660,7 @@ export async function retryFailedConversationJob(userId: string, conversationId:
     SET status = 'queued', attempts = 0, error = NULL, lease_token = NULL,
         lease_owner = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND user_id = ? AND conversation_id = ? AND status = 'failed'
-      AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up', 'global_message')
+      AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up', 'global_message', 'global_refresh')
   `).bind(jobId, userId, conversationId).run();
   return Boolean(result.meta.changes ?? 0);
 }
@@ -2344,7 +2349,7 @@ export async function readConversationState(conversationId: string, planDate?: s
   const latestDurableJob = await db.prepare(`
     SELECT id, status, kind, error
     FROM agent_jobs
-    WHERE conversation_id = ? AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up', 'global_message')
+    WHERE conversation_id = ? AND kind IN ('workspace_refresh', 'variant_setup', 'follow_up', 'global_message', 'global_refresh')
       AND status IN ('succeeded', 'failed')
     ORDER BY updated_at DESC, created_at DESC
     LIMIT 1
@@ -2463,7 +2468,7 @@ export async function readConversationState(conversationId: string, planDate?: s
       kind: latestDurableJob.kind,
       message: latestDurableJob.kind === "follow_up"
         ? "Luna couldn’t send this check-in."
-        : latestDurableJob.kind === "global_message"
+        : latestDurableJob.kind === "global_message" || latestDurableJob.kind === "global_refresh"
           ? "Luna couldn’t update the schedule."
           : "Luna couldn’t save the latest activity update.",
     } : null,

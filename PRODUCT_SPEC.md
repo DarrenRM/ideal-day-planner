@@ -619,6 +619,8 @@ Implementation note (2026-08-21, revised 2026-08-24): universal scheduling is D1
 
 Implementation note (2026-08-23): site-wide Luna can emit only a validated `capture_open_item` for explicit open-loop language. The app owns destination validation, normalized deduplication, durable item-list filing, workspace binding, and idempotency. Ambiguous destinations stay pending for clarification. Explicit Today/Tomorrow timing activates an existing extra occurrence or creates a dated extra without changing the underlying commitment tier; unspecified timing remains a visible decision in Luna, and filed optional activities with unfinished items lead Go Further under Needs attention.
 
+Implementation note (2026-08-24): site-wide Luna is the coordinating assistant, not a schedule-only chat. Each global message receives an immediate conversational pass. Requests needing research or durable work continue through a visible coordinator pass with the owned activity index, saved activity knowledge, current day, schedules, and fetched linked-source evidence. The coordinator may only hand bounded instructions to exact owned activities; the activity compiler remains the sole writer of validated records and workspace composition. Progress stays visible across the handoff, and the final activity message and durable work receipt return to the global conversation. Luna must check available source evidence and existing activity knowledge before asking a clarification, and must not invent a cadence or recommendation unsupported by either.
+
 ## 12. Decisions recorded so far
 
 - The ideal-day sequence remains the home screen; its default presentation is a flexible checklist.

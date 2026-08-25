@@ -24,7 +24,7 @@ function modelRoute(leased) {
   const workspaceJob = leased.job.kind === "workspace_refresh"
     || leased.job.kind === "activity_setup"
     || leased.job.kind === "variant_setup"
-    || leased.job.kind === "global_message";
+    || leased.job.kind === "global_refresh";
   return workspaceJob
     ? {
         provider: "openai-codex",
@@ -49,7 +49,7 @@ function modelRoute(leased) {
 }
 
 const resultShape = `Return exactly one JSON object with no markdown or surrounding prose:
-{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"captureActions":CaptureAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
+{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
 
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
@@ -68,7 +68,7 @@ Use this only when the person explicitly asks to relocate an existing product or
 const lunaInstructions = `${personaInstructions}
 ${resultShape}
 
-This is durable activity design work. Set captureActions:[], scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
+This is durable activity design work. Set activityWorkRequests:[], captureActions:[], scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
 
 Hard extraction checklist for the latest message:
 1. Capture every named product/device as its own product record with exactly kind:"product" or kind:"device" and subjectKey equal to that product record's stable key. Give every record owned by that item the same subjectKey. Resource entries owned by an item also carry its itemKey; keep different subjects in separate resource records.
@@ -112,11 +112,18 @@ ${catalogInstructions()}`;
 
 const userMessageInstructions = `${personaInstructions}
 ${resultShape}
-This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], captureActions:[], followUpActions:[], followUpQuestion:null, scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. Explicitly reporting food or drink eaten, consumed, made, or prepped is lasting detail and always needs workspaceFollowup:true. A request that changes only when the parent activity appears belongs to site-wide schedule work and should not request an activity-workspace follow-up. For an explicit schedule request, acknowledge the requested change without claiming it is already complete. Never research in this pass or pretend research is complete.`;
+This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], activityWorkRequests:[], captureActions:[], followUpActions:[], followUpQuestion:null, scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. Explicitly reporting food or drink eaten, consumed, made, or prepped is lasting detail and always needs workspaceFollowup:true. A request that changes only when the parent activity appears belongs to site-wide schedule work and should not request an activity-workspace follow-up. For an explicit schedule request, acknowledge the requested change without claiming it is already complete. Never research in this pass or pretend research is complete.`;
+
+const globalMessageInstructions = `${personaInstructions}
+${resultShape}
+This is the immediate site-wide conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], activityWorkRequests:[], captureActions:[], followUpActions:[], followUpQuestion:null, scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions from the supplied whole-day overview. Set workspaceFollowup:true for any request that requires research, saving information, changing an activity, changing the day or routine, capturing an open loop, or coordinating work across activities. Acknowledge that work naturally without claiming it is complete. Never research, guess a recommendation, or ask for a preference that the linked source or existing activity knowledge may answer in the durable pass.`;
 
 const globalInstructions = `${personaInstructions}
 ${resultShape}
-This is site-wide routine work. Always return recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], and dayHighlight:null. Use one followUpQuestion when an essential choice is ambiguous. An explicit, reversible cadence change to exactly one supplied one-step activity pattern applies immediately through one DirectScheduleAction. Broader changes—rotations, several activities, activity or variant creation, competing rules, or anything ambiguous—require a ScheduleProposal and confirmation. A clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date, target, anchor, or collision policy.
+This is the durable site-wide coordinator pass. Always return workspaceFollowup:false, recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], and dayHighlight:null. Use activityWorkRequests to hand durable activity work to one or more exact owned activities. Research and current activity knowledge come before clarification: never ask for a preference or cadence that the supplied official source or existing routine can answer, and never invent an unsupported recommendation. Use one followUpQuestion only when an essential choice remains ambiguous after reviewing that evidence. An explicit, reversible cadence change to exactly one supplied one-step activity pattern applies immediately through one DirectScheduleAction. Broader changes—rotations, several activities, activity or variant creation, competing rules, or anything ambiguous—require a ScheduleProposal and confirmation. A clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date, target, anchor, or collision policy.
+
+ActivityWorkRequest: {"activityId":"exact-owned-activity-id","instruction":"concise description of the durable work, including relevant researched conclusions and user intent"}.
+Use this when the latest request asks Luna to add, update, move, research for, or otherwise maintain an activity. Select the destination only from the supplied owned IDs. If the user names an activity, use that exact matching owned activity. Include enough evidence-based direction for its specialist pass, but never emit its record or component changes here. Return message:null when delegation is the remaining work; the activity pass will report the finished result in this same conversation.
 
 DirectScheduleAction: {"type":"set_pattern_cadence","baseRevision":number,"activityId":"exact-owned-activity-id","patternId":"exact-existing-pattern-id","expectedRevision":number,"cadence":{"kind":"daily"}|{"kind":"weekdays","weekdays":[0-6],"intervalWeeks":number}|{"kind":"interval_days","every":number,"anchorDate":"YYYY-MM-DD"},"effectiveDate":"YYYY-MM-DD","summary":string}.
 Use scheduleActions only when the latest user message directly requests this one change and every required value is explicit or supplied in current schedule context. For “every N days, counting from yesterday,” use yesterday as cadence.anchorDate and today as effectiveDate. Preserve everything except cadence by targeting the existing pattern; do not rebuild its steps, duration, role, name, or position. Return one brief completion message when using scheduleActions. Otherwise return scheduleActions:[].
@@ -139,7 +146,8 @@ This is a due check-in the person previously asked for or implied through a fini
 function instructionsForJob(leased) {
   if (leased.job.kind === "day_highlight") return dayHighlightInstructions;
   if (leased.job.kind === "follow_up") return dueFollowUpInstructions;
-  if (leased.job.kind === "global_message" || leased.context.scope === "global") return globalInstructions;
+  if (leased.job.kind === "global_message") return globalMessageInstructions;
+  if (leased.job.kind === "global_refresh" || leased.context.scope === "global") return globalInstructions;
   if (leased.job.kind === "user_message") return userMessageInstructions;
   return lunaInstructions;
 }
@@ -240,14 +248,23 @@ Today's activities and outcomes: ${JSON.stringify(job.context.today || [])}
 Recent day totals: ${JSON.stringify(job.context.recentDays || [])}
 Recent measured completed runs: ${JSON.stringify(job.context.recentRuns || [])}`;
   }
-  if (job.context.scope === "global" || job.job.kind === "global_message") {
-    return `The user has spoken to Luna about their day or schedule. Respond naturally and compile only safe, typed scheduling work. Apply one explicit, reversible cadence change to one existing one-step activity pattern through scheduleActions. Use a proposal and confirmation for broader or ambiguous recurring changes. If one essential choice is missing, ask exactly one useful clarification instead. A clear reversible change to one known occurrence may be emitted as an occurrence action. Never mutate the routine merely because you notice an optimization.
+  if (job.context.scope === "global" || job.job.kind === "global_message" || job.job.kind === "global_refresh") {
+    const phase = job.job.kind === "global_message"
+      ? job.context.sourceActivity
+        ? "The activity conversation already owns the immediate reply. Return message:null and workspaceFollowup:true so site-wide coordination can continue without a duplicate response."
+        : "Respond immediately and naturally. Do not perform durable work yet; acknowledge any requested research or change and set workspaceFollowup:true."
+      : "Coordinate the requested durable work now. Use the whole-day knowledge to select the correct activity, and delegate activity-specific changes with activityWorkRequests.";
+    const evidence = options.researchEvidence
+      ? `\n\nFetched source evidence (captured once by Ideal Day; do not fetch these URLs again):\n${options.researchEvidence}`
+      : "";
+    return `${phase}
 
 Local date: ${job.context.localDate}
 Timezone: ${job.context.timeZone}
 Routine revision: ${job.context.routine?.revision}
 Settings: ${JSON.stringify(job.context.settings || {})}
 Owned activities: ${JSON.stringify(job.context.activities || [])}
+Whole-day activity knowledge: ${JSON.stringify(job.context.activityKnowledge || [])}
 Owned variants: ${JSON.stringify(job.context.variants || [])}
 Current schedule patterns: ${JSON.stringify(job.context.patterns || [])}
 Today's occurrences: ${JSON.stringify(job.context.today || [])}
@@ -260,7 +277,7 @@ Recent global conversation:
 ${compactConversation(job.context.recentMessages)}
 
 Latest user message:
-${job.context.sourceMessage?.body || ""}`;
+${job.context.sourceMessage?.body || ""}${evidence}`;
   }
   const activity = job.context.activity || {};
   const schedule = job.context.schedule;
@@ -279,7 +296,10 @@ ${job.context.sourceMessage?.body || ""}`;
     const evidence = options.researchEvidence
       ? `\n\nFetched source evidence (captured once by Ideal Day; do not fetch these URLs again):\n${options.researchEvidence}`
       : "";
-    return `Bring the lasting activity space up to date. Set workspaceFollowup:false. Preserve useful content and stable keys. Apply the hard extraction checklist exactly once to the latest message, then emit only the necessary changes. Do not leave a learned product, device, cadence, usage event, direction, or protocol only in conversation. When the person explicitly asks to move an existing product or device, use one move_subject activityMove rooted at its product record instead of recreating it; the app moves all owned details. If the destination or subject is unclear, put one concise question in followUpQuestion and make no move. Otherwise keep followUpQuestion:null. Only researched findings belong in message; ordinary workspace compilation must return message:null.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}${evidence}`;
+    const delegation = job.context.delegationInstruction
+      ? `\n\nSite-wide Luna's validated handoff:\n${job.context.delegationInstruction}`
+      : "";
+    return `Bring the lasting activity space up to date. Set workspaceFollowup:false. Preserve useful content and stable keys. Apply the hard extraction checklist exactly once to the latest message, then emit only the necessary changes. Do not leave a learned product, device, cadence, usage event, direction, or protocol only in conversation. When the person explicitly asks to move an existing product or device, use one move_subject activityMove rooted at its product record instead of recreating it; the app moves all owned details. If the destination or subject is unclear, put one concise question in followUpQuestion and make no move. Otherwise keep followUpQuestion:null. Only researched findings belong in message; ordinary workspace compilation must return message:null.\n\n${shared}\n\nLatest triggering user message:\n${job.context.sourceMessage?.body || ""}${delegation}${evidence}`;
   }
   if (job.job.kind === "variant_setup") {
     return `A schedule proposal has just created this activity variant. Build the useful variant-specific workspace now from the confirmed request. Put shared products, devices, equipment, goals, and sources at activity scope; put the session plan or protocol that changes with this variant at variant scope. Never ask a duplicate question and never create placeholders. Remain silent unless one essential choice still blocks a useful result.\n\n${shared}\n\nOriginal confirmed request:\n${job.context.sourceMessage?.body || ""}`;
@@ -317,6 +337,7 @@ function parseAgentResult(content) {
   const recordActions = Array.isArray(parsed.recordActions) ? parsed.recordActions : [];
   const workspaceActions = Array.isArray(parsed.workspaceActions) ? parsed.workspaceActions : [];
   const activityMoves = Array.isArray(parsed.activityMoves) ? parsed.activityMoves : [];
+  const activityWorkRequests = Array.isArray(parsed.activityWorkRequests) ? parsed.activityWorkRequests : [];
   const captureActions = Array.isArray(parsed.captureActions) ? parsed.captureActions : [];
   const followUpActions = Array.isArray(parsed.followUpActions) ? parsed.followUpActions : [];
   const followUpQuestion = parsed.followUpQuestion && typeof parsed.followUpQuestion === "object"
@@ -331,16 +352,18 @@ function parseAgentResult(content) {
     && dayHighlightBody
     ? { body: dayHighlightBody, kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
     : null;
-  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, captureActions, followUpActions, followUpQuestion, scheduleActions, scheduleProposal, occurrenceActions, dayHighlight };
+  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, activityWorkRequests, captureActions, followUpActions, followUpQuestion, scheduleActions, scheduleProposal, occurrenceActions, dayHighlight };
 }
 
 function visibleProgress(leased) {
   if (leased.job.kind === "day_highlight") return null;
   if (leased.job.kind === "global_message") {
-    const activityTitle = leased.context.sourceActivity?.title;
+    return null;
+  }
+  if (leased.job.kind === "global_refresh") {
     return {
-      title: activityTitle ? `Updating ${activityTitle}'s schedule` : "Updating your schedule",
-      detail: "Applying the change you asked for and checking the next dates.",
+      title: userMessageRequestsResearch(leased.context.sourceMessage?.body || "") ? "Checking the details" : "Pulling this together",
+      detail: "Reviewing your activities and deciding what should change.",
     };
   }
   const activityTitle = leased.context.activity?.title || "this activity";
@@ -385,7 +408,7 @@ function sendHeartbeat(leased) {
 }
 
 async function completeJob(leased, runtimeSessionId, agentResult) {
-  const replyFirst = leased.job.kind === "user_message";
+  const replyFirst = leased.job.kind === "user_message" || leased.job.kind === "global_message";
   await requestAppJson("/api/agent/jobs", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -399,12 +422,13 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       recordActions: replyFirst ? [] : agentResult.recordActions,
       workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
       activityMoves: replyFirst ? [] : agentResult.activityMoves,
-      captureActions: agentResult.captureActions,
+      activityWorkRequests: replyFirst ? [] : agentResult.activityWorkRequests,
+      captureActions: replyFirst ? [] : agentResult.captureActions,
       followUpActions: replyFirst ? [] : agentResult.followUpActions,
-      followUpQuestion: agentResult.followUpQuestion,
-      scheduleActions: agentResult.scheduleActions,
-      scheduleProposal: agentResult.scheduleProposal,
-      occurrenceActions: agentResult.occurrenceActions,
+      followUpQuestion: replyFirst ? null : agentResult.followUpQuestion,
+      scheduleActions: replyFirst ? [] : agentResult.scheduleActions,
+      scheduleProposal: replyFirst ? null : agentResult.scheduleProposal,
+      occurrenceActions: replyFirst ? [] : agentResult.occurrenceActions,
       localDate: leased.context.localDate,
       dayHighlight: agentResult.dayHighlight,
     }),
@@ -452,7 +476,7 @@ async function runJob(key, leased) {
     });
     return;
   }
-  const researchEvidence = leased.job.kind === "workspace_refresh" && userMessageRequestsResearch(sourceMessage)
+  const researchEvidence = (leased.job.kind === "workspace_refresh" || leased.job.kind === "global_refresh") && userMessageRequestsResearch(sourceMessage)
     ? await researchEvidenceForMessage(sourceMessage)
     : null;
   const route = modelRoute(leased);

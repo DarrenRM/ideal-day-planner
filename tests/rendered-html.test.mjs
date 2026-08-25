@@ -552,11 +552,11 @@ test("applies explicit one-activity cadence changes without fake typing or hidde
   assert.match(jobRoute, /direct-schedule:\$\{job\.id\}/);
   assert.match(scheduleActions, /Number\(pattern\.stepCount\) !== 1/);
   assert.match(scheduleActions, /action_type, action_json, source, actor, idempotency_key/);
-  assert.match(agentStore, /'workspace_refresh', 'variant_setup', 'follow_up', 'global_message'/);
+  assert.match(agentStore, /'workspace_refresh', 'variant_setup', 'follow_up', 'global_message', 'global_refresh'/);
   assert.match(agentStore, /Luna couldn’t update the schedule/);
   assert.match(bridge, /DirectScheduleAction/);
-  assert.match(bridge, /Updating \$\{activityTitle\}'s schedule/);
-  assert.match(surface, /kind === "workspace_refresh" \|\| kind === "variant_setup" \|\| kind === "global_message"/);
+  assert.match(bridge, /Reviewing your activities and deciding what should change/);
+  assert.match(surface, /kind === "workspace_refresh" \|\| kind === "variant_setup" \|\| kind === "global_refresh"/);
   assert.match(page, /scheduleSummary=\{scheduleSummary\}/);
 });
 
@@ -641,7 +641,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /progress_title/);
   assert.match(jobRoute, /highlightSource\.body\.trim\(\)\.slice\(0, 80\)/);
   assert.match(jobRoute, /completed\?\.count \?\? 0\) >= 5/);
-  assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'day_highlight' THEN 1 ELSE 2 END/);
+  assert.match(jobRoute, /CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'global_refresh' THEN 1 WHEN 'day_highlight' THEN 2 ELSE 3 END/);
   assert.match(jobRoute, /ORDER BY created_at DESC/);
   assert.match(jobRoute, /Could not release an incomplete agent lease/);
   assert.match(jobRoute, /activityContext/);

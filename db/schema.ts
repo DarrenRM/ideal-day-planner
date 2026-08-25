@@ -310,6 +310,7 @@ export const agentJobs = sqliteTable("agent_jobs", {
   error: text("error"),
   progressTitle: text("progress_title"),
   progressDetail: text("progress_detail"),
+  delegationInstruction: text("delegation_instruction"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [

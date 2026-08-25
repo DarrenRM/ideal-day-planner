@@ -1,10 +1,19 @@
 "use client";
 
 import { CalendarDays, Check, ChevronDown, Inbox, Send, Sparkles, X } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PendingCapture } from "./capture-model";
 
 type LunaMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string };
+type LunaArtifact = {
+  id: string;
+  activityId: string | null;
+  kind: string;
+  title: string;
+  detail: string;
+  viewedAt: string | null;
+  createdAt: string;
+};
 type LunaProposal = {
   id: string;
   status: string;
@@ -18,13 +27,14 @@ type LunaProposal = {
 };
 type LunaState = {
   messages: LunaMessage[];
+  artifacts: LunaArtifact[];
   activeJob: { status: string; progressTitle?: string | null; progressDetail?: string | null } | null;
   agentOnline: boolean;
   proposals: LunaProposal[];
   captures: PendingCapture[];
 };
 
-const EMPTY_STATE: LunaState = { messages: [], activeJob: null, agentOnline: false, proposals: [], captures: [] };
+const EMPTY_STATE: LunaState = { messages: [], artifacts: [], activeJob: null, agentOnline: false, proposals: [], captures: [] };
 
 function formatMessageTime(value: string) {
   const date = new Date(value.replace(" ", "T") + (value.endsWith("Z") ? "" : "Z"));
@@ -42,11 +52,12 @@ function formatProposalDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRead, onScheduleChanged }: {
+export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpenActivity, onRead, onScheduleChanged }: {
   open: boolean;
   initialDraft: string;
   onDraftConsumed: () => void;
   onClose: () => void;
+  onOpenActivity: (activityId: string) => void;
   onRead: () => void;
   onScheduleChanged: () => void;
 }) {
@@ -94,6 +105,10 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRea
   }
 
   const hasActiveJob = Boolean(state.activeJob);
+  const conversationFeed = useMemo(() => [
+    ...state.messages.map((message) => ({ type: "message" as const, createdAt: message.createdAt, value: message })),
+    ...state.artifacts.map((artifact) => ({ type: "artifact" as const, createdAt: artifact.createdAt, value: artifact })),
+  ].sort((left, right) => left.createdAt.localeCompare(right.createdAt)), [state.artifacts, state.messages]);
 
   useEffect(() => {
     if (!open) return;
@@ -133,7 +148,19 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRea
     const escape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     document.addEventListener("keydown", escape);
     return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", escape); };
-  }, [open, state.messages.length, state.activeJob, state.proposals.length, state.captures.length, onClose]);
+  }, [open, state.messages.length, state.artifacts.length, state.activeJob, state.proposals.length, state.captures.length, onClose]);
+
+  async function viewArtifact(artifact: LunaArtifact) {
+    if (!artifact.activityId) return;
+    const response = await fetch("/api/luna", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mode: "view-artifact", artifactId: artifact.id, activityId: artifact.activityId }),
+    });
+    if (!response.ok) return;
+    onClose();
+    onOpenActivity(artifact.activityId);
+  }
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -207,12 +234,18 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onRea
           <button aria-label="Close notes and conversation" type="button" onClick={onClose}><X className="global-luna-close-desktop" aria-hidden="true" size={20} /><ChevronDown className="global-luna-close-mobile" aria-hidden="true" size={18} /></button>
         </header>
         <div className="global-luna-scroll" ref={scrollRef}>
-          {!state.messages.length ? (
+          {!conversationFeed.length ? (
             <div className="global-luna-welcome"><Sparkles aria-hidden="true" size={22} /><h2>Shape your day with Luna</h2><p>Ask about your routine, create a rotation, or move something to another day.</p></div>
           ) : null}
-          {state.messages.map((message) => (
-            <article className={`global-luna-message is-${message.author}`} key={message.id}>
-              <p>{message.body}</p><time>{formatMessageTime(message.createdAt)}</time>
+          {conversationFeed.map((entry) => entry.type === "message" ? (
+            <article className={`global-luna-message is-${entry.value.author}`} key={entry.value.id}>
+              <p>{entry.value.body}</p><time>{formatMessageTime(entry.value.createdAt)}</time>
+            </article>
+          ) : (
+            <article className={`global-luna-artifact ${entry.value.viewedAt ? "is-viewed" : "is-new"}`} key={entry.value.id}>
+              <span><Sparkles aria-hidden="true" size={16} /></span>
+              <div><strong>{entry.value.title}</strong>{entry.value.detail ? <small>{entry.value.detail}</small> : null}</div>
+              {entry.value.activityId ? <button type="button" onClick={() => void viewArtifact(entry.value)}>View</button> : null}
             </article>
           ))}
           {state.activeJob ? (

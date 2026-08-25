@@ -1593,6 +1593,13 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .global-luna-working > div { display: grid; gap: 3px; }
 .global-luna-working strong { color: var(--text); font-size: var(--type-body-sm); }
 .global-luna-working small { color: var(--muted); font-size: var(--type-caption); line-height: 1.4; }
+.global-luna-artifact { align-items: center; background: rgba(178, 222, 112, .055); border: 1px solid rgba(178, 222, 112, .22); border-radius: 12px; display: grid; gap: 10px; grid-template-columns: 36px minmax(0, 1fr) auto; padding: 10px; }
+.global-luna-artifact.is-new { box-shadow: inset 2px 0 rgba(178, 222, 112, .78); }
+.global-luna-artifact > span { align-items: center; background: rgba(178, 222, 112, .1); border: 1px solid rgba(178, 222, 112, .28); border-radius: 9px; color: var(--accent); display: inline-flex; height: 34px; justify-content: center; width: 34px; }
+.global-luna-artifact > div { display: grid; gap: 2px; min-width: 0; }
+.global-luna-artifact strong { color: var(--text); font-size: var(--type-body-sm); line-height: 1.35; }
+.global-luna-artifact small { color: var(--muted); display: -webkit-box; font-size: var(--type-caption); line-height: 1.4; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.global-luna-artifact button { background: transparent; border: 0; color: var(--accent); cursor: pointer; font-size: var(--type-label); font-weight: 750; min-height: 36px; padding: 0 8px; text-transform: uppercase; }
 .schedule-proposal-card { background: linear-gradient(145deg, rgba(178, 222, 112, .08), rgba(17, 22, 24, .96) 46%); border: 1px solid rgba(178, 222, 112, .28); border-radius: 14px; padding: 16px; }
 .luna-capture-card { background: linear-gradient(145deg, rgba(178, 222, 112, .065), rgba(15, 20, 22, .98) 52%); border: 1px solid rgba(178, 222, 112, .24); border-radius: 13px; display: grid; gap: 11px; padding: 14px; }
 .luna-capture-heading { align-items: center; display: flex; gap: 11px; }

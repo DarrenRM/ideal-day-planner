@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { apiFailure, ensureAgentSchema, ensureGlobalConversation, readGlobalConversationState, requestIdentity, safeId } from "../agent-store";
+import { apiFailure, ensureAgentSchema, ensureGlobalConversation, markConversationArtifactViewed, readGlobalConversationState, requestIdentity, safeId } from "../agent-store";
 import { captureRevision, readPendingCaptures } from "../capture-service";
 
 async function summary(conversationId: string, userId: string) {
@@ -57,6 +57,14 @@ export async function POST(request: Request) {
         UPDATE conversations SET last_read_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND user_id = ? AND scope_type = 'global'
       `).bind(conversationId, userId).run();
+      return Response.json(await state(conversationId, userId));
+    }
+    if (payload.mode === "view-artifact") {
+      const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 240) : "";
+      const activityId = typeof payload.activityId === "string" ? payload.activityId.trim().slice(0, 240) : "";
+      if (!artifactId || !activityId) return Response.json({ error: "That update could not be opened." }, { status: 400 });
+      const viewed = await markConversationArtifactViewed({ userId, conversationId, activityId, artifactId });
+      if (!viewed) return Response.json({ error: "That update could not be found." }, { status: 404 });
       return Response.json(await state(conversationId, userId));
     }
     const body = typeof payload.body === "string" ? payload.body.trim().slice(0, 4000) : "";

@@ -67,10 +67,34 @@ type LeasedJob = {
   dayPlanId: string | null;
   dayRevision: number | null;
   conversationId: string;
-  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message" | "day_highlight" | "follow_up";
+  kind: "activity_opened" | "activity_setup" | "user_message" | "workspace_refresh" | "variant_setup" | "global_message" | "global_refresh" | "day_highlight" | "follow_up";
   sourceMessageId: string | null;
+  delegationInstruction: string | null;
   attempts: number;
 };
+
+type ActivityWorkRequest = {
+  activityId: string;
+  instruction: string;
+};
+
+function validateActivityWorkRequests(value: unknown, ownedActivityIds: Set<string>): ActivityWorkRequest[] | null {
+  if (!Array.isArray(value)) return [];
+  if (value.length > 3) return null;
+  const seen = new Set<string>();
+  const requests: ActivityWorkRequest[] = [];
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null;
+    const source = candidate as Record<string, unknown>;
+    const activityId = typeof source.activityId === "string" ? source.activityId.trim() : "";
+    const instruction = typeof source.instruction === "string" ? source.instruction.trim().slice(0, 800) : "";
+    if (!activityId || !ownedActivityIds.has(activityId) || !instruction) return null;
+    if (seen.has(activityId)) continue;
+    seen.add(activityId);
+    requests.push({ activityId, instruction });
+  }
+  return requests;
+}
 
 type VisitContextEnvelope = {
   occurrence: { id?: string; activityVariantId?: string | null } | null;
@@ -176,14 +200,15 @@ export async function GET(request: Request) {
       SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
              activity_variant_id AS activityVariantId, day_plan_id AS dayPlanId,
              day_revision AS dayRevision, conversation_id AS conversationId,
-             kind, source_message_id AS sourceMessageId, attempts
+             kind, source_message_id AS sourceMessageId,
+             delegation_instruction AS delegationInstruction, attempts
       FROM agent_jobs
       WHERE attempts < 3 AND (
         status = 'queued'
         OR (status = 'retryable_failure' AND updated_at < datetime('now', '-1 minute'))
         OR (status IN ('leased', 'running') AND lease_expires_at < CURRENT_TIMESTAMP)
       )
-      ORDER BY CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'day_highlight' THEN 1 ELSE 2 END, created_at ASC, rowid ASC
+      ORDER BY CASE kind WHEN 'user_message' THEN 0 WHEN 'global_message' THEN 0 WHEN 'global_refresh' THEN 1 WHEN 'day_highlight' THEN 2 ELSE 3 END, created_at ASC, rowid ASC
       LIMIT 1
     `).first<LeasedJob>();
     if (!candidate) return new Response(null, { status: 204 });
@@ -277,7 +302,7 @@ export async function GET(request: Request) {
       `).bind(candidate.userId).first<{ timeZone: string; dayTimelineEnabled: number }>();
       const timeZone = setting?.timeZone || "America/Phoenix";
       const localDate = localDateInTimeZone(new Date(), timeZone);
-      const [activities, variants, today, pendingProposals, patterns, messages, sourceActivity, sourceRecords, sourceWorkspace] = await Promise.all([
+      const [activities, variants, today, pendingProposals, patterns, messages, allRecords, allWorkspaces, sourceActivity, sourceRecords, sourceWorkspace] = await Promise.all([
         db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE user_id = ? ORDER BY title`).bind(candidate.userId).all(),
         db.prepare(`SELECT id, activity_id AS activityId, name, description, default_duration_minutes AS defaultDurationMinutes FROM activity_variants WHERE user_id = ? AND archived_at IS NULL ORDER BY activity_id, position`).bind(candidate.userId).all(),
         db.prepare(`
@@ -292,12 +317,68 @@ export async function GET(request: Request) {
         db.prepare(`SELECT id, status, document_json AS documentJson FROM schedule_proposals WHERE user_id = ? AND status IN ('draft', 'awaiting_clarification', 'ready') ORDER BY created_at DESC LIMIT 5`).bind(candidate.userId).all(),
         readSchedulePatterns(candidate.userId, routine.id),
         readConversationMessages(candidate.conversationId),
+        db.prepare(`
+          SELECT activity_id AS activityId, activity_variant_id AS activityVariantId,
+                 record_key AS recordKey, subject_key AS subjectKey, record_type AS type,
+                 title, scope, scope_date AS scopeDate, payload_json AS payloadJson
+          FROM activity_records
+          WHERE user_id = ? AND archived_at IS NULL
+          ORDER BY activity_id, activity_variant_id, record_type, record_key
+        `).bind(candidate.userId).all<{
+          activityId: string; activityVariantId: string | null; recordKey: string; subjectKey: string | null;
+          type: string; title: string; scope: string; scopeDate: string | null; payloadJson: string;
+        }>(),
+        db.prepare(`
+          SELECT workspace.activity_id AS activityId,
+                 workspace.activity_variant_id AS activityVariantId,
+                 revision.document_json AS documentJson
+          FROM activity_workspaces workspace
+          JOIN workspace_revisions revision ON revision.id = workspace.current_revision_id
+          WHERE workspace.user_id = ?
+          ORDER BY workspace.activity_id, workspace.activity_variant_id
+        `).bind(candidate.userId).all<{ activityId: string; activityVariantId: string | null; documentJson: string }>(),
         candidate.activityId
           ? db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE id = ? AND user_id = ?`).bind(candidate.activityId, candidate.userId).first()
           : Promise.resolve(null),
         candidate.activityId ? readActivityRecords(candidate.activityId, localDate, candidate.activityVariantId) : Promise.resolve([]),
         candidate.activityId ? readActivityWorkspace(candidate.activityId, candidate.activityVariantId) : Promise.resolve(null),
       ]);
+      const recordKnowledge = new Map<string, Array<Record<string, unknown>>>();
+      for (const record of allRecords.results) {
+        let data: Record<string, unknown> = {};
+        try {
+          const parsed = JSON.parse(record.payloadJson) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) data = parsed as Record<string, unknown>;
+        } catch { /* Keep malformed legacy payloads out of coordinator context. */ }
+        const activityRecords = recordKnowledge.get(record.activityId) ?? [];
+        activityRecords.push({
+          key: record.recordKey,
+          subjectKey: record.subjectKey,
+          type: record.type,
+          title: record.title,
+          scope: record.scope,
+          scopeDate: record.scopeDate,
+          activityVariantId: record.activityVariantId,
+          data,
+        });
+        recordKnowledge.set(record.activityId, activityRecords);
+      }
+      const workspaceKnowledge = new Map<string, Array<Record<string, unknown>>>();
+      for (const workspace of allWorkspaces.results) {
+        let components: unknown[] = [];
+        try {
+          const parsed = JSON.parse(workspace.documentJson) as { components?: unknown[] };
+          if (Array.isArray(parsed?.components)) components = parsed.components;
+        } catch { /* Keep malformed legacy workspaces out of coordinator context. */ }
+        const activityWorkspaces = workspaceKnowledge.get(workspace.activityId) ?? [];
+        activityWorkspaces.push({ activityVariantId: workspace.activityVariantId, components });
+        workspaceKnowledge.set(workspace.activityId, activityWorkspaces);
+      }
+      const activityKnowledge = activities.results.map((activity) => ({
+        ...activity,
+        records: recordKnowledge.get(String(activity.id)) ?? [],
+        workspaces: workspaceKnowledge.get(String(activity.id)) ?? [],
+      }));
       const sourceMessage = candidate.sourceMessageId ? messages.find((message) => message.id === candidate.sourceMessageId) ?? null : null;
       await db.prepare("UPDATE agent_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND lease_token = ?")
         .bind(candidate.id, leaseToken).run();
@@ -311,6 +392,7 @@ export async function GET(request: Request) {
           settings: { dayTimelineEnabled: Boolean(setting?.dayTimelineEnabled) },
           routine: { revision: routine.revision, startMinutes: routine.startMinutes },
           activities: activities.results,
+          activityKnowledge,
           variants: variants.results,
           patterns: patterns.map(({ pattern, state }) => ({ ...pattern, state })),
           today: today.results,
@@ -417,6 +499,7 @@ export async function GET(request: Request) {
         recentRuns: runs.results,
         recentMessages: messages.slice(-30),
         sourceMessage,
+        delegationInstruction: candidate.delegationInstruction,
       },
     });
   } catch (error) {
@@ -474,7 +557,8 @@ export async function POST(request: Request) {
       SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
              activity_variant_id AS activityVariantId, day_plan_id AS dayPlanId,
              day_revision AS dayRevision, conversation_id AS conversationId,
-             kind, attempts, source_message_id AS sourceMessageId
+             kind, attempts, source_message_id AS sourceMessageId,
+             delegation_instruction AS delegationInstruction
       FROM agent_jobs WHERE id = ? AND lease_token = ? AND status = 'running'
     `).bind(jobId, leaseToken).first<{
       id: string;
@@ -524,7 +608,9 @@ export async function POST(request: Request) {
       const workspaceFollowup = job.kind === "user_message"
         && requestedWorkspaceFollowup
         && !scheduleOnlyRequest;
-      const usesReplyFirstProtocol = job.kind === "user_message" && typeof payload.workspaceFollowup === "boolean";
+      const globalFollowup = job.kind === "global_message" && payload.workspaceFollowup === true;
+      const usesReplyFirstProtocol = (job.kind === "user_message" || job.kind === "global_message")
+        && typeof payload.workspaceFollowup === "boolean";
       const runtimeSessionId = typeof payload.runtimeSessionId === "string" ? payload.runtimeSessionId.trim().slice(0, 240) : "";
       if (!runtimeSessionId) return Response.json({ error: "A runtime session is required." }, { status: 400 });
       if (job.kind === "follow_up" && !response) return Response.json({ error: "A due follow-up requires a Luna question." }, { status: 400 });
@@ -590,6 +676,12 @@ export async function POST(request: Request) {
         const captureSource = Array.isArray(payload.captureActions) ? payload.captureActions.slice(0, 20) : [];
         const captureActions = validateCaptureActions(captureSource);
         if (captureActions.length !== captureSource.length) return Response.json({ error: "A captured item did not pass validation." }, { status: 400 });
+        const ownedActivities = await db.prepare("SELECT id FROM activities WHERE user_id = ?").bind(job.userId).all<{ id: string }>();
+        const activityWorkRequests = validateActivityWorkRequests(
+          job.kind === "global_refresh" ? payload.activityWorkRequests : [],
+          new Set(ownedActivities.results.map((activity) => activity.id)),
+        );
+        if (!activityWorkRequests) return Response.json({ error: "An activity handoff did not pass validation." }, { status: 400 });
         if (occurrenceActions.some((action) => action?.type === "set_status" && action.status === "completed")) {
           return Response.json({ error: "Luna cannot mark an activity complete." }, { status: 400 });
         }
@@ -602,8 +694,8 @@ export async function POST(request: Request) {
             return Response.json({ error: "The schedule changed while Luna was preparing this proposal. Please ask her to refresh it." }, { status: 409 });
           }
         }
-        if (!response && !followUpBody && !proposal && !directScheduleActions.length && !occurrenceActions.length && !captureActions.length) {
-          return Response.json({ error: "Global Luna must respond, clarify, capture an open item, propose, or make one permitted day change." }, { status: 400 });
+        if (!response && !followUpBody && !proposal && !directScheduleActions.length && !occurrenceActions.length && !captureActions.length && !activityWorkRequests.length && !globalFollowup) {
+          return Response.json({ error: "Global Luna must respond, delegate, clarify, capture an open item, propose, or make one permitted day change." }, { status: 400 });
         }
         let scheduleReceipt: WorkReceiptDraft | null = null;
         for (const action of directScheduleActions) {
@@ -670,6 +762,31 @@ export async function POST(request: Request) {
             (id, conversation_id, role, body, source, agent_job_id)
           VALUES (?, ?, 'luna', ?, 'agent', ?)
         `).bind(messageId, job.conversationId, finalResponse, jobId));
+        if (globalFollowup) {
+          const refreshJobId = `agent-job:${safeId(job.userId)}:global-refresh:${safeId(job.id)}`;
+          statements.push(db.prepare(`
+            INSERT OR IGNORE INTO agent_jobs
+              (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key, source_message_id)
+            VALUES (?, ?, 'global', NULL, ?, 'global_refresh', ?, ?)
+          `).bind(refreshJobId, job.userId, job.conversationId, `global-refresh:${job.id}`, job.sourceMessageId));
+        }
+        for (const [index, request] of activityWorkRequests.entries()) {
+          const activityJobId = `agent-job:${safeId(job.userId)}:global-activity:${safeId(job.id)}:${safeId(request.activityId)}`;
+          statements.push(db.prepare(`
+            INSERT OR IGNORE INTO agent_jobs
+              (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key,
+               source_message_id, delegation_instruction)
+            VALUES (?, ?, 'activity', ?, ?, 'workspace_refresh', ?, ?, ?)
+          `).bind(
+            activityJobId,
+            job.userId,
+            request.activityId,
+            job.conversationId,
+            `global-activity:${job.id}:${index}:${request.activityId}`,
+            job.sourceMessageId,
+            request.instruction,
+          ));
+        }
         if (scheduleReceipt) statements.push(workReceiptStatement(db, { job, receipt: scheduleReceipt }));
         statements.push(
           db.prepare(`
@@ -692,6 +809,8 @@ export async function POST(request: Request) {
           scheduleActionsApplied: directScheduleActions.length,
           occurrenceActionsApplied: occurrenceActions.length,
           capturesApplied: captureActions.length,
+          activityWorkRequestsApplied: activityWorkRequests.length,
+          globalFollowup,
         });
       }
       if (!job.activityId) return Response.json({ error: "An activity job is missing its activity." }, { status: 409 });
