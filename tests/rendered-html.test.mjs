@@ -504,6 +504,14 @@ test("keeps universal scheduling behind typed, auditable boundaries", async () =
   assert.match(occurrenceActions, /action\.status === "completed"[\s\S]*plan_role = 'extra'[\s\S]*COALESCE\(activated_at, CURRENT_TIMESTAMP\)/);
   assert.match(proposalService, /schedule_action_events/);
   assert.match(proposalService, /stale_revision/);
+  assert.match(proposalService, /unresolvedPlanRoleStatements/);
+  assert.match(proposalService, /AND plan_role <> \?/);
+  assert.match(proposalService, /completed_at IS NULL AND skipped_at IS NULL AND removed_at IS NULL/);
+  assert.ok(
+    proposalService.indexOf("unresolvedPlanRoleStatements(db, action.patternId, pattern)")
+      < proposalService.indexOf('patternStatements(db, userId, routine.id, action.patternId, "", pattern, "replace"'),
+    "dated role snapshots must update before replacement removes their original step ids",
+  );
   assert.match(lunaRoute, /ensureGlobalConversation/);
   assert.match(manager, /Manage routine/);
   assert.match(manager, /Your plan/);

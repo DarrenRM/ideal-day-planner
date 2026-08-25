@@ -63,6 +63,21 @@ function patternStatements(db: ReturnType<typeof getD1>, userId: string, routine
   return statements;
 }
 
+function unresolvedPlanRoleStatements(
+  db: ReturnType<typeof getD1>,
+  patternId: string,
+  pattern: Omit<SchedulePattern, "id" | "revision">,
+) {
+  return pattern.steps.map((step) => db.prepare(`
+    UPDATE daily_plan_items
+    SET plan_role = ?, activated_at = NULL, revision = revision + 1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE schedule_pattern_id = ? AND schedule_pattern_step_id = ?
+      AND plan_role <> ?
+      AND completed_at IS NULL AND skipped_at IS NULL AND removed_at IS NULL
+  `).bind(step.planRole, patternId, step.id, step.planRole));
+}
+
 export async function applyScheduleProposal(userId: string, proposalId: string) {
   const db = getD1();
   const proposalRow = await db.prepare(`
@@ -239,7 +254,11 @@ export async function applyScheduleProposal(userId: string, proposalId: string) 
       const patternId = `schedule-pattern:${safeId(userId)}:${safeId(action.clientKey)}`;
       statements.push(...patternStatements(db, userId, routine.id, patternId, action.clientKey, resolvePattern(action.pattern), "create"));
     } else if (action.type === "replace_pattern") {
-      statements.push(...patternStatements(db, userId, routine.id, action.patternId, "", resolvePattern(action.pattern), "replace", action.expectedRevision));
+      const pattern = resolvePattern(action.pattern);
+      // Existing dated occurrences still point at the pre-replacement step ids, so
+      // synchronize changed commitment roles before replacing the pattern steps.
+      statements.push(...unresolvedPlanRoleStatements(db, action.patternId, pattern));
+      statements.push(...patternStatements(db, userId, routine.id, action.patternId, "", pattern, "replace", action.expectedRevision));
     } else if (action.type === "archive_pattern") {
       statements.push(db.prepare(`
         UPDATE schedule_patterns SET archived_at = CURRENT_TIMESTAMP, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
