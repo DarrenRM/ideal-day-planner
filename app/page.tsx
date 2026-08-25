@@ -2917,8 +2917,12 @@ export default function Home() {
         initialDraft={globalLunaDraft}
         open={isGlobalLunaOpen}
         onClose={() => setIsGlobalLunaOpen(false)}
-        onOpenActivity={(activityId, origin) => {
-          const item = items.find((candidate) => (candidate.activityId ?? candidate.id) === activityId);
+        onOpenActivity={(target, origin) => {
+          const item = items.find((candidate) => (
+            candidate.activityId === target.activityClientKey
+            || candidate.activityId === target.activityId
+            || candidate.id === target.activityId
+          ));
           if (item) openActivity(item.id, origin);
         }}
         onDraftConsumed={() => setGlobalLunaDraft("")}

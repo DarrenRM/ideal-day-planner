@@ -561,14 +561,17 @@ export async function readConversationMessages(conversationId: string) {
 
 export async function readConversationArtifacts(conversationId: string) {
   const result = await getD1().prepare(`
-    SELECT id, activity_id AS activityId, kind, title, detail, meta_json AS metaJson, viewed_at AS viewedAt,
-           source_agent_job_id AS sourceAgentJobId, created_at AS createdAt
-    FROM conversation_artifacts
-    WHERE conversation_id = ?
-    ORDER BY created_at ASC, id ASC
+    SELECT artifact.id, artifact.activity_id AS activityId, activity.client_key AS activityClientKey,
+           artifact.kind, artifact.title, artifact.detail, artifact.meta_json AS metaJson,
+           artifact.viewed_at AS viewedAt, artifact.source_agent_job_id AS sourceAgentJobId,
+           artifact.created_at AS createdAt
+    FROM conversation_artifacts artifact
+    LEFT JOIN activities activity ON activity.id = artifact.activity_id
+    WHERE artifact.conversation_id = ?
+    ORDER BY artifact.created_at ASC, artifact.id ASC
     LIMIT 200
   `).bind(conversationId).all<{
-    id: string; activityId: string | null; kind: string; title: string; detail: string; metaJson: string;
+    id: string; activityId: string | null; activityClientKey: string | null; kind: string; title: string; detail: string; metaJson: string;
     viewedAt: string | null; sourceAgentJobId: string; createdAt: string;
   }>();
   return result.results.map((artifact) => {

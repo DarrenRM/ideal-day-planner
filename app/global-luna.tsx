@@ -8,6 +8,7 @@ type LunaMessage = { id: string; author: "user" | "luna"; body: string; createdA
 type LunaArtifact = {
   id: string;
   activityId: string | null;
+  activityClientKey: string | null;
   kind: string;
   title: string;
   detail: string;
@@ -57,7 +58,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   initialDraft: string;
   onDraftConsumed: () => void;
   onClose: () => void;
-  onOpenActivity: (activityId: string, origin?: DOMRect) => void;
+  onOpenActivity: (target: { activityId: string; activityClientKey: string | null }, origin?: DOMRect) => void;
   onRead: () => void;
   onScheduleChanged: () => void;
 }) {
@@ -168,7 +169,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
       setState(result);
       onClose();
       window.setTimeout(() => {
-        onOpenActivity(artifact.activityId!, origin);
+        onOpenActivity({ activityId: artifact.activityId!, activityClientKey: artifact.activityClientKey }, origin);
         setOpeningArtifactId(null);
       }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 20 : 150);
     } catch {
