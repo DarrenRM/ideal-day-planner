@@ -10,6 +10,7 @@ import {
 import { parseActivityRecord, type ActivityRecord } from "../activity-record-model";
 import { dueRecurringSteps } from "../due-recurring-step";
 import { safeId } from "./agent-store";
+import { KEEP_GOING_WINDOW_DAYS } from "../day-role";
 
 export type ResolvedDayItem = {
   id: string;
@@ -348,20 +349,17 @@ export async function resolveDay(userId: string, date: string, routineId: string
     WHERE daily_plan_id = ?
       AND plan_role = 'extra'
       AND activated_at IS NULL
-      AND 1 = (
-        SELECT CASE
-          WHEN previous.plan_role = 'extra'
-            AND previous.activated_at IS NOT NULL
-            AND previous.completed_at IS NOT NULL
-          THEN 1 ELSE 0
-        END
+      AND EXISTS (
+        SELECT 1
         FROM daily_plan_items previous
         WHERE previous.schedule_pattern_id = daily_plan_items.schedule_pattern_id
           AND previous.schedule_pattern_step_id = daily_plan_items.schedule_pattern_step_id
           AND previous.source_date < daily_plan_items.source_date
+          AND previous.source_date >= date(daily_plan_items.source_date, '-${KEEP_GOING_WINDOW_DAYS} days')
+          AND previous.plan_role = 'extra'
+          AND previous.activated_at IS NOT NULL
+          AND previous.completed_at IS NOT NULL
           AND previous.removed_at IS NULL
-        ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
-        LIMIT 1
       )
   `).bind(planId).run();
 }
@@ -383,6 +381,10 @@ export async function readResolvedDay(userId: string, planId: string) {
              WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
                AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
                AND previous.source_date < dpi.source_date
+               AND previous.source_date >= date(dpi.source_date, '-${KEEP_GOING_WINDOW_DAYS} days')
+               AND previous.plan_role = 'extra'
+               AND previous.activated_at IS NOT NULL
+               AND previous.completed_at IS NOT NULL
                AND previous.removed_at IS NULL
              ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
              LIMIT 1
@@ -393,6 +395,10 @@ export async function readResolvedDay(userId: string, planId: string) {
              WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
                AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
                AND previous.source_date < dpi.source_date
+               AND previous.source_date >= date(dpi.source_date, '-${KEEP_GOING_WINDOW_DAYS} days')
+               AND previous.plan_role = 'extra'
+               AND previous.activated_at IS NOT NULL
+               AND previous.completed_at IS NOT NULL
                AND previous.removed_at IS NULL
              ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
              LIMIT 1
@@ -403,6 +409,10 @@ export async function readResolvedDay(userId: string, planId: string) {
              WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
                AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
                AND previous.source_date < dpi.source_date
+               AND previous.source_date >= date(dpi.source_date, '-${KEEP_GOING_WINDOW_DAYS} days')
+               AND previous.plan_role = 'extra'
+               AND previous.activated_at IS NOT NULL
+               AND previous.completed_at IS NOT NULL
                AND previous.removed_at IS NULL
              ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
              LIMIT 1
@@ -413,6 +423,10 @@ export async function readResolvedDay(userId: string, planId: string) {
              WHERE previous.schedule_pattern_id = dpi.schedule_pattern_id
                AND previous.schedule_pattern_step_id = dpi.schedule_pattern_step_id
                AND previous.source_date < dpi.source_date
+               AND previous.source_date >= date(dpi.source_date, '-${KEEP_GOING_WINDOW_DAYS} days')
+               AND previous.plan_role = 'extra'
+               AND previous.activated_at IS NOT NULL
+               AND previous.completed_at IS NOT NULL
                AND previous.removed_at IS NULL
              ORDER BY previous.source_date DESC, previous.created_at DESC, previous.id DESC
              LIMIT 1

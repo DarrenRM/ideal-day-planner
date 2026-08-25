@@ -108,7 +108,7 @@ export async function POST(request: Request) {
 
     if (mode === "view_artifact") {
       const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 1024) : "";
-      if (!artifactId || !await markConversationArtifactViewed({ userId, conversationId, activityId: activity.id, artifactId })) {
+      if (!artifactId || !await markConversationArtifactViewed({ userId, conversationId, artifactId })) {
         return Response.json({ error: "That update could not be found." }, { status: 404 });
       }
       return Response.json({ viewed: true });

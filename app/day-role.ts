@@ -5,6 +5,7 @@ export const ACTIVITY_ORIGINS = ["starter", "user", "luna", "imported"] as const
 export type ActivityOrigin = typeof ACTIVITY_ORIGINS[number];
 
 export const GO_FURTHER_PREVIEW_LIMIT = 3;
+export const KEEP_GOING_WINDOW_DAYS = 3;
 
 export function normalizePlanRole(value: unknown): PlanRole {
   return value === "extra" ? "extra" : "essential";

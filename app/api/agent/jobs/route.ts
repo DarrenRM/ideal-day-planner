@@ -54,7 +54,7 @@ function workReceiptStatement(db: ReturnType<typeof getD1>, input: {
     `conversation-artifact:${safeId(input.job.id)}`,
     input.job.userId,
     input.job.conversationId,
-    input.job.activityId,
+    input.job.activityId ?? input.receipt.targetActivityId ?? null,
     input.job.sourceMessageId,
     input.job.id,
     input.receipt.kind,
@@ -655,9 +655,6 @@ export async function POST(request: Request) {
         if (proposal && directScheduleActions.length) {
           return Response.json({ error: "A schedule update cannot be both immediate and proposed." }, { status: 400 });
         }
-        if (directScheduleActions.length && !messageHasScheduleIntent(sourceMessage?.body || "")) {
-          return Response.json({ error: "A direct schedule change requires an explicit user request." }, { status: 400 });
-        }
         if (directScheduleAction && job.activityId && directScheduleAction.activityId !== job.activityId) {
           return Response.json({ error: "An activity conversation can only apply its own cadence directly." }, { status: 400 });
         }
@@ -676,6 +673,13 @@ export async function POST(request: Request) {
         const handledOutcomes = validateHandledOutcomes(payload.handledOutcomes, storedRequestPlan);
         if (!handledOutcomes) {
           return Response.json({ error: "Terra did not account for every outcome in the user's request." }, { status: 400 });
+        }
+        if (directScheduleActions.length && (
+          !sourceMessage
+          || storedRequestPlan?.kind !== "durable_work"
+          || !handledOutcomes.some((outcome) => outcome.via === "schedule_change")
+        )) {
+          return Response.json({ error: "A direct schedule change requires a semantically confirmed user request." }, { status: 400 });
         }
         const availableOutcomeChannels = new Set<HandledOutcome["via"]>();
         if (response) availableOutcomeChannels.add("message");
@@ -706,8 +710,8 @@ export async function POST(request: Request) {
         let scheduleReceipt: WorkReceiptDraft | null = null;
         for (const action of directScheduleActions) {
           const [activity, pattern] = await Promise.all([
-            db.prepare("SELECT title FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
-              .bind(action.activityId, job.userId).first<{ title: string }>(),
+            db.prepare("SELECT title, client_key AS clientKey FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
+              .bind(action.activityId, job.userId).first<{ title: string; clientKey: string }>(),
             db.prepare("SELECT cadence_json AS cadenceJson FROM schedule_patterns WHERE id = ? AND user_id = ? LIMIT 1")
               .bind(action.patternId, job.userId).first<{ cadenceJson: string }>(),
           ]);
@@ -722,8 +726,15 @@ export async function POST(request: Request) {
             sourceAgentJobId: job.id,
             idempotencyKey: `direct-schedule:${job.id}`,
           });
-          scheduleReceipt = scheduleWorkReceipt({
+          scheduleReceipt = scheduleWorkReceipt(action.type === "set_pattern_step_role" ? {
             activityTitle: activity?.title || "Activity",
+            activityId: action.activityId,
+            activityClientKey: activity?.clientKey,
+            planRole: action.planRole,
+          } : {
+            activityTitle: activity?.title || "Activity",
+            activityId: action.activityId,
+            activityClientKey: activity?.clientKey,
             previousCadence,
             cadence: action.cadence,
           });

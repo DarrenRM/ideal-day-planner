@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, normalizeActivityOrigin, normalizePlanRole, partitionDayItems } from "../app/day-role.ts";
+import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, KEEP_GOING_WINDOW_DAYS, normalizeActivityOrigin, normalizePlanRole, partitionDayItems } from "../app/day-role.ts";
 
 test("keeps activity origin separate from the dated commitment role", () => {
   assert.equal(normalizeActivityOrigin("starter"), "starter");
@@ -24,6 +24,7 @@ test("promotes activated and eligible Keep it going extras into today's active l
   assert.deepEqual(result.keepGoing.map((item) => item.id), ["continued"]);
   assert.deepEqual(result.availableExtras.map((item) => item.id), ["walk"]);
   assert.equal(GO_FURTHER_PREVIEW_LIMIT, 3);
+  assert.equal(KEEP_GOING_WINDOW_DAYS, 3);
 });
 
 test("activated extras expand today's progress denominator without changing the essential count", () => {

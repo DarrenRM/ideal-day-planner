@@ -91,6 +91,16 @@ export type DirectScheduleAction = {
   cadence: ScheduleCadence;
   effectiveDate: string;
   summary: string;
+} | {
+  type: "set_pattern_step_role";
+  baseRevision: number;
+  activityId: string;
+  patternId: string;
+  stepId: string;
+  expectedRevision: number;
+  planRole: "essential" | "extra";
+  effectiveDate: string;
+  summary: string;
 };
 
 const LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -495,12 +505,11 @@ export function parseScheduleProposal(value: unknown): ScheduleProposalDocument 
 
 export function parseDirectScheduleAction(value: unknown): DirectScheduleAction | null {
   const source = recordValue(value);
-  if (!source || source.type !== "set_pattern_cadence") return null;
+  if (!source || source.type !== "set_pattern_cadence" && source.type !== "set_pattern_step_role") return null;
   const baseRevision = boundedInteger(source.baseRevision, 1, Number.MAX_SAFE_INTEGER);
   const activityId = boundedText(source.activityId, 200);
   const patternId = boundedText(source.patternId, 200);
   const expectedRevision = boundedInteger(source.expectedRevision, 1, Number.MAX_SAFE_INTEGER);
-  const cadence = parseCadence(source.cadence);
   const effectiveDate = isLocalDate(source.effectiveDate) ? source.effectiveDate : null;
   const summary = boundedText(source.summary, 240);
   if (
@@ -508,10 +517,27 @@ export function parseDirectScheduleAction(value: unknown): DirectScheduleAction 
     || !activityId || !SAFE_ID.test(activityId)
     || !patternId || !SAFE_ID.test(patternId)
     || expectedRevision === null
-    || !cadence
     || !effectiveDate
     || !summary
   ) return null;
+  if (source.type === "set_pattern_step_role") {
+    const stepId = boundedText(source.stepId, 200);
+    const planRole = source.planRole === "essential" || source.planRole === "extra" ? source.planRole : null;
+    if (!stepId || !SAFE_ID.test(stepId) || !planRole) return null;
+    return {
+      type: "set_pattern_step_role",
+      baseRevision,
+      activityId,
+      patternId,
+      stepId,
+      expectedRevision,
+      planRole,
+      effectiveDate,
+      summary,
+    };
+  }
+  const cadence = parseCadence(source.cadence);
+  if (!cadence) return null;
   return {
     type: "set_pattern_cadence",
     baseRevision,

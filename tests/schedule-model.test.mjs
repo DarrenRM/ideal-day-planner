@@ -207,6 +207,24 @@ test("validates a narrow direct cadence change without accepting a partial targe
   assert.equal(parseDirectScheduleAction({ ...action, cadence: { kind: "interval_days", every: 0, anchorDate: "2026-08-23" } }), null);
 });
 
+test("validates a direct commitment-role change with an exact pattern step", () => {
+  const action = parseDirectScheduleAction({
+    type: "set_pattern_step_role",
+    baseRevision: 8,
+    activityId: "activity:bed-routine",
+    patternId: "pattern:bed-routine",
+    stepId: "step:bed-routine",
+    expectedRevision: 2,
+    planRole: "essential",
+    effectiveDate: "2026-08-25",
+    summary: "Make Bed Routine essential",
+  });
+  assert.equal(action?.type, "set_pattern_step_role");
+  assert.equal(action?.planRole, "essential");
+  assert.equal(parseDirectScheduleAction({ ...action, stepId: "" }), null);
+  assert.equal(parseDirectScheduleAction({ ...action, planRole: "priority" }), null);
+});
+
 test("validates proposal-owned activities, variants, and an explicit dated occurrence", () => {
   const proposed = parseScheduleProposal({
     baseRevision: 7,

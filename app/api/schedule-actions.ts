@@ -35,6 +35,18 @@ export async function applyDirectScheduleAction(
   `).bind(userId).first<{ id: string; revision: number; startMinutes: number }>();
   if (!routine) throw new Error("Your routine is not ready yet.");
   const reconcileEffectiveDate = async () => {
+    if (action.type === "set_pattern_step_role") {
+      await db.prepare(`
+        UPDATE daily_plan_items
+        SET plan_role = ?, activated_at = NULL, revision = revision + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE schedule_pattern_id = ? AND schedule_pattern_step_id = ?
+          AND source_date >= ? AND completed_at IS NULL AND skipped_at IS NULL
+          AND removed_at IS NULL AND plan_role <> ?
+      `).bind(action.planRole, action.patternId, action.stepId, action.effectiveDate, action.planRole).run();
+      await resolveDay(userId, action.effectiveDate, routine.id, `plan:${safeId(userId)}:${action.effectiveDate}`, routine.startMinutes);
+      return;
+    }
     if (cadenceTriggers(action.cadence, action.effectiveDate, action.effectiveDate)) {
       await resolveDay(userId, action.effectiveDate, routine.id, `plan:${safeId(userId)}:${action.effectiveDate}`, routine.startMinutes);
     } else {
@@ -58,22 +70,64 @@ export async function applyDirectScheduleAction(
   const pattern = await db.prepare(`
     SELECT pattern.id, pattern.revision,
            COUNT(step.id) AS stepCount,
-           SUM(CASE WHEN step.activity_id = ? THEN 1 ELSE 0 END) AS matchingSteps
+           SUM(CASE WHEN step.activity_id = ? THEN 1 ELSE 0 END) AS matchingSteps,
+           SUM(CASE WHEN step.id = ? AND step.activity_id = ? THEN 1 ELSE 0 END) AS matchingTargetSteps
     FROM schedule_patterns pattern
     JOIN schedule_pattern_steps step ON step.pattern_id = pattern.id
     WHERE pattern.id = ? AND pattern.user_id = ? AND pattern.routine_id = ?
       AND pattern.archived_at IS NULL
     GROUP BY pattern.id, pattern.revision
-  `).bind(action.activityId, action.patternId, userId, routine.id).first<{
+  `).bind(action.activityId, action.type === "set_pattern_step_role" ? action.stepId : "", action.activityId, action.patternId, userId, routine.id).first<{
     id: string;
     revision: number;
     stepCount: number;
     matchingSteps: number;
+    matchingTargetSteps: number;
   }>();
   if (!pattern) throw new Error("That schedule is no longer available.");
   if (pattern.revision !== action.expectedRevision) throw new Error("That schedule changed while Luna was preparing this update.");
-  if (Number(pattern.stepCount) !== 1 || Number(pattern.matchingSteps) !== 1) {
+  if (action.type === "set_pattern_cadence" && (Number(pattern.stepCount) !== 1 || Number(pattern.matchingSteps) !== 1)) {
     throw new Error("This change affects a rotation and needs review before it can be applied.");
+  }
+  if (action.type === "set_pattern_step_role" && Number(pattern.matchingTargetSteps) !== 1) {
+    throw new Error("That activity role is no longer available to change.");
+  }
+
+  if (action.type === "set_pattern_step_role") {
+    await db.batch([
+      db.prepare(`
+        UPDATE schedule_pattern_steps
+        SET plan_role = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND pattern_id = ? AND activity_id = ?
+      `).bind(action.planRole, action.stepId, action.patternId, action.activityId),
+      db.prepare(`
+        UPDATE schedule_patterns SET revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND routine_id = ? AND revision = ? AND archived_at IS NULL
+      `).bind(action.patternId, userId, routine.id, action.expectedRevision),
+      db.prepare(`
+        UPDATE routine_templates
+        SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ? AND schedule_revision = ?
+      `).bind(routine.id, userId, action.baseRevision),
+      db.prepare(`
+        INSERT INTO schedule_action_events
+          (id, user_id, conversation_id, source_message_id, source_agent_job_id,
+           action_type, action_json, source, actor, idempotency_key)
+        VALUES (?, ?, ?, ?, ?, 'set_pattern_step_role', ?, ?, ?, ?)
+      `).bind(
+        `schedule-event:${safeId(userId)}:${safeId(source.idempotencyKey)}`,
+        userId,
+        source.conversationId ?? null,
+        source.sourceMessageId ?? null,
+        source.sourceAgentJobId ?? null,
+        JSON.stringify(action),
+        source.source,
+        source.actor,
+        source.idempotencyKey,
+      ),
+    ]);
+    await reconcileEffectiveDate();
+    return { action, idempotent: false, revision: action.expectedRevision + 1 };
   }
 
   const anchorDate = action.cadence.kind === "interval_days" ? action.cadence.anchorDate : action.effectiveDate;

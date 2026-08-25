@@ -123,7 +123,9 @@ test("the coordinator is instructed to preserve every part of a combined request
     },
   });
   assert.match(globalInstructions, /Satisfy every explicit clause/);
-  assert.match(globalInstructions, /activityWorkRequests and a ScheduleProposal together/);
+  assert.match(globalInstructions, /activityWorkRequests and a direct schedule action together/);
+  assert.match(globalInstructions, /Do not turn an explicit user instruction into a proposal/);
+  assert.match(globalInstructions, /set_pattern_step_role/);
   assert.match(globalInstructions, /currently owns the subject/);
   assert.match(globalInstructions, /every numbered outcome must be resolved/);
   assert.match(globalMessageInstructions, /Preserve compound intent/);
@@ -194,6 +196,8 @@ test("root receipts can open long delegated artifact IDs and transition into the
   assert.match(drawer, /activityClientKey: artifact\.activityClientKey/);
   assert.match(drawer, /artifact\.meta\?\.targetActivityId/);
   assert.match(drawer, /artifact\.meta\.targetActivityClientKey/);
+  assert.match(lunaRoute, /markConversationArtifactViewed\(\{ userId, conversationId, artifactId \}\)/);
+  assert.match(page, /receiptPreviewActivityId/);
   assert.match(page, /candidate\.activityId === target\.activityClientKey/);
   assert.match(page, /openActivity\(item\.id, origin\)/);
 });

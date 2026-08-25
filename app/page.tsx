@@ -1461,6 +1461,7 @@ export default function Home() {
   const [realMinutes, setRealMinutes] = useState(minutesNow);
   const [fakeMinutes, setFakeMinutes] = useState<number | null>(DEFAULT_DEV_MINUTES);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
+  const [receiptPreviewActivityId, setReceiptPreviewActivityId] = useState<string | null>(null);
   const [mobileActivityTransition, setMobileActivityTransition] = useState<MobileActivityTransition | null>(null);
   const [startConversationActivityId, setStartConversationActivityId] = useState<string | null>(null);
   const [dismissedClockActivityId, setDismissedClockActivityId] = useState<string | null>(null);
@@ -1748,6 +1749,12 @@ export default function Home() {
   }, [dayStartedAt, items]);
 
   const { active: activeDayItems, keepGoing: keepGoingItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
+  const renderedDayItems = useMemo(() => {
+    const preview = receiptPreviewActivityId
+      ? availableExtras.find((item) => item.id === receiptPreviewActivityId)
+      : null;
+    return preview ? [...activeDayItems, preview] : activeDayItems;
+  }, [activeDayItems, availableExtras, receiptPreviewActivityId]);
   const keepGoingItemIds = useMemo(() => new Set(keepGoingItems.map((item) => item.id)), [keepGoingItems]);
   const attentionByActivity = useMemo(() => captureAttention.reduce<Map<string, CaptureAttention[]>>((map, capture) => {
     const entries = map.get(capture.activityId) ?? [];
@@ -1765,12 +1772,12 @@ export default function Home() {
   const visibleAttentionExtras = attentionExtras.filter((item) => visibleGoFurtherIds.has(item.id));
 
   const scheduledItems = useMemo(() => {
-    return activeDayItems.reduce<{ cursor: number; scheduled: ScheduledItem[] }>((state, item) => {
+    return renderedDayItems.reduce<{ cursor: number; scheduled: ScheduledItem[] }>((state, item) => {
       const consumesScheduleTime = !item.skippedAt && !completedBeforeLaunchIds.has(item.id);
       const scheduled = { ...item, start: state.cursor, end: state.cursor + (consumesScheduleTime ? item.duration : 0) };
       return { cursor: scheduled.end, scheduled: [...state.scheduled, scheduled] };
     }, { cursor: startMinutes, scheduled: [] }).scheduled;
-  }, [activeDayItems, completedBeforeLaunchIds, startMinutes]);
+  }, [renderedDayItems, completedBeforeLaunchIds, startMinutes]);
 
   const totalMinutes = useMemo(
     () => activeDayItems.reduce((total, item) => total + (item.skippedAt ? 0 : item.duration), 0),
@@ -1918,7 +1925,7 @@ export default function Home() {
     }
   }
 
-  async function reloadToday() {
+  async function reloadToday(): Promise<RoutineItem[] | null> {
     try {
       const response = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Today could not be refreshed.");
@@ -1929,8 +1936,10 @@ export default function Home() {
       setCompletedIds(new Set(refreshedItems.filter((item) => item.completedAt).map((item) => item.id)));
       setDayHighlight(normalizeDayHighlight(day.highlight));
       setSaveState("saved");
+      return refreshedItems;
     } catch {
       setSaveState("retrying");
+      return null;
     }
   }
 
@@ -2479,6 +2488,7 @@ export default function Home() {
 
   function collapseActivity() {
     setMobileActivityMenuId(null);
+    setReceiptPreviewActivityId(null);
     clearMobileActivityTransitionTimer();
 
     const origin = mobileActivityOriginRef.current;
@@ -2928,13 +2938,27 @@ export default function Home() {
         initialDraft={globalLunaDraft}
         open={isGlobalLunaOpen}
         onClose={() => setIsGlobalLunaOpen(false)}
-        onOpenActivity={(target, origin) => {
-          const item = items.find((candidate) => (
+        onOpenActivity={async (target, origin) => {
+          let currentItems = items;
+          let item = currentItems.find((candidate) => (
             candidate.activityId === target.activityClientKey
             || candidate.activityId === target.activityId
             || candidate.id === target.activityId
           ));
-          if (item) openActivity(item.id, origin);
+          if (!item) {
+            currentItems = await reloadToday() ?? currentItems;
+            item = currentItems.find((candidate) => (
+              candidate.activityId === target.activityClientKey
+              || candidate.activityId === target.activityId
+              || candidate.id === target.activityId
+            ));
+          }
+          if (!item) return false;
+          const isUnselectedExtra = normalizePlanRole(item.planRole) === "extra"
+            && !item.activatedAt && !item.completedAt && !item.skippedAt;
+          setReceiptPreviewActivityId(isUnselectedExtra ? item.id : null);
+          openActivity(item.id, origin);
+          return true;
         }}
         onDraftConsumed={() => setGlobalLunaDraft("")}
         onRead={() => setLunaSummary((current) => ({ ...current, unreadCount: 0 }))}

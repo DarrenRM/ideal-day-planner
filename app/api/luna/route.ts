@@ -61,9 +61,8 @@ export async function POST(request: Request) {
     }
     if (payload.mode === "view-artifact") {
       const artifactId = typeof payload.artifactId === "string" ? payload.artifactId.trim().slice(0, 1024) : "";
-      const activityId = typeof payload.activityId === "string" ? payload.activityId.trim().slice(0, 240) : "";
-      if (!artifactId || !activityId) return Response.json({ error: "That update could not be opened." }, { status: 400 });
-      const viewed = await markConversationArtifactViewed({ userId, conversationId, activityId, artifactId });
+      if (!artifactId) return Response.json({ error: "That update could not be opened." }, { status: 400 });
+      const viewed = await markConversationArtifactViewed({ userId, conversationId, artifactId });
       if (!viewed) return Response.json({ error: "That update could not be found." }, { status: 404 });
       return Response.json(await state(conversationId, userId));
     }

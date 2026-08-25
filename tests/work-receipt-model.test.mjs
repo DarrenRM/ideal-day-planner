@@ -16,6 +16,22 @@ test("describes a committed cadence change with the activity name", () => {
   });
 });
 
+test("describes a committed role change and links to the affected activity", () => {
+  assert.deepEqual(scheduleWorkReceipt({
+    activityTitle: "Bed Routine",
+    activityId: "activity:bed",
+    activityClientKey: "bed-routine",
+    planRole: "essential",
+  }), {
+    kind: "schedule_update",
+    title: "Bed Routine is now essential",
+    detail: "It now counts toward your essential daily set.",
+    target: "workspace",
+    targetActivityId: "activity:bed",
+    targetActivityClientKey: "bed-routine",
+  });
+});
+
 test("summarizes actual record changes and a check-in without internal language", () => {
   assert.deepEqual(activityWorkReceipt({
     activityTitle: "Hair Routine",

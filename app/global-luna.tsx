@@ -59,7 +59,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   initialDraft: string;
   onDraftConsumed: () => void;
   onClose: () => void;
-  onOpenActivity: (target: { activityId: string; activityClientKey: string | null }, origin?: DOMRect) => void;
+  onOpenActivity: (target: { activityId: string; activityClientKey: string | null }, origin?: DOMRect) => boolean | Promise<boolean>;
   onRead: () => void;
   onScheduleChanged: () => void;
 }) {
@@ -154,13 +154,13 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   }, [open, state.messages.length, state.artifacts.length, state.activeJob, state.proposals.length, state.captures.length, onClose]);
 
   async function viewArtifact(artifact: LunaArtifact, origin?: DOMRect) {
-    if (!artifact.activityId || openingArtifactId) return;
+    if ((!artifact.activityId && !artifact.meta?.targetActivityId) || openingArtifactId) return;
     setOpeningArtifactId(artifact.id);
     try {
       const response = await fetch("/api/luna", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "view-artifact", artifactId: artifact.id, activityId: artifact.activityId }),
+        body: JSON.stringify({ mode: "view-artifact", artifactId: artifact.id }),
       });
       if (!response.ok) {
         setOpeningArtifactId(null);
@@ -168,15 +168,14 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
       }
       const result = await response.json() as LunaState;
       setState(result);
-      onClose();
-      window.setTimeout(() => {
-        const sourceTarget = { activityId: artifact.activityId!, activityClientKey: artifact.activityClientKey };
-        onOpenActivity(artifact.meta?.targetActivityId ? {
-          activityId: artifact.meta.targetActivityId,
-          activityClientKey: artifact.meta.targetActivityClientKey || null,
-        } : sourceTarget, origin);
-        setOpeningArtifactId(null);
-      }, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 20 : 150);
+      const sourceTarget = { activityId: artifact.activityId || "", activityClientKey: artifact.activityClientKey };
+      const target = artifact.meta?.targetActivityId ? {
+        activityId: artifact.meta.targetActivityId,
+        activityClientKey: artifact.meta.targetActivityClientKey || null,
+      } : sourceTarget;
+      const opened = await onOpenActivity(target, origin);
+      if (opened) onClose();
+      setOpeningArtifactId(null);
     } catch {
       setOpeningArtifactId(null);
     }
@@ -265,7 +264,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
             <article className={`global-luna-artifact ${entry.value.viewedAt ? "is-viewed" : "is-new"}`} key={entry.value.id}>
               <span><Sparkles aria-hidden="true" size={16} /></span>
               <div><strong>{entry.value.title}</strong>{entry.value.detail ? <small>{entry.value.detail}</small> : null}</div>
-              {entry.value.activityId ? <button disabled={Boolean(openingArtifactId)} type="button" onClick={(event) => void viewArtifact(entry.value, event.currentTarget.closest("article")?.getBoundingClientRect())}>{openingArtifactId === entry.value.id ? "Opening…" : "View"}</button> : null}
+              {entry.value.activityId || entry.value.meta?.targetActivityId ? <button disabled={Boolean(openingArtifactId)} type="button" onClick={(event) => void viewArtifact(entry.value, event.currentTarget.closest("article")?.getBoundingClientRect())}>{openingArtifactId === entry.value.id ? "Opening…" : "View"}</button> : null}
             </article>
           ))}
           {state.activeJob ? <div className="global-luna-message is-luna global-luna-typing" role="status" aria-label="Luna is typing"><div className="message-bubble prototype-typing"><span /><span /><span /></div></div> : null}

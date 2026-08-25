@@ -108,9 +108,25 @@ export function historicalWorkspaceReceipt(input: {
 
 export function scheduleWorkReceipt(input: {
   activityTitle: string;
+  activityId?: string;
+  activityClientKey?: string;
   previousCadence?: ScheduleCadence | null;
-  cadence: ScheduleCadence;
+  cadence?: ScheduleCadence;
+  planRole?: "essential" | "extra";
 }) : WorkReceiptDraft {
+  if (input.planRole) {
+    return {
+      kind: "schedule_update",
+      title: `${input.activityTitle} is now ${input.planRole === "essential" ? "essential" : "in More for today"}`,
+      detail: input.planRole === "essential"
+        ? "It now counts toward your essential daily set."
+        : "It is now available as a stretch goal.",
+      target: "workspace",
+      ...(input.activityId ? { targetActivityId: input.activityId } : {}),
+      ...(input.activityClientKey ? { targetActivityClientKey: input.activityClientKey } : {}),
+    };
+  }
+  if (!input.cadence) throw new Error("A schedule receipt needs a cadence or plan role.");
   const previous = input.previousCadence ? scheduleCadenceLabel(input.previousCadence) : "Previous schedule";
   const next = scheduleCadenceLabel(input.cadence);
   return {
@@ -118,6 +134,8 @@ export function scheduleWorkReceipt(input: {
     title: `${input.activityTitle} schedule updated`,
     detail: previous === next ? next : `${previous} → ${next}`,
     target: "workspace",
+    ...(input.activityId ? { targetActivityId: input.activityId } : {}),
+    ...(input.activityClientKey ? { targetActivityClientKey: input.activityClientKey } : {}),
   };
 }
 

@@ -589,14 +589,13 @@ export async function readConversationArtifacts(conversationId: string) {
 export async function markConversationArtifactViewed(input: {
   userId: string;
   conversationId: string;
-  activityId: string;
   artifactId: string;
 }) {
   const result = await getD1().prepare(`
     UPDATE conversation_artifacts
     SET viewed_at = COALESCE(viewed_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND user_id = ? AND conversation_id = ? AND activity_id = ?
-  `).bind(input.artifactId, input.userId, input.conversationId, input.activityId).run();
+    WHERE id = ? AND user_id = ? AND conversation_id = ?
+  `).bind(input.artifactId, input.userId, input.conversationId).run();
   return Number(result.meta.changes || 0) > 0;
 }
 
