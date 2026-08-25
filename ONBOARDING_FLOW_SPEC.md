@@ -123,10 +123,14 @@ Progress is always visible. Back preserves every answer. The primary action rema
 
 Background art sits behind the interface rather than competing with it. It is low-contrast, partially obscured by UI surfaces, and primarily visible through negative space. It should feel like an environmental mood layer, not an illustration placed behind the app. Brightness and saturation remain restrained enough that white text, tap targets, and card hierarchy stay dominant.
 
-The first prototype uses two treatments:
+The first prototype uses four related treatments so each question can have its own environmental mood without changing the interface language:
 
 - **Topographic dusk landscape** — near-black contour lines around the edges and upper area, with a low hazy mountain horizon and a muted amber, dusty mauve, violet, and charcoal dusk glow.
+- **Atmospheric current** — fine, slow current paths around a quiet central reading area, with a desaturated blue-gray, teal, and dusty-violet bloom.
 - **Abstract orbital glow** — large, subtle orbital paths across near-black, with a quiet green-gold atmospheric bloom and only a few sparse dim nodes.
+- **Mineral light veil** — broad translucent planes dissolving into warm charcoal, with restrained copper, dusty rose, smoked violet, and olive-gold light near the lower edge.
+
+The four questions use these in order: topographic dusk for priorities, atmospheric current for real-life friction, orbital glow for daily rhythm, and mineral light veil for Luna's coaching approach. All four are preloaded so moving between pages does not wait for the next background asset.
 
 Never use a stock-photo look, neon cyberpunk, obvious wallpaper, busy texture, literal motivational symbols, or more than one main visual motif on a screen. The imagery does not replace a question, explain a feature, or consume the primary reading area.
 

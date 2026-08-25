@@ -23,6 +23,18 @@ const RHYTHMS: Choice<OnboardingRhythm>[] = [
 const COACHING: Choice<OnboardingCapacity>[] = [
   { id: "gentle", title: "Keep it light", detail: "Start with 3 Essentials and protect breathing room.", icon: Feather }, { id: "balanced", title: "Find my balance", detail: "Start with 4 Essentials across care and progress.", icon: Scale }, { id: "push", title: "Challenge me", detail: "Start with 5 concrete Essentials and help me stretch.", icon: Flame },
 ];
+const ONBOARDING_MOOD_IMAGES = ["/onboarding/topographic-dusk.png", "/onboarding/atmospheric-current.png", "/onboarding/orbital-glow.png", "/onboarding/mineral-light-veil.png"] as const;
+const MOOD_BY_STAGE: Partial<Record<OnboardingStage, "dusk" | "current" | "orbital" | "veil">> = {
+  welcome: "dusk",
+  priorities: "dusk",
+  friction: "current",
+  rhythm: "orbital",
+  coaching: "veil",
+  preparing: "veil",
+  proposal: "dusk",
+  active: "orbital",
+  error: "current",
+};
 
 function localDate() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Phoenix", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const byType = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${byType.year}-${byType.month}-${byType.day}`; }
 function prettyDate(value: string) { return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)); }
@@ -47,13 +59,14 @@ export default function TestingOnboardingPage() {
   const [state, setState] = useState<TestingState | null>(null); const [answers, setAnswers] = useState<OnboardingAnswers>(emptyOnboardingAnswers()); const [proposal, setProposal] = useState<OnboardingProposal | null>(null); const [editing, setEditing] = useState<number | null>(null); const [revisionOpen, setRevisionOpen] = useState(false); const [revision, setRevision] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [showFallback, setShowFallback] = useState(false); const [noteOpen, setNoteOpen] = useState(false); const date = useMemo(() => localDate(), []);
   const load = useCallback(async () => { const response = await fetch(`/api/testing/onboarding?date=${date}`, { cache: "no-store" }); const payload = await response.json() as TestingState & { error?: string }; if (!response.ok) throw new Error(payload.error || "Onboarding could not load."); setState(payload); setAnswers(payload.session.answers); setProposal(payload.session.proposal); setNoteOpen(Boolean(payload.session.answers.note)); return payload; }, [date]);
   const act = useCallback(async (mode: string, input: Record<string, unknown> = {}) => { setBusy(true); setError(""); try { const response = await fetch("/api/testing/onboarding", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode, date, ...input }) }); const payload = await response.json() as TestingState & { error?: string }; if (!response.ok) throw new Error(payload.error || "That change did not work."); setState(payload); setAnswers(payload.session.answers); setProposal(payload.session.proposal); setNoteOpen(Boolean(payload.session.answers.note)); return payload; } catch (caught) { setError(caught instanceof Error ? caught.message : "That change did not work."); return null; } finally { setBusy(false); } }, [date]);
+  useEffect(() => { ONBOARDING_MOOD_IMAGES.forEach((src) => { const image = new Image(); image.src = src; }); }, []);
   useEffect(() => { const timer = window.setTimeout(() => { load().catch((caught) => setError(caught instanceof Error ? caught.message : "Onboarding could not load.")); }, 0); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => { if (state?.session.stage !== "preparing") return; const fallbackTimer = window.setTimeout(() => setShowFallback(true), 12000); const poll = window.setInterval(() => { load().catch(() => undefined); }, 1100); return () => { window.clearInterval(poll); window.clearTimeout(fallbackTimer); }; }, [load, state?.session.stage]);
 
   const toggleLimited = <T extends string,>(list: T[], id: T, maximum: number, exclusive?: T) => { if (id === exclusive) return list.includes(id) ? [] : [id]; const withoutExclusive = exclusive ? list.filter((item) => item !== exclusive) : list; return withoutExclusive.includes(id) ? withoutExclusive.filter((item) => item !== id) : withoutExclusive.length < maximum ? [...withoutExclusive, id] : withoutExclusive; };
   const updateCandidate = (index: number, changes: Partial<OnboardingProposal["activities"][number]>) => { if (!proposal) return; setProposal({ ...proposal, activities: proposal.activities.map((activity, itemIndex) => itemIndex === index ? { ...activity, ...changes } : activity) }); };
   const stage = state?.session.stage; const selectedCount = proposal?.activities.filter((activity) => activity.selected).length || 0; const currentEdit = editing === null ? null : proposal?.activities[editing] || null; const completed = state?.items.filter((item) => item.completedAt).length || 0;
-  const mood = ["friction", "coaching", "preparing", "active"].includes(stage || "") ? "orbital" : "dusk";
+  const mood = stage ? MOOD_BY_STAGE[stage] || "dusk" : "dusk";
 
   return <main className={`onboarding-shell onboarding-mood-${mood}`}><TestingMenu onReset={() => act("reset")} /><div className="onboarding-content">
     {!state ? <section className="onboarding-center"><span className="onboarding-kicker">IDEAL DAY</span><h1>Preparing a fresh start…</h1></section> : null}

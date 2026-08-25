@@ -34,7 +34,9 @@
 .onboarding-shell::before { background-position: center; background-size: cover; opacity: .82; transition: opacity .35s ease; }
 .onboarding-shell::after { z-index: -1; background: linear-gradient(180deg, rgba(10, 12, 15, .34), rgba(10, 12, 15, .16) 48%, rgba(10, 12, 15, .7)); }
 .onboarding-mood-dusk::before { background-image: url("/onboarding/topographic-dusk.png"); }
+.onboarding-mood-current::before { background-image: url("/onboarding/atmospheric-current.png"); }
 .onboarding-mood-orbital::before { background-image: url("/onboarding/orbital-glow.png"); }
+.onboarding-mood-veil::before { background-image: url("/onboarding/mineral-light-veil.png"); }
 .onboarding-content { width: min(100%, 680px); min-height: 100dvh; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
 .onboarding-test-menu { position: fixed; z-index: 40; top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); }
 .onboarding-icon-button { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid rgba(238, 241, 236, .14); border-radius: 11px; background: rgba(16, 19, 22, .76); color: var(--muted); backdrop-filter: blur(14px); }

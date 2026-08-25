@@ -53,6 +53,10 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /How should Luna start with you\?/);
   assert.match(page, /Choose your Essentials\./);
   assert.match(page, /Reset onboarding/);
+  assert.match(page, /priorities: "dusk"/);
+  assert.match(page, /friction: "current"/);
+  assert.match(page, /rhythm: "orbital"/);
+  assert.match(page, /coaching: "veil"/);
   assert.doesNotMatch(page, /HIGHLIGHTS|MORE FOR TODAY|stretch goals/i);
   assert.doesNotMatch(rootPage, /Reset onboarding/);
   assert.match(bridge, /six to eight candidate activities/);
