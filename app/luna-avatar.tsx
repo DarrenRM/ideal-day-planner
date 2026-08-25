@@ -26,17 +26,17 @@ type ColorStop = {
 
 const TAU = Math.PI * 2;
 const COLOR_STOPS: ColorStop[] = [
-  { at: 0, color: [94, 215, 224] },
-  { at: .11, color: [111, 128, 224] },
-  { at: .2, color: [194, 154, 230] },
-  { at: .265, color: [238, 248, 239] },
-  { at: .36, color: [239, 100, 105] },
-  { at: .48, color: [244, 187, 79] },
-  { at: .58, color: [213, 229, 118] },
-  { at: .69, color: [100, 215, 184] },
-  { at: .76, color: [226, 250, 247] },
-  { at: .86, color: [157, 176, 237] },
-  { at: 1, color: [94, 215, 224] },
+  { at: 0, color: [54, 220, 222] },
+  { at: .11, color: [89, 111, 238] },
+  { at: .2, color: [183, 103, 235] },
+  { at: .265, color: [104, 190, 238] },
+  { at: .36, color: [244, 84, 101] },
+  { at: .48, color: [250, 177, 48] },
+  { at: .58, color: [190, 229, 73] },
+  { at: .69, color: [45, 220, 169] },
+  { at: .76, color: [73, 235, 222] },
+  { at: .86, color: [139, 119, 241] },
+  { at: 1, color: [54, 220, 222] },
 ];
 
 function seededRandom(seed: number) {
@@ -128,7 +128,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
           x: centerX + Math.cos(orbital) * nodeRadius,
           y: centerY + Math.sin(orbital) * nodeRadius,
           angle: orbital,
-          fade: Math.max(0, Math.min(1, (1 - node.distance) / .12)),
+          fade: Math.max(0, Math.min(1, (1.3 - node.distance) / .18)),
           size: node.size,
         };
       });
@@ -141,7 +141,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const distance = Math.hypot(a.x - b.x, a.y - b.y);
         const threshold = radius * .275;
         if (distance > threshold) continue;
-        const opacity = (1 - distance / threshold) * .22 * energy * Math.min(a.fade, b.fade);
+        const opacity = (1 - distance / threshold) * .3 * energy * Math.min(a.fade, b.fade);
         context.beginPath();
         context.moveTo(a.x, a.y);
         context.lineTo(b.x, b.y);
@@ -152,13 +152,13 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
       for (const star of stars) {
         const distance = radius * (star.distance + Math.sin(time * .24 + star.phase) * .003);
-        const fade = Math.max(0, Math.min(1, (1 - star.distance) / .12));
+        const fade = Math.max(0, Math.min(1, (1.3 - star.distance) / .18));
         const x = centerX + Math.cos(star.angle) * distance;
         const y = centerY + Math.sin(star.angle) * distance;
         const pulse = .7 + Math.sin(time * 1.25 + star.phase) * .22;
         context.beginPath();
         context.arc(x, y, star.size * pulse * energy, 0, TAU);
-        context.fillStyle = colorAt(star.angle, .56 * energy * fade, .22);
+        context.fillStyle = colorAt(star.angle, .68 * energy * fade, .08);
         context.fill();
       }
 
@@ -167,15 +167,15 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const size = point.size * pulse * energy;
         if (size > 1.18) {
           const glow = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, size * 4.4);
-          glow.addColorStop(0, colorAt(point.angle, .5 * energy * point.fade, .5));
-          glow.addColorStop(.28, colorAt(point.angle, .2 * energy * point.fade));
+          glow.addColorStop(0, colorAt(point.angle, .62 * energy * point.fade, .28));
+          glow.addColorStop(.28, colorAt(point.angle, .28 * energy * point.fade));
           glow.addColorStop(1, colorAt(point.angle, 0));
           context.fillStyle = glow;
           context.fillRect(point.x - size * 4.4, point.y - size * 4.4, size * 8.8, size * 8.8);
         }
         context.beginPath();
         context.arc(point.x, point.y, Math.max(.3, size), 0, TAU);
-        context.fillStyle = colorAt(point.angle, .76 * energy * point.fade, .2);
+        context.fillStyle = colorAt(point.angle, .9 * energy * point.fade, .08);
         context.fill();
       }
       context.restore();
@@ -190,59 +190,32 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       context.fillStyle = glow;
       context.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 
-      const facets = 48;
+      const facets = 42;
       const spacing = TAU / facets;
-      const radialLayers = 6;
       context.save();
       context.globalCompositeOperation = "lighter";
-      for (let radialIndex = radialLayers - 1; radialIndex >= 0; radialIndex -= 1) {
-        const layerProgress = radialIndex / (radialLayers - 1);
-        const layerRadius = coreRadius + radius * (.022 + radialIndex * .034);
-        const halfRadial = radius * (.066 - layerProgress * .005);
-        const offset = radialIndex % 2 ? spacing * .48 : 0;
-        for (let index = 0; index < facets; index += 1) {
-          const facetJitter = Math.sin(index * 12.9898 + radialIndex * 78.233);
-          const angle = index * spacing + offset + facetJitter * spacing * .09;
-          const shimmer = .91 + Math.sin(index * 1.83 + radialIndex * 2.1 + time * .42) * .09;
-          const contour = apertureContour(angle, time);
-          const centerRadius = layerRadius
-            + (contour - 1) * coreRadius * (.7 - layerProgress * .3)
-            + facetJitter * radius * .007;
-          const centerPointX = centerX + Math.cos(angle) * centerRadius;
-          const centerPointY = centerY + Math.sin(angle) * centerRadius;
-          const radialX = Math.cos(angle);
-          const radialY = Math.sin(angle);
-          const tangentX = -radialY;
-          const tangentY = radialX;
-          const halfTangent = radius * (.046 + (1 - layerProgress) * .005) * (1 + facetJitter * .05);
-          const innerX = centerPointX - radialX * halfRadial;
-          const innerY = centerPointY - radialY * halfRadial;
-          const outerX = centerPointX + radialX * halfRadial;
-          const outerY = centerPointY + radialY * halfRadial;
-          const leadingX = centerPointX + tangentX * halfTangent;
-          const leadingY = centerPointY + tangentY * halfTangent;
-          const trailingX = centerPointX - tangentX * halfTangent;
-          const trailingY = centerPointY - tangentY * halfTangent;
-          const middle = 1 - Math.min(1, Math.abs(layerProgress - .5) * 1.75);
-          const baseAlpha = (.15 + middle * .085) * shimmer * energy;
+      for (let index = 0; index < facets; index += 1) {
+        const angle = index * spacing;
+        const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
+        const contour = apertureContour(angle, time);
+        const centerRadius = coreRadius + radius * .105 + (contour - 1) * coreRadius * .62;
+        const centerPointX = centerX + Math.cos(angle) * centerRadius;
+        const centerPointY = centerY + Math.sin(angle) * centerRadius;
+        const radialX = Math.cos(angle);
+        const radialY = Math.sin(angle);
+        const tangentX = -radialY;
+        const tangentY = radialX;
+        const halfRadial = radius * .14;
+        const halfTangent = radius * .14;
 
-          context.beginPath();
-          context.moveTo(innerX, innerY);
-          context.lineTo(leadingX, leadingY);
-          context.lineTo(outerX, outerY);
-          context.lineTo(trailingX, trailingY);
-          context.closePath();
-          context.fillStyle = colorAt(angle + Math.sin(time * .11) * .018, baseAlpha, .18 + middle * .24);
-          context.fill();
-
-          context.beginPath();
-          context.moveTo(innerX, innerY);
-          context.lineTo(leadingX, leadingY);
-          context.lineTo(outerX, outerY);
-          context.closePath();
-          context.fillStyle = colorAt(angle - spacing * .65, baseAlpha * (.42 + middle * .18), .5);
-          context.fill();
-        }
+        context.beginPath();
+        context.moveTo(centerPointX - radialX * halfRadial, centerPointY - radialY * halfRadial);
+        context.lineTo(centerPointX + tangentX * halfTangent, centerPointY + tangentY * halfTangent);
+        context.lineTo(centerPointX + radialX * halfRadial, centerPointY + radialY * halfRadial);
+        context.lineTo(centerPointX - tangentX * halfTangent, centerPointY - tangentY * halfTangent);
+        context.closePath();
+        context.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
+        context.fill();
       }
       context.restore();
     };
@@ -252,7 +225,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       context.shadowColor = state === "thinking" ? "rgba(178,220,122,.2)" : "rgba(92,190,185,.11)";
       context.shadowBlur = radius * .055;
       context.beginPath();
-      const corePoints = 52;
+      const corePoints = 42;
       for (let index = 0; index <= corePoints; index += 1) {
         const angle = index / corePoints * TAU;
         const currentRadius = coreRadius * apertureContour(angle, time);
@@ -287,12 +260,13 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const centerX = width / 2;
       const centerY = height / 2;
       const radius = Math.min(width, height) / 2;
+      const artRadius = radius * .76;
       const breath = Math.sin(time * TAU / 5.8) * .011 + Math.sin(time * TAU / 11.6 + .7) * .004;
-      const coreRadius = radius * (.635 + breath);
+      const coreRadius = artRadius * (.635 + breath);
 
-      if (layer === "complete" || layer === "network") drawNetwork(centerX, centerY, radius, time, energy);
-      if (layer === "complete" || layer === "facets") drawFacets(centerX, centerY, radius, coreRadius, time, energy);
-      if (layer !== "network") drawAperture(centerX, centerY, coreRadius, radius, time);
+      if (layer === "complete" || layer === "network") drawNetwork(centerX, centerY, artRadius, time, energy);
+      if (layer === "complete" || layer === "facets") drawFacets(centerX, centerY, artRadius, coreRadius, time, energy);
+      if (layer !== "network") drawAperture(centerX, centerY, coreRadius, artRadius, time);
 
       if (!reducedMotion) frame = window.requestAnimationFrame(draw);
     };
