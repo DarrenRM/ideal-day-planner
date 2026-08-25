@@ -70,34 +70,11 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   const [captureBusy, setCaptureBusy] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [revisionText, setRevisionText] = useState("");
-  const [isPresent, setIsPresent] = useState(open);
-  const [isVisible, setIsVisible] = useState(false);
   const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const onReadRef = useRef(onRead);
   useEffect(() => { onReadRef.current = onRead; }, [onRead]);
-
-  useEffect(() => {
-    let mountFrame = 0;
-    let revealFrame = 0;
-    let dismissTimer = 0;
-    if (open) {
-      mountFrame = window.requestAnimationFrame(() => {
-        setIsPresent(true);
-        revealFrame = window.requestAnimationFrame(() => setIsVisible(true));
-      });
-    } else {
-      revealFrame = window.requestAnimationFrame(() => setIsVisible(false));
-      dismissTimer = window.setTimeout(() => setIsPresent(false), 320);
-    }
-
-    return () => {
-      window.cancelAnimationFrame(mountFrame);
-      window.cancelAnimationFrame(revealFrame);
-      window.clearTimeout(dismissTimer);
-    };
-  }, [open]);
 
   async function load() {
     const response = await fetch("/api/luna", { cache: "no-store" });
@@ -126,7 +103,6 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
     let cancelled = false;
     async function refresh() {
       const response = await fetch("/api/luna", { cache: "no-store" });
@@ -134,7 +110,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
       if (!cancelled && response.ok) setState(result);
     }
     const initialTimer = window.setTimeout(() => void refresh().catch(() => undefined), 0);
-    const timer = window.setInterval(() => void refresh().catch(() => undefined), hasActiveJob ? 900 : 3000);
+    const timer = window.setInterval(() => void refresh().catch(() => undefined), open ? (hasActiveJob ? 900 : 3000) : 4000);
     return () => { cancelled = true; window.clearTimeout(initialTimer); window.clearInterval(timer); };
   }, [hasActiveJob, open]);
 
@@ -244,13 +220,13 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
     }
   }
 
-  if (!isPresent) return null;
   return (
-    <div className={`global-luna-backdrop ${isVisible ? "is-visible" : ""}`} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section aria-label="Talk with Luna" aria-modal="true" className="global-luna-sheet" role="dialog">
+    <div aria-hidden={!open} className={`global-luna-backdrop ${open ? "is-visible" : ""}`} inert={!open} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section aria-label="Talk with Luna" aria-modal={open ? "true" : undefined} className="global-luna-sheet" role="dialog">
         <header className="global-luna-header">
-          <div className="global-luna-heading"><span><Sparkles aria-hidden="true" size={18} /></span><div><strong><span className="global-luna-title-desktop">Luna</span><span className="global-luna-title-mobile">Notes &amp; Assistant</span></strong><small><i className={state.agentOnline ? "is-online" : ""} />{state.agentOnline ? "Connected" : "Will catch up"}</small></div></div>
-          <button aria-label="Close notes and conversation" type="button" onClick={onClose}><X className="global-luna-close-desktop" aria-hidden="true" size={20} /><ChevronDown className="global-luna-close-mobile" aria-hidden="true" size={18} /></button>
+          <div className="global-luna-heading"><span><Sparkles aria-hidden="true" size={18} /></span><div><strong>Luna</strong><small><i className={state.agentOnline ? "is-online" : ""} />{state.agentOnline ? "Connected" : "Will catch up"}</small></div></div>
+          <button aria-label="Close notes and conversation" className="global-luna-close" type="button" onClick={onClose}><X aria-hidden="true" size={20} /></button>
+          <button aria-label="Close Notes & Assistant" className="global-luna-mobile-handle" type="button" onClick={onClose}><strong>Notes &amp; Assistant</strong><ChevronDown aria-hidden="true" size={18} /></button>
         </header>
         <div className="global-luna-scroll" ref={scrollRef}>
           {!conversationFeed.length ? (

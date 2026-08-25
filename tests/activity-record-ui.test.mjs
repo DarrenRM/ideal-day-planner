@@ -175,16 +175,22 @@ test("layers the mobile conversation drawer over actions and shares its handle w
   assert.match(page, /\{hasLoaded && !expandedActivityId \? \(/);
   assert.doesNotMatch(page, /\{isGlobalLunaOpen \? <GlobalLuna/);
   assert.match(page, /Notes &amp; Assistant/);
-  assert.match(globalLuna, /const \[isPresent, setIsPresent\] = useState\(open\)/);
-  assert.match(globalLuna, /const \[isVisible, setIsVisible\] = useState\(false\)/);
-  assert.match(globalLuna, /global-luna-backdrop \$\{isVisible \? "is-visible" : ""\}/);
-  assert.match(globalLuna, /global-luna-title-mobile/);
+  assert.match(globalLuna, /aria-hidden=\{!open\}/);
+  assert.match(globalLuna, /inert=\{!open\}/);
+  assert.match(globalLuna, /global-luna-backdrop \$\{open \? "is-visible" : ""\}/);
+  assert.doesNotMatch(globalLuna, /if \(!isPresent\) return null/);
+  assert.match(globalLuna, /global-luna-mobile-handle/);
   assert.match(globalLuna, /Notes &amp; Assistant/);
+  assert.match(globalLuna, /open \? \(hasActiveJob \? 900 : 3000\) : 4000/);
   assert.doesNotMatch(page, /global-luna-dock-status/);
   assert.match(css, /\.global-luna-dock \{[^}]*background: var\(--accent\);[^}]*color: var\(--accent-ink\)/s);
-  assert.match(css, /\.global-luna-backdrop \{[^}]*transition: opacity 240ms ease;/s);
+  assert.match(css, /\.global-luna-backdrop \{[^}]*transition: opacity 240ms ease, visibility 0s linear 360ms;[^}]*visibility: hidden;/s);
   assert.match(css, /\.global-luna-sheet \{[^}]*transition: transform 320ms cubic-bezier/s);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-sheet \{[^}]*transform: translateY\(100%\)/s);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-header \{[^}]*background: var\(--accent\)/s);
+  assert.match(css, /\.global-luna-mobile-handle \{[^}]*width: 100%;/s);
+  assert.match(css, /\.global-luna-artifact \{[^}]*animation: global-luna-artifact-arrive/s);
+  assert.match(css, /@keyframes global-luna-artifact-arrive/);
 });
 
 test("keeps retroactive day corrections quiet while updating their dated occurrence", async () => {
