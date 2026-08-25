@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { jsonrepair } from "jsonrepair";
 import { CATALOG_VERSION, activityRecipeHint, catalogInstructions } from "./component-catalog.mjs";
-import { globalResearchAcknowledgement, researchAcknowledgement, userMessageRequestsResearch } from "./job-policy.mjs";
+import { researchAcknowledgement, userMessageRequestsResearch } from "./job-policy.mjs";
 import { researchEvidenceForMessage } from "./source-research.mjs";
 
 const appUrl = (process.env.IDEAL_DAY_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -19,6 +19,7 @@ const pollIntervalMs = 700;
 const heartbeatIntervalMs = 5_000;
 const workspaceModel = process.env.IDEAL_DAY_WORKSPACE_MODEL || "gpt-5.6-terra";
 const conversationalModel = process.env.IDEAL_DAY_CONVERSATIONAL_MODEL || "gpt-5.6-luna";
+const HERMES_MESSAGE_CHAR_BUDGET = 60_000;
 
 function modelRoute(leased) {
   const workspaceJob = leased.job.kind === "workspace_refresh"
@@ -50,6 +51,12 @@ function modelRoute(leased) {
 
 const resultShape = `Return exactly one JSON object with no markdown or surrounding prose:
 {"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
+
+const globalAcknowledgementShape = `Return exactly one JSON object with no markdown or surrounding prose:
+{"message":string|null,"workspaceFollowup":boolean,"requestPlan":{"kind":"conversation|question|durable_work","outcomes":string[]}}`;
+
+const globalCoordinatorShape = `Return exactly one JSON object with no markdown or surrounding prose:
+{"message":string|null,"workspaceFollowup":false,"recordActions":[],"workspaceActions":[],"activityMoves":[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":[],"followUpQuestion":{"body":string}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":null,"handledOutcomes":[{"index":number,"via":"message|activity_work|schedule_change|schedule_proposal|occurrence|capture|clarification"}]}`;
 
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
@@ -115,14 +122,14 @@ ${resultShape}
 This is the fast conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], activityWorkRequests:[], captureActions:[], followUpActions:[], followUpQuestion:null, scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Answer direct questions naturally. Set workspaceFollowup:true when lasting details, a requested design, research, or an explicit move should be handled next; otherwise false. Explicitly reporting food or drink eaten, consumed, made, or prepped is lasting detail and always needs workspaceFollowup:true. A request that changes only when the parent activity appears belongs to site-wide schedule work and should not request an activity-workspace follow-up. For an explicit schedule request, acknowledge the requested change without claiming it is already complete. Never research in this pass or pretend research is complete.`;
 
 const globalMessageInstructions = `${personaInstructions}
-${resultShape}
-This is the immediate site-wide conversational pass. Always return recordActions:[], workspaceActions:[], activityMoves:[], activityWorkRequests:[], captureActions:[], followUpActions:[], followUpQuestion:null, scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null. Read the complete latest user message before responding. Answer direct questions from the supplied whole-day overview. When it requests one or more changes, acknowledge every requested outcome together in natural language and set workspaceFollowup:true; do not claim there is no work when the message asks for a change. Set workspaceFollowup:true for any request that requires research, saving information, changing an activity, changing the day or routine, capturing an open loop, or coordinating work across activities. Acknowledge that work naturally without claiming it is complete. Never research, guess a recommendation, or ask for a preference that the linked source or existing activity knowledge may answer in the durable pass.`;
+${globalAcknowledgementShape}
+This is the immediate site-wide acknowledgement pass. You receive the person's latest message and only a small amount of conversational history. Do not answer from activity state, research, plan changes, or claim work is complete. Briefly acknowledge what the person asked and say you will check or handle it unless the prompt says an activity conversation already supplied the visible reply; in that case return message:null. Preserve compound intent: requestPlan.outcomes contains one concise entry for every separate question, requested change, research task, or item to remember. Use kind:"durable_work" when any outcome requires research or a lasting change, kind:"question" for questions that require the person's Ideal Day state, and kind:"conversation" only for ordinary conversation with no requested outcome. A question or durable_work plan must contain at least one outcome and sets workspaceFollowup:true. Conversation may use outcomes:[] and workspaceFollowup:false.`;
 
 const globalInstructions = `${personaInstructions}
-${resultShape}
+${globalCoordinatorShape}
 This is the durable site-wide coordinator pass. Semantically review every latest user message; there is deliberately no keyword gate in front of this pass. Always return workspaceFollowup:false, recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], and dayHighlight:null. Use activityWorkRequests to hand durable activity work to one or more exact owned activities. Research and current activity knowledge come before clarification: never ask for a preference or cadence that the supplied official source or existing routine can answer, and never invent an unsupported recommendation. Use one followUpQuestion only when an essential choice remains ambiguous after reviewing that evidence. An explicit, reversible cadence change to exactly one supplied one-step activity pattern applies immediately through one DirectScheduleAction. Broader changes—rotations, several activities, activity or variant creation, competing rules, or anything ambiguous—require a ScheduleProposal and confirmation. A clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date, target, anchor, or collision policy. If the message is purely conversational or fully answered by the immediate pass and requires no durable work, return message:null with every action array empty and no proposal or follow-up.
 
-A single message may combine several kinds of work. Satisfy every explicit clause in the same coordinator pass; do not drop activity work because schedule work is also requested, or vice versa. You may emit activityWorkRequests and a ScheduleProposal together. When moving an existing product or device between activities, delegate to the activity that currently owns the subject and tell its specialist to use move_subject with the exact destination activity; separately include any requested destination-role change in the ScheduleProposal.
+A single message may combine several kinds of work. The supplied request plan is Luna's acknowledgement-time extraction, not an authority over facts, but every numbered outcome must be resolved in this coordinator pass. Satisfy every explicit clause; do not drop activity work because schedule work is also requested, or vice versa. You may emit activityWorkRequests and a ScheduleProposal together. For each request-plan outcome, return one handledOutcomes entry with its one-based index and the actual result channel used. Never mark an outcome handled without emitting that channel. When moving an existing product or device between activities, delegate to the activity that currently owns the subject and tell its specialist to use move_subject with the exact destination activity; separately include any requested destination-role change in the ScheduleProposal.
 
 ActivityWorkRequest: {"activityId":"exact-owned-activity-id","instruction":"concise description of the durable work, including relevant researched conclusions and user intent"}.
 Use this when the latest request asks Luna to add, update, move, research for, or otherwise maintain an activity. Select the destination only from the supplied owned IDs. If the user names an activity, use that exact matching owned activity. Include enough evidence-based direction for its specialist pass, but never emit its record or component changes here. Return message:null when delegation is the remaining work; the activity pass will report the finished result in this same conversation.
@@ -227,9 +234,18 @@ async function ensureHermesSession(key, leased) {
   return sessionId;
 }
 
-function compactConversation(messages) {
+function compactConversation(messages, { limit = 12, maxChars = 6_000 } = {}) {
   if (!messages?.length) return "No prior conversation yet.";
-  return messages.map((message) => `${message.author === "luna" ? "Luna" : "User"}: ${message.body}`).join("\n");
+  const selected = [];
+  let used = 0;
+  for (const message of messages.slice(-limit).reverse()) {
+    const body = String(message.body || "").trim().slice(0, 1_200);
+    const line = `${message.author === "luna" ? "Luna" : "User"}: ${body}`;
+    if (selected.length && used + line.length + 1 > maxChars) break;
+    selected.push(line);
+    used += line.length + 1;
+  }
+  return selected.reverse().join("\n") || "No prior conversation yet.";
 }
 
 function compactWorkspace(workspace) {
@@ -239,6 +255,73 @@ function compactWorkspace(workspace) {
 
 function compactRecords(records) {
   return records?.length ? JSON.stringify(records) : "No durable activity records yet.";
+}
+
+function boundedJsonProjection(value, maxChars) {
+  const items = Array.isArray(value) ? value : [];
+  const selected = [];
+  for (const item of items) {
+    const candidate = JSON.stringify({ items: [...selected, item], omitted: items.length - selected.length - 1 });
+    if (candidate.length > maxChars) break;
+    selected.push(item);
+  }
+  return JSON.stringify({ items: selected, omitted: items.length - selected.length });
+}
+
+function compactActivityKnowledge(activities) {
+  return (activities || []).map((activity) => ({
+    activityId: activity.id,
+    records: (activity.records || []).map((record) => ({
+      key: record.key,
+      subjectKey: record.subjectKey || null,
+      type: record.type,
+      title: record.title,
+      scope: record.scope,
+      activityVariantId: record.activityVariantId || null,
+    })),
+  })).filter((activity) => activity.records.length);
+}
+
+function compactSchedulePatterns(patterns) {
+  return (patterns || []).map((pattern) => ({
+    id: pattern.id,
+    name: pattern.name,
+    position: pattern.position,
+    cadence: pattern.cadence,
+    advancement: pattern.advancement,
+    anchorDate: pattern.anchorDate,
+    initialStepPosition: pattern.initialStepPosition,
+    effectiveDate: pattern.effectiveDate,
+    endDate: pattern.endDate,
+    revision: pattern.revision,
+    steps: (pattern.steps || []).map((step) => ({
+      id: step.id,
+      activityId: step.activityId,
+      activityVariantId: step.activityVariantId || null,
+      position: step.position,
+      durationMinutes: step.durationMinutes,
+      displayLabelOverride: step.displayLabelOverride || null,
+      planRole: step.planRole,
+    })),
+  }));
+}
+
+function compactToday(today) {
+  return (today || []).map((occurrence) => ({
+    occurrenceId: occurrence.occurrenceId,
+    activityId: occurrence.activityId,
+    activityVariantId: occurrence.activityVariantId || null,
+    title: occurrence.title,
+    completedAt: occurrence.completedAt || null,
+    skippedAt: occurrence.skippedAt || null,
+  }));
+}
+
+function assertPromptBudget(prompt, kind) {
+  if (prompt.length > HERMES_MESSAGE_CHAR_BUDGET) {
+    throw new Error(`${kind} prompt exceeded the safe Hermes message budget (${prompt.length} characters).`);
+  }
+  return prompt;
 }
 
 function eventPrompt(job, options = {}) {
@@ -251,35 +334,48 @@ Recent day totals: ${JSON.stringify(job.context.recentDays || [])}
 Recent measured completed runs: ${JSON.stringify(job.context.recentRuns || [])}`;
   }
   if (job.context.scope === "global" || job.job.kind === "global_message" || job.job.kind === "global_refresh") {
-    const phase = job.job.kind === "global_message"
-      ? job.context.sourceActivity
-        ? "The activity conversation already owns the immediate reply. Return message:null and workspaceFollowup:true so site-wide coordination can continue without a duplicate response."
-        : "Respond immediately and naturally. Do not perform durable work yet; acknowledge any requested research or change and set workspaceFollowup:true."
-      : "Coordinate the requested durable work now. Use the whole-day knowledge to select the correct activity, and delegate activity-specific changes with activityWorkRequests.";
+    const latestMessage = String(job.context.sourceMessage?.body || "").trim();
+    if (job.job.kind === "global_message") {
+      const phase = job.context.sourceActivity
+        ? "The activity conversation already owns the visible immediate reply. Return message:null and the request plan so site-wide coordination can continue without duplicating that reply."
+        : "Acknowledge the complete latest message now. Do not inspect or answer from the person's activity state in this pass.";
+      return assertPromptBudget(`${phase}
+
+Latest user message (primary and complete):
+${latestMessage}
+
+Recent conversation for pronoun and follow-up continuity only:
+${compactConversation(job.context.recentMessages, { limit: 8, maxChars: 4_000 })}`, "global acknowledgement");
+    }
+
     const evidence = options.researchEvidence
-      ? `\n\nFetched source evidence (captured once by Ideal Day; do not fetch these URLs again):\n${options.researchEvidence}`
+      ? `\n\nFetched source evidence (captured once by Ideal Day; do not fetch these URLs again):\n${String(options.researchEvidence).slice(0, 10_000)}`
       : "";
-    return `${phase}
+    const prompt = `Coordinate the requested durable work now. Use the compact ownership index to select exact activities, and delegate activity-specific changes with activityWorkRequests. If full record details are needed to answer or change an activity, delegate to that activity instead of guessing.
+
+Latest user message (primary and complete):
+${latestMessage}
+
+Numbered request plan extracted during acknowledgement:
+${JSON.stringify(job.context.requestPlan || null)}
 
 Local date: ${job.context.localDate}
 Timezone: ${job.context.timeZone}
 Routine revision: ${job.context.routine?.revision}
 Settings: ${JSON.stringify(job.context.settings || {})}
-Owned activities: ${JSON.stringify(job.context.activities || [])}
-Whole-day activity knowledge: ${JSON.stringify(job.context.activityKnowledge || [])}
-Owned variants: ${JSON.stringify(job.context.variants || [])}
-Current schedule patterns: ${JSON.stringify(job.context.patterns || [])}
-Today's occurrences: ${JSON.stringify(job.context.today || [])}
+Owned activities: ${boundedJsonProjection(job.context.activities || [], 12_000)}
+Durable ownership index: ${boundedJsonProjection(compactActivityKnowledge(job.context.activityKnowledge), 14_000)}
+Owned variants: ${boundedJsonProjection(job.context.variants || [], 5_000)}
+Current schedule patterns: ${boundedJsonProjection(compactSchedulePatterns(job.context.patterns), 20_000)}
+Today's occurrence/status index: ${boundedJsonProjection(compactToday(job.context.today), 9_000)}
 Source activity, when this request began inside one: ${JSON.stringify(job.context.sourceActivity || null)}
 Source activity variant: ${job.context.sourceActivityVariantId || "None"}
-Source activity records: ${compactRecords(job.context.sourceActivityRecords)}
-Source activity workspace: ${compactWorkspace(job.context.sourceActivityWorkspace)}
-Pending proposals: ${JSON.stringify(job.context.pendingProposals || [])}
+Source activity record index: ${boundedJsonProjection(compactActivityKnowledge([{ id: job.context.sourceActivity?.id || "source", records: job.context.sourceActivityRecords || [] }]), 10_000)}
+Source activity workspace is intentionally omitted; delegate activity-specific work to its bounded compiler.
+Pending proposals: ${boundedJsonProjection(job.context.pendingProposals || [], 5_000)}
 Recent global conversation:
-${compactConversation(job.context.recentMessages)}
-
-Latest user message:
-${job.context.sourceMessage?.body || ""}${evidence}`;
+${compactConversation(job.context.recentMessages, { limit: 12, maxChars: 6_000 })}${evidence}`;
+    return assertPromptBudget(prompt, "global coordinator");
   }
   const activity = job.context.activity || {};
   const schedule = job.context.schedule;
@@ -349,12 +445,30 @@ function parseAgentResult(content) {
   const scheduleActions = Array.isArray(parsed.scheduleActions) ? parsed.scheduleActions : [];
   const scheduleProposal = parsed.scheduleProposal && typeof parsed.scheduleProposal === "object" ? parsed.scheduleProposal : null;
   const occurrenceActions = Array.isArray(parsed.occurrenceActions) ? parsed.occurrenceActions : [];
+  const requestPlanSource = parsed.requestPlan && typeof parsed.requestPlan === "object" && !Array.isArray(parsed.requestPlan)
+    ? parsed.requestPlan
+    : null;
+  const requestKind = ["conversation", "question", "durable_work"].includes(requestPlanSource?.kind)
+    ? requestPlanSource.kind
+    : null;
+  const requestOutcomes = Array.isArray(requestPlanSource?.outcomes)
+    ? requestPlanSource.outcomes
+      .filter((outcome) => typeof outcome === "string" && outcome.trim())
+      .slice(0, 6)
+      .map((outcome) => outcome.trim().slice(0, 300))
+    : [];
+  const requestPlan = requestKind && (requestKind === "conversation" || requestOutcomes.length)
+    ? { kind: requestKind, outcomes: requestOutcomes }
+    : null;
+  const handledOutcomes = Array.isArray(parsed.handledOutcomes)
+    ? parsed.handledOutcomes.slice(0, 12)
+    : [];
   const dayHighlightBody = compactDayHighlightBody(parsed.dayHighlight?.body);
   const dayHighlight = parsed.dayHighlight && typeof parsed.dayHighlight === "object" && !Array.isArray(parsed.dayHighlight)
     && dayHighlightBody
     ? { body: dayHighlightBody, kind: typeof parsed.dayHighlight.kind === "string" ? parsed.dayHighlight.kind : "completion" }
     : null;
-  return { message, workspaceFollowup, recordActions, workspaceActions, activityMoves, activityWorkRequests, captureActions, followUpActions, followUpQuestion, scheduleActions, scheduleProposal, occurrenceActions, dayHighlight };
+  return { message, workspaceFollowup, requestPlan, handledOutcomes, recordActions, workspaceActions, activityMoves, activityWorkRequests, captureActions, followUpActions, followUpQuestion, scheduleActions, scheduleProposal, occurrenceActions, dayHighlight };
 }
 
 function visibleProgress(leased) {
@@ -421,6 +535,8 @@ async function completeJob(leased, runtimeSessionId, agentResult) {
       runtimeSessionId,
       response: agentResult.message,
       workspaceFollowup: agentResult.workspaceFollowup,
+      requestPlan: agentResult.requestPlan,
+      handledOutcomes: agentResult.handledOutcomes,
       recordActions: replyFirst ? [] : agentResult.recordActions,
       workspaceActions: replyFirst ? [] : agentResult.workspaceActions,
       activityMoves: replyFirst ? [] : agentResult.activityMoves,
@@ -468,11 +584,9 @@ async function runJob(key, leased) {
     });
     return;
   }
-  if ((leased.job.kind === "user_message" || leased.job.kind === "global_message") && userMessageRequestsResearch(sourceMessage)) {
+  if (leased.job.kind === "user_message" && userMessageRequestsResearch(sourceMessage)) {
     await completeJob(leased, sessionId, {
-      message: leased.job.kind === "global_message"
-        ? globalResearchAcknowledgement()
-        : researchAcknowledgement(leased.context.activity?.title),
+      message: researchAcknowledgement(leased.context.activity?.title),
       workspaceFollowup: true,
       recordActions: [],
       workspaceActions: [],
@@ -484,11 +598,12 @@ async function runJob(key, leased) {
     ? await researchEvidenceForMessage(sourceMessage)
     : null;
   const route = modelRoute(leased);
+  const prompt = assertPromptBudget(eventPrompt(leased, { researchEvidence }), leased.job.kind);
   const result = await requestJson(`${hermesUrl}/api/sessions/${encodeURIComponent(sessionId)}/chat`, {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({
-      message: eventPrompt(leased, { researchEvidence }),
+      message: prompt,
       instructions: instructionsForJob(leased),
       ...route,
       require_model_lock: true,

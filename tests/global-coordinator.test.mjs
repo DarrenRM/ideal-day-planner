@@ -29,20 +29,25 @@ function globalJob(kind) {
       pendingProposals: [],
       recentMessages: [],
       sourceMessage: { body: RETINOL_REQUEST },
+      requestPlan: {
+        kind: "durable_work",
+        outcomes: ["Research the retinol product", "Add it to Skin routine"],
+      },
     },
   };
 }
 
 test("global Luna acknowledges first, then coordinates researched activity work", () => {
   const immediate = eventPrompt(globalJob("global_message"));
-  assert.match(immediate, /Respond immediately and naturally/);
-  assert.match(immediate, /set workspaceFollowup:true/);
+  assert.match(immediate, /Acknowledge the complete latest message/);
+  assert.match(immediate, /Latest user message \(primary and complete\)/);
+  assert.doesNotMatch(immediate, /Whole-day activity knowledge|Owned activities/);
   assert.doesNotMatch(immediate, /Fetched source evidence/);
 
   const durable = eventPrompt(globalJob("global_refresh"), {
     researchEvidence: "Official product directions: apply a few drops in the evening and use sun protection.",
   });
-  assert.match(durable, /Whole-day activity knowledge/);
+  assert.match(durable, /Durable ownership index/);
   assert.match(durable, /activity-skin/);
   assert.match(durable, /Fetched source evidence/);
   assert.match(durable, /few drops in the evening/);
@@ -67,11 +72,36 @@ test("the coordinator result carries a bounded typed activity handoff", () => {
     scheduleProposal: null,
     occurrenceActions: [],
     dayHighlight: null,
+    handledOutcomes: [{ index: 1, via: "activity_work" }],
   }));
   assert.deepEqual(result.activityWorkRequests, [{
     activityId: "activity-skin",
     instruction: "Add the researched retinol product and safe manufacturer directions to Skin routine.",
   }]);
+  assert.deepEqual(result.handledOutcomes, [{ index: 1, via: "activity_work" }]);
+});
+
+test("the acknowledgement preserves compound intent without receiving the routine dump", () => {
+  const result = parseAgentResult(JSON.stringify({
+    message: "Sure—I’ll pull up both routines and handle both changes.",
+    workspaceFollowup: true,
+    requestPlan: {
+      kind: "durable_work",
+      outcomes: [
+        "Move the retinol product from Skin routine to Bed Routine",
+        "Make Bed Routine essential",
+      ],
+    },
+  }));
+  assert.deepEqual(result.requestPlan, {
+    kind: "durable_work",
+    outcomes: [
+      "Move the retinol product from Skin routine to Bed Routine",
+      "Make Bed Routine essential",
+    ],
+  });
+  assert.match(globalMessageInstructions, /acknowledgement pass/);
+  assert.match(globalMessageInstructions, /one concise entry for every separate/);
 });
 
 test("the coordinator is instructed to preserve every part of a combined request", () => {
@@ -86,14 +116,48 @@ test("the coordinator is instructed to preserve every part of a combined request
       sourceMessage: {
         body: "Can you move the retinol over to my bed routine and put the bed routine in my essentials list?",
       },
+      requestPlan: {
+        kind: "durable_work",
+        outcomes: ["Move retinol to Bed Routine", "Make Bed Routine essential"],
+      },
     },
   });
   assert.match(globalInstructions, /Satisfy every explicit clause/);
   assert.match(globalInstructions, /activityWorkRequests and a ScheduleProposal together/);
   assert.match(globalInstructions, /currently owns the subject/);
-  assert.match(globalMessageInstructions, /acknowledge every requested outcome together/);
-  assert.match(globalMessageInstructions, /do not claim there is no work/);
+  assert.match(globalInstructions, /every numbered outcome must be resolved/);
+  assert.match(globalMessageInstructions, /Preserve compound intent/);
   assert.match(durable, /move the retinol over to my bed routine/);
+});
+
+test("global prompts keep the latest message intact and stay below Hermes' content cap", () => {
+  const latest = "Move the retinol to Bed Routine and make Bed Routine essential.";
+  const oversized = {
+    ...globalJob("global_refresh"),
+    context: {
+      ...globalJob("global_refresh").context,
+      sourceMessage: { body: latest },
+      recentMessages: Array.from({ length: 30 }, (_, index) => ({
+        author: index % 2 ? "luna" : "user",
+        body: `history-${index}-${"x".repeat(4_000)}`,
+      })),
+      activityKnowledge: [{
+        id: "activity-skin",
+        records: Array.from({ length: 100 }, (_, index) => ({
+          key: `record-${index}`,
+          subjectKey: `subject-${index}`,
+          type: "protocol",
+          title: `Record ${index}`,
+          data: { oversizedPayloadThatMustNotReachTerra: "z".repeat(4_000) },
+        })),
+      }],
+    },
+  };
+  const prompt = eventPrompt(oversized);
+  assert.ok(prompt.length < 60_000, `prompt was ${prompt.length} characters`);
+  assert.ok(prompt.includes(latest));
+  assert.ok(prompt.indexOf(latest) < prompt.indexOf("Owned activities"));
+  assert.doesNotMatch(prompt, /oversizedPayloadThatMustNotReachTerra/);
 });
 
 test("the app validates coordinator destinations and queues an activity-scoped compiler", async () => {
@@ -105,7 +169,9 @@ test("the app validates coordinator destinations and queues an activity-scoped c
   assert.match(route, /delegation_instruction/);
   assert.match(route, /const finalResponse = activityWorkRequests\.length \? ""/);
   assert.match(route, /const globalFollowup = job\.kind === "global_message"/);
-  assert.match(route, /job\.kind !== "global_refresh"/);
+  assert.match(route, /Terra did not account for every outcome/);
+  assert.match(route, /marked a request outcome handled without producing/);
+  assert.match(route, /delegation_instruction/);
   assert.match(globalInstructions, /Semantically review every latest user message/);
   assert.match(globalInstructions, /no keyword gate/);
 });

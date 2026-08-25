@@ -32,6 +32,12 @@ import { normalizeCaptureLabel, validateCaptureActions } from "../../../capture-
 import { applyCaptureAction } from "../../capture-service";
 import { validateFollowUpActions } from "../../../follow-up-model";
 import { activityWorkReceipt, scheduleWorkReceipt, type WorkReceiptDraft } from "../../../work-receipt-model";
+import {
+  parseGlobalRequestPlan,
+  parseStoredGlobalRequestPlan,
+  validateHandledOutcomes,
+  type HandledOutcome,
+} from "../../../global-request-plan";
 
 const HERMES_RUNTIME = "hermes-activity-blueprint-v2";
 
@@ -307,7 +313,7 @@ export async function GET(request: Request) {
       `).bind(candidate.userId).first<{ timeZone: string; dayTimelineEnabled: number }>();
       const timeZone = setting?.timeZone || "America/Phoenix";
       const localDate = localDateInTimeZone(new Date(), timeZone);
-      const [activities, variants, today, pendingProposals, patterns, messages, allRecords, allWorkspaces, sourceActivity, sourceRecords, sourceWorkspace] = await Promise.all([
+      const [activities, variants, today, pendingProposals, patterns, messages, allRecords, sourceActivity, sourceRecords, sourceWorkspace] = await Promise.all([
         db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE user_id = ? ORDER BY title`).bind(candidate.userId).all(),
         db.prepare(`SELECT id, activity_id AS activityId, name, description, default_duration_minutes AS defaultDurationMinutes FROM activity_variants WHERE user_id = ? AND archived_at IS NULL ORDER BY activity_id, position`).bind(candidate.userId).all(),
         db.prepare(`
@@ -325,23 +331,14 @@ export async function GET(request: Request) {
         db.prepare(`
           SELECT activity_id AS activityId, activity_variant_id AS activityVariantId,
                  record_key AS recordKey, subject_key AS subjectKey, record_type AS type,
-                 title, scope, scope_date AS scopeDate, payload_json AS payloadJson
+                 title, scope, scope_date AS scopeDate
           FROM activity_records
           WHERE user_id = ? AND archived_at IS NULL
           ORDER BY activity_id, activity_variant_id, record_type, record_key
         `).bind(candidate.userId).all<{
           activityId: string; activityVariantId: string | null; recordKey: string; subjectKey: string | null;
-          type: string; title: string; scope: string; scopeDate: string | null; payloadJson: string;
+          type: string; title: string; scope: string; scopeDate: string | null;
         }>(),
-        db.prepare(`
-          SELECT workspace.activity_id AS activityId,
-                 workspace.activity_variant_id AS activityVariantId,
-                 revision.document_json AS documentJson
-          FROM activity_workspaces workspace
-          JOIN workspace_revisions revision ON revision.id = workspace.current_revision_id
-          WHERE workspace.user_id = ?
-          ORDER BY workspace.activity_id, workspace.activity_variant_id
-        `).bind(candidate.userId).all<{ activityId: string; activityVariantId: string | null; documentJson: string }>(),
         candidate.activityId
           ? db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE id = ? AND user_id = ?`).bind(candidate.activityId, candidate.userId).first()
           : Promise.resolve(null),
@@ -350,11 +347,6 @@ export async function GET(request: Request) {
       ]);
       const recordKnowledge = new Map<string, Array<Record<string, unknown>>>();
       for (const record of allRecords.results) {
-        let data: Record<string, unknown> = {};
-        try {
-          const parsed = JSON.parse(record.payloadJson) as unknown;
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) data = parsed as Record<string, unknown>;
-        } catch { /* Keep malformed legacy payloads out of coordinator context. */ }
         const activityRecords = recordKnowledge.get(record.activityId) ?? [];
         activityRecords.push({
           key: record.recordKey,
@@ -364,25 +356,12 @@ export async function GET(request: Request) {
           scope: record.scope,
           scopeDate: record.scopeDate,
           activityVariantId: record.activityVariantId,
-          data,
         });
         recordKnowledge.set(record.activityId, activityRecords);
-      }
-      const workspaceKnowledge = new Map<string, Array<Record<string, unknown>>>();
-      for (const workspace of allWorkspaces.results) {
-        let components: unknown[] = [];
-        try {
-          const parsed = JSON.parse(workspace.documentJson) as { components?: unknown[] };
-          if (Array.isArray(parsed?.components)) components = parsed.components;
-        } catch { /* Keep malformed legacy workspaces out of coordinator context. */ }
-        const activityWorkspaces = workspaceKnowledge.get(workspace.activityId) ?? [];
-        activityWorkspaces.push({ activityVariantId: workspace.activityVariantId, components });
-        workspaceKnowledge.set(workspace.activityId, activityWorkspaces);
       }
       const activityKnowledge = activities.results.map((activity) => ({
         ...activity,
         records: recordKnowledge.get(String(activity.id)) ?? [],
-        workspaces: workspaceKnowledge.get(String(activity.id)) ?? [],
       }));
       const sourceMessage = candidate.sourceMessageId ? messages.find((message) => message.id === candidate.sourceMessageId) ?? null : null;
       await db.prepare("UPDATE agent_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND lease_token = ?")
@@ -405,6 +384,7 @@ export async function GET(request: Request) {
             try { return [{ ...proposal, document: JSON.parse(String(proposal.documentJson)) }]; } catch { return []; }
           }),
           recentMessages: messages.slice(-30),
+          requestPlan: candidate.kind === "global_refresh" ? parseStoredGlobalRequestPlan(candidate.delegationInstruction) : null,
           sourceMessage,
           sourceActivity,
           sourceActivityVariantId: candidate.activityVariantId,
@@ -577,6 +557,7 @@ export async function POST(request: Request) {
       kind: LeasedJob["kind"];
       attempts: number;
       sourceMessageId: string | null;
+      delegationInstruction: string | null;
     }>();
     if (!job) return Response.json({ error: "The job lease is no longer active." }, { status: 409 });
 
@@ -594,6 +575,11 @@ export async function POST(request: Request) {
 
     if (mode === "complete") {
       const suppliedResponse = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
+      const suppliedRequestPlan = job.kind === "global_message" ? parseGlobalRequestPlan(payload.requestPlan) : null;
+      if (job.kind === "global_message" && !suppliedRequestPlan) {
+        return Response.json({ error: "Luna's acknowledgement did not preserve a valid request plan." }, { status: 400 });
+      }
+      const storedRequestPlan = job.kind === "global_refresh" ? parseStoredGlobalRequestPlan(job.delegationInstruction) : null;
       const sourceMessage = job.sourceMessageId
         ? await db.prepare("SELECT body FROM conversation_messages WHERE id = ? AND conversation_id = ?")
           .bind(job.sourceMessageId, job.conversationId).first<{ body: string }>()
@@ -687,6 +673,21 @@ export async function POST(request: Request) {
           new Set(ownedActivities.results.map((activity) => activity.id)),
         );
         if (!activityWorkRequests) return Response.json({ error: "An activity handoff did not pass validation." }, { status: 400 });
+        const handledOutcomes = validateHandledOutcomes(payload.handledOutcomes, storedRequestPlan);
+        if (!handledOutcomes) {
+          return Response.json({ error: "Terra did not account for every outcome in the user's request." }, { status: 400 });
+        }
+        const availableOutcomeChannels = new Set<HandledOutcome["via"]>();
+        if (response) availableOutcomeChannels.add("message");
+        if (activityWorkRequests.length) availableOutcomeChannels.add("activity_work");
+        if (directScheduleActions.length) availableOutcomeChannels.add("schedule_change");
+        if (proposal) availableOutcomeChannels.add("schedule_proposal");
+        if (occurrenceActions.length) availableOutcomeChannels.add("occurrence");
+        if (captureActions.length) availableOutcomeChannels.add("capture");
+        if (followUpBody) availableOutcomeChannels.add("clarification");
+        if (handledOutcomes.some((outcome) => !availableOutcomeChannels.has(outcome.via))) {
+          return Response.json({ error: "Terra marked a request outcome handled without producing its stated result." }, { status: 400 });
+        }
         if (occurrenceActions.some((action) => action?.type === "set_status" && action.status === "completed")) {
           return Response.json({ error: "Luna cannot mark an activity complete." }, { status: 400 });
         }
@@ -773,9 +774,17 @@ export async function POST(request: Request) {
           const refreshJobId = `agent-job:${safeId(job.userId)}:global-refresh:${safeId(job.id)}`;
           statements.push(db.prepare(`
             INSERT OR IGNORE INTO agent_jobs
-              (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key, source_message_id)
-            VALUES (?, ?, 'global', NULL, ?, 'global_refresh', ?, ?)
-          `).bind(refreshJobId, job.userId, job.conversationId, `global-refresh:${job.id}`, job.sourceMessageId));
+              (id, user_id, scope_type, activity_id, conversation_id, kind, idempotency_key,
+               source_message_id, delegation_instruction)
+            VALUES (?, ?, 'global', NULL, ?, 'global_refresh', ?, ?, ?)
+          `).bind(
+            refreshJobId,
+            job.userId,
+            job.conversationId,
+            `global-refresh:${job.id}`,
+            job.sourceMessageId,
+            JSON.stringify(suppliedRequestPlan),
+          ));
         }
         for (const [index, request] of activityWorkRequests.entries()) {
           const activityJobId = `agent-job:${safeId(job.userId)}:global-activity:${safeId(job.id)}:${safeId(request.activityId)}`;

@@ -24,15 +24,16 @@ test("acknowledges research immediately in the activity's language", () => {
   );
 });
 
-test("research is acknowledged synchronously and compiled through one final response path", async () => {
+test("research is acknowledged through the bounded conversational path and compiled once", async () => {
   const [bridge, route, messageJobs] = await Promise.all([
     readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
     readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity-message-jobs.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(bridge, /leased\.job\.kind === "user_message" \|\| leased\.job\.kind === "global_message"/);
-  assert.match(bridge, /globalResearchAcknowledgement\(\)/);
+  assert.match(bridge, /leased\.job\.kind === "user_message" && userMessageRequestsResearch/);
+  assert.match(bridge, /globalAcknowledgementShape/);
+  assert.match(bridge, /requestPlan\.outcomes contains one concise entry/);
   assert.match(bridge, /workspaceFollowup: true/);
   assert.match(bridge, /IDEAL_DAY_WORKSPACE_MODEL \|\| "gpt-5\.6-terra"/);
   assert.match(bridge, /reasoning_effort: "low"/);
