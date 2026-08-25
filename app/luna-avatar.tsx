@@ -193,36 +193,43 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const facets = 42;
       const spacing = TAU / facets;
       const radialStretch = 1.14;
-      const surfaceTilt = .28;
+      const centerRadius = coreRadius + radius * .143;
+      const neighborChord = 2 * centerRadius * Math.sin(spacing / 2);
+      const radialHalfDiagonal = neighborChord * radialStretch;
+      const edgeSteps = 6;
+      const mapPolarPoint = (angle: number, mappedRadius: number) => ({
+        x: centerX + Math.cos(angle) * mappedRadius,
+        y: centerY + Math.sin(angle) * mappedRadius,
+      });
+      const tracePolarEdge = (
+        fromAngle: number,
+        fromRadius: number,
+        toAngle: number,
+        toRadius: number,
+      ) => {
+        for (let step = 1; step <= edgeSteps; step += 1) {
+          const progress = step / edgeSteps;
+          const point = mapPolarPoint(
+            fromAngle + (toAngle - fromAngle) * progress,
+            fromRadius + (toRadius - fromRadius) * progress,
+          );
+          context.lineTo(point.x, point.y);
+        }
+      };
       context.save();
       for (let index = 0; index < facets; index += 1) {
         const angle = index * spacing;
         const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
-        const centerRadius = coreRadius + radius * .143;
-        const radialX = Math.cos(angle);
-        const radialY = Math.sin(angle);
-        const neighborChord = 2 * centerRadius * Math.sin(spacing / 2);
-        const radialHalfDiagonal = neighborChord * radialStretch;
-        const clockwiseAngle = angle + spacing;
-        const counterclockwiseAngle = angle - spacing;
-        const focalLength = radius * 4;
-        const projectRadialTip = (radialOffset: number) => {
-          const depth = -radialOffset * Math.sin(surfaceTilt);
-          const perspective = focalLength / (focalLength - depth);
-          const projectedRadius = (centerRadius + radialOffset * Math.cos(surfaceTilt)) * perspective;
-          return {
-            x: centerX + radialX * projectedRadius,
-            y: centerY + radialY * projectedRadius,
-          };
-        };
-        const inwardTip = projectRadialTip(-radialHalfDiagonal);
-        const outwardTip = projectRadialTip(radialHalfDiagonal);
+        const inwardRadius = centerRadius - radialHalfDiagonal;
+        const outwardRadius = centerRadius + radialHalfDiagonal;
+        const inwardTip = mapPolarPoint(angle, inwardRadius);
 
         context.beginPath();
         context.moveTo(inwardTip.x, inwardTip.y);
-        context.lineTo(centerX + Math.cos(clockwiseAngle) * centerRadius, centerY + Math.sin(clockwiseAngle) * centerRadius);
-        context.lineTo(outwardTip.x, outwardTip.y);
-        context.lineTo(centerX + Math.cos(counterclockwiseAngle) * centerRadius, centerY + Math.sin(counterclockwiseAngle) * centerRadius);
+        tracePolarEdge(angle, inwardRadius, angle + spacing, centerRadius);
+        tracePolarEdge(angle + spacing, centerRadius, angle, outwardRadius);
+        tracePolarEdge(angle, outwardRadius, angle - spacing, centerRadius);
+        tracePolarEdge(angle - spacing, centerRadius, angle, inwardRadius);
         context.closePath();
         context.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
         context.fill();
