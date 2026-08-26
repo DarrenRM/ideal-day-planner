@@ -37,13 +37,13 @@ export type LunaFacetTuning = {
 };
 
 export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
-  facetCount: 42,
+  facetCount: 40,
   artScale: .76,
   innerTipPosition: .645,
   sideTipPosition: .778,
-  outerTipPosition: .911,
+  outerTipPosition: .895,
   angularSpan: 1,
-  innerConvexity: 1.14,
+  innerConvexity: 1,
   outerConvexity: 1,
   edgeSteps: 6,
   facetOpacity: .32,
@@ -57,6 +57,22 @@ export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
   colorDriftAmount: .7,
   colorDriftSpeed: .1,
 };
+
+export const DEFAULT_LUNA_INNER_FACET_TUNING: LunaFacetTuning = {
+  ...DEFAULT_LUNA_FACET_TUNING,
+  innerTipPosition: .554,
+  sideTipPosition: .645,
+  outerTipPosition: .778,
+  facetOpacity: .5,
+  colorLift: .35,
+  shimmerAmount: .09,
+  shimmerSpeed: .63,
+};
+
+export const DEFAULT_LUNA_FACET_ROWS: ReadonlyArray<LunaFacetTuning> = [
+  DEFAULT_LUNA_INNER_FACET_TUNING,
+  DEFAULT_LUNA_FACET_TUNING,
+];
 
 type NetworkNode = {
   angle: number;
@@ -157,9 +173,8 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
     const networkContext = networkCanvas.getContext("2d");
     const facetContext = facetCanvas.getContext("2d");
     if (!networkContext || !facetContext) return;
-    const facetConfigs = facetRows?.length
-      ? facetRows.map((row) => ({ ...DEFAULT_LUNA_FACET_TUNING, ...row }))
-      : [{ ...DEFAULT_LUNA_FACET_TUNING, ...facetTuning }];
+    const requestedRows = facetRows?.length ? facetRows : facetTuning ? [facetTuning] : DEFAULT_LUNA_FACET_ROWS;
+    const facetConfigs = requestedRows.map((row) => ({ ...DEFAULT_LUNA_FACET_TUNING, ...row }));
 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reducedMotion = motion.matches;
@@ -280,6 +295,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
     const drawFacets = (centerX: number, centerY: number, radius: number, time: number, energy: number, breathReach: number) => {
       facetContext.clearRect(0, 0, width, height);
       facetContext.save();
+      facetContext.globalCompositeOperation = "lighter";
       for (const config of facetConfigs) {
         const facetTime = time * config.motionSpeed;
         const breath = (Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004) * breathReach * config.breathAmount;
@@ -319,7 +335,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         };
         for (let index = 0; index < facets; index += 1) {
           const angle = index * spacing;
-          const shimmer = 1 - config.shimmerAmount + Math.sin(index * 1.83 + facetTime * config.shimmerSpeed) * config.shimmerAmount;
+          const shimmer = 1 + Math.sin(index * 1.83 + facetTime * TAU * config.shimmerSpeed) * config.shimmerAmount;
           const inwardTip = mapPolarPoint(angle, inwardRadius);
 
           facetContext.beginPath();

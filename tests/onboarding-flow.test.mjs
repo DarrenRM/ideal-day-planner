@@ -106,6 +106,10 @@ test("keeps the Luna avatar code-native, stateful, and motion-aware", async () =
   assert.match(avatar, /prefers-reduced-motion/);
   assert.match(avatar, /"idle" \| "listening" \| "thinking"/);
   assert.match(avatar, /DEFAULT_LUNA_FACET_TUNING/);
+  assert.match(avatar, /DEFAULT_LUNA_INNER_FACET_TUNING/);
+  assert.match(avatar, /facetCount: 40/);
+  assert.match(avatar, /globalCompositeOperation = "lighter"/);
+  assert.match(avatar, /facetTime \* TAU \* config\.shimmerSpeed/);
   assert.match(demo, /19 live sliders/);
   assert.match(demo, /Inner tip position/);
   assert.match(demo, /Side-tip position/);

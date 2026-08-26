@@ -3,6 +3,7 @@
 import { Check, Copy, Layers3, Pause, RotateCcw, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  DEFAULT_LUNA_INNER_FACET_TUNING,
   DEFAULT_LUNA_FACET_TUNING,
   LunaAvatar,
   type LunaAvatarLayer,
@@ -75,8 +76,8 @@ const FACET_GROUPS: Array<{ title: string; controls: FacetControl[] }> = [
   },
 ];
 
-const STORAGE_KEY = "ideal-day-luna-diamond-rows-v2";
-const LEGACY_STORAGE_KEY = "ideal-day-luna-facet-tuning-v1";
+const STORAGE_KEY = "ideal-day-luna-diamond-rows-v3";
+const LEGACY_STORAGE_KEYS = ["ideal-day-luna-diamond-rows-v2", "ideal-day-luna-facet-tuning-v1"];
 const ANCHOR_GAP = .005;
 
 function formatValue(control: FacetControl, value: number) {
@@ -89,10 +90,12 @@ function isSavedTuning(value: unknown): value is Partial<LunaFacetTuning> {
 }
 
 function createInnerRow(outerRow: LunaFacetTuning): LunaFacetTuning {
-  const radialStep = Math.max(.035, outerRow.sideTipPosition - outerRow.innerTipPosition);
+  const innerDepth = DEFAULT_LUNA_FACET_TUNING.innerTipPosition - DEFAULT_LUNA_INNER_FACET_TUNING.innerTipPosition;
   return {
-    ...outerRow,
-    innerTipPosition: Math.max(.24, outerRow.innerTipPosition - radialStep),
+    ...DEFAULT_LUNA_INNER_FACET_TUNING,
+    facetCount: outerRow.facetCount,
+    artScale: outerRow.artScale,
+    innerTipPosition: Math.max(.24, outerRow.innerTipPosition - innerDepth),
     sideTipPosition: outerRow.innerTipPosition,
     outerTipPosition: outerRow.sideTipPosition,
   };
@@ -109,10 +112,10 @@ export default function LunaDemoPage() {
   const [state, setState] = useState<LunaAvatarState>("idle");
   const [layer, setLayer] = useState<LunaAvatarLayer>("facets");
   const [outerRow, setOuterRow] = useState<LunaFacetTuning>({ ...DEFAULT_LUNA_FACET_TUNING });
-  const [innerRow, setInnerRow] = useState<LunaFacetTuning>(() => createInnerRow(DEFAULT_LUNA_FACET_TUNING));
+  const [innerRow, setInnerRow] = useState<LunaFacetTuning>({ ...DEFAULT_LUNA_INNER_FACET_TUNING });
   const [activeRow, setActiveRow] = useState<DiamondRowId>("outer");
-  const [showInnerRow, setShowInnerRow] = useState(false);
-  const [innerRowInitialized, setInnerRowInitialized] = useState(false);
+  const [showInnerRow, setShowInnerRow] = useState(true);
+  const [innerRowInitialized, setInnerRowInitialized] = useState(true);
   const [storageReady, setStorageReady] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const active = STATES.find((item) => item.id === state) || STATES[0];
@@ -132,10 +135,16 @@ export default function LunaDemoPage() {
           }
           if (typeof parsed.showInnerRow === "boolean") setShowInnerRow(parsed.showInnerRow);
         } else {
-          const legacy = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+          const legacy = LEGACY_STORAGE_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean);
           if (legacy) {
             const parsed: unknown = JSON.parse(legacy);
             if (isSavedTuning(parsed)) setOuterRow({ ...DEFAULT_LUNA_FACET_TUNING, ...parsed });
+            else if (parsed && typeof parsed === "object") {
+              const rows = parsed as Record<string, unknown>;
+              if (isSavedTuning(rows.outerRow)) setOuterRow({ ...DEFAULT_LUNA_FACET_TUNING, ...rows.outerRow });
+              if (isSavedTuning(rows.innerRow)) setInnerRow({ ...DEFAULT_LUNA_INNER_FACET_TUNING, ...rows.innerRow });
+              if (typeof rows.showInnerRow === "boolean") setShowInnerRow(rows.showInnerRow);
+            }
           }
         }
       } catch {
