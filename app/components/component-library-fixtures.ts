@@ -5,8 +5,9 @@ import type { CountdownWorkspaceComponent, RoutineWorkspaceComponent, TimerWorks
 
 export type LibraryComponentType = ActivityRecordType | "timer" | "countdown" | "routine"
   | "activity_streak" | "activity_schedule" | "activity_follow_up"
-  | "product_action_tabs" | "workspace_working" | "workspace_empty" | "workspace_invitation";
-export type LibraryGroup = "Foundations" | "Actions" | "Sessions" | "Progress" | "Reference" | "Time" | "Workspace";
+  | "product_action_tabs" | "workspace_working" | "workspace_empty" | "workspace_invitation"
+  | "conversation_work_receipt";
+export type LibraryGroup = "Foundations" | "Actions" | "Sessions" | "Progress" | "Reference" | "Time" | "Workspace" | "Conversation";
 
 export type ComponentSpecimen = {
   type: LibraryComponentType;
@@ -57,9 +58,10 @@ export const COMPONENT_SPECIMENS: ComponentSpecimen[] = [
   { type: "workspace_working", label: "Workspace progress", group: "Workspace", role: "primary", layer: "app-owned", activities: ["Any activity while Luna compiles durable changes"], selection: "App-owned transient status shown while durable work is building, waiting, or updating.", hierarchy: "Above existing workspace content; it never replaces useful content during an update." },
   { type: "workspace_empty", label: "Empty workspace guidance", group: "Workspace", role: "primary", layer: "app-owned", activities: ["New activities without useful records"], selection: "Shown only when an activity has no useful workspace content and no active build or error.", hierarchy: "Sole workspace guidance state until a useful component exists." },
   { type: "workspace_invitation", label: "Luna invitation", group: "Workspace", role: "resource", layer: "app-owned", activities: ["Every hydrated activity workspace"], selection: "Persistent app-owned path for requesting another useful surface or changing the current setup.", hierarchy: "Footer after all workspace components; never competes with the current action." },
+  { type: "conversation_work_receipt", label: "Work receipt", group: "Conversation", role: "reference", layer: "app-owned", activities: ["Applied activity updates", "Direct schedule changes", "Subject moves", "Scheduled check-ins"], selection: "Created by the app only after a validated durable change commits. Proposed, failed, no-op, and acknowledgement-only work never creates one.", hierarchy: "Chronological conversation entry after the work completes. View opens the committed result; the receipt remains in history in a quieter viewed state." },
 ];
 
-export const COMPONENT_GROUPS: LibraryGroup[] = ["Foundations", "Actions", "Sessions", "Progress", "Reference", "Time", "Workspace"];
+export const COMPONENT_GROUPS: LibraryGroup[] = ["Foundations", "Actions", "Sessions", "Progress", "Reference", "Time", "Workspace", "Conversation"];
 
 function shiftDate(dateKey: string, amount: number) {
   const [year, month, day] = dateKey.split("-").map(Number);

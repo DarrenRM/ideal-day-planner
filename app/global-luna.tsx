@@ -3,18 +3,14 @@
 import { CalendarDays, Check, ChevronDown, Inbox, Send, Sparkles, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PendingCapture } from "./capture-model";
+import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./conversation-work-receipt";
 
 type LunaMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string };
-type LunaArtifact = {
-  id: string;
+type LunaArtifact = ConversationWorkReceiptData & {
   activityId: string | null;
   activityClientKey: string | null;
-  kind: string;
-  title: string;
   detail: string;
   meta?: { targetActivityId?: string; targetActivityClientKey?: string };
-  viewedAt: string | null;
-  createdAt: string;
 };
 type LunaProposal = {
   id: string;
@@ -237,11 +233,16 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
               <p>{entry.value.body}</p><time>{formatMessageTime(entry.value.createdAt)}</time>
             </article>
           ) : (
-            <article className={`global-luna-artifact ${entry.value.viewedAt ? "is-viewed" : "is-new"}`} key={entry.value.id}>
-              <span><Sparkles aria-hidden="true" size={16} /></span>
-              <div><strong>{entry.value.title}</strong>{entry.value.detail ? <small>{entry.value.detail}</small> : null}</div>
-              {entry.value.activityId || entry.value.meta?.targetActivityId ? <button disabled={Boolean(openingArtifactId)} type="button" onClick={(event) => void viewArtifact(entry.value, event.currentTarget.closest("article")?.getBoundingClientRect())}>{openingArtifactId === entry.value.id ? "Opening…" : "View"}</button> : null}
-            </article>
+            <ConversationWorkReceipt
+              artifact={entry.value}
+              color="#b7db78"
+              icon={<Sparkles aria-hidden="true" size={16} />}
+              key={entry.value.id}
+              onView={entry.value.activityId || entry.value.meta?.targetActivityId ? (origin) => void viewArtifact(entry.value, origin) : undefined}
+              timestamp={formatMessageTime(entry.value.createdAt)}
+              viewDisabled={Boolean(openingArtifactId)}
+              viewLabel={openingArtifactId === entry.value.id ? "Opening…" : "View"}
+            />
           ))}
           {state.activeJob ? <div className="global-luna-message is-luna global-luna-typing" role="status" aria-label="Luna is typing"><div className="message-bubble prototype-typing"><span /><span /><span /></div></div> : null}
           {state.proposals.map((proposal) => (

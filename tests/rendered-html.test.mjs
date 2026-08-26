@@ -40,13 +40,14 @@ test("server-renders the idealized day planner", async () => {
 });
 
 test("keeps the routine data and interactions in the page", async () => {
-  const [page, workspace, drawer, css, durationControl, activityPresentation] = await Promise.all([
+  const [page, workspace, drawer, css, durationControl, activityPresentation, workReceipt] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/use-mobile-conversation-drawer.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-duration-control.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-presentation.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/conversation-work-receipt.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /localStorage/);
@@ -123,15 +124,16 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activeJob\.status !== "retryable_failure"/);
   assert.match(page, /activeJob\.status === "leased" \|\| activeJob\.status === "running"/);
   assert.match(page, /hasWorkspaceJob/);
-  assert.match(page, /conversation-work-receipt/);
-  assert.match(page, /conversation-work-receipt-entry/);
-  assert.match(page, /conversation-work-receipt-action/);
-  assert.match(page, /conversation-work-receipt-meta/);
-  assert.doesNotMatch(page, /conversation-work-receipt-check/);
-  assert.match(page, /subject_move: "Activity moved"/);
-  assert.match(page, /<strong>\{WORK_RECEIPT_LABELS\[artifact\.kind\]\}<\/strong>/);
-  assert.match(page, /conversation-work-receipt-detail">\{artifact\.title\}/);
-  assert.doesNotMatch(page, /conversation-work-receipt-detail">\{artifact\.detail\}/);
+  assert.match(page, /<ConversationWorkReceipt/);
+  assert.match(workReceipt, /conversation-work-receipt/);
+  assert.match(workReceipt, /conversation-work-receipt-entry/);
+  assert.match(workReceipt, /conversation-work-receipt-action/);
+  assert.match(workReceipt, /conversation-work-receipt-meta/);
+  assert.doesNotMatch(workReceipt, /conversation-work-receipt-check/);
+  assert.match(workReceipt, /subject_move: "Activity moved"/);
+  assert.match(workReceipt, /<strong>\{WORK_RECEIPT_LABELS\[artifact\.kind\]\}<\/strong>/);
+  assert.match(workReceipt, /conversation-work-receipt-detail">\{artifact\.title\}/);
+  assert.doesNotMatch(workReceipt, /conversation-work-receipt-detail">\{artifact\.detail\}/);
   assert.match(css, /\.conversation-work-receipt-entry \{[^}]*flex: 0 0 auto;/);
   assert.match(css, /\.conversation-work-receipt \{[^}]*grid-template-columns: 58px minmax\(0, 1fr\) 62px;/);
   assert.match(css, /\.conversation-work-receipt-icon \{[^}]*align-self: center;[^}]*justify-self: center;/);

@@ -40,7 +40,7 @@ function starterStreakActivity(activity: Pick<ActivityRow, "title" | "category">
 
 export async function readComponentUsage(userId: string): Promise<ComponentUsageMap> {
   const db = getD1();
-  const [activityResult, workspaceResult, followUpResult, activeJobResult, scheduleResult] = await Promise.all([
+  const [activityResult, workspaceResult, followUpResult, activeJobResult, scheduleResult, receiptResult] = await Promise.all([
     db.prepare(`SELECT id, title, category FROM activities WHERE user_id = ? ORDER BY title`).bind(userId).all<ActivityRow>(),
     db.prepare(`
       SELECT activity.id AS activityId, activity.title, revision.document_json AS documentJson
@@ -74,6 +74,13 @@ export async function readComponentUsage(userId: string): Promise<ComponentUsage
       WHERE pattern.user_id = ? AND pattern.archived_at IS NULL
       ORDER BY activity.title
     `).bind(userId).all<ScheduleRow>(),
+    db.prepare(`
+      SELECT DISTINCT activity.id AS activityId, activity.title
+      FROM conversation_artifacts artifact
+      JOIN activities activity ON activity.id = artifact.activity_id
+      WHERE artifact.user_id = ?
+      ORDER BY activity.title
+    `).bind(userId).all<ActivityTitleRow>(),
   ]);
 
   const usage = new Map<string, Set<string>>();
@@ -114,6 +121,7 @@ export async function readComponentUsage(userId: string): Promise<ComponentUsage
 
   for (const row of followUpResult.results) add(usage, "activity_follow_up", row.title);
   for (const row of activeJobResult.results) add(usage, "workspace_working", row.title);
+  for (const row of receiptResult.results) add(usage, "conversation_work_receipt", row.title);
   const shownScheduleIds = new Set<string>();
   for (const row of scheduleResult.results) {
     const cadence = parsedObject(row.cadenceJson);

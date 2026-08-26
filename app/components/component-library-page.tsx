@@ -1,11 +1,13 @@
 "use client";
 
-import { Boxes, Check, ChevronRight, Columns2, Database, Layers3, Monitor, RotateCcw, Search, Smartphone, Sparkles, WandSparkles } from "lucide-react";
+import { ArrowRightLeft, Boxes, CalendarCheck2, CalendarDays, Check, ChevronRight, Columns2, Database, Layers3, Monitor, RotateCcw, Search, Smartphone, Sparkles, WandSparkles } from "lucide-react";
 import { useMemo, useState, type CSSProperties } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "../activity-record-components";
 import type { ActivityRecord } from "../activity-record-model";
 import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
 import { StreakTrack } from "../streak-track";
+import { ConversationWorkReceipt } from "../conversation-work-receipt";
+import type { WorkReceiptKind } from "../work-receipt-model";
 import { buildComponentLibraryFixtures, COMPONENT_GROUPS, COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-library-fixtures";
 import type { ComponentUsageMap } from "./component-usage";
 import styles from "./component-library.module.css";
@@ -15,6 +17,14 @@ type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[
 type View = "components" | "selection";
 type PreviewWidth = "desktop" | "mobile";
 type SessionChoiceState = "choosing" | "selected";
+type ReceiptState = "new" | "viewed";
+
+const RECEIPT_SPECIMENS: Record<WorkReceiptKind, { title: string; icon: typeof Sparkles }> = {
+  activity_update: { title: "Added a pace target to Morning Walk", icon: Sparkles },
+  schedule_update: { title: "Shower is now every 3 days", icon: CalendarDays },
+  subject_move: { title: "Massage gun moved to Recovery", icon: ArrowRightLeft },
+  check_in: { title: "Progress review scheduled for September 2", icon: CalendarCheck2 },
+};
 
 const activity: WorkspaceActivity = {
   id: "component-library-specimen",
@@ -68,6 +78,8 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
   const [query, setQuery] = useState("");
   const [previewWidth, setPreviewWidth] = useState<PreviewWidth>("desktop");
   const [sessionChoiceState, setSessionChoiceState] = useState<SessionChoiceState>("choosing");
+  const [receiptKind, setReceiptKind] = useState<WorkReceiptKind>("schedule_update");
+  const [receiptState, setReceiptState] = useState<ReceiptState>("new");
   const [fixtures, setFixtures] = useState(() => buildComponentLibraryFixtures(today));
   const [notice, setNotice] = useState("Live production renderer");
 
@@ -128,6 +140,8 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
   function resetMock() {
     setFixtures(buildComponentLibraryFixtures(today));
     setSessionChoiceState("choosing");
+    setReceiptKind("schedule_update");
+    setReceiptState("new");
     setNotice("Mock data reset");
   }
 
@@ -141,6 +155,16 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
     if (specimen.type === "workspace_working") return <WorkspaceWorkingComponent activity={{ title: "Cardio" }} workState="building" />;
     if (specimen.type === "workspace_empty") return <WorkspaceEmptyGuidance />;
     if (specimen.type === "workspace_invitation") return <WorkspaceLunaInvitation onTalkWithLuna={() => setNotice("Mock Luna handoff captured")} />;
+    if (specimen.type === "conversation_work_receipt") {
+      const receipt = RECEIPT_SPECIMENS[receiptKind];
+      const ReceiptIcon = receipt.icon;
+      return <ConversationWorkReceipt
+        artifact={{ id: "mock-work-receipt", kind: receiptKind, title: receipt.title, viewedAt: receiptState === "viewed" ? "2026-08-26 11:28:00" : null, createdAt: "2026-08-26 11:26:00" }}
+        icon={<ReceiptIcon aria-hidden="true" size={17} />}
+        onView={() => { setReceiptState("viewed"); setNotice("Mock committed result opened"); }}
+        timestamp="11:26 AM"
+      />;
+    }
     if (specimen.type === "product_action_tabs") return <ActivityWorkspace activity={productActivity} onRecordMutation={mutate} onTalkWithLuna={() => setNotice("Mock Luna handoff captured")} records={fixtures.records} workspace={fixtures.productWorkspace} />;
     const record = fixtures.records.find((entry) => entry.key === specimen.recordKey);
     if (!record) return <p>Fixture unavailable.</p>;
@@ -182,6 +206,10 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
           <div><span className={styles.eyebrow}>{specimen.group} · {specimen.layer}</span><h1>{specimen.label}</h1><p>{catalogEntry?.purpose ?? specimen.selection}</p></div>
           <div className={styles.stageActions}>
             {specimen.type === "session_choice" ? <div className={styles.stateSwitch} aria-label="Session choice state"><button aria-pressed={sessionChoiceState === "choosing"} onClick={() => setSessionChoiceState("choosing")} type="button">Choosing</button><button aria-pressed={sessionChoiceState === "selected"} onClick={() => setSessionChoiceState("selected")} type="button">Selected</button></div> : null}
+            {specimen.type === "conversation_work_receipt" ? <>
+              <label className={styles.variantSelect}><span>Receipt type</span><select aria-label="Receipt type" onChange={(event) => setReceiptKind(event.target.value as WorkReceiptKind)} value={receiptKind}>{Object.keys(RECEIPT_SPECIMENS).map((kind) => <option key={kind} value={kind}>{kind.replaceAll("_", " ")}</option>)}</select></label>
+              <div className={styles.stateSwitch} aria-label="Work receipt state"><button aria-pressed={receiptState === "new"} onClick={() => setReceiptState("new")} type="button">New</button><button aria-pressed={receiptState === "viewed"} onClick={() => setReceiptState("viewed")} type="button">Viewed</button></div>
+            </> : null}
             <div className={styles.widthSwitch} aria-label="Preview width"><button aria-pressed={previewWidth === "desktop"} onClick={() => setPreviewWidth("desktop")} title="Desktop width" type="button"><Monitor size={15} /></button><button aria-pressed={previewWidth === "mobile"} onClick={() => setPreviewWidth("mobile")} title="Mobile width" type="button"><Smartphone size={15} /></button></div>
             <button className={styles.resetButton} onClick={resetMock} type="button"><RotateCcw size={14} /> Reset mock</button>
           </div>

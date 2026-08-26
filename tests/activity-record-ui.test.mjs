@@ -205,8 +205,9 @@ test("layers the mobile conversation drawer over actions and shares its handle w
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-sheet \{[^}]*transform: translateY\(100%\)/s);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-header \{[^}]*background: var\(--accent\)/s);
   assert.match(css, /\.global-luna-mobile-handle \{[^}]*width: 100%;/s);
-  assert.match(css, /\.global-luna-artifact \{[^}]*animation: global-luna-artifact-arrive/s);
-  assert.match(css, /@keyframes global-luna-artifact-arrive/);
+  assert.match(globalLuna, /<ConversationWorkReceipt/);
+  assert.match(css, /\.conversation-work-receipt-entry \{[^}]*animation: conversation-work-receipt-arrive/s);
+  assert.match(css, /@keyframes conversation-work-receipt-arrive/);
 });
 
 test("keeps retroactive day corrections quiet while updating their dated occurrence", async () => {

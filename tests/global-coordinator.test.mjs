@@ -186,19 +186,20 @@ test("the app validates coordinator destinations and queues an activity-scoped c
 });
 
 test("root receipts can open long delegated artifact IDs and transition into their activity", async () => {
-  const [lunaRoute, activityRoute, agentStore, drawer, page] = await Promise.all([
+  const [lunaRoute, activityRoute, agentStore, drawer, page, receipt] = await Promise.all([
     readFile(new URL("../app/api/luna/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/global-luna.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/conversation-work-receipt.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(lunaRoute, /artifactId\.trim\(\)\.slice\(0, 1024\)/);
   assert.match(activityRoute, /artifactId\.trim\(\)\.slice\(0, 1024\)/);
   assert.match(drawer, /global-luna-typing/);
   assert.doesNotMatch(drawer, /global-luna-working/);
   assert.match(drawer, /Opening…/);
-  assert.match(drawer, /getBoundingClientRect\(\)/);
+  assert.match(receipt, /getBoundingClientRect\(\)/);
   assert.match(agentStore, /activity\.client_key AS activityClientKey/);
   assert.match(drawer, /activityClientKey: artifact\.activityClientKey/);
   assert.match(drawer, /artifact\.meta\?\.targetActivityId/);
