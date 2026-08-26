@@ -110,13 +110,17 @@ test("keeps the Luna avatar code-native, stateful, and motion-aware", async () =
   assert.match(avatar, /facetCount: 40/);
   assert.match(avatar, /globalCompositeOperation = "lighter"/);
   assert.match(avatar, /facetTime \* TAU \* config\.shimmerSpeed/);
-  assert.match(demo, /19 live sliders/);
+  assert.match(demo, /20 live sliders/);
   assert.match(demo, /Inner tip position/);
   assert.match(demo, /Side-tip position/);
   assert.match(demo, /Outer tip position/);
   assert.match(demo, /Overlay inner row/);
   assert.match(demo, /Copy settings/);
+  assert.match(demo, /Lock breath settings across rows/);
+  assert.match(demo, /Breath distance inward/);
+  assert.match(demo, /Breath distance outward/);
   assert.match(demo, /diamondRows/);
   assert.match(avatar, /facetRows/);
+  assert.match(avatar, /breathWave < 0 \? config\.breathInward : config\.breathOutward/);
   assert.match(design, /code-native living halo/);
 });

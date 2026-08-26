@@ -68,7 +68,8 @@ const FACET_GROUPS: Array<{ title: string; controls: FacetControl[] }> = [
     title: "Diamond motion",
     controls: [
       { key: "motionSpeed", label: "Motion speed", min: .2, max: 2, step: .01, decimals: 2 },
-      { key: "breathAmount", label: "Breath distance", min: 0, max: 3, step: .02, decimals: 2 },
+      { key: "breathInward", label: "Breath distance inward", min: 0, max: 3, step: .02, decimals: 2 },
+      { key: "breathOutward", label: "Breath distance outward", min: 0, max: 3, step: .02, decimals: 2 },
       { key: "breathPeriod", label: "Breath cycle", min: 2.5, max: 12, step: .1, decimals: 1, suffix: "s" },
       { key: "colorDriftAmount", label: "Palette drift", min: 0, max: 8, step: .1, decimals: 1, suffix: "°" },
       { key: "colorDriftSpeed", label: "Palette drift speed", min: 0, max: .8, step: .01, decimals: 2 },
@@ -76,9 +77,10 @@ const FACET_GROUPS: Array<{ title: string; controls: FacetControl[] }> = [
   },
 ];
 
-const STORAGE_KEY = "ideal-day-luna-diamond-rows-v3";
-const LEGACY_STORAGE_KEYS = ["ideal-day-luna-diamond-rows-v2", "ideal-day-luna-facet-tuning-v1"];
+const STORAGE_KEY = "ideal-day-luna-diamond-rows-v4";
+const LEGACY_STORAGE_KEYS = ["ideal-day-luna-diamond-rows-v3", "ideal-day-luna-diamond-rows-v2", "ideal-day-luna-facet-tuning-v1"];
 const ANCHOR_GAP = .005;
+const BREATH_KEYS = new Set<keyof LunaFacetTuning>(["breathInward", "breathOutward", "breathPeriod"]);
 
 function formatValue(control: FacetControl, value: number) {
   return `${value.toFixed(control.decimals ?? 0)}${control.suffix ?? ""}`;
@@ -116,6 +118,7 @@ export default function LunaDemoPage() {
   const [activeRow, setActiveRow] = useState<DiamondRowId>("outer");
   const [showInnerRow, setShowInnerRow] = useState(true);
   const [innerRowInitialized, setInnerRowInitialized] = useState(true);
+  const [lockBreathSettings, setLockBreathSettings] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const active = STATES.find((item) => item.id === state) || STATES[0];
@@ -134,6 +137,7 @@ export default function LunaDemoPage() {
             setInnerRowInitialized(true);
           }
           if (typeof parsed.showInnerRow === "boolean") setShowInnerRow(parsed.showInnerRow);
+          if (typeof parsed.lockBreathSettings === "boolean") setLockBreathSettings(parsed.lockBreathSettings);
         } else {
           const legacy = LEGACY_STORAGE_KEYS.map((key) => window.localStorage.getItem(key)).find(Boolean);
           if (legacy) {
@@ -158,11 +162,11 @@ export default function LunaDemoPage() {
   useEffect(() => {
     if (!storageReady) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ outerRow, innerRow, showInnerRow }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ outerRow, innerRow, showInnerRow, lockBreathSettings }));
     } catch {
       // The tuning lab remains usable when browser storage is unavailable.
     }
-  }, [innerRow, outerRow, showInnerRow, storageReady]);
+  }, [innerRow, lockBreathSettings, outerRow, showInnerRow, storageReady]);
 
   const updateFacet = (key: keyof LunaFacetTuning, value: number) => {
     const update = (current: LunaFacetTuning) => {
@@ -172,14 +176,41 @@ export default function LunaDemoPage() {
       if (key === "outerTipPosition") next.outerTipPosition = Math.max(value, current.sideTipPosition + ANCHOR_GAP);
       return next;
     };
-    if (activeRow === "outer") setOuterRow(update);
-    else setInnerRow(update);
+    if (activeRow === "outer") {
+      setOuterRow(update);
+      if (lockBreathSettings && BREATH_KEYS.has(key)) setInnerRow(update);
+    } else {
+      setInnerRow(update);
+      if (lockBreathSettings && BREATH_KEYS.has(key)) setOuterRow(update);
+    }
+    setCopyState("idle");
+  };
+
+  const toggleBreathLock = (locked: boolean) => {
+    if (locked) {
+      const source = activeRow === "outer" ? outerRow : innerRow;
+      const synchronize = (row: LunaFacetTuning): LunaFacetTuning => ({
+        ...row,
+        breathInward: source.breathInward,
+        breathOutward: source.breathOutward,
+        breathPeriod: source.breathPeriod,
+      });
+      if (activeRow === "outer") setInnerRow(synchronize);
+      else setOuterRow(synchronize);
+    }
+    setLockBreathSettings(locked);
     setCopyState("idle");
   };
 
   const resetActiveRow = () => {
-    if (activeRow === "outer") setOuterRow({ ...DEFAULT_LUNA_FACET_TUNING });
-    else setInnerRow(createInnerRow(outerRow));
+    if (activeRow === "outer") {
+      setOuterRow({ ...DEFAULT_LUNA_FACET_TUNING });
+      if (lockBreathSettings) setInnerRow((current) => ({ ...current, breathInward: DEFAULT_LUNA_FACET_TUNING.breathInward, breathOutward: DEFAULT_LUNA_FACET_TUNING.breathOutward, breathPeriod: DEFAULT_LUNA_FACET_TUNING.breathPeriod }));
+    } else {
+      const reset = createInnerRow(outerRow);
+      setInnerRow(reset);
+      if (lockBreathSettings) setOuterRow((current) => ({ ...current, breathInward: reset.breathInward, breathOutward: reset.breathOutward, breathPeriod: reset.breathPeriod }));
+    }
     setCopyState("idle");
   };
 
@@ -220,7 +251,8 @@ export default function LunaDemoPage() {
         <section className="luna-geometry-study"><span className="onboarding-kicker">VIEW</span><div className="luna-layer-options">{LAYERS.map((option) => <button aria-pressed={layer === option.id} className={layer === option.id ? "is-active" : ""} key={option.id} type="button" onClick={() => setLayer(option.id)}>{option.label}</button>)}</div><button aria-pressed={showInnerRow} className={`luna-row-overlay-button${showInnerRow ? " is-active" : ""}`} type="button" onClick={toggleInnerRow}><Layers3 size={16} />{showInnerRow ? "Hide inner row" : "Overlay inner row"}</button></section>
         <section className="luna-facet-tuner">
           <div className="luna-row-selector" aria-label="Diamond row to adjust" role="group"><button aria-pressed={activeRow === "outer"} className={activeRow === "outer" ? "is-active" : ""} type="button" onClick={() => setActiveRow("outer")}><strong>Outer row</strong><small>Original diamonds</small></button><button aria-pressed={activeRow === "inner"} className={activeRow === "inner" ? "is-active" : ""} disabled={!showInnerRow} type="button" onClick={() => setActiveRow("inner")}><strong>Inner row</strong><small>{showInnerRow ? "Independently adjustable" : "Overlay it first"}</small></button></div>
-          <div className="luna-tuning-heading"><div><span className="onboarding-kicker">{activeRow.toUpperCase()} ROW</span><h2>19 live sliders</h2><p>Every control below applies only to this row.</p></div><div className="luna-tuning-actions"><button type="button" onClick={resetActiveRow}><RotateCcw size={14} />Reset row</button><button className="is-primary" type="button" onClick={copySettings}>{copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}{copyState === "copied" ? "Copied" : "Copy settings"}</button></div></div>
+          <div className="luna-breath-lock"><input aria-label="Lock breath settings across rows" checked={lockBreathSettings} id="luna-lock-breath" type="checkbox" onChange={(event) => toggleBreathLock(event.currentTarget.checked)} /><label htmlFor="luna-lock-breath"><strong>Lock breath settings across rows</strong><small>Inward distance, outward distance, and cycle stay matched.</small></label></div>
+          <div className="luna-tuning-heading"><div><span className="onboarding-kicker">{activeRow.toUpperCase()} ROW</span><h2>20 live sliders</h2><p>Every control below applies only to this row.</p></div><div className="luna-tuning-actions"><button type="button" onClick={resetActiveRow}><RotateCcw size={14} />Reset row</button><button className="is-primary" type="button" onClick={copySettings}>{copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}{copyState === "copied" ? "Copied" : "Copy settings"}</button></div></div>
           <p className="luna-copy-status" aria-live="polite">{copyState === "failed" ? "Clipboard access failed. Try again from the published page." : copyState === "copied" ? "Both diamond rows are ready to paste back into chat." : "Copies the outer row, inner row, and whether the overlay is visible."}</p>
           <div className="luna-tuning-groups">{FACET_GROUPS.map((group) => <fieldset key={group.title}><legend>{group.title}</legend>{group.controls.map((control) => {
             const inputId = `luna-${activeRow}-${control.key}`;

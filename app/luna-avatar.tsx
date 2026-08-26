@@ -30,7 +30,8 @@ export type LunaFacetTuning = {
   shimmerAmount: number;
   shimmerSpeed: number;
   motionSpeed: number;
-  breathAmount: number;
+  breathInward: number;
+  breathOutward: number;
   breathPeriod: number;
   colorDriftAmount: number;
   colorDriftSpeed: number;
@@ -41,7 +42,7 @@ export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
   artScale: .76,
   innerTipPosition: .645,
   sideTipPosition: .778,
-  outerTipPosition: .895,
+  outerTipPosition: .898,
   angularSpan: 1,
   innerConvexity: 1,
   outerConvexity: 1,
@@ -49,10 +50,11 @@ export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
   facetOpacity: .32,
   colorRotation: 0,
   colorLift: 0,
-  shimmerAmount: .05,
-  shimmerSpeed: .38,
+  shimmerAmount: .18,
+  shimmerSpeed: 1.01,
   motionSpeed: 1,
-  breathAmount: 1,
+  breathInward: 1,
+  breathOutward: 1,
   breathPeriod: 5.8,
   colorDriftAmount: .7,
   colorDriftSpeed: .1,
@@ -60,7 +62,7 @@ export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
 
 export const DEFAULT_LUNA_INNER_FACET_TUNING: LunaFacetTuning = {
   ...DEFAULT_LUNA_FACET_TUNING,
-  innerTipPosition: .554,
+  innerTipPosition: .56,
   sideTipPosition: .645,
   outerTipPosition: .778,
   facetOpacity: .5,
@@ -298,7 +300,9 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       facetContext.globalCompositeOperation = "lighter";
       for (const config of facetConfigs) {
         const facetTime = time * config.motionSpeed;
-        const breath = (Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004) * breathReach * config.breathAmount;
+        const breathWave = Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004;
+        const directionalBreath = breathWave < 0 ? config.breathInward : config.breathOutward;
+        const breath = breathWave * breathReach * directionalBreath;
         const artRadius = radius * config.artScale;
         const colorRotation = config.colorRotation / 360 * TAU;
         const tunedColorAt = (angle: number, alpha = 1, light = 0) => colorAt(angle + colorRotation, alpha, light);
