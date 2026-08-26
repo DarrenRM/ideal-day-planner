@@ -12,6 +12,7 @@ type LunaAvatarProps = {
   state?: LunaAvatarState;
   facetTuning?: Partial<LunaFacetTuning>;
   facetRows?: ReadonlyArray<Partial<LunaFacetTuning>>;
+  motionTuning?: Partial<LunaMotionTuning>;
 };
 
 export type LunaFacetTuning = {
@@ -31,11 +32,24 @@ export type LunaFacetTuning = {
   shimmerAmount: number;
   shimmerSpeed: number;
   motionSpeed: number;
-  breathInward: number;
-  breathOutward: number;
-  breathPeriod: number;
   colorDriftAmount: number;
   colorDriftSpeed: number;
+};
+
+export type LunaMotionTuning = {
+  idleBreathDepth: number;
+  idleBreathPeriod: number;
+  thinkingBreathDepth: number;
+  thinkingBreathPeriod: number;
+  thinkingFieldActivity: number;
+};
+
+export const DEFAULT_LUNA_MOTION_TUNING: LunaMotionTuning = {
+  idleBreathDepth: .065,
+  idleBreathPeriod: 5.8,
+  thinkingBreathDepth: .085,
+  thinkingBreathPeriod: 2.9,
+  thinkingFieldActivity: 1.8,
 };
 
 export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
@@ -55,9 +69,6 @@ export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
   shimmerAmount: .18,
   shimmerSpeed: 1.01,
   motionSpeed: 1,
-  breathInward: 3,
-  breathOutward: 3,
-  breathPeriod: 5.8,
   colorDriftAmount: .7,
   colorDriftSpeed: .1,
 };
@@ -164,7 +175,7 @@ const LUNA_FIELD = (() => {
   return { links, nodes, stars };
 })();
 
-export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, state = "idle", facetTuning, facetRows }: LunaAvatarProps) {
+export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, state = "idle", facetTuning, facetRows, motionTuning }: LunaAvatarProps) {
   const shellRef = useRef<HTMLSpanElement>(null);
   const networkCanvasRef = useRef<HTMLCanvasElement>(null);
   const facetCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -179,6 +190,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
     if (!networkContext || !facetContext) return;
     const requestedRows = facetRows?.length ? facetRows : facetTuning ? [facetTuning] : DEFAULT_LUNA_FACET_ROWS;
     const facetConfigs = requestedRows.map((row) => ({ ...DEFAULT_LUNA_FACET_TUNING, ...row }));
+    const motionConfig = { ...DEFAULT_LUNA_MOTION_TUNING, ...motionTuning };
 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reducedMotion = motion.matches;
@@ -226,9 +238,10 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       lastNetworkFrame = Number.NEGATIVE_INFINITY;
     };
 
-    const drawNetwork = (centerX: number, centerY: number, radius: number, emptyRadius: number, time: number, energy: number) => {
+    const drawNetwork = (centerX: number, centerY: number, radius: number, emptyRadius: number, time: number, energy: number, activity: number, colorRotation: number) => {
       const fieldEnergy = energy * fieldScale;
-      const blinkRate = state === "thinking" ? 2.8 : state === "listening" ? 1.35 : 1;
+      const blinkRate = state === "thinking" ? 1.8 * activity : state === "listening" ? 1.35 : 1;
+      const networkColorAt = (angle: number, alpha = 1, light = 0) => colorAt(angle + colorRotation, alpha, light);
       const positions = LUNA_FIELD.nodes.slice(0, activeNodeCount).map((node, index) => {
         const drift = Math.sin(time * .35 + node.phase) * radius * .008;
         const orbital = node.angle + Math.sin(time * .14 + node.phase) * .012 + time * (index % 2 ? .0007 : -.00055);
@@ -259,7 +272,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         networkContext.beginPath();
         networkContext.moveTo(a.x, a.y);
         networkContext.lineTo(b.x, b.y);
-        networkContext.strokeStyle = colorAt((a.angle + b.angle) / 2, opacity);
+        networkContext.strokeStyle = networkColorAt((a.angle + b.angle) / 2, opacity);
         networkContext.lineWidth = .48;
         networkContext.stroke();
       }
@@ -273,7 +286,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const pulse = .7 + Math.sin(time * 1.25 * blinkRate + star.phase) * .22;
         networkContext.beginPath();
         networkContext.arc(x, y, star.size * pulse * fieldEnergy, 0, TAU);
-        networkContext.fillStyle = colorAt(star.angle, .68 * fieldEnergy * fade, .08);
+        networkContext.fillStyle = networkColorAt(star.angle, .68 * fieldEnergy * fade, .08);
         networkContext.fill();
       }
 
@@ -282,38 +295,34 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const pointSize = point.size * pulse * fieldEnergy;
         if (pointSize > 1.18) {
           const glow = networkContext.createRadialGradient(point.x, point.y, 0, point.x, point.y, pointSize * 4.4);
-          glow.addColorStop(0, colorAt(point.angle, .62 * fieldEnergy * point.fade, .28));
-          glow.addColorStop(.28, colorAt(point.angle, .28 * fieldEnergy * point.fade));
-          glow.addColorStop(1, colorAt(point.angle, 0));
+          glow.addColorStop(0, networkColorAt(point.angle, .62 * fieldEnergy * point.fade, .28));
+          glow.addColorStop(.28, networkColorAt(point.angle, .28 * fieldEnergy * point.fade));
+          glow.addColorStop(1, networkColorAt(point.angle, 0));
           networkContext.fillStyle = glow;
           networkContext.fillRect(point.x - pointSize * 4.4, point.y - pointSize * 4.4, pointSize * 8.8, pointSize * 8.8);
         }
         networkContext.beginPath();
         networkContext.arc(point.x, point.y, Math.max(.24, pointSize), 0, TAU);
-        networkContext.fillStyle = colorAt(point.angle, .9 * fieldEnergy * point.fade, .08);
+        networkContext.fillStyle = networkColorAt(point.angle, .9 * fieldEnergy * point.fade, .08);
         networkContext.fill();
       }
       networkContext.restore();
     };
 
-    const drawFacets = (centerX: number, centerY: number, radius: number, time: number, energy: number, breathReach: number) => {
+    const drawFacets = (centerX: number, centerY: number, radius: number, time: number, paletteTime: number, energy: number, ringScale: number) => {
       facetContext.clearRect(0, 0, width, height);
       facetContext.save();
       facetContext.globalCompositeOperation = "lighter";
       for (const config of facetConfigs) {
         const facetTime = time * config.motionSpeed;
-        const breathWave = Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004;
-        const breathProgress = Math.max(0, Math.min(1, .5 + breathWave / .03));
-        const inwardBreath = .015 * config.breathInward * breathProgress * breathReach;
-        const outwardBreath = .015 * config.breathOutward * breathProgress * breathReach;
-        const artRadius = radius * config.artScale;
-        const colorRotation = (config.colorRotation + time * config.colorRotationSpeed) / 360 * TAU;
+        const artRadius = radius * config.artScale * ringScale;
+        const colorRotation = (config.colorRotation + paletteTime * config.colorRotationSpeed) / 360 * TAU;
         const tunedColorAt = (angle: number, alpha = 1, light = 0) => colorAt(angle + colorRotation, alpha, light);
         const facets = Math.max(12, Math.round(config.facetCount));
         const spacing = TAU / facets;
         const centerRadius = artRadius * config.sideTipPosition;
-        const inwardRadius = artRadius * (config.innerTipPosition - inwardBreath);
-        const outwardRadius = artRadius * (config.outerTipPosition + outwardBreath);
+        const inwardRadius = artRadius * config.innerTipPosition;
+        const outwardRadius = artRadius * config.outerTipPosition;
         const innerHalfDiagonal = centerRadius - inwardRadius;
         const outerHalfDiagonal = outwardRadius - centerRadius;
         const edgeSteps = Math.max(1, Math.round(config.edgeSteps));
@@ -364,22 +373,29 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       if (!visible || document.hidden) return;
       if (needsResize) resizeCanvases();
       const elapsed = reducedMotion ? 1.8 : (now - startedAt) / 1000;
-      const stateSpeed = state === "thinking" ? 1.22 : state === "listening" ? .86 : .54;
       const energy = 1;
-      const networkTime = elapsed * stateSpeed;
+      const fieldActivity = state === "thinking" ? motionConfig.thinkingFieldActivity : state === "listening" ? 1.2 : 1;
+      const networkTime = elapsed * fieldActivity;
+      const facetTime = elapsed;
+      const paletteTime = elapsed * (state === "thinking" ? 2 : 1);
       const centerX = width / 2;
       const centerY = height / 2;
       const radius = Math.min(width, height) / 2;
-      const breathReach = state === "thinking" ? 2.3 : state === "listening" ? 1.3 : 1;
-      const networkArtRadius = radius * .76;
-      const networkBreath = (Math.sin(networkTime * TAU / 5.8) * .011 + Math.sin(networkTime * TAU / 11.6 + .7) * .004) * breathReach;
-      const networkCoreRadius = networkArtRadius * (.635 + networkBreath);
+      const breathDepth = state === "thinking" ? motionConfig.thinkingBreathDepth : motionConfig.idleBreathDepth;
+      const breathPeriod = state === "thinking" ? motionConfig.thinkingBreathPeriod : motionConfig.idleBreathPeriod;
+      const breathProgress = (1 - Math.cos(facetTime * TAU / breathPeriod)) / 2;
+      const ringScale = 1 - breathDepth * breathProgress;
+      const networkArtRadius = radius * .76 * ringScale;
+      const networkCoreRadius = networkArtRadius * .635;
+      const sharedColorSpeed = facetConfigs[0]?.colorRotationSpeed ?? DEFAULT_LUNA_FACET_TUNING.colorRotationSpeed;
+      const sharedColorOffset = facetConfigs[0]?.colorRotation ?? DEFAULT_LUNA_FACET_TUNING.colorRotation;
+      const networkColorRotation = (sharedColorOffset + paletteTime * sharedColorSpeed) / 360 * TAU;
       const compact = Math.min(width, height) < 144;
       const facetInterval = reducedMotion ? Number.POSITIVE_INFINITY : 1000 / (compact ? 18 : 30);
       const networkInterval = reducedMotion
         ? Number.POSITIVE_INFINITY
         : state === "thinking"
-          ? compact ? 600 : 250
+          ? compact ? 360 : Math.max(90, 220 / fieldActivity)
           : state === "listening"
             ? compact ? 800 : 450
             : compact ? 1000 : 750;
@@ -387,11 +403,11 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const usesFacets = layer === "complete" || layer === "facets";
 
       if (usesNetwork && now - lastNetworkFrame >= networkInterval) {
-        drawNetwork(centerX, centerY, networkArtRadius, networkCoreRadius, networkTime, energy);
+        drawNetwork(centerX, centerY, networkArtRadius, networkCoreRadius, networkTime, energy, fieldActivity, networkColorRotation);
         lastNetworkFrame = now;
       }
       if (usesFacets && now - lastFacetFrame >= facetInterval) {
-        drawFacets(centerX, centerY, radius, networkTime, energy, breathReach);
+        drawFacets(centerX, centerY, radius, facetTime, paletteTime, energy, ringScale);
         lastFacetFrame = now;
       }
 
@@ -442,7 +458,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       resizeObserver.disconnect();
       visibilityObserver.disconnect();
     };
-  }, [facetRows, facetTuning, layer, state]);
+  }, [facetRows, facetTuning, layer, motionTuning, state]);
 
   return <span ref={shellRef} className="luna-avatar" data-state={state} role="img" aria-label={`${label} is ${state}`} style={{ "--luna-avatar-size": `${size}px` } as CSSProperties}><canvas aria-hidden="true" className="luna-avatar-network" ref={networkCanvasRef} /><canvas aria-hidden="true" className="luna-avatar-facets" ref={facetCanvasRef} /></span>;
 }
