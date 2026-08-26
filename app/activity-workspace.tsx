@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Package, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2, Wrench } from "lucide-react";
+import { CalendarClock, Check, ChevronDown, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
@@ -117,14 +117,23 @@ function subjectRhythmSignature(record: ActivityRecord) {
 type ProductIdentity = {
   kind?: "product" | "device";
   name?: string;
+  manufacturer?: string;
+  variant?: string;
+  notes?: string;
+  routineAction?: string;
 };
 
-function productIdentity(record: ActivityRecord) {
+function productRoutineAction(record: ActivityRecord) {
   const data = record.data as ProductIdentity;
-  return {
-    kind: data.kind === "device" ? "device" as const : "product" as const,
-    name: data.name?.trim() || record.title,
-  };
+  if (data.routineAction?.trim()) return data.routineAction.trim();
+  const identity = [data.name, data.manufacturer, data.variant, data.notes, record.title].filter(Boolean).join(" ").toLowerCase();
+  if (/tooth|oral|dental|brightbrush|brisk/.test(identity)) return "Brush teeth";
+  if (/retinol|face serum|facial serum/.test(identity)) return "Face serum";
+  if (/hair|scalp|shampoo|conditioner/.test(identity)) return "Hair care";
+  if (/cleanser|cleansing|soap/.test(identity)) return "Cleanse";
+  if (/moisturi[sz]|face cream|facial cream/.test(identity)) return "Moisturize";
+  if (/razor|shav/.test(identity)) return "Shave";
+  return `Use ${data.name?.trim() || record.title}`;
 }
 
 export type ActivityTimingSnapshot = {
@@ -410,6 +419,22 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     }
     return "Ready Anytime";
   }
+  const routineActionGroups = [...productComponents.reduce((groups, item) => {
+    const label = productRoutineAction(item.record);
+    const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || item.record.key;
+    const group = groups.get(key) ?? { key, label, items: [] as typeof productComponents };
+    group.items.push(item);
+    groups.set(key, group);
+    return groups;
+  }, new Map<string, { key: string; label: string; items: typeof productComponents }>()).values()];
+  const selectedRoutineAction = routineActionGroups.find((group) => group.items.some(({ record }) => record.key === selectedProduct?.record.key)) ?? routineActionGroups[0] ?? null;
+  const selectedProductKeys = new Set(selectedRoutineAction?.items.map(({ record }) => record.key) ?? []);
+  function routineActionDueLabel(group: typeof routineActionGroups[number]) {
+    const labels = group.items.map(({ record }) => productDueLabel(record));
+    if (labels.every((label) => label === "Done Today")) return "Done Today";
+    if (labels.includes("Due Today")) return "Due Today";
+    return labels.find((label) => label.startsWith("Due ")) ?? labels.find((label) => label !== "Ready Anytime") ?? "Ready Anytime";
+  }
   const trackerSignatures = productComponents.map(({ record }) => {
     const trackers = trackersByProduct.get(record.key) ?? [];
     return trackers.length === 1 ? subjectRhythmSignature(trackers[0]) : null;
@@ -504,23 +529,19 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                 <div className="subject-overview-heading">
                   <span className="workspace-overline">Overview</span>
                 </div>
-                <div aria-label="Choose an item to view" aria-orientation="horizontal" className="subject-tabs" role="tablist">
-                  {productComponents.map(({ record }) => {
-                    const identity = productIdentity(record);
-                    const isSelected = record.key === selectedProduct?.record.key;
-                    const IdentityIcon = identity.kind === "device" ? Wrench : Package;
+                <div aria-label={`Choose a ${activity.title} step to view`} className="subject-action-list" role="listbox">
+                  {routineActionGroups.map((group) => {
+                    const isSelected = group.key === selectedRoutineAction?.key;
                     return <button
-                      aria-controls={`subject-panel-${record.key}`}
                       aria-selected={isSelected}
                       className={isSelected ? "is-selected" : ""}
-                      id={`subject-tab-${record.key}`}
-                      key={record.key}
-                      onClick={() => setSelectedProductKey(record.key)}
-                      role="tab"
+                      key={group.key}
+                      onClick={() => setSelectedProductKey(group.items[0]?.record.key ?? null)}
+                      role="option"
                       type="button"
                     >
-                      <span className="subject-tab-icon"><IdentityIcon aria-hidden="true" size={14} /></span>
-                      <span><strong>{identity.name}</strong><small>{productDueLabel(record)}</small></span>
+                      <span><strong>{group.label}</strong><small>{routineActionDueLabel(group)}</small></span>
+                      <ChevronDown aria-hidden="true" size={17} />
                     </button>;
                   })}
                 </div>
@@ -602,7 +623,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
-              if (!record || record.type === "product" && hasProductSwitcher && record.key !== selectedProduct?.record.key) return null;
+              if (!record || record.type === "product" && hasProductSwitcher && !selectedProductKeys.has(record.key)) return null;
               const renderedRecord = <ActivityRecordComponent
                     completionDates={record.type === "product" ? productCompletionDates(activity, record.key) : undefined}
                     onMutate={onRecordMutation}
@@ -613,7 +634,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                     supportingRecords={record.type === "product" ? (nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step") : undefined}
                   />;
               return record.type === "product" && hasProductSwitcher
-                ? <div aria-labelledby={`subject-tab-${record.key}`} className="subject-panel" id={`subject-panel-${record.key}`} key={component.id} role="tabpanel">{renderedRecord}</div>
+                ? <div className="subject-panel" id={`subject-panel-${record.key}`} key={component.id}>{renderedRecord}</div>
                 : <div className="workspace-record-slot" key={component.id}>{renderedRecord}</div>;
             })}
           </div>

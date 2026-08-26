@@ -197,6 +197,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
       manufacturer: boundedString(source.manufacturer, 160),
       variant: boundedString(source.variant, 200),
       notes: boundedString(source.notes, 800),
+      routineAction: boundedString(source.routineAction, 120),
     };
   }
 

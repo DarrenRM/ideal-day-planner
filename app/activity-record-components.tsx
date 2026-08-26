@@ -51,7 +51,7 @@ function SummaryRecord({ record }: { record: ActivityRecord }) {
 }
 
 function ProductRecord({ record, onMutate, supportingRecords = [], completionDates = [] }: Props) {
-  const data = record.data as { kind?: "product" | "device"; name: string; manufacturer?: string; variant?: string; notes?: string };
+  const data = record.data as { kind?: "product" | "device"; name: string; manufacturer?: string; variant?: string; notes?: string; routineAction?: string };
   const kindLabel = data.kind === "device" ? "Device" : "Product";
   const identityDetail = [data.manufacturer, data.variant].filter(Boolean).join(" · ");
   const detailRecords = supportingRecords.filter((supportingRecord) => supportingRecord.type !== "resources");

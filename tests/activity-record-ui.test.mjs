@@ -96,14 +96,15 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.doesNotMatch(workspace, /productComponents\.length === 1/);
   assert.match(workspace, /className="workspace-block subject-overview"/);
   assert.match(workspace, />Overview</);
-  assert.match(workspace, /role="tablist"/);
-  assert.match(workspace, /role="tabpanel"/);
+  assert.match(workspace, /productRoutineAction\(item\.record\)/);
+  assert.match(workspace, /className="subject-action-list" role="listbox"/);
+  assert.match(workspace, /role="option"/);
   assert.match(workspace, /productDueLabel\(record\)/);
   assert.doesNotMatch(workspace, /productComponents\.length} items/);
-  assert.match(workspace, /record\.key !== selectedProduct\?\.record\.key/);
-  assert.match(css, /\.subject-tabs > button \{[^}]*display: grid;[^}]*flex: 1 0 112px;[^}]*min-height: 58px/s);
-  assert.match(css, /\.subject-tabs > button\.is-selected::after/);
-  assert.doesNotMatch(css, /\.subject-tabs > button\.is-selected > svg/);
+  assert.match(workspace, /!selectedProductKeys\.has\(record\.key\)/);
+  assert.match(css, /\.subject-action-list > button \{[^}]*grid-template-columns: minmax\(0, 1fr\) 20px;[^}]*min-height: 54px/s);
+  assert.match(css, /\.subject-action-list > button\.is-selected \{[^}]*box-shadow: inset 2px 0 0 var\(--item-color\)/s);
+  assert.doesNotMatch(workspace, /subject-tab-|role="tab"|role="tabpanel"/);
   assert.match(css, /\.activity-workbench-grid \{[^}]*height: clamp\(420px, calc\(100dvh - 210px\), 680px\)[^}]*overflow: hidden/s);
   assert.match(css, /\.activity-workspace \{[^}]*overflow-y: auto/s);
   assert.match(css, /\.product-heading \{[^}]*justify-content: space-between/s);
@@ -121,6 +122,7 @@ test("keeps product cards focused on identity instead of generated subfields", a
       name: "LL-01",
       manufacturer: "Lumen Lab",
       variant: "Hair serum",
+      routineAction: "Apply hair treatment",
       fields: [{ label: "Use", value: "Daily" }],
     }),
     updatedAt: "2026-08-20T12:00:00Z",
@@ -131,6 +133,7 @@ test("keeps product cards focused on identity instead of generated subfields", a
     manufacturer: "Lumen Lab",
     variant: "Hair serum",
     notes: "",
+    routineAction: "Apply hair treatment",
   });
 });
 
