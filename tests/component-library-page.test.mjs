@@ -39,15 +39,17 @@ test("every record-backed specimen has hydrated mock data and valid links", () =
 });
 
 test("the workbench is Sites-only and uses the production renderers", async () => {
-  const [route, client, workspace] = await Promise.all([
+  const [route, client, workspace, usage] = await Promise.all([
     readFile(new URL("../app/components/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/component-library-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/component-usage.ts", import.meta.url), "utf8"),
   ]);
   assert.match(route, /VERCEL_GATEWAY_PRINCIPAL_HEADER/);
   assert.match(route, /redirect\("\/"\)/);
   assert.match(route, /COMPONENT_CATALOG/);
   assert.match(route, /ACTIVITY_RECIPES/);
+  assert.match(route, /readComponentUsage\(user\.userId\)/);
   assert.match(client, /<ActivityRecordComponent/);
   assert.match(client, /<TimerComponent/);
   assert.match(client, /<CountdownComponent/);
@@ -59,6 +61,9 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(client, /session_choice_compact/);
   assert.match(client, /Selection map/);
   assert.match(client, /data-width={previewWidth}/);
+  assert.ok(client.indexOf(">Good fits<") < client.indexOf(">Used on<"));
+  assert.ok(client.indexOf(">Used on<") < client.indexOf(">Hierarchy<"));
+  assert.match(client, /Not currently used by an activity/);
   assert.match(workspace, /export function TimerComponent/);
   assert.match(workspace, /export function CountdownComponent/);
   assert.match(workspace, /export function RoutineComponent/);
@@ -67,4 +72,9 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(workspace, /export function WorkspaceWorkingComponent/);
   assert.match(workspace, /export function WorkspaceEmptyGuidance/);
   assert.match(workspace, /export function WorkspaceLunaInvitation/);
+  assert.match(usage, /JOIN activity_workspaces/);
+  assert.match(usage, /JOIN activity_follow_ups/);
+  assert.match(usage, /JOIN schedule_patterns/);
+  assert.match(usage, /session_choice_compact/);
+  assert.match(usage, /product_action_tabs/);
 });

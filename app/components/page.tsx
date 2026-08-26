@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ACTIVITY_RECIPES, CATALOG_VERSION, COMPONENT_CATALOG } from "../../bridge/component-catalog.mjs";
 import { VERCEL_GATEWAY_PRINCIPAL_HEADER } from "../request-principal-model";
+import { getChatGPTUser } from "../chatgpt-auth";
 import { ComponentLibraryPage } from "./component-library-page";
+import { readComponentUsage, type ComponentUsageMap } from "./component-usage";
 
 export const metadata: Metadata = {
   title: "Component library · Ideal Day",
@@ -24,11 +26,18 @@ function phoenixDateKey() {
 export default async function ComponentsPage() {
   const requestHeaders = await headers();
   if (requestHeaders.get(VERCEL_GATEWAY_PRINCIPAL_HEADER)) redirect("/");
+  const user = await getChatGPTUser();
+  let usage: ComponentUsageMap = {};
+  if (user) {
+    try { usage = await readComponentUsage(user.userId); }
+    catch (error) { console.error("Unable to load component usage", error); }
+  }
 
   return <ComponentLibraryPage
     catalog={COMPONENT_CATALOG.map(([type, purpose, schema]) => ({ type, purpose, schema }))}
     catalogVersion={CATALOG_VERSION}
     recipes={[...ACTIVITY_RECIPES]}
     today={phoenixDateKey()}
+    usage={usage}
   />;
 }

@@ -7,10 +7,11 @@ import type { ActivityRecord } from "../activity-record-model";
 import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
 import { StreakTrack } from "../streak-track";
 import { buildComponentLibraryFixtures, COMPONENT_GROUPS, COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-library-fixtures";
+import type { ComponentUsageMap } from "./component-usage";
 import styles from "./component-library.module.css";
 
 type CatalogEntry = { type: string; purpose: string; schema: string };
-type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; today: string };
+type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; today: string; usage: ComponentUsageMap };
 type View = "components" | "selection";
 type PreviewWidth = "desktop" | "mobile";
 
@@ -60,7 +61,7 @@ function recipeParts(recipe: string) {
   return split < 0 ? { title: recipe, body: "" } : { title: recipe.slice(0, split), body: recipe.slice(split + 1).trim() };
 }
 
-export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today }: Props) {
+export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, usage }: Props) {
   const [view, setView] = useState<View>("components");
   const [selectedType, setSelectedType] = useState<LibraryComponentType>("summary");
   const [query, setQuery] = useState("");
@@ -70,6 +71,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today }
 
   const specimen = COMPONENT_SPECIMENS.find((entry) => entry.type === selectedType) ?? COMPONENT_SPECIMENS[0];
   const catalogEntry = catalog.find((entry) => entry.type === (specimen.type === "session_choice_compact" ? "session_choice" : specimen.type));
+  const usedOn = usage[specimen.type] ?? [];
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return COMPONENT_SPECIMENS;
@@ -192,6 +194,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today }
       <aside className={styles.inspector}>
         <section><span className={styles.eyebrow}>Selection rule</span><p>{specimen.selection}</p></section>
         <section><span className={styles.eyebrow}>Good fits</span><div className={styles.chips}>{specimen.activities.map((name) => <span key={name}>{name}</span>)}</div></section>
+        <section><span className={styles.eyebrow}>Used on</span>{usedOn.length ? <div className={styles.usedOn}>{usedOn.map((name) => <span key={name}>{name}</span>)}</div> : <p className={styles.notUsed}>Not currently used by an activity.</p>}</section>
         <section><span className={styles.eyebrow}>Hierarchy</span><div className={styles.hierarchy}><span>{specimen.role}</span><ChevronRight size={13} /><p>{specimen.hierarchy}</p></div></section>
         <section><span className={styles.eyebrow}>Data contract</span><code>{catalogEntry?.schema ?? "Legacy app-owned workspace component"}</code></section>
         <section className={styles.syncNote}><Layers3 size={17} /><div><b>One implementation</b><p>This specimen uses the production renderer. A component design change here is the same change activities receive.</p></div></section>

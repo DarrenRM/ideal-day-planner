@@ -49,6 +49,10 @@
 .inspector p { color: #a0aaa6; font-size: 12px; line-height: 1.6; margin: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips span, .catalogTypes span { background: #151c1e; border: 1px solid #2a3638; border-radius: 999px; color: #aeb8b4; font-size: 11px; padding: 5px 8px; }
+.usedOn { display: grid; gap: 6px; }
+.usedOn span { align-items: center; color: #d8e5d1; display: flex; font-size: 12px; gap: 8px; }
+.usedOn span::before { background: var(--item-color, #b7db78); border-radius: 50%; content: ""; height: 5px; opacity: .85; width: 5px; }
+.notUsed { color: #6f7b77 !important; font-style: italic; }
 .hierarchy { align-items: flex-start; display: grid; gap: 8px; grid-template-columns: auto auto 1fr; }
 .hierarchy > span { background: #2a3427; border-radius: 5px; color: #bddd86; font-size: 10px; padding: 4px 6px; text-transform: uppercase; }
 .hierarchy svg { color: #54605c; margin-top: 3px; }
