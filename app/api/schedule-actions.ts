@@ -287,6 +287,14 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
           revision = revision + 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(occurrence.id).run();
+  } else if (action.type === "deactivate_extra" && occurrence) {
+    if (occurrence.planRole !== "extra") throw new Error("Only a Go Further activity can return to More for today.");
+    const result = await db.prepare(`
+      UPDATE daily_plan_items
+      SET activated_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND completed_at IS NULL AND skipped_at IS NULL AND removed_at IS NULL
+    `).bind(occurrence.id).run();
+    if (!result.meta.changes) throw new Error("Only an unfinished activity can return to More for today.");
   } else if (action.type === "move_to_date" && occurrence) {
     const routine = await db.prepare(`
       SELECT rt.id AS routineId, rt.start_minutes AS startMinutes

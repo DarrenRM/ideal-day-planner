@@ -58,6 +58,7 @@ export type OccurrenceAction =
   | { type: "set_label"; occurrenceId: string; displayLabel: string | null; idempotencyKey: string }
   | { type: "set_status"; occurrenceId: string; status: "planned" | "completed" | "skipped" | "removed"; idempotencyKey: string }
   | { type: "activate_extra"; occurrenceId: string; idempotencyKey: string }
+  | { type: "deactivate_extra"; occurrenceId: string; idempotencyKey: string }
   | { type: "activate_activity_for_date"; activityId: string; date: string; idempotencyKey: string }
   | { type: "add_occurrence"; activityId: string; date: string; position?: number; activityVariantId?: string | null; durationMinutes?: number; planRole?: "essential" | "extra"; idempotencyKey: string };
 
@@ -390,6 +391,7 @@ export function parseOccurrenceAction(value: unknown): OccurrenceAction | null {
     return { type: "set_status", occurrenceId, status: source.status as "planned" | "completed" | "skipped" | "removed", idempotencyKey };
   }
   if (source.type === "activate_extra") return { type: "activate_extra", occurrenceId, idempotencyKey };
+  if (source.type === "deactivate_extra") return { type: "deactivate_extra", occurrenceId, idempotencyKey };
   return null;
 }
 

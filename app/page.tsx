@@ -426,6 +426,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const [scheduleSummary, setScheduleSummary] = useState<ActivityScheduleSummary | null>(null);
   const [failedJob, setFailedJob] = useState<ConversationState["failedJob"]>(null);
   const [proposalBusy, setProposalBusy] = useState<string | null>(null);
+  const canReturnToMore = normalizePlanRole(item.planRole) === "extra" && Boolean(item.activatedAt) && !isComplete && !isSkipped;
   const sendingRef = useRef(false);
   const refreshConversationRef = useRef<() => void>(() => {});
   const conversationLogRef = useRef<HTMLDivElement>(null);
@@ -1124,7 +1125,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                     {isComplete ? <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); void toggleActivityComplete(); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onEdit(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                     <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setResetActivityState("confirming")}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
-                    <button className="activity-remove-menu-action" role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onRemove(); }}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
+                    <button className="activity-remove-menu-action" role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onRemove(); }}>{canReturnToMore ? <RotateCcw aria-hidden="true" size={15} /> : <Trash2 aria-hidden="true" size={15} />} {canReturnToMore ? "Return to More for today" : "Remove from today"}</button>
                   </>
                 )}
               </div>
@@ -1281,14 +1282,15 @@ function PastDayReview({
   </section>;
 }
 
-function DayVictory({ isArriving }: { isArriving: boolean }) {
+function DayVictory({ isArriving, skippedEssentials }: { isArriving: boolean; skippedEssentials: number }) {
+  const fullyCompleted = skippedEssentials === 0;
   return (
     <section className={`day-victory ${isArriving ? "is-arriving" : ""}`} aria-labelledby="day-victory-title">
       <span className="day-victory-medal" aria-hidden="true"><Trophy size={24} strokeWidth={1.8} /></span>
       <div className="day-victory-copy">
         <span>Today’s achievement</span>
-        <h3 id="day-victory-title">Essentials complete</h3>
-        <p>The rest of today is yours.</p>
+        <h3 id="day-victory-title">{fullyCompleted ? "Essentials complete" : "Today settled"}</h3>
+        <p>{fullyCompleted ? "The rest of today is yours." : `${skippedEssentials} ${skippedEssentials === 1 ? "activity" : "activities"} skipped without changing your progress.`}</p>
       </div>
       <Sparkles className="day-victory-spark" aria-hidden="true" size={21} strokeWidth={1.6} />
     </section>
@@ -1448,6 +1450,11 @@ export default function Home() {
   const [skippingActivityId, setSkippingActivityId] = useState<string | null>(null);
   const [showAllExtras, setShowAllExtras] = useState(false);
   const [promotingExtraId, setPromotingExtraId] = useState<string | null>(null);
+  const [extraTransitionLocked, setExtraTransitionLocked] = useState(false);
+  const [recentlyActivatedExtra, setRecentlyActivatedExtra] = useState<{ id: string; title: string } | null>(null);
+  const [removeTodayItem, setRemoveTodayItem] = useState<RoutineItem | null>(null);
+  const [isRemovingToday, setIsRemovingToday] = useState(false);
+  const [removeTodayError, setRemoveTodayError] = useState<string | null>(null);
   const [extraPromotionError, setExtraPromotionError] = useState<string | null>(null);
   const [settlingCompletedIds, setSettlingCompletedIds] = useState<Set<string>>(() => new Set());
   const [nextActivityCueId, setNextActivityCueId] = useState<string | null>(null);
@@ -1472,11 +1479,18 @@ export default function Home() {
   const touchDragRef = useRef<TouchDrag | null>(null);
   const suppressActivityClickRef = useRef(false);
   const suppressActivityClickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const extraTransitionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     const timer = window.setInterval(() => setRealMinutes(minutesNow()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!recentlyActivatedExtra) return;
+    const timer = window.setTimeout(() => setRecentlyActivatedExtra(null), 8_000);
+    return () => window.clearTimeout(timer);
+  }, [recentlyActivatedExtra]);
 
   useEffect(() => {
     let storedMinutes: number | null | undefined;
@@ -1732,6 +1746,7 @@ export default function Home() {
     if (mobileActivityTransitionTimer.current) clearTimeout(mobileActivityTransitionTimer.current);
     if (touchDragRef.current) clearTimeout(touchDragRef.current.timer);
     if (suppressActivityClickTimer.current) clearTimeout(suppressActivityClickTimer.current);
+    if (extraTransitionTimer.current) clearTimeout(extraTransitionTimer.current);
   }, []);
 
   const completedBeforeLaunchIds = useMemo(() => {
@@ -1743,7 +1758,7 @@ export default function Home() {
     }));
   }, [dayStartedAt, items]);
 
-  const { active: activeDayItems, keepGoing: keepGoingItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
+  const { essentials: essentialDayItems, chosenExtras: chosenExtraItems, active: activeDayItems, keepGoing: keepGoingItems, availableExtras } = useMemo(() => partitionDayItems(items), [items]);
   const renderedDayItems = useMemo(() => {
     const preview = receiptPreviewActivityId
       ? availableExtras.find((item) => item.id === receiptPreviewActivityId)
@@ -1751,6 +1766,8 @@ export default function Home() {
     return preview ? [...activeDayItems, preview] : activeDayItems;
   }, [activeDayItems, availableExtras, receiptPreviewActivityId]);
   const keepGoingItemIds = useMemo(() => new Set(keepGoingItems.map((item) => item.id)), [keepGoingItems]);
+  const essentialItemIds = useMemo(() => new Set(essentialDayItems.map((item) => item.id)), [essentialDayItems]);
+  const chosenExtraItemIds = useMemo(() => new Set(chosenExtraItems.map((item) => item.id)), [chosenExtraItems]);
   const attentionByActivity = useMemo(() => captureAttention.reduce<Map<string, CaptureAttention[]>>((map, capture) => {
     const entries = map.get(capture.activityId) ?? [];
     entries.push(capture);
@@ -1806,8 +1823,15 @@ export default function Home() {
         ...visibleItems.filter((item) => !passedItemIds.has(item.id)),
       ];
     }
-    return visibleItems;
-  }, [completedIds, isDayStarted, passedItemIds, scheduledItems, selectedActivityId, settlingCompletedIds, timelineEnabled]);
+    return [
+      ...visibleItems.filter((item) => essentialItemIds.has(item.id)),
+      ...visibleItems.filter((item) => chosenExtraItemIds.has(item.id)),
+      ...visibleItems.filter((item) => keepGoingItemIds.has(item.id)),
+      ...visibleItems.filter((item) => !essentialItemIds.has(item.id) && !chosenExtraItemIds.has(item.id) && !keepGoingItemIds.has(item.id)),
+    ];
+  }, [chosenExtraItemIds, completedIds, essentialItemIds, isDayStarted, keepGoingItemIds, passedItemIds, scheduledItems, selectedActivityId, settlingCompletedIds, timelineEnabled]);
+  const firstVisibleEssentialId = displayedScheduledItems.find((item) => essentialItemIds.has(item.id))?.id ?? null;
+  const firstVisibleChosenExtraId = displayedScheduledItems.find((item) => chosenExtraItemIds.has(item.id))?.id ?? null;
   const firstVisibleKeepGoingId = displayedScheduledItems.find((item) => keepGoingItemIds.has(item.id))?.id ?? null;
   const settledCompletedItems = useMemo(() => scheduledItems
     .filter((item) => completedIds.has(item.id) && !settlingCompletedIds.has(item.id))
@@ -1887,15 +1911,14 @@ export default function Home() {
   const nextStartBoundary = Math.min(1435, Math.ceil(displayedMinutes / 5) * 5);
   const activeItemCount = dayProgress.essentialTotal;
   const completedItemCount = dayProgress.essentialCompleted;
+  const skippedEssentialCount = dayProgress.essentialSkipped;
   const selectedItemCount = dayProgress.selectedTotal;
   const selectedCompletedItemCount = dayProgress.selectedCompleted;
   const essentialsComplete = activeItemCount > 0 && completedItemCount >= activeItemCount;
-  const settledEssentialCount = settledCompletedItems.filter((item) => normalizePlanRole(item.planRole) === "essential").length;
-  const settledEssentialsComplete = activeItemCount > 0 && settledEssentialCount >= activeItemCount;
+  const settledEssentialsComplete = activeItemCount > 0 && dayProgress.essentialResolved >= activeItemCount;
   const unfinishedChosenExtras = activeDayItems.filter((item) => normalizePlanRole(item.planRole) === "extra"
     && !item.skippedAt
     && (!completedIds.has(item.id) || settlingCompletedIds.has(item.id)));
-  const unfinishedOtherChosenExtras = unfinishedChosenExtras.filter((item) => !keepGoingItemIds.has(item.id));
   const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras.length === 0;
   const isDayBloom = dayAchievementReady && Boolean(celebratingActivityId);
   const todayDateKey = localDateKey();
@@ -2088,8 +2111,18 @@ export default function Home() {
     }
   }
 
+  function lockExtraTransitions() {
+    setExtraTransitionLocked(true);
+    if (extraTransitionTimer.current) clearTimeout(extraTransitionTimer.current);
+    extraTransitionTimer.current = setTimeout(() => {
+      setExtraTransitionLocked(false);
+      extraTransitionTimer.current = undefined;
+    }, 650);
+  }
+
   async function promoteExtra(item: RoutineItem, origin: DOMRect) {
-    if (promotingExtraId || normalizePlanRole(item.planRole) !== "extra" || item.activatedAt) return;
+    if (extraTransitionLocked || promotingExtraId || normalizePlanRole(item.planRole) !== "extra" || item.activatedAt) return;
+    lockExtraTransitions();
     activityListPositionSnapshot.current = new Map(
       Array.from(document.querySelectorAll<HTMLElement>(".routine-row[data-activity-id]")).flatMap((row) => {
         const id = row.dataset.activityId;
@@ -2112,6 +2145,7 @@ export default function Home() {
         body: JSON.stringify({ actions: [{ type: "activate_extra", occurrenceId: item.id, idempotencyKey: window.crypto.randomUUID() }] }),
       });
       if (!response.ok) throw new Error("That extra could not be added today.");
+      setRecentlyActivatedExtra({ id: item.id, title: item.title });
       setSaveState("saved");
     } catch {
       extraPromotionOrigins.current.delete(item.id);
@@ -2122,6 +2156,24 @@ export default function Home() {
     } finally {
       setPromotingExtraId(null);
     }
+  }
+
+  async function deactivateExtra(item: RoutineItem) {
+    if (extraTransitionLocked || promotingExtraId || normalizePlanRole(item.planRole) !== "extra" || !item.activatedAt || item.completedAt || item.skippedAt) return;
+    lockExtraTransitions();
+    captureActivityListPositions();
+    setMobileActivityMenuId(null);
+    if (selectedActivityId === item.id) collapseActivity();
+    setRecentlyActivatedExtra(null);
+    setPromotingExtraId(item.id);
+    setExtraPromotionError(null);
+    setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt: null } : candidate));
+    const saved = await persistOccurrenceAction({ type: "deactivate_extra", occurrenceId: item.id });
+    if (!saved) {
+      setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, activatedAt: item.activatedAt } : candidate));
+      setExtraPromotionError(`${item.title} couldn’t return to More for today. Try again.`);
+    }
+    setPromotingExtraId(null);
   }
 
   async function setActivityRole(item: RoutineItem, planRole: PlanRole) {
@@ -2235,7 +2287,29 @@ export default function Home() {
     setIsAdding(false);
   }
 
-  function removeItem(id: string) {
+  function requestRemoveItem(item: RoutineItem) {
+    const canReturnToMore = normalizePlanRole(item.planRole) === "extra" && Boolean(item.activatedAt) && !item.completedAt && !item.skippedAt;
+    if (canReturnToMore) {
+      void deactivateExtra(item);
+      return;
+    }
+    setMobileActivityMenuId(null);
+    setRemoveTodayError(null);
+    setRemoveTodayItem(item);
+  }
+
+  async function confirmRemoveItem() {
+    const item = removeTodayItem;
+    if (!item || isRemovingToday) return;
+    setIsRemovingToday(true);
+    setRemoveTodayError(null);
+    const saved = await persistOccurrenceAction({ type: "set_status", occurrenceId: item.id, status: "removed" });
+    if (!saved) {
+      setRemoveTodayError("That change couldn’t be saved. Nothing was removed.");
+      setIsRemovingToday(false);
+      return;
+    }
+    const id = item.id;
     setMobileActivityMenuId(null);
     if (editingId === id) cancelEditing();
     if (selectedActivityId === id) setSelectedActivityId(null);
@@ -2245,7 +2319,8 @@ export default function Home() {
       return next;
     });
     setItems((current) => current.filter((item) => item.id !== id));
-    void persistOccurrenceAction({ type: "set_status", occurrenceId: id, status: "removed" });
+    setRemoveTodayItem(null);
+    setIsRemovingToday(false);
   }
 
   function startEditing(item: RoutineItem) {
@@ -3027,6 +3102,16 @@ export default function Home() {
         }}
         onSaved={() => { void reloadToday(); }}
       />
+      {removeTodayItem ? (
+        <div className="settings-modal-backdrop remove-today-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isRemovingToday) setRemoveTodayItem(null); }}>
+          <section aria-labelledby="remove-today-title" aria-modal="true" className="settings-modal remove-today-dialog" role="dialog">
+            <header className="settings-modal-header"><div><span>Today only</span><h2 id="remove-today-title">Remove {activityDisplayTitle(removeTodayItem)}?</h2></div><button aria-label="Close" disabled={isRemovingToday} type="button" onClick={() => setRemoveTodayItem(null)}><X aria-hidden="true" size={18} /></button></header>
+            <p>This removes the activity from today only. Your routine will not change.</p>
+            {removeTodayError ? <p className="settings-save-error" role="alert">{removeTodayError}</p> : null}
+            <div className="schedule-editor-actions"><button disabled={isRemovingToday} type="button" onClick={() => setRemoveTodayItem(null)}>Cancel</button><button className="remove-today-confirm" disabled={isRemovingToday} type="button" onClick={() => void confirmRemoveItem()}>{isRemovingToday ? "Removing…" : "Remove from today"}</button></div>
+          </section>
+        </div>
+      ) : null}
 
       <div className="page-shell">
         <section className="hero" aria-labelledby="page-title">
@@ -3196,10 +3281,9 @@ export default function Home() {
                 totalSelectedActivities={selectedItemCount}
                 onOpenActivity={(item, bounds) => openActivity(item.id, bounds)}
               /> : null}
-              {dayAchievementReady ? <DayVictory isArriving={isDayBloom} /> : null}
-              {!dayAchievementReady && (!settledEssentialsComplete || unfinishedOtherChosenExtras.length) ? <div className="daily-list-heading">
-                <span>{settledEssentialsComplete ? "Going further" : "Essentials"}</span>
-              </div> : null}
+              {dayAchievementReady ? <DayVictory isArriving={isDayBloom} skippedEssentials={skippedEssentialCount} /> : null}
+              {firstVisibleEssentialId ? <div className="daily-list-heading"><span>Essentials</span></div> : null}
+              {recentlyActivatedExtra ? <div className="extra-undo-notice" role="status"><span><strong>{recentlyActivatedExtra.title}</strong> added to Going further.</span><button type="button" onClick={() => { const item = items.find((candidate) => candidate.id === recentlyActivatedExtra.id); if (item) void deactivateExtra(item); }}>Undo</button></div> : null}
               {displayedScheduledItems.map((item, displayIndex) => {
                 const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);
                 const isDragging = draggingId === item.id;
@@ -3227,6 +3311,7 @@ export default function Home() {
 
                 return (
                   <Fragment key={item.id}>
+                    {firstVisibleChosenExtraId === item.id ? <h3 className="going-further-heading">Going further</h3> : null}
                     {firstVisibleKeepGoingId === item.id ? <h3 className="keep-going-heading">Keep it going</h3> : null}
                     {dayMode.showClockState && nowLineIndex === displayIndex ? (
                       <div className="now-line" aria-label={`Current time ${formatTime(displayedMinutes)}`}>
@@ -3337,9 +3422,9 @@ export default function Home() {
                           <button
                             className="delete-item-button desktop-row-action"
                             type="button"
-                            aria-label={`Remove ${item.title}`}
-                            onClick={() => removeItem(item.id)}
-                          ><Trash2 aria-hidden="true" size={14} strokeWidth={1.8} /></button>
+                            aria-label={normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? `Return ${item.title} to More for today` : `Remove ${item.title} from today`}
+                            onClick={() => requestRemoveItem(item)}
+                          >{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={14} strokeWidth={1.8} /> : <Trash2 aria-hidden="true" size={14} strokeWidth={1.8} />}</button>
 
                           <ControlTooltip className="desktop-skip-control" id={`skip-tooltip-${item.id}`} label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}>
                             <button
@@ -3381,7 +3466,7 @@ export default function Home() {
                                   <button role="menuitem" type="button" onClick={() => void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential")}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
                                   {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>}
                                   <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
-                                  <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => removeItem(item.id)}><Trash2 aria-hidden="true" size={15} /> Remove activity</button>
+                                  <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => requestRemoveItem(item)}>{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={15} /> : <Trash2 aria-hidden="true" size={15} />} {normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? "Return to More for today" : "Remove from today"}</button>
                                 </>}
                               </div>
                             ) : null}
@@ -3436,7 +3521,7 @@ export default function Home() {
                           onSkip={(skippedAt) => handleSkipSaved(item.id, skippedAt, true)}
                           onSkipStart={() => beginSkipMotion(item.id)}
                           onEdit={() => startEditing(item)}
-                          onRemove={() => removeItem(item.id)}
+                          onRemove={() => requestRemoveItem(item)}
                           onSetDuration={(value) => setDuration(item.id, value)}
                           onChangeToday={() => setOccurrenceEditorItem(item)}
                           onManageSchedule={() => { setScheduleManagerActivityId(item.activityId ?? item.id); setIsScheduleManagerOpen(true); }}
@@ -3470,19 +3555,16 @@ export default function Home() {
                         const ExtraIcon = activityIconFor(item);
                         const captures = item.activityId ? attentionByActivity.get(item.activityId) ?? [] : [];
                         const labels = captures.slice(0, 2).map((capture) => capture.label).join(", ");
-                        return <button
+                        return <div
                           className="go-further-option is-attention"
                           data-extra-id={item.id}
-                          disabled={promotingExtraId === item.id}
                           key={item.id}
                           style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
-                          type="button"
-                          onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
                         >
                           <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
                           <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{labels}{captures.length > 2 ? ` +${captures.length - 2}` : ""}</small></span>
-                          <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
-                        </button>;
+                          <button aria-label={`Add ${activityDisplayTitle(item)} to today`} className="go-further-add" disabled={extraTransitionLocked || promotingExtraId === item.id} type="button" onClick={(event) => void promoteExtra(item, event.currentTarget.closest<HTMLElement>(".go-further-option")?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect())}>{promotingExtraId === item.id ? <Sparkles aria-hidden="true" size={16} /> : <><Plus aria-hidden="true" size={16} /><span>Add</span></>}</button>
+                        </div>;
                       })}
                     </div>
                   </div> : null}
@@ -3491,19 +3573,16 @@ export default function Home() {
                     <div className="go-further-list">
                       {visibleOtherExtras.map((item) => {
                         const ExtraIcon = activityIconFor(item);
-                        return <button
+                        return <div
                           className="go-further-option"
                           data-extra-id={item.id}
-                          disabled={promotingExtraId === item.id}
                           key={item.id}
                           style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
-                          type="button"
-                          onClick={(event) => void promoteExtra(item, event.currentTarget.getBoundingClientRect())}
                         >
                           <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
                           <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatDuration(item.duration)} · {item.category}</small></span>
-                          <span className="go-further-add" aria-hidden="true">{promotingExtraId === item.id ? <Sparkles size={16} /> : <Plus size={17} />}</span>
-                        </button>;
+                          <button aria-label={`Add ${activityDisplayTitle(item)} to today`} className="go-further-add" disabled={extraTransitionLocked || promotingExtraId === item.id} type="button" onClick={(event) => void promoteExtra(item, event.currentTarget.closest<HTMLElement>(".go-further-option")?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect())}>{promotingExtraId === item.id ? <Sparkles aria-hidden="true" size={16} /> : <><Plus aria-hidden="true" size={16} /><span>Add</span></>}</button>
+                        </div>;
                       })}
                     </div>
                   </div> : null}

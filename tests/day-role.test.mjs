@@ -21,6 +21,8 @@ test("promotes activated and eligible Keep it going extras into today's active l
   ];
   const result = partitionDayItems(items);
   assert.deepEqual(result.active.map((item) => item.id), ["morning", "stretch", "finished-extra", "continued"]);
+  assert.deepEqual(result.essentials.map((item) => item.id), ["morning"]);
+  assert.deepEqual(result.chosenExtras.map((item) => item.id), ["stretch", "finished-extra"]);
   assert.deepEqual(result.keepGoing.map((item) => item.id), ["continued"]);
   assert.deepEqual(result.availableExtras.map((item) => item.id), ["walk"]);
   assert.equal(GO_FURTHER_PREVIEW_LIMIT, 3);
@@ -36,10 +38,29 @@ test("activated extras expand today's progress denominator without changing the 
     { planRole: "extra", activatedAt: "2026-08-23 08:15:00" },
     { planRole: "extra", activatedAt: "2026-08-23 08:15:00", skippedAt: "2026-08-23 08:16:00" },
   ]), {
-    selectedTotal: 4,
+    selectedTotal: 5,
     selectedCompleted: 3,
+    selectedSkipped: 1,
     essentialTotal: 2,
     essentialCompleted: 2,
+    essentialSkipped: 0,
+    essentialResolved: 2,
+  });
+});
+
+test("skipping resolves a selected activity without improving the completed fraction", () => {
+  assert.deepEqual(dayProgressCounts([
+    { planRole: "essential", completedAt: "2026-08-23 08:00:00" },
+    { planRole: "essential", skippedAt: "2026-08-23 08:05:00" },
+    { planRole: "extra", activatedAt: "2026-08-23 08:10:00" },
+  ]), {
+    selectedTotal: 3,
+    selectedCompleted: 1,
+    selectedSkipped: 1,
+    essentialTotal: 2,
+    essentialCompleted: 1,
+    essentialSkipped: 1,
+    essentialResolved: 2,
   });
 });
 

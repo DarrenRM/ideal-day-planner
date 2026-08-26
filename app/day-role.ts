@@ -33,25 +33,38 @@ export function isActiveDayItem(item: DayRoleItem) {
 }
 
 export function partitionDayItems<T extends DayRoleItem>(items: T[]) {
+  const essentials: T[] = [];
+  const chosenExtras: T[] = [];
   const active: T[] = [];
   const keepGoing: T[] = [];
   const availableExtras: T[] = [];
   for (const item of items) {
-    if (normalizePlanRole(item.planRole) === "extra" && isKeepGoingCandidate(item)) keepGoing.push(item);
-    else if (isActiveDayItem(item)) active.push(item);
-    else availableExtras.push(item);
+    if (normalizePlanRole(item.planRole) === "essential") {
+      essentials.push(item);
+      active.push(item);
+    } else if (isKeepGoingCandidate(item)) {
+      keepGoing.push(item);
+    } else if (isActiveDayItem(item)) {
+      chosenExtras.push(item);
+      active.push(item);
+    } else {
+      availableExtras.push(item);
+    }
   }
-  return { active: [...active, ...keepGoing], keepGoing, availableExtras };
+  return { essentials, chosenExtras, active: [...active, ...keepGoing], keepGoing, availableExtras };
 }
 
 export function dayProgressCounts(items: DayRoleItem[]) {
-  const selected = items.filter((item) => isActiveDayItem(item) && !item.skippedAt);
+  const selected = items.filter((item) => isActiveDayItem(item));
   const essentials = selected.filter((item) => normalizePlanRole(item.planRole) === "essential");
   return {
     selectedTotal: selected.length,
     selectedCompleted: selected.filter((item) => Boolean(item.completedAt)).length,
+    selectedSkipped: selected.filter((item) => Boolean(item.skippedAt)).length,
     essentialTotal: essentials.length,
     essentialCompleted: essentials.filter((item) => Boolean(item.completedAt)).length,
+    essentialSkipped: essentials.filter((item) => Boolean(item.skippedAt)).length,
+    essentialResolved: essentials.filter((item) => Boolean(item.completedAt || item.skippedAt)).length,
   };
 }
 

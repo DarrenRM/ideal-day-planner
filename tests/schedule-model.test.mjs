@@ -53,6 +53,7 @@ test("validates and normalizes the bounded schedule language", () => {
   assert.equal(parseSchedulePattern(pattern())?.steps[0].planRole, "essential");
   assert.equal(parseSchedulePattern(pattern({ steps: [{ ...pattern().steps[0], planRole: "extra" }] }))?.steps[0].planRole, "extra");
   assert.equal(parseOccurrenceAction({ type: "activate_extra", occurrenceId: "occurrence:1", idempotencyKey: "activate:1" })?.type, "activate_extra");
+  assert.equal(parseOccurrenceAction({ type: "deactivate_extra", occurrenceId: "occurrence:1", idempotencyKey: "deactivate:1" })?.type, "deactivate_extra");
   const resolvedOccurrenceId = `day-item:user:2026-08-23:${"pattern_3Aresolved-step_3A".repeat(9)}`;
   assert.ok(resolvedOccurrenceId.length > 200);
   assert.equal(parseOccurrenceAction({ type: "activate_extra", occurrenceId: resolvedOccurrenceId, idempotencyKey: "activate:long" })?.occurrenceId, resolvedOccurrenceId);
