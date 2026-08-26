@@ -140,6 +140,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.conversation-work-receipt-detail \{[^}]*-webkit-line-clamp: 2;/);
   assert.match(css, /\.conversation-work-receipt-action \{[^}]*align-self: stretch;[^}]*border-left:/);
   assert.match(css, /\.conversation-work-receipt-meta \{[^}]*justify-content: flex-start;[^}]*margin: 4px 3px 0;/);
+  assert.match(css, /\.global-luna-message time, \.global-luna-scroll \.conversation-work-receipt-meta \{[^}]*font-size: var\(--type-body\);[^}]*line-height: var\(--leading-body\);/);
   assert.match(page, /mode: "view_artifact"/);
   assert.doesNotMatch(page, /workspaceReadyLabel/);
   assert.match(page, /useMobileConversationDrawer/);
