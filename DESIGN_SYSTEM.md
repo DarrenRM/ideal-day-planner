@@ -90,6 +90,7 @@ The canonical global tokens are:
 - Compact assistant placement sits at the lower right and may carry one short speech bubble. The avatar opens the existing Notes & Assistant surface; it does not introduce a second conversation system.
 - Preserve a transparent outer field so the avatar can sit over app surfaces. Avoid mascot faces, literal moons, neon cyberpunk treatment, particle explosions, or animation that competes with the current task.
 - Under reduced motion, render one composed still frame and remove breathing transforms.
+- The `/luna-demo` tuning lab may override diamond-row geometry, surface, and motion values only. Keep constellation density, spread, brightness, and animation fixed while diamond values are being evaluated, and preserve the approved values as the defaults used everywhere else in the app.
 
 ## Responsive layout
 

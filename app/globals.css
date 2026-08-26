@@ -210,18 +210,18 @@
 .luna-avatar { --luna-avatar-size: 240px; position: relative; width: var(--luna-avatar-size); max-width: 100%; aspect-ratio: 1; display: inline-grid; place-items: center; flex: 0 0 auto; isolation: isolate; }
 .luna-avatar canvas { grid-area: 1 / 1; width: 100%; height: 100%; display: block; }
 
-.luna-demo-page { min-height: 100dvh; overflow: hidden; padding: clamp(28px, 5vw, 68px); background: radial-gradient(circle at 18% 12%, rgba(79, 116, 107, .12), transparent 30%), radial-gradient(circle at 84% 78%, rgba(112, 83, 130, .12), transparent 34%), var(--bg); color: var(--text); }
+.luna-demo-page { height: 100dvh; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 20px; overflow: hidden; padding: clamp(20px, 3vw, 38px); background: radial-gradient(circle at 18% 12%, rgba(79, 116, 107, .12), transparent 30%), radial-gradient(circle at 84% 78%, rgba(112, 83, 130, .12), transparent 34%), var(--bg); color: var(--text); }
 .luna-demo-page::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .22; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(circle at center, black, transparent 76%); }
-.luna-demo-header { position: relative; z-index: 1; max-width: 770px; margin: 0 auto clamp(32px, 5vw, 58px); text-align: center; }
-.luna-demo-header h1 { margin: 12px 0 13px; font-size: clamp(2.15rem, 5vw, 4.25rem); font-weight: 520; letter-spacing: -.045em; line-height: 1.02; }
+.luna-demo-header { position: relative; z-index: 1; max-width: 770px; margin: 0 auto; text-align: center; }
+.luna-demo-header h1 { margin: 8px 0 8px; font-size: clamp(2rem, 3.6vw, 3.35rem); font-weight: 520; letter-spacing: -.045em; line-height: 1.02; }
 .luna-demo-header p { max-width: 650px; margin: 0 auto; color: var(--muted); font-size: var(--type-body-lg); line-height: var(--leading-body-lg); }
-.luna-demo-grid { position: relative; z-index: 1; width: min(1040px, 100%); display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 20px; margin: 0 auto; }
+.luna-demo-grid { position: relative; z-index: 1; width: min(1240px, 100%); height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(390px, .85fr); align-items: stretch; gap: 20px; margin: 0 auto; }
 .luna-demo-stage, .luna-demo-controls, .luna-widget-study { border: 1px solid var(--border); border-radius: 16px; background: rgba(16, 19, 22, .78); box-shadow: 0 28px 80px rgba(0, 0, 0, .28); backdrop-filter: blur(20px); }
-.luna-demo-stage { position: relative; min-height: 560px; display: grid; place-items: center; overflow: hidden; padding: 32px; }
+.luna-demo-stage { position: relative; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 32px; }
 .luna-demo-state-copy { position: absolute; right: 24px; bottom: 22px; left: 24px; display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }
 .luna-demo-state-copy span { color: var(--accent-bright); font-size: var(--type-label); font-weight: 760; text-transform: uppercase; letter-spacing: .08em; }
 .luna-demo-state-copy p { max-width: 330px; margin: 0; color: var(--muted); font-size: var(--type-body-sm); line-height: var(--leading-body-sm); text-align: right; }
-.luna-demo-controls { align-self: stretch; padding: 24px; }
+.luna-demo-controls { height: 100%; min-height: 0; align-self: stretch; overflow-y: auto; overscroll-behavior: contain; padding: 24px; scrollbar-gutter: stable; }
 .luna-demo-controls h2, .luna-widget-study h2 { margin: 7px 0 18px; font-size: 1.45rem; font-weight: 650; }
 .luna-state-options { display: grid; gap: 8px; }
 .luna-state-options button { min-height: 70px; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); color: var(--muted); text-align: left; }
@@ -235,6 +235,24 @@
 .luna-geometry-study > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
 .luna-geometry-study button { min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-soft); color: var(--muted); font-size: var(--type-label); font-weight: 680; }
 .luna-geometry-study button.is-active { border-color: color-mix(in srgb, var(--accent) 58%, var(--border)); background: color-mix(in srgb, var(--surface-soft) 86%, var(--accent) 14%); color: var(--accent-bright); }
+.luna-facet-tuner { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--border); }
+.luna-tuning-heading { display: grid; gap: 14px; }
+.luna-tuning-heading h2 { margin-bottom: 3px; }
+.luna-tuning-heading p { margin: 0; color: var(--muted); font-size: var(--type-label); line-height: var(--leading-label); }
+.luna-tuning-actions { display: grid; grid-template-columns: .72fr 1fr; gap: 7px; }
+.luna-tuning-actions button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-soft); color: var(--muted); cursor: pointer; font-size: var(--type-label); font-weight: 700; }
+.luna-tuning-actions button:hover { border-color: color-mix(in srgb, var(--accent) 38%, var(--border)); color: var(--text); }
+.luna-tuning-actions button.is-primary { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); background: color-mix(in srgb, var(--surface-soft) 84%, var(--accent) 16%); color: var(--accent-bright); }
+.luna-copy-status { min-height: 17px; margin: 9px 0 0; color: var(--subtle); font-size: var(--type-micro); line-height: var(--leading-micro); }
+.luna-tuning-groups { display: grid; gap: 20px; margin-top: 18px; }
+.luna-tuning-groups fieldset { min-width: 0; display: grid; gap: 13px; margin: 0; padding: 0; border: 0; }
+.luna-tuning-groups legend { width: 100%; margin-bottom: 1px; padding: 0 0 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent); color: var(--accent); font-size: var(--type-label); font-weight: 760; letter-spacing: .09em; text-transform: uppercase; }
+.luna-tuning-row { display: grid; gap: 7px; cursor: pointer; }
+.luna-tuning-row > span { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.luna-tuning-row strong { color: var(--text); font-size: var(--type-label); font-weight: 610; }
+.luna-tuning-row output { min-width: 54px; color: var(--muted); font: 650 var(--type-label)/1 var(--type-sans); text-align: right; font-variant-numeric: tabular-nums; }
+.luna-tuning-row input { width: 100%; height: 18px; margin: 0; accent-color: var(--accent-bright); cursor: ew-resize; }
+.luna-tuning-row input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent-bright) 72%, transparent); outline-offset: 3px; border-radius: 99px; }
 .luna-scale-study { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
 .luna-scale-study > div { min-height: 164px; display: flex; align-items: end; justify-content: space-around; gap: 6px; margin-top: 10px; }
 .luna-scale-study > div > span { display: grid; justify-items: center; gap: 3px; color: var(--subtle); }
@@ -251,9 +269,11 @@
 .luna-widget-bubble small { color: var(--muted); font-size: var(--type-label); line-height: var(--leading-label); }
 
 @media (max-width: 800px) {
-  .luna-demo-page { padding: 28px 18px 42px; }
+  .luna-demo-page { height: auto; min-height: 100dvh; display: block; overflow: visible; padding: 28px 18px 42px; }
+  .luna-demo-header { margin-bottom: 32px; }
   .luna-demo-grid, .luna-widget-study { grid-template-columns: 1fr; }
-  .luna-demo-stage { min-height: 470px; }
+  .luna-demo-stage { position: relative; top: auto; min-height: 470px; }
+  .luna-demo-controls { height: auto; overflow: visible; margin-top: 20px; }
   .luna-widget-study { gap: 20px; padding: 20px; }
 }
 
