@@ -78,6 +78,8 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(usage, /JOIN activity_workspaces/);
   assert.match(usage, /JOIN activity_follow_ups/);
   assert.match(usage, /JOIN schedule_patterns/);
+  assert.match(usage, /hasUsefulActivityRecordData/);
+  assert.match(usage, /siblingRecordTypes/);
   assert.doesNotMatch(usage, /session_choice_compact/);
   assert.match(usage, /product_action_tabs/);
 });

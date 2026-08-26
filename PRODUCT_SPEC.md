@@ -657,6 +657,7 @@ Implementation note (2026-08-24, revised 2026-08-25): site-wide Luna is the conv
 - Mobile uses one shared activity header in collapsed and expanded states. It contains title/category, overflow menu, completion, and compact activity-length controls; Timeline mode additionally adds clock time.
 - The expanded mobile footer contains the large `Skip for Today` and `Mark Complete` actions. Overflow and duration controls live in the shared header rather than repeating in the footer.
 - Expanded activities contain contextual details and an activity-scoped conversation.
+- Summary/Overview records are exceptional context, not default framing. Suppress them when they only restate an activity’s title, purpose, modality, or schedule—especially beside a canonical measured-session tracker. Keep one only when it contains a distinct target, constraint, route, or other stable fact that changes what the person does.
 - Expanded activities move directly from the activity header into workspace components and conversation. They do not repeat the activity category/title or show a permanent “Activity context”/“Live activity” strip; a session-status strip appears only when it has meaningful run state such as started, elapsed, completed, skipped, or a real today-specific warning.
 - Every activity receives the complete details/chat/agent experience at launch; none are held back as prototypes.
 - The main page can show the full cross-activity conversation log.

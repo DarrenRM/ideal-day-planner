@@ -51,6 +51,7 @@ type ActivityWorkspaceProps = {
 
 export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspace: WorkspaceDocument, records: ActivityRecord[]) {
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  const siblingRecordTypes = records.map((record) => record.type);
   return supportsStarterStreak(activity) || workspace.components.some((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
     if (component.type === "routine") return hasUsefulRoutineComponent(component);
@@ -58,6 +59,7 @@ export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspa
     return Boolean(record && hasUsefulActivityRecordData(record, {
       activityTitle: activity.title,
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
+      siblingRecordTypes,
     }));
   });
 }
@@ -434,6 +436,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
 export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, showEmptyState = false, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
   const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  const siblingRecordTypes = records.map((record) => record.type);
   const visibleRecordKeys = new Set<string>();
   const visibleComponents = workspace.components.filter((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
@@ -442,6 +445,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     if (!record || visibleRecordKeys.has(record.key) || !hasUsefulActivityRecordData(record, {
       activityTitle: activity.title,
       plannedDurationMinutes: activity.timelineEnabled ? activity.duration : undefined,
+      siblingRecordTypes,
     })) return false;
     visibleRecordKeys.add(record.key);
     return true;

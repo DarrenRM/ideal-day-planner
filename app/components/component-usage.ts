@@ -1,4 +1,6 @@
 import { getD1 } from "../../db";
+import { hasUsefulActivityRecordData } from "../activity-record-model";
+import { readActivityRecords } from "../api/agent-store";
 import { shouldShowActivitySchedule } from "../schedule-summary";
 import type { LibraryComponentType } from "./component-library-fixtures";
 
@@ -77,13 +79,25 @@ export async function readComponentUsage(userId: string): Promise<ComponentUsage
   const usage = new Map<string, Set<string>>();
   const componentsByActivity = new Map<string, Set<string>>();
   const productComponentsByActivity = new Map<string, Set<string>>();
+  const recordsByActivity = new Map(await Promise.all(activityResult.results.map(async (activity) => [
+    activity.id,
+    await readActivityRecords(activity.id),
+  ] as const)));
   for (const row of workspaceResult.results) {
     const document = row.documentJson ? parsedObject(row.documentJson) : {};
     const components = Array.isArray(document.components) ? document.components : [];
+    const records = recordsByActivity.get(row.activityId) ?? [];
+    const recordsByKey = new Map(records.map((record) => [record.key, record]));
+    const siblingRecordTypes = records.map((record) => record.type);
     const types = componentsByActivity.get(row.activityId) ?? new Set<string>();
     const productComponents = productComponentsByActivity.get(row.activityId) ?? new Set<string>();
     for (const candidate of components) {
       if (!candidate || typeof candidate !== "object" || !("type" in candidate) || typeof candidate.type !== "string") continue;
+      if (candidate.type === "summary") {
+        const recordKey = "recordKey" in candidate && typeof candidate.recordKey === "string" ? candidate.recordKey : "";
+        const record = recordsByKey.get(recordKey);
+        if (!record || !hasUsefulActivityRecordData(record, { activityTitle: row.title, siblingRecordTypes })) continue;
+      }
       types.add(candidate.type);
       if (candidate.type === "product" && "id" in candidate && typeof candidate.id === "string") productComponents.add(candidate.id);
       add(usage, candidate.type, row.title);

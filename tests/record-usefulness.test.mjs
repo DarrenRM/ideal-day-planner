@@ -26,6 +26,26 @@ test("rejects a summary that only repeats schedule information", () => {
   }), { activityTitle: "Cardio", plannedDurationMinutes: 15 }), false);
 });
 
+test("hides a descriptive walk overview when a measured-session tracker already owns the useful surface", () => {
+  assert.equal(hasUsefulActivityRecordData(record("summary", "Morning light walk", {
+    summary: "A normal morning walk intended to get morning light into the eyes.",
+    fields: [{ label: "Walk type", value: "Normal walk" }, { label: "Purpose", value: "Morning light exposure" }],
+  }), {
+    activityTitle: "Morning Walk",
+    siblingRecordTypes: ["session_log", "summary"],
+  }), false);
+});
+
+test("keeps a measured-session overview when it contains direction that changes the session", () => {
+  assert.equal(hasUsefulActivityRecordData(record("summary", "Morning walk constraint", {
+    summary: "Keep effort under 4/10 while the knee settles.",
+    fields: [{ label: "Route", value: "Flat neighborhood loop" }],
+  }), {
+    activityTitle: "Morning Walk",
+    siblingRecordTypes: ["session_log", "summary"],
+  }), true);
+});
+
 test("accepts components with immediately useful content", () => {
   assert.equal(hasUsefulActivityRecordData(record("checklist", "Shower routine", {
     items: [{ id: "condition", label: "Condition hair" }],

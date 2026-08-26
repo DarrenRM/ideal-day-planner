@@ -10,8 +10,8 @@ const expected = [
   "attention", "resources", "timer", "countdown",
 ];
 
-test("the production catalog contains every approved v12 component exactly once", () => {
-  assert.equal(CATALOG_VERSION, "workspace-catalog-v12");
+test("the production catalog contains every approved v13 component exactly once", () => {
+  assert.equal(CATALOG_VERSION, "workspace-catalog-v13");
   const types = COMPONENT_CATALOG.map(([type]) => type);
   assert.deepEqual(types, expected);
   assert.equal(new Set(types).size, types.length);

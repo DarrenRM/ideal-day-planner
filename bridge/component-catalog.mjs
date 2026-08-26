@@ -1,7 +1,7 @@
-export const CATALOG_VERSION = "workspace-catalog-v12";
+export const CATALOG_VERSION = "workspace-catalog-v13";
 
 export const COMPONENT_CATALOG = [
-  ["summary", "Concise facts or current state", "summary, fields[{label,value}]"],
+  ["summary", "Stable decision-relevant facts that have no natural home in a more specific component; never a restatement of the activity title, purpose, modality, or schedule", "summary, fields[{label,value}]"],
   ["product", "One named product or device identity card and subject root", "subjectKey(same as record key); kind(product|device), name, manufacturer, variant, notes, routineAction(the concrete activity step this item supports, such as Brush teeth)"],
   ["protocol", "Repeatable ordered instructions", "either optional subjectKey for a product/device, or workoutRecordKey plus phase(warmup|cooldown) for an explicitly linked workout phase; summary, steps[{id,label,note,completed}]"],
   ["checklist", "Repeatable actions to check during the current activity", "items[{id,label,detail,completed}]"],
@@ -31,7 +31,7 @@ export const COMPONENT_CATALOG = [
 
 export const ACTIVITY_RECIPES = [
   "Strength session: one workout plan plus one linked strength_session log and an activity-scoped equipment record when known. The workout owns the reusable exercise order and targets; strength_session owns every dated performed set. A movement-preparation or recovery protocol is not an exercise: link its protocol explicitly with workoutRecordKey and phase warmup or cooldown so it renders inside the strength flow before or after the numbered exercises. Use workout openChoices for a purposeful gym-selected slot. Never copy set history into workout, comparison, metric, history, or activity_event records because the app derives it from strength_session.",
-  "Measured session: use session_log when the whole session is the unit of tracking: one modality plus duration and a small number of supported measurements or settings. Link it to session_choice when today’s modality is selected from options. Use this for cardio, running, walking, hiking, rucking, cycling, swimming, rowing, stair work, simple conditioning, and similar sessions. Use workout instead when exercises, sets, reps, and loads are the units.",
+  "Measured session: use session_log when the whole session is the unit of tracking: one modality plus duration and a small number of supported measurements or settings. Link it to session_choice when today’s modality is selected from options. Use this for cardio, running, walking, hiking, rucking, cycling, swimming, rowing, stair work, simple conditioning, and similar sessions. Do not add a summary merely to restate the modality, purpose, or ordinary session description; keep a summary only when it contains a distinct target, constraint, route, or other fact that changes how the person performs the session. Use workout instead when exercises, sets, reps, and loads are the units.",
   "Cardio session: session_choice when the modality is open, then one linked session_log. Keep fields minimal and modality-aware. Preserve every existing entry when updating fields or adding today’s session. Do not maintain separate metric/history copies of session-log values; the app derives progress and averages. Timer or countdown is optional and only useful when the modality or user intent makes time useful.",
   "Bounded trial: when the user commits to one session_choice option for a stated date range or until a check-in, set activeSelection for that inclusive range and create the matching follow-up. Exact dated selections remain one-day overrides.",
   "Product/device care: one product subject root per named item, plus subject-owned adherence or recurring_step, protocol, and resources. Give each product root a concrete routineAction that describes what the person does rather than what they own; items used in the same action share the exact routineAction, such as toothpaste and an electric toothbrush both supporting Brush teeth. Use adherence with effectiveDate for a daily item and recurring_step for an independently scheduled item. A new item never inherits the parent activity's earlier completions. Share one activity-level rhythm only when every item's cadence, start, and completion history are genuinely synchronized. Use activity_event for a dated use and session_choice for modes that do not need schedule variants. Give all item-owned records the product record's subjectKey. Timed devices may also use countdown.",
@@ -40,7 +40,7 @@ export const ACTIVITY_RECIPES = [
   "Meal, shake, or food-prep routine: use one activity-scoped meal_log as the canonical source. Record the concise thing the person actually ate, drank, made, or prepped. Preserve ingredient, quantity, batch, storage, and recipe-link detail only when supplied or supported by fetched evidence; recipes are reusable details referenced by dated entries and stay collapsed in the UI. Do not force ingredients into daily_selection or duplicate meal history into history, item_list, protocol, or resources.",
   "Supply manager: item_list plus history; preserve urgency and source.",
   "Focus/creative session: goal, checklist/item_list, resources, history; timer only when requested or already part of the practice.",
-  "Media queue: item_list plus summary/history.",
+  "Media queue: item_list plus history; add summary only when stable facts change a decision and are not already represented by the queue.",
   "Simple timed practice: concise protocol plus countdown when the fixed duration defines the practice.",
 ];
 

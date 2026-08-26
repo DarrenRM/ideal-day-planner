@@ -63,6 +63,7 @@ export type ActivityRecordContent = Pick<ActivityRecord, "type" | "title" | "dat
 export type ActivityRecordUsefulnessContext = {
   activityTitle?: string;
   plannedDurationMinutes?: number | null;
+  siblingRecordTypes?: ActivityRecordType[];
 };
 
 function boundedString(value: unknown, maximum: number) {
@@ -146,6 +147,15 @@ export function hasUsefulActivityRecordData(record: ActivityRecordContent, conte
         && value === `${plannedDuration} minutes`;
       return Boolean(label && value && !repeatsSchedule);
     });
+    const hasMeasuredSession = context.siblingRecordTypes?.includes("session_log") === true;
+    const isMeasuredActivity = /\b(walk|walking|run|running|cardio|cycle|cycling|bike|biking|row|rowing|swim|swimming|hike|hiking|ruck|rucking|elliptical|stair|conditioning)\b/.test(activityTitle);
+    const descriptiveFieldLabels = /^(activity|session|walk|run|workout) (type|purpose|format)$|^(type|purpose|format|modality)$/;
+    const hasDistinctField = meaningfulFields.some((field) => {
+      if (!field || typeof field !== "object") return false;
+      return !descriptiveFieldLabels.test(normalizedText((field as Record<string, unknown>).label));
+    });
+    const hasDirectionThatChangesTheSession = /\b(target|minimum|maximum|at least|no more than|avoid|limit|stay|keep|under|over|zone|heart rate|pace|incline|terrain|route|interval|pain|injury|constraint|equipment)\b|\d/.test(summary);
+    if (hasMeasuredSession && isMeasuredActivity && !hasDistinctField && !hasDirectionThatChangesTheSession) return false;
     return Boolean((summary && !isPlaceholderActivityText(summary) && !genericSummaries.has(summary)) || meaningfulFields.length);
   }
 
