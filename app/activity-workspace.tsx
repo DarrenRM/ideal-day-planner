@@ -524,7 +524,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
         <>
           <div className="workspace-stack">
             {hasProductSwitcher ? (
-              <section className="workspace-block subject-overview" aria-label={`${activity.title} steps`}>
+              <nav className="subject-action-nav" aria-label={`${activity.title} steps`}>
                 <div aria-label={`Choose a ${activity.title} step to view`} className="subject-action-tabs" role="tablist">
                   {routineActionGroups.map((group) => {
                     const isSelected = group.key === selectedRoutineAction?.key;
@@ -542,7 +542,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                     </button>;
                   })}
                 </div>
-              </section>
+              </nav>
             ) : null}
             {hasProductSwitcher && selectedRoutineAction ? (
               <div aria-labelledby={`subject-action-tab-${selectedRoutineAction.key}`} className="subject-action-panel" id={`subject-action-panel-${selectedRoutineAction.key}`} role="tabpanel">

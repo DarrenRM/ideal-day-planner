@@ -94,7 +94,8 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(workspace, /nestedSupportingComponents/);
   assert.match(workspace, /record\.subjectKey === product\.key/);
   assert.doesNotMatch(workspace, /productComponents\.length === 1/);
-  assert.match(workspace, /className="workspace-block subject-overview"/);
+  assert.match(workspace, /className="subject-action-nav"/);
+  assert.doesNotMatch(workspace, /workspace-block subject-overview/);
   assert.doesNotMatch(workspace, />Overview</);
   assert.match(workspace, /productRoutineAction\(item\.record\)/);
   assert.match(workspace, /className="subject-action-tabs" role="tablist"/);
@@ -103,7 +104,7 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(workspace, /productDueLabel\(record\)/);
   assert.doesNotMatch(workspace, /productComponents\.length} items/);
   assert.match(workspace, /record\.type === "product" && hasProductSwitcher/);
-  assert.match(css, /\.subject-action-tabs > button \{[^}]*flex: 1 0 126px;[^}]*min-height: 58px/s);
+  assert.match(css, /\.subject-action-tabs > button \{[^}]*flex: 1 0 126px;[^}]*min-height: 54px;[^}]*text-align: center/s);
   assert.match(css, /\.subject-action-tabs > button\.is-selected::after/);
   assert.match(css, /\.activity-workbench-grid \{[^}]*height: clamp\(420px, calc\(100dvh - 210px\), 680px\)[^}]*overflow: hidden/s);
   assert.match(css, /\.activity-workspace \{[^}]*overflow-y: auto/s);

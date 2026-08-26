@@ -1110,18 +1110,17 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .record-field-grid dt { color: #616b66; font-size: var(--type-micro); margin-bottom: 4px; text-transform: uppercase; }
 .record-field-grid dd { color: #c7d0c8; font-size: var(--type-micro); line-height: 1.4; margin: 0; overflow-wrap: anywhere; }
 .product-heading > div > span { color: #68736d; font-size: var(--type-micro); }
-.subject-overview { background: color-mix(in srgb, var(--item-color) 5%, #0d1214); padding: 0; }
-.subject-action-tabs { display: flex; overflow-x: auto; scrollbar-width: none; }
+.subject-action-nav { min-width: 0; }
+.subject-action-tabs { border-bottom: 1px solid #252d30; display: flex; overflow-x: auto; scrollbar-width: none; }
 .subject-action-tabs::-webkit-scrollbar { display: none; }
-.subject-action-tabs > button { background: transparent; border: 0; border-right: 1px solid #252d30; color: inherit; cursor: pointer; flex: 1 0 126px; min-height: 58px; padding: 9px 13px 11px; position: relative; text-align: left; }
-.subject-action-tabs > button:last-child { border-right: 0; }
-.subject-action-tabs > button::after { background: var(--item-color); bottom: 0; content: ""; height: 2px; left: 13px; opacity: 0; position: absolute; right: 13px; transform: scaleX(.35); transition: opacity .16s ease, transform .16s ease; }
-.subject-action-tabs > button:hover { background: color-mix(in srgb, var(--item-color) 5%, #111719); }
+.subject-action-tabs > button { background: transparent; border: 0; color: inherit; cursor: pointer; flex: 1 0 126px; min-height: 54px; padding: 7px 8px 10px; position: relative; text-align: center; }
+.subject-action-tabs > button::after { background: var(--item-color); bottom: -1px; content: ""; height: 2px; left: 8px; opacity: 0; position: absolute; right: 8px; transform: scaleX(.35); transition: opacity .16s ease, transform .16s ease; }
+.subject-action-tabs > button:hover { background: color-mix(in srgb, var(--item-color) 3%, transparent); }
 .subject-action-tabs > button:focus-visible { outline: 2px solid color-mix(in srgb, var(--item-color) 55%, var(--accent)); outline-offset: -2px; }
 .subject-action-tabs > button > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .subject-action-tabs strong { color: #aeb8b1; font-size: var(--type-body-sm); font-weight: 650; line-height: var(--leading-body-sm); overflow-wrap: anywhere; }
 .subject-action-tabs small { color: #77827c; font-size: var(--type-label); line-height: var(--leading-label); }
-.subject-action-tabs > button.is-selected { background: color-mix(in srgb, var(--item-color) 8%, #111719); }
+.subject-action-tabs > button.is-selected { background: transparent; }
 .subject-action-tabs > button.is-selected::after { opacity: 1; transform: scaleX(1); }
 .subject-action-tabs > button.is-selected strong { color: color-mix(in srgb, var(--item-color) 75%, #edf2ed); }
 .subject-action-tabs > button.is-selected small { color: color-mix(in srgb, var(--item-color) 60%, #8d9992); }
