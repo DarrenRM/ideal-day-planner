@@ -30,7 +30,7 @@ function withEnvironment(callback) {
 test("logged-out pages redirect and logged-out APIs disclose no data", async () => {
   const page = await proxy.fetch(new Request("https://example.vercel.app/?path=" , { headers: { accept: "text/html" } }));
   assert.equal(page.status, 307);
-  assert.match(page.headers.get("location") || "", /^\/login\?next=/);
+  assert.equal(page.headers.get("location"), "/login?next=%2F");
   const api = await proxy.fetch(new Request("https://example.vercel.app/api/day?path=api%2Fday", { headers: { accept: "application/json" } }));
   assert.equal(api.status, 401);
   assert.deepEqual(await api.json(), { error: "Authentication required." });

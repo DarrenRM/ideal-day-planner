@@ -53,15 +53,15 @@ export default {
   async fetch(request) {
     const user = sessionFromRequest(request);
     const publicUrl = new URL(request.url);
+    const path = requestPath(request);
     if (!user) {
-      if (publicUrl.pathname.startsWith("/api/") || request.headers.get("accept")?.includes("application/json")) return Response.json({ error: "Authentication required." }, { status: 401, headers: SECURITY_HEADERS });
-      return redirect(`/login?next=${encodeURIComponent(`${publicUrl.pathname}${publicUrl.search}`)}`, 307);
+      if (path.startsWith("/api/") || publicUrl.pathname.startsWith("/api/") || request.headers.get("accept")?.includes("application/json")) return Response.json({ error: "Authentication required." }, { status: 401, headers: SECURITY_HEADERS });
+      return redirect(`/login?next=${encodeURIComponent(path)}`, 307);
     }
     if (!isSameOriginWrite(request)) return Response.json({ error: "Request origin was not accepted." }, { status: 403, headers: SECURITY_HEADERS });
 
     try {
       const configuration = originConfiguration();
-      const path = requestPath(request);
       if (BLOCKED_PATHS.some((blocked) => path === blocked || path.startsWith(`${blocked}/`) || path.startsWith(`${blocked}?`))) return Response.json({ error: "Not found." }, { status: 404, headers: SECURITY_HEADERS });
       if (request.method === "GET" && path === "/" && request.headers.get("accept")?.includes("text/html") && await onboardingRequired(configuration, request, user)) return redirect("/testing", 307);
       const originResponse = await fetch(new Request(`${configuration.originUrl}${path}`, {
