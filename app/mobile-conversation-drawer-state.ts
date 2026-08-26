@@ -17,6 +17,18 @@ export function unreadLunaMessageId(latestMessageId: string | null, lastSeenMess
   return latestMessageId && latestMessageId !== lastSeenMessageId ? latestMessageId : null;
 }
 
+export function shouldShowUnreadLunaBoundary({
+  isInitialLoad,
+  isDrawerOpen,
+  isDocumentVisible,
+}: {
+  isInitialLoad: boolean;
+  isDrawerOpen: boolean;
+  isDocumentVisible: boolean;
+}) {
+  return isInitialLoad || !isDrawerOpen || !isDocumentVisible;
+}
+
 export function resolveMobileDrawerInitialOpen({
   canCollapse,
   hasConversation,

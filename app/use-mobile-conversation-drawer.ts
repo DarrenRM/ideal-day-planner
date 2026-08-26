@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   latestLunaMessageId,
   resolveMobileDrawerInitialOpen,
+  shouldShowUnreadLunaBoundary,
   unreadLunaMessageId,
 } from "./mobile-conversation-drawer-state";
 
@@ -101,28 +102,39 @@ export function useMobileConversationDrawer({
       if (!preferenceReadyRef.current) return;
       const nextUnreadMessageId = unreadLunaMessageId(latestMessageId, lastSeenLunaMessageIdRef.current);
       setUnreadMessageId(nextUnreadMessageId);
-      if (nextUnreadMessageId) setUnreadBoundaryMessageId(nextUnreadMessageId);
+      if (nextUnreadMessageId && shouldShowUnreadLunaBoundary({
+        isInitialLoad: false,
+        isDrawerOpen: isOpen,
+        isDocumentVisible: document.visibilityState === "visible",
+      })) {
+        setUnreadBoundaryMessageId(nextUnreadMessageId);
+      }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [messages]);
+  }, [isOpen, messages]);
 
   const markLatestLunaRead = useCallback(() => {
     const latestMessageId = latestLunaMessageIdRef.current;
     if (!latestMessageId || latestMessageId === lastSeenLunaMessageIdRef.current) return;
     lastSeenLunaMessageIdRef.current = latestMessageId;
     setUnreadMessageId(null);
+    setUnreadBoundaryMessageId(null);
     savePreference(activityId, {
       open: explicitOpenRef.current,
       lastSeenLunaMessageId: latestMessageId,
     });
   }, [activityId]);
 
+  const markUnreadLunaBoundary = useCallback((messageId: string) => {
+    if (messageId !== latestLunaMessageIdRef.current || messageId === lastSeenLunaMessageIdRef.current) return;
+    setUnreadBoundaryMessageId(messageId);
+  }, []);
+
   function setOpen(open: boolean) {
     if (!window.matchMedia("(max-width: 680px)").matches) return;
     if (!open && !canCollapse) return;
     explicitOpenRef.current = open;
     setPreferredOpen(open);
-    if (open) markLatestLunaRead();
     savePreference(activityId, {
       open,
       lastSeenLunaMessageId: lastSeenLunaMessageIdRef.current,
@@ -165,6 +177,7 @@ export function useMobileConversationDrawer({
     isOpen,
     isPreferenceReady: readyActivityId === activityId,
     markLatestLunaRead,
+    markUnreadLunaBoundary,
     setOpen,
     toggle,
     unreadBoundaryLunaMessageId: unreadBoundaryMessageId,

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   latestLunaMessageId,
   resolveMobileDrawerInitialOpen,
+  shouldShowUnreadLunaBoundary,
   unreadLunaMessageId,
 } from "../app/mobile-conversation-drawer-state.ts";
 
@@ -55,4 +56,11 @@ test("keeps a new Luna message unread until its exact id has been seen", () => {
   assert.equal(unreadLunaMessageId("luna-2", "luna-1"), "luna-2");
   assert.equal(unreadLunaMessageId("luna-2", "luna-2"), null);
   assert.equal(unreadLunaMessageId(null, "luna-1"), null);
+});
+
+test("only introduces a new-message boundary when the conversation was not being viewed", () => {
+  assert.equal(shouldShowUnreadLunaBoundary({ isInitialLoad: false, isDrawerOpen: true, isDocumentVisible: true }), false);
+  assert.equal(shouldShowUnreadLunaBoundary({ isInitialLoad: false, isDrawerOpen: false, isDocumentVisible: true }), true);
+  assert.equal(shouldShowUnreadLunaBoundary({ isInitialLoad: false, isDrawerOpen: true, isDocumentVisible: false }), true);
+  assert.equal(shouldShowUnreadLunaBoundary({ isInitialLoad: true, isDrawerOpen: true, isDocumentVisible: true }), true);
 });

@@ -487,6 +487,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const {
     isOpen: isConversationDrawerOpen,
     markLatestLunaRead,
+    markUnreadLunaBoundary,
     unreadLunaMessageId: activeUnreadLunaMessageId,
   } = conversationDrawer;
   const isOpeningActivity = connectionState === "joining" || !conversationDrawer.isPreferenceReady;
@@ -694,7 +695,14 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
 
     function scheduleRead() {
       clearReadTimer();
-      if (!isVisible || document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        markUnreadLunaBoundary(unreadMessageId);
+        return;
+      }
+      if (!isVisible) {
+        if (!conversationShouldFollowRef.current) markUnreadLunaBoundary(unreadMessageId);
+        return;
+      }
       readTimer = window.setTimeout(markLatestLunaRead, 900);
     }
 
@@ -710,7 +718,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       observer.disconnect();
       document.removeEventListener("visibilitychange", scheduleRead);
     };
-  }, [activeUnreadLunaMessageId, isConversationDrawerOpen, markLatestLunaRead]);
+  }, [activeUnreadLunaMessageId, isConversationDrawerOpen, markLatestLunaRead, markUnreadLunaBoundary]);
 
   function handleConversationScroll() {
     const log = conversationLogRef.current;
@@ -1201,7 +1209,7 @@ function DayHighlights({
           <strong>{completedActivities}/{totalSelectedActivities}</strong>
         </span> : null}
         <span className="day-highlights-copy">
-          <strong id="day-highlights-title">{isDayBloom ? "Today complete" : "Highlights"}</strong>
+          <strong id="day-highlights-title">{isDayBloom ? "Today complete" : "Completed"}</strong>
           {visibleCopy ? <span>{visibleCopy}</span> : null}
         </span>
         <span className="day-highlights-icon-grid" aria-label={`${completedItems.length} completed activities`} style={{ "--highlight-columns": Math.min(completedItems.length, 6), "--highlight-mobile-columns": Math.min(completedItems.length, 4) } as CSSProperties}>
