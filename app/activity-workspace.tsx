@@ -11,7 +11,7 @@ import { selectedSessionOptionId, type SessionChoiceData, type SessionLogData } 
 import { formatScheduleOccurrenceDate, scheduleOccurrenceDetail } from "./schedule-summary";
 import { dailyCompletionStreak, normalizedCompletionDates, recurringCompletionStreak } from "./streak-model";
 import { StreakTrack } from "./streak-track";
-import type { RecurringCadence } from "./recurring-step-schedule";
+import { recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 
 export type ActivityScheduleSummary = {
   patternId: string;
@@ -117,7 +117,6 @@ function subjectRhythmSignature(record: ActivityRecord) {
 type ProductIdentity = {
   kind?: "product" | "device";
   name?: string;
-  manufacturer?: string;
 };
 
 function productIdentity(record: ActivityRecord) {
@@ -125,7 +124,6 @@ function productIdentity(record: ActivityRecord) {
   return {
     kind: data.kind === "device" ? "device" as const : "product" as const,
     name: data.name?.trim() || record.title,
-    manufacturer: data.manufacturer?.trim() || "",
   };
 }
 
@@ -365,8 +363,6 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   });
   const hasProductSwitcher = productComponents.length > 1;
   const selectedProduct = productComponents.find(({ record }) => record.key === selectedProductKey) ?? productComponents[0] ?? null;
-  const productCount = productComponents.filter(({ record }) => productIdentity(record).kind === "product").length;
-  const deviceCount = productComponents.length - productCount;
   const nestedSupportingComponents = new Map<string, ActivityRecord[]>();
   const nestedComponentIds = new Set<string>();
   for (const component of visibleComponents) {
@@ -388,6 +384,32 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     record.key,
     (nestedSupportingComponents.get(record.key) ?? []).filter((candidate) => candidate.type === "adherence" || candidate.type === "recurring_step"),
   ]));
+  function productDueLabel(record: ActivityRecord) {
+    const today = localDateKey();
+    const tracker = trackersByProduct.get(record.key)?.[0];
+    const runCompletionDates = productCompletionDates(activity, record.key);
+    if (tracker?.type === "adherence") {
+      const data = tracker.data as { effectiveDate?: string; entries?: Array<{ date: string; completed?: boolean }> };
+      const completedDates = normalizedCompletionDates([
+        ...(data.entries ?? []).filter((entry) => entry.completed).map((entry) => entry.date),
+        ...runCompletionDates,
+      ]);
+      if (completedDates.includes(today)) return "Done Today";
+      if (data.effectiveDate && data.effectiveDate > today) return `Due ${formatScheduleOccurrenceDate(data.effectiveDate, today)}`;
+      return "Due Today";
+    }
+    if (tracker?.type === "recurring_step") {
+      const data = tracker.data as { anchorDate?: string; cadence?: RecurringCadence; completedDates?: string[] };
+      const status = recurringStepScheduleStatus({
+        ...data,
+        completedDates: normalizedCompletionDates([...(data.completedDates ?? []), ...runCompletionDates]),
+      }, today);
+      if (status.completedToday) return "Done Today";
+      if (status.dueToday) return "Due Today";
+      if (status.nextDue) return `Due ${formatScheduleOccurrenceDate(status.nextDue, today)}`;
+    }
+    return "Ready Anytime";
+  }
   const trackerSignatures = productComponents.map(({ record }) => {
     const trackers = trackersByProduct.get(record.key) ?? [];
     return trackers.length === 1 ? subjectRhythmSignature(trackers[0]) : null;
@@ -480,16 +502,9 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
             {hasProductSwitcher ? (
               <section className="workspace-block subject-overview" aria-label={`${activity.title} products and devices`}>
                 <div className="subject-overview-heading">
-                  <div>
-                    <span className="workspace-overline">Routine setup</span>
-                    <strong>{productComponents.length} items</strong>
-                    <small>{[
-                      productCount ? `${productCount} ${productCount === 1 ? "product" : "products"}` : "",
-                      deviceCount ? `${deviceCount} ${deviceCount === 1 ? "device" : "devices"}` : "",
-                    ].filter(Boolean).join(" · ")}</small>
-                  </div>
+                  <span className="workspace-overline">Overview</span>
                 </div>
-                <div aria-label="Choose an item to view" aria-orientation="vertical" className="subject-tabs" role="tablist">
+                <div aria-label="Choose an item to view" aria-orientation="horizontal" className="subject-tabs" role="tablist">
                   {productComponents.map(({ record }) => {
                     const identity = productIdentity(record);
                     const isSelected = record.key === selectedProduct?.record.key;
@@ -505,8 +520,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                       type="button"
                     >
                       <span className="subject-tab-icon"><IdentityIcon aria-hidden="true" size={14} /></span>
-                      <span><strong>{identity.name}</strong><small>{identity.kind}{identity.manufacturer && identity.manufacturer.toLocaleLowerCase() !== identity.name.toLocaleLowerCase() ? ` · ${identity.manufacturer}` : ""}</small></span>
-                      <Check aria-hidden="true" size={14} />
+                      <span><strong>{identity.name}</strong><small>{productDueLabel(record)}</small></span>
                     </button>;
                   })}
                 </div>
