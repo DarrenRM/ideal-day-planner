@@ -237,13 +237,18 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const neighborChord = 2 * centerRadius * Math.sin(spacing / 2);
       const radialHalfDiagonal = neighborChord * radialStretch;
       const edgeSteps = 6;
-      const convexity = 1.14;
-      const shapePower = 2 / convexity;
+      const innerShapePower = 2 / 1.14;
+      const outerShapePower = 2;
       const mapPolarPoint = (angle: number, mappedRadius: number) => ({
         x: centerX + Math.cos(angle) * mappedRadius,
         y: centerY + Math.sin(angle) * mappedRadius,
       });
-      const traceConvexQuarter = (angle: number, fromTurn: number, toTurn: number) => {
+      const traceFacetQuarter = (
+        angle: number,
+        fromTurn: number,
+        toTurn: number,
+        shapePower: number,
+      ) => {
         for (let step = 1; step <= edgeSteps; step += 1) {
           const turn = fromTurn + (toTurn - fromTurn) * (step / edgeSteps);
           const cosine = Math.cos(turn);
@@ -263,10 +268,10 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
         facetContext.beginPath();
         facetContext.moveTo(inwardTip.x, inwardTip.y);
-        traceConvexQuarter(angle, -Math.PI / 2, 0);
-        traceConvexQuarter(angle, 0, Math.PI / 2);
-        traceConvexQuarter(angle, Math.PI / 2, Math.PI);
-        traceConvexQuarter(angle, Math.PI, Math.PI * 1.5);
+        traceFacetQuarter(angle, -Math.PI / 2, 0, innerShapePower);
+        traceFacetQuarter(angle, 0, Math.PI / 2, outerShapePower);
+        traceFacetQuarter(angle, Math.PI / 2, Math.PI, outerShapePower);
+        traceFacetQuarter(angle, Math.PI, Math.PI * 1.5, innerShapePower);
         facetContext.closePath();
         facetContext.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
         facetContext.fill();
