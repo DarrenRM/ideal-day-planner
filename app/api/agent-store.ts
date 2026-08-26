@@ -12,6 +12,7 @@ import { measuredSessionFields, type SessionChoiceData } from "../session-log-mo
 import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
 import { mergeMealLogData, type MealLogData } from "../meal-log-model";
 import { historicalWorkspaceReceipt } from "../work-receipt-model";
+export { requestIdentity } from "./request-identity";
 
 export type ActivityRecord = {
   id: string;
@@ -23,13 +24,6 @@ export type ActivityRecord = {
 };
 
 let schemaPromise: Promise<void> | null = null;
-
-export function requestIdentity(request: Request) {
-  const userId = request.headers.get("oai-authenticated-user-id");
-  if (userId) return userId;
-  const host = new URL(request.url).hostname;
-  return host === "localhost" || host === "127.0.0.1" ? "local-development-user" : null;
-}
 
 export function isLocalBridgeRequest(request: Request) {
   const host = new URL(request.url).hostname;

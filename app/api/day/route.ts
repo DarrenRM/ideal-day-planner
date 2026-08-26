@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillParentCadenceSchedules, backfillProductSubjectRhythms, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps } from "../agent-store";
+import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillParentCadenceSchedules, backfillProductSubjectRhythms, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps, requestIdentity } from "../agent-store";
 import { ensureDayRoles, ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 import { readCaptureAttention } from "../capture-service";
 
@@ -19,15 +19,6 @@ type StoredItem = {
   skippedAt?: string | null;
   planRole: "essential" | "extra";
 };
-
-function identity(request: Request) {
-  const userId = request.headers.get("oai-authenticated-user-id");
-  if (userId) return userId;
-
-  const host = new URL(request.url).hostname;
-  if (host === "localhost" || host === "127.0.0.1") return "local-development-user";
-  return null;
-}
 
 function requestedDate(request: Request) {
   const date = new URL(request.url).searchParams.get("date") ?? "";
@@ -329,7 +320,7 @@ async function restoreTemplateAndToday(userId: string, date: string, items: Stor
 }
 
 function unauthorized() {
-  return Response.json({ error: "Sign in with ChatGPT to load your day." }, { status: 401 });
+  return Response.json({ error: "Sign in to load your day." }, { status: 401 });
 }
 
 function failure(error: unknown) {
@@ -339,7 +330,7 @@ function failure(error: unknown) {
 }
 
 export async function GET(request: Request) {
-  const userId = identity(request);
+  const userId = requestIdentity(request);
   const date = requestedDate(request);
   if (!userId) return unauthorized();
   if (!date) return Response.json({ error: "A valid local date is required." }, { status: 400 });
@@ -386,7 +377,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const userId = identity(request);
+  const userId = requestIdentity(request);
   const date = requestedDate(request);
   if (!userId) return unauthorized();
   if (!date) return Response.json({ error: "A valid local date is required." }, { status: 400 });

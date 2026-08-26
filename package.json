@@ -11,7 +11,8 @@
     "start": "vinext start",
     "bridge": "node bridge/ideal-day-bridge.mjs",
     "eval:model-routing": "node --experimental-strip-types evals/compare-luna-models.mjs",
-    "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",
+    "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs && npm run test:gateway",
+    "test:gateway": "npm --prefix vercel-gateway test",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

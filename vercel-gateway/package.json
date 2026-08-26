@@ -1,0 +1,10 @@
+{
+  "name": "ideal-day-vercel-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "password:hash": "node scripts/hash-password.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

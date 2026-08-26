@@ -90,7 +90,9 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /Activity length/);
   assert.match(page, /Building your starting day/);
   assert.doesNotMatch(page, /progressTitle|activity\.reason|onboarding-edit-meta|onboarding-candidate-select|>Remove</);
-  assert.match(page, /window\.location\.assign\("\/testing"\)/);
+  assert.match(page, /window\.location\.assign\(result\.testing \? "\/testing" : "\/"\)/);
+  assert.match(route, /principal\.source === "vercel"/);
+  assert.match(store, /target\.direct \? ownerUserId/);
   assert.doesNotMatch(page, /No activities have been created yet/);
   assert.doesNotMatch(page, /Why these\?|Not saved yet/);
   assert.match(page, /priorities: "dusk"/);
