@@ -152,7 +152,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       activeLinks = complexity === 1
         ? LUNA_FIELD.links
         : LUNA_FIELD.links.filter(([first, second]) => first < activeNodeCount && second < activeNodeCount);
-      fieldScale = Math.min(1, Math.max(.28, Math.min(width, height) / 250));
+      fieldScale = Math.min(1, Math.max(.8, Math.min(width, height) / 220));
       needsResize = false;
       lastFacetFrame = Number.NEGATIVE_INFINITY;
       lastNetworkFrame = Number.NEGATIVE_INFINITY;
@@ -160,6 +160,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
     const drawNetwork = (centerX: number, centerY: number, radius: number, emptyRadius: number, time: number, energy: number) => {
       const fieldEnergy = energy * fieldScale;
+      const blinkRate = state === "thinking" ? 2.8 : state === "listening" ? 1.35 : 1;
       const positions = LUNA_FIELD.nodes.slice(0, activeNodeCount).map((node, index) => {
         const drift = Math.sin(time * .35 + node.phase) * radius * .008;
         const orbital = node.angle + Math.sin(time * .14 + node.phase) * .012 + time * (index % 2 ? .0007 : -.00055);
@@ -201,7 +202,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const fade = networkFade(star.distance);
         const x = centerX + Math.cos(star.angle) * distance;
         const y = centerY + Math.sin(star.angle) * distance;
-        const pulse = .7 + Math.sin(time * 1.25 + star.phase) * .22;
+        const pulse = .7 + Math.sin(time * 1.25 * blinkRate + star.phase) * .22;
         networkContext.beginPath();
         networkContext.arc(x, y, star.size * pulse * fieldEnergy, 0, TAU);
         networkContext.fillStyle = colorAt(star.angle, .68 * fieldEnergy * fade, .08);
@@ -209,7 +210,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       }
 
       for (const point of positions) {
-        const pulse = .76 + Math.sin(time * 1.45 + point.angle * 4) * .2;
+        const pulse = .76 + Math.sin(time * 1.45 * blinkRate + point.angle * 4) * .2;
         const pointSize = point.size * pulse * fieldEnergy;
         if (pointSize > 1.18) {
           const glow = networkContext.createRadialGradient(point.x, point.y, 0, point.x, point.y, pointSize * 4.4);
@@ -229,14 +230,6 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
 
     const drawFacets = (centerX: number, centerY: number, radius: number, coreRadius: number, time: number, energy: number) => {
       facetContext.clearRect(0, 0, width, height);
-      const glow = facetContext.createRadialGradient(centerX, centerY, coreRadius * .92, centerX, centerY, radius * .86);
-      glow.addColorStop(0, "rgba(255,255,255,0)");
-      glow.addColorStop(.36, "rgba(220,244,236,.08)");
-      glow.addColorStop(.72, "rgba(126,181,190,.025)");
-      glow.addColorStop(1, "rgba(0,0,0,0)");
-      facetContext.fillStyle = glow;
-      facetContext.fillRect(0, 0, width, height);
-
       const facets = 42;
       const spacing = TAU / facets;
       const radialStretch = 1.14;
@@ -244,22 +237,20 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const neighborChord = 2 * centerRadius * Math.sin(spacing / 2);
       const radialHalfDiagonal = neighborChord * radialStretch;
       const edgeSteps = 6;
+      const convexity = 1.14;
+      const shapePower = 2 / convexity;
       const mapPolarPoint = (angle: number, mappedRadius: number) => ({
         x: centerX + Math.cos(angle) * mappedRadius,
         y: centerY + Math.sin(angle) * mappedRadius,
       });
-      const tracePolarEdge = (
-        fromAngle: number,
-        fromRadius: number,
-        toAngle: number,
-        toRadius: number,
-      ) => {
+      const traceConvexQuarter = (angle: number, fromTurn: number, toTurn: number) => {
         for (let step = 1; step <= edgeSteps; step += 1) {
-          const progress = step / edgeSteps;
-          const point = mapPolarPoint(
-            fromAngle + (toAngle - fromAngle) * progress,
-            fromRadius + (toRadius - fromRadius) * progress,
-          );
+          const turn = fromTurn + (toTurn - fromTurn) * (step / edgeSteps);
+          const cosine = Math.cos(turn);
+          const sine = Math.sin(turn);
+          const angularOffset = spacing * Math.sign(cosine) * Math.pow(Math.abs(cosine), shapePower);
+          const radialOffset = radialHalfDiagonal * Math.sign(sine) * Math.pow(Math.abs(sine), shapePower);
+          const point = mapPolarPoint(angle + angularOffset, centerRadius + radialOffset);
           facetContext.lineTo(point.x, point.y);
         }
       };
@@ -268,15 +259,14 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const angle = index * spacing;
         const shimmer = .95 + Math.sin(index * 1.83 + time * .38) * .05;
         const inwardRadius = centerRadius - radialHalfDiagonal;
-        const outwardRadius = centerRadius + radialHalfDiagonal;
         const inwardTip = mapPolarPoint(angle, inwardRadius);
 
         facetContext.beginPath();
         facetContext.moveTo(inwardTip.x, inwardTip.y);
-        tracePolarEdge(angle, inwardRadius, angle + spacing, centerRadius);
-        tracePolarEdge(angle + spacing, centerRadius, angle, outwardRadius);
-        tracePolarEdge(angle, outwardRadius, angle - spacing, centerRadius);
-        tracePolarEdge(angle - spacing, centerRadius, angle, inwardRadius);
+        traceConvexQuarter(angle, -Math.PI / 2, 0);
+        traceConvexQuarter(angle, 0, Math.PI / 2);
+        traceConvexQuarter(angle, Math.PI / 2, Math.PI);
+        traceConvexQuarter(angle, Math.PI, Math.PI * 1.5);
         facetContext.closePath();
         facetContext.fillStyle = colorAt(angle + Math.sin(time * .1) * .012, .32 * shimmer * energy);
         facetContext.fill();
@@ -289,13 +279,14 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       if (needsResize) resizeCanvases();
       const elapsed = reducedMotion ? 1.8 : (now - startedAt) / 1000;
       const speed = state === "thinking" ? 1.22 : state === "listening" ? .86 : .54;
-      const energy = state === "thinking" ? 1.18 : state === "listening" ? 1.08 : 1;
+      const energy = 1;
       const time = elapsed * speed;
       const centerX = width / 2;
       const centerY = height / 2;
       const radius = Math.min(width, height) / 2;
       const artRadius = radius * .76;
-      const breath = Math.sin(time * TAU / 5.8) * .011 + Math.sin(time * TAU / 11.6 + .7) * .004;
+      const breathReach = state === "thinking" ? 2.3 : state === "listening" ? 1.3 : 1;
+      const breath = (Math.sin(time * TAU / 5.8) * .011 + Math.sin(time * TAU / 11.6 + .7) * .004) * breathReach;
       const coreRadius = artRadius * (.635 + breath);
       const compact = Math.min(width, height) < 144;
       const facetInterval = reducedMotion ? Number.POSITIVE_INFINITY : 1000 / (compact ? 18 : 30);
