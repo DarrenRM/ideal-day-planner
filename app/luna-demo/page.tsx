@@ -12,7 +12,7 @@ import {
 } from "../luna-avatar";
 
 const STATES: Array<{ id: LunaAvatarState; label: string; detail: string }> = [
-  { id: "idle", label: "Idle", detail: "A slow whole-ring breath while Luna is available." },
+  { id: "idle", label: "Idle", detail: "A slow facet-ring breath around a steady constellation." },
   { id: "thinking", label: "Thinking", detail: "A faster pulse with a more active constellation." },
 ];
 
@@ -35,9 +35,9 @@ type MotionControl = {
 const MOTION_GROUPS: Array<{ title: string; detail: string; controls: MotionControl[] }> = [
   {
     title: "Idle mode",
-    detail: "The complete halo contracts toward the center without changing its overlaps.",
+    detail: "The facet halo contracts toward the center without changing its overlaps; the constellation stays still.",
     controls: [
-      { key: "idleBreathDepth", label: "Whole-ring contraction", min: .02, max: .14, step: .005, decimals: 1, format: "percent" },
+      { key: "idleBreathDepth", label: "Facet-ring contraction", min: .02, max: .14, step: .005, decimals: 1, format: "percent" },
       { key: "idleBreathPeriod", label: "Breath cycle", min: 3.5, max: 10, step: .1, decimals: 1, format: "seconds" },
     ],
   },
@@ -45,14 +45,14 @@ const MOTION_GROUPS: Array<{ title: string; detail: string; controls: MotionCont
     title: "Thinking mode",
     detail: "Thinking accelerates the breath and palette while increasing constellation activity.",
     controls: [
-      { key: "thinkingBreathDepth", label: "Whole-ring contraction", min: .03, max: .18, step: .005, decimals: 1, format: "percent" },
+      { key: "thinkingBreathDepth", label: "Facet-ring contraction", min: .03, max: .24, step: .005, decimals: 1, format: "percent" },
       { key: "thinkingBreathPeriod", label: "Pulse cycle", min: 1.5, max: 6, step: .1, decimals: 1, format: "seconds" },
       { key: "thinkingFieldActivity", label: "Constellation activity", min: 1, max: 3, step: .05, decimals: 2, format: "multiplier" },
     ],
   },
 ];
 
-const STORAGE_KEY = "ideal-day-luna-mode-tuning-v1";
+const STORAGE_KEY = "ideal-day-luna-mode-tuning-v2";
 
 function isSavedMotionTuning(value: unknown): value is Partial<LunaMotionTuning> {
   if (!value || typeof value !== "object") return false;
@@ -134,7 +134,7 @@ export default function LunaDemoPage() {
   };
 
   return <main className="luna-demo-page">
-    <header className="luna-demo-header"><span className="onboarding-kicker">LUNA · MOTION STUDY</span><h1>Tune how Luna rests and thinks.</h1><p>The approved two-row geometry is locked. This study now focuses on whole-ring breathing, constellation activity, and behavior at small sizes.</p></header>
+    <header className="luna-demo-header"><span className="onboarding-kicker">LUNA · MOTION STUDY</span><h1>Tune how Luna rests and thinks.</h1><p>The approved two-row geometry is locked. This study now focuses on facet-ring breathing, constellation activity, and behavior at small sizes.</p></header>
     <section className="luna-demo-grid">
       <article className="luna-demo-stage" aria-label="Large Luna avatar preview"><LunaAvatar layer={layer} motionTuning={motionTuning} size={520} state={state} /><div className="luna-demo-state-copy"><span>{active.label}</span><p>{active.detail}</p></div></article>
       <aside className="luna-demo-controls">

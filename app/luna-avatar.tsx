@@ -47,7 +47,7 @@ export type LunaMotionTuning = {
 export const DEFAULT_LUNA_MOTION_TUNING: LunaMotionTuning = {
   idleBreathDepth: .065,
   idleBreathPeriod: 5.8,
-  thinkingBreathDepth: .085,
+  thinkingBreathDepth: .14,
   thinkingBreathPeriod: 2.9,
   thinkingFieldActivity: 1.8,
 };
@@ -252,6 +252,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
           angle: orbital,
           fade: networkFade(node.distance),
           size: node.size,
+          phase: node.phase,
         };
       });
 
@@ -283,27 +284,33 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const fade = networkFade(star.distance);
         const x = centerX + Math.cos(star.angle) * distance;
         const y = centerY + Math.sin(star.angle) * distance;
-        const pulse = .7 + Math.sin(time * 1.25 * blinkRate + star.phase) * .22;
+        const rateVariance = .62 + (Math.sin(star.phase * 1.73) + 1) * .48;
+        const wave = .5 + Math.sin(time * 1.05 * blinkRate * rateVariance + star.phase) * .5;
+        const intensity = .34 + Math.pow(wave, 1.7) * .66;
         networkContext.beginPath();
-        networkContext.arc(x, y, star.size * pulse * fieldEnergy, 0, TAU);
-        networkContext.fillStyle = networkColorAt(star.angle, .68 * fieldEnergy * fade, .08);
+        networkContext.arc(x, y, star.size * (.7 + intensity * .5) * fieldEnergy, 0, TAU);
+        networkContext.fillStyle = networkColorAt(star.angle, (.24 + intensity * .5) * fieldEnergy * fade, .08);
         networkContext.fill();
       }
 
       for (const point of positions) {
-        const pulse = .76 + Math.sin(time * 1.45 * blinkRate + point.angle * 4) * .2;
-        const pointSize = point.size * pulse * fieldEnergy;
-        if (pointSize > 1.18) {
-          const glow = networkContext.createRadialGradient(point.x, point.y, 0, point.x, point.y, pointSize * 4.4);
-          glow.addColorStop(0, networkColorAt(point.angle, .62 * fieldEnergy * point.fade, .28));
-          glow.addColorStop(.28, networkColorAt(point.angle, .28 * fieldEnergy * point.fade));
+        const rateVariance = .68 + (Math.sin(point.phase * 2.17) + 1) * .43;
+        const wave = .5 + Math.sin(time * 1.18 * blinkRate * rateVariance + point.phase) * .5;
+        const intensity = .3 + Math.pow(wave, 1.55) * .7;
+        const pointSize = point.size * (.76 + intensity * .28) * fieldEnergy;
+        if (point.size > .9) {
+          const glowStrength = Math.pow(intensity, 1.35);
+          const glowRadius = pointSize * (3.5 + glowStrength * 1.2);
+          const glow = networkContext.createRadialGradient(point.x, point.y, 0, point.x, point.y, glowRadius);
+          glow.addColorStop(0, networkColorAt(point.angle, .54 * glowStrength * fieldEnergy * point.fade, .28));
+          glow.addColorStop(.28, networkColorAt(point.angle, .24 * glowStrength * fieldEnergy * point.fade));
           glow.addColorStop(1, networkColorAt(point.angle, 0));
           networkContext.fillStyle = glow;
-          networkContext.fillRect(point.x - pointSize * 4.4, point.y - pointSize * 4.4, pointSize * 8.8, pointSize * 8.8);
+          networkContext.fillRect(point.x - glowRadius, point.y - glowRadius, glowRadius * 2, glowRadius * 2);
         }
         networkContext.beginPath();
         networkContext.arc(point.x, point.y, Math.max(.24, pointSize), 0, TAU);
-        networkContext.fillStyle = networkColorAt(point.angle, .9 * fieldEnergy * point.fade, .08);
+        networkContext.fillStyle = networkColorAt(point.angle, (.28 + intensity * .62) * fieldEnergy * point.fade, .08);
         networkContext.fill();
       }
       networkContext.restore();
@@ -385,7 +392,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const breathPeriod = state === "thinking" ? motionConfig.thinkingBreathPeriod : motionConfig.idleBreathPeriod;
       const breathProgress = (1 - Math.cos(facetTime * TAU / breathPeriod)) / 2;
       const ringScale = 1 - breathDepth * breathProgress;
-      const networkArtRadius = radius * .76 * ringScale;
+      const networkArtRadius = radius * .76;
       const networkCoreRadius = networkArtRadius * .635;
       const sharedColorSpeed = facetConfigs[0]?.colorRotationSpeed ?? DEFAULT_LUNA_FACET_TUNING.colorRotationSpeed;
       const sharedColorOffset = facetConfigs[0]?.colorRotation ?? DEFAULT_LUNA_FACET_TUNING.colorRotation;
@@ -395,10 +402,10 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const networkInterval = reducedMotion
         ? Number.POSITIVE_INFINITY
         : state === "thinking"
-          ? compact ? 360 : Math.max(90, 220 / fieldActivity)
+          ? compact ? 85 : Math.max(45, 100 / fieldActivity)
           : state === "listening"
-            ? compact ? 800 : 450
-            : compact ? 1000 : 750;
+            ? compact ? 110 : 60
+            : compact ? 140 : 80;
       const usesNetwork = layer === "complete" || layer === "network";
       const usesFacets = layer === "complete" || layer === "facets";
 
