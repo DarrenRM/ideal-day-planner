@@ -155,6 +155,10 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 
 ## Activity workspace components
 
+### Component library workbench
+
+`/components` is the Sites-only living reference and design workbench for activity components. It must render the same production component primitives used inside activities, hydrated with synthetic records; do not create visually similar demo-only copies. Selection guidance comes from the approved component catalog and composition recipes, and the page documents semantic display order and explicit ownership/linking rules. Production component changes should therefore appear in the workbench automatically, and design changes made through the workbench should update the shared production primitive rather than a specimen wrapper.
+
 - Components use the shared workspace header, card, field, list, action, empty, loading, and error patterns.
 - A product or device owns its own streak/rhythm whenever multiple items have different starts, cadences, or completion histories. Render that rhythm inside the product card above its protocol. Only collapse rhythms into one activity-level streak when the subjects are strictly synchronized. A daily subject begins with an inviting `Day 1` state. A non-daily subject uses a compact dated rhythm rail with its nearest real occurrence emphasized; never label future occurrences `Use 1`, `Use 2`, or similar. Newly added items show a clear first/start date and never borrow the activity's older checked days.
 - A whole-activity schedule card appears only when its recurrence carries useful information beyond an endless one-step daily default: selected weekdays, every-N-days cadence, a bounded schedule, completion-driven advancement, or a multi-step rotation. It shows the plain-language rule plus the next three occurrences, emphasizing the nearest one; rotation occurrences include their resolved variant or step label. A recurring sub-item keeps its own recurring-step component and never causes the parent activity to claim that cadence.

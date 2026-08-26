@@ -183,7 +183,7 @@ export function resetActivityTimingState(activityIds: string[]) {
   } catch { /* device-only timer state is optional */ }
 }
 
-function TimerComponent({ activity, component }: { activity: WorkspaceActivity; component: TimerWorkspaceComponent }) {
+export function TimerComponent({ activity, component }: { activity: WorkspaceActivity; component: TimerWorkspaceComponent }) {
   const storageKey = `ideal-day-timer:${activity.id}:${component.id}`;
   const initialPlannedSeconds = activity.timelineEnabled ? activity.duration * 60 : null;
   const [timer, setTimer] = useState(() => readStoredState<TimerState>(storageKey, { running: false, baseSeconds: 0, startedAt: 0, firstStartedAt: 0, plannedSeconds: initialPlannedSeconds }));
@@ -229,7 +229,7 @@ function TimerComponent({ activity, component }: { activity: WorkspaceActivity; 
   );
 }
 
-function CountdownComponent({ activity, component }: { activity: WorkspaceActivity; component: CountdownWorkspaceComponent }) {
+export function CountdownComponent({ activity, component }: { activity: WorkspaceActivity; component: CountdownWorkspaceComponent }) {
   const storageKey = `ideal-day-countdown:${activity.id}:${component.id}`;
   const usesTimelineDuration = component.durationSource === "timeline" && activity.timelineEnabled;
   const configuredSeconds = usesTimelineDuration ? activity.duration * 60 : component.durationSeconds;
@@ -300,7 +300,7 @@ function CountdownComponent({ activity, component }: { activity: WorkspaceActivi
   );
 }
 
-function RoutineComponent({ component }: { component: RoutineWorkspaceComponent }) {
+export function RoutineComponent({ component }: { component: RoutineWorkspaceComponent }) {
   return (
     <section className="workspace-block routine-component" aria-label={component.title}>
       <div className="workspace-block-heading"><div><span className="workspace-overline">Saved routine</span><strong>{component.title}</strong></div><Sparkles size={15} /></div>
