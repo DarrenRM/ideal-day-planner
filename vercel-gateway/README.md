@@ -6,6 +6,6 @@ Configure the environment variables listed in `.env.example` as sensitive Previe
 
 The Sites bypass token and gateway token are server-only. Browser requests never receive either value. The two password values are stored only as scrypt hashes.
 
-Use a Vercel project whose Root Directory is `vercel-gateway`. Connect the repository to Git after the first verified deployment: non-production branches create previews and the production branch creates production deployments.
+The root GitHub Actions workflow validates the complete application, builds this directory, and deploys the Vercel production project after every push to `main`. Preview deployments are intentionally disabled until they have an isolated backend; a preview must never write to the production D1 database.
 
 The function includes a conservative per-instance login throttle. Configure a Vercel Firewall rate-limit rule for `/_ideal-day/login` before inviting users so enforcement is shared across serverless instances.

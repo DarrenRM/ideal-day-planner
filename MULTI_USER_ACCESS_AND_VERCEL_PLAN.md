@@ -1,6 +1,6 @@
 # Multi-user access and Vercel migration plan
 
-Status: direction approved; remaining operational defaults listed below  
+Status: initial two-user gateway implemented and deployed
 Scope: an initial two-person private deployment that can evolve into normal account-based authentication  
 Last updated: 2026-08-25
 
@@ -11,6 +11,16 @@ Move Ideal Day from one platform-provided identity toward a real multi-user arch
 The first release will support exactly two private users. A visitor enters one of two shared secrets at a login gate. Each accepted secret maps to a different, stable internal user identity and therefore a completely separate setup, activity catalog, day plan, conversations, artifacts, and preferences. No protected page or API data is available without a valid session.
 
 This is a bootstrap authentication system, not the eventual account system. It must be designed so a future identity provider can be attached to the same internal users without migrating their application data.
+
+## Implemented release
+
+- The existing private Sites application and D1 database remain the source of truth.
+- A separate Vercel gateway maps two scrypt-hashed bootstrap passwords to two random, allowlisted user IDs.
+- Signed 30-day `HttpOnly`, `Secure`, `SameSite=Lax` sessions are revocable through per-user session versions.
+- Both Vercel principals begin in direct onboarding with blank, independently owned records.
+- Logged-out application requests are denied, privileged restore and bridge routes are blocked, writes require the deployment origin, and personalized responses are not cached.
+- Pushes to `main` run the complete test/lint gate and deploy the Vercel production project through GitHub Actions.
+- Preview deployments remain disabled until an isolated preview backend exists.
 
 ## Important finding about the current application
 
