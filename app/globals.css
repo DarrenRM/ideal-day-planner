@@ -1590,6 +1590,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .drop-after .drop-indicator { bottom: 0; }
 .drop-indicator::before { background: var(--accent); border-radius: 99px; box-shadow: 0 0 18px rgba(181, 215, 125, .54); content: ""; height: 2px; width: 100%; }
 .drop-indicator span { background: var(--accent); border-radius: 5px; color: var(--accent-ink); font: 700 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .08em; padding: 4px 7px; position: absolute; right: 8px; text-transform: uppercase; }
+.touch-drop-slot, .touch-drag-origin-slot { display: none; }
 
 .finish-row { display: grid; grid-template-columns: 74px 1fr; min-height: 44px; }
 .finish-row .time-label { align-items: center; }
@@ -1717,6 +1718,13 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card.is-expanded .item-copy { grid-column: 1 / -1; grid-row: 1; padding-left: 12px; padding-right: 12px; }
   .routine-card.is-expanded .collapse-activity-button { display: none; }
   .routine-card:not(.is-expanded):not(.is-editing) { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .routine-row.is-touch-dragging { min-height: var(--touch-drag-height); padding: 0; }
+  .routine-row.is-touch-dragging.has-touch-drop-target { min-height: 0; }
+  .routine-row.is-touch-dragging .routine-card { box-shadow: 0 22px 52px rgba(0, 0, 0, .5), 0 0 0 1px color-mix(in srgb, var(--item-color) 54%, var(--border-strong)); left: var(--touch-drag-left); margin: 0; opacity: .97; pointer-events: none; position: fixed; top: var(--touch-drag-top); transform: scale(1.015); transition: box-shadow .16s ease, opacity .16s ease, transform .16s ease; width: var(--touch-drag-width); z-index: 120; }
+  .touch-drag-origin-slot, .touch-drop-slot { align-items: center; background: color-mix(in srgb, var(--surface-soft) 76%, var(--accent) 24%); border: 1px dashed color-mix(in srgb, var(--accent) 62%, var(--border-strong)); border-radius: 12px; color: var(--accent-bright); display: flex; grid-column: 1 / -1; justify-content: center; min-height: max(86px, var(--touch-drag-height)); }
+  .touch-drag-origin-slot { width: 100%; }
+  .touch-drop-slot { margin: 6px 0; transition: min-height .16s ease, opacity .16s ease; }
+  .touch-drop-slot span { font: 700 var(--type-label)/var(--leading-label) var(--type-sans); letter-spacing: .04em; }
   .item-copy { align-items: center; align-self: stretch; display: grid; gap: 6px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 32px 32px; min-width: 0; padding: 0; width: 100%; }
   .item-title { align-self: center; display: flex; grid-column: 1 / -1; grid-row: 1; min-width: 0; overflow: hidden; padding-right: 76px; }
   .activity-title-icon { flex-basis: 22px; }

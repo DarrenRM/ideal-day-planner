@@ -87,7 +87,6 @@ export async function readComponentUsage(userId: string): Promise<ComponentUsage
       types.add(candidate.type);
       if (candidate.type === "product" && "id" in candidate && typeof candidate.id === "string") productComponents.add(candidate.id);
       add(usage, candidate.type, row.title);
-      if (candidate.type === "session_choice") add(usage, "session_choice_compact", row.title);
     }
     componentsByActivity.set(row.activityId, types);
     productComponentsByActivity.set(row.activityId, productComponents);

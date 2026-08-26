@@ -14,11 +14,12 @@ test("the component workbench covers every production primitive plus the retaine
   assert.equal(new Set(specimenTypes).size, specimenTypes.length);
 });
 
-test("the workbench includes every app-owned activity workspace surface and the selected Today state", () => {
+test("the workbench includes every app-owned activity workspace surface without duplicating presentation states", () => {
   const types = new Set(COMPONENT_SPECIMENS.map((entry) => entry.type));
-  for (const type of ["session_choice_compact", "activity_streak", "activity_schedule", "activity_follow_up", "product_action_tabs", "workspace_working", "workspace_empty", "workspace_invitation"]) {
+  for (const type of ["activity_streak", "activity_schedule", "activity_follow_up", "product_action_tabs", "workspace_working", "workspace_empty", "workspace_invitation"]) {
     assert.ok(types.has(type), `${type} is missing from the workbench`);
   }
+  assert.equal(COMPONENT_SPECIMENS.filter((entry) => entry.type === "session_choice").length, 1);
 });
 
 test("every record-backed specimen has hydrated mock data and valid links", () => {
@@ -58,7 +59,9 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(client, /<ActivityFollowUpComponent/);
   assert.match(client, /<StreakTrack/);
   assert.match(client, /<ActivityWorkspace/);
-  assert.match(client, /session_choice_compact/);
+  assert.match(client, /Session choice state/);
+  assert.match(client, />Choosing</);
+  assert.match(client, />Selected</);
   assert.match(client, /Selection map/);
   assert.match(client, /data-width={previewWidth}/);
   assert.ok(client.indexOf(">Good fits<") < client.indexOf(">Used on<"));
@@ -75,6 +78,6 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(usage, /JOIN activity_workspaces/);
   assert.match(usage, /JOIN activity_follow_ups/);
   assert.match(usage, /JOIN schedule_patterns/);
-  assert.match(usage, /session_choice_compact/);
+  assert.doesNotMatch(usage, /session_choice_compact/);
   assert.match(usage, /product_action_tabs/);
 });

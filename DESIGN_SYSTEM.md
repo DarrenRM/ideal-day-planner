@@ -110,6 +110,7 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 - Never solve a narrow layout by reducing text below its semantic role. Reflow, stack, shorten nonessential copy, or move actions into an overflow menu.
 - Test mobile layouts with long titles, active/complete/skipped states, open menus, a multiline Luna message, populated records, empty state, loading state, and the on-screen keyboard assumption.
 - Do not reserve a visible drag handle. A closed activity is itself the reorder surface: drag directly with a mouse, or hold briefly and drag on touch. A normal tap still opens it; `Alt` + arrow keys reorder a focused activity without dragging.
+- On touch, a held activity lifts into a full-card drag ghost while one same-height dashed slot shows the exact destination and surrounding cards reflow around it. Keep reordering within the activity’s current commitment segment; moving between Essentials, Going further, and Keep it going requires the explicit role action rather than a drag side effect.
 
 ## Scheduling surfaces
 

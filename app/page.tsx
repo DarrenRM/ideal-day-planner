@@ -48,6 +48,7 @@ type RoutineItem = {
 type ScheduledItem = RoutineItem & { start: number; end: number };
 type DropTarget = { id: string; position: "before" | "after" };
 type TouchDrag = { active: boolean; pointerId: number; sourceId: string; startX: number; startY: number; timer: ReturnType<typeof setTimeout> };
+type TouchDragVisual = { sourceId: string; clientX: number; clientY: number; offsetX: number; offsetY: number; width: number; height: number };
 type MobileActivityTransition = {
   id: string;
   phase: "opening" | "closing";
@@ -1404,6 +1405,7 @@ export default function Home() {
   const [isStartingDay, setIsStartingDay] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const [touchDragVisual, setTouchDragVisual] = useState<TouchDragVisual | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "retrying">("loading");
   const [isAdding, setIsAdding] = useState(false);
@@ -1747,6 +1749,14 @@ export default function Home() {
     if (touchDragRef.current) clearTimeout(touchDragRef.current.timer);
     if (suppressActivityClickTimer.current) clearTimeout(suppressActivityClickTimer.current);
     if (extraTransitionTimer.current) clearTimeout(extraTransitionTimer.current);
+  }, []);
+
+  useEffect(() => {
+    function preventActiveTouchDragScroll(event: TouchEvent) {
+      if (touchDragRef.current?.active) event.preventDefault();
+    }
+    document.addEventListener("touchmove", preventActiveTouchDragScroll, { passive: false });
+    return () => document.removeEventListener("touchmove", preventActiveTouchDragScroll);
   }, []);
 
   const completedBeforeLaunchIds = useMemo(() => {
@@ -2373,7 +2383,7 @@ export default function Home() {
   }
 
   function moveItem(sourceId: string, targetId: string, position: "before" | "after") {
-    if (sourceId === targetId) return;
+    if (sourceId === targetId || dragGroupForItem(sourceId) !== dragGroupForItem(targetId)) return;
     setItems((current) => {
       const next = [...current];
       const sourceIndex = next.findIndex((item) => item.id === sourceId);
@@ -2387,15 +2397,11 @@ export default function Home() {
   }
 
   function moveByKeyboard(id: string, direction: -1 | 1) {
-    setItems((current) => {
-      const index = current.findIndex((item) => item.id === id);
-      const nextIndex = index + direction;
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
-      const next = [...current];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      void persistOccurrenceActions(next.map((item, position) => ({ type: "move_within_day", occurrenceId: item.id, position })));
-      return next;
-    });
+    const group = dragGroupForItem(id);
+    const groupItems = displayedScheduledItems.filter((item) => dragGroupForItem(item.id) === group);
+    const index = groupItems.findIndex((item) => item.id === id);
+    const target = groupItems[index + direction];
+    if (target) moveItem(id, target.id, direction < 0 ? "before" : "after");
   }
 
   function handleDragKeyDown(event: KeyboardEvent<HTMLElement>, id: string) {
@@ -2420,14 +2426,30 @@ export default function Home() {
     setDropTarget(null);
   }
 
+  function dragGroupForItem(id: string) {
+    if (essentialItemIds.has(id)) return "essential";
+    if (chosenExtraItemIds.has(id)) return "going-further";
+    if (keepGoingItemIds.has(id)) return "keep-going";
+    return "other";
+  }
+
   function touchDropTarget(clientX: number, clientY: number, sourceId: string): DropTarget | null {
-    const row = document.elementsFromPoint(clientX, clientY)
-      .map((element) => element.closest<HTMLElement>(".routine-row[data-activity-id]"))
-      .find((candidate) => candidate?.dataset.activityId && candidate.dataset.activityId !== sourceId);
-    const targetId = row?.dataset.activityId;
-    if (!row || !targetId) return null;
-    const bounds = row.getBoundingClientRect();
-    return { id: targetId, position: clientY < bounds.top + bounds.height / 2 ? "before" : "after" };
+    const sourceGroup = dragGroupForItem(sourceId);
+    const rows = [...document.querySelectorAll<HTMLElement>(`.routine-row[data-drag-group="${sourceGroup}"]`)]
+      .filter((row) => row.dataset.activityId && row.dataset.activityId !== sourceId);
+    if (!rows.length) return null;
+    const horizontalBounds = rows.reduce((bounds, row) => {
+      const rect = row.getBoundingClientRect();
+      return { left: Math.min(bounds.left, rect.left), right: Math.max(bounds.right, rect.right) };
+    }, { left: Number.POSITIVE_INFINITY, right: Number.NEGATIVE_INFINITY });
+    if (clientX < horizontalBounds.left - 28 || clientX > horizontalBounds.right + 28) return null;
+    for (const row of rows) {
+      const targetId = row.dataset.activityId;
+      const bounds = row.getBoundingClientRect();
+      if (targetId && clientY < bounds.top + bounds.height / 2) return { id: targetId, position: "before" };
+    }
+    const lastTargetId = rows.at(-1)?.dataset.activityId;
+    return lastTargetId ? { id: lastTargetId, position: "after" } : null;
   }
 
   function cancelTouchDrag(moveItemOnRelease: boolean, clientX = 0, clientY = 0) {
@@ -2447,6 +2469,7 @@ export default function Home() {
     touchDragRef.current = null;
     setDraggingId(null);
     setDropTarget(null);
+    setTouchDragVisual(null);
   }
 
   function handleActivityPointerDown(event: ReactPointerEvent<HTMLElement>, id: string) {
@@ -2461,11 +2484,21 @@ export default function Home() {
       startX: event.clientX,
       startY: event.clientY,
       timer: setTimeout(() => {
+        const bounds = element.closest<HTMLElement>(".routine-card")?.getBoundingClientRect() ?? element.getBoundingClientRect();
         drag.active = true;
         element.setPointerCapture(pointerId);
         setMobileActivityMenuId(null);
         setDraggingId(id);
         setDropTarget(null);
+        setTouchDragVisual({
+          sourceId: id,
+          clientX: drag.startX,
+          clientY: drag.startY,
+          offsetX: drag.startX - bounds.left,
+          offsetY: drag.startY - bounds.top,
+          width: bounds.width,
+          height: bounds.height,
+        });
       }, 320),
     };
     touchDragRef.current = drag;
@@ -2479,6 +2512,7 @@ export default function Home() {
       return;
     }
     event.preventDefault();
+    setTouchDragVisual((current) => current?.sourceId === drag.sourceId ? { ...current, clientX: event.clientX, clientY: event.clientY } : current);
     const target = touchDropTarget(event.clientX, event.clientY, drag.sourceId);
     setDropTarget((current) => current?.id === target?.id && current?.position === target?.position ? current : target);
     const edge = 72;
@@ -2496,7 +2530,7 @@ export default function Home() {
 
   function handleDragOver(event: DragEvent<HTMLDivElement>, targetId: string) {
     event.preventDefault();
-    if (!draggingId || draggingId === targetId) {
+    if (!draggingId || draggingId === targetId || dragGroupForItem(draggingId) !== dragGroupForItem(targetId)) {
       setDropTarget(null);
       return;
     }
@@ -3287,6 +3321,7 @@ export default function Home() {
               {displayedScheduledItems.map((item, displayIndex) => {
                 const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);
                 const isDragging = draggingId === item.id;
+                const isTouchDragging = touchDragVisual?.sourceId === item.id;
                 const isDropBefore = dropTarget?.id === item.id && dropTarget.position === "before";
                 const isDropAfter = dropTarget?.id === item.id && dropTarget.position === "after";
                 const isEditing = editingId === item.id;
@@ -3298,6 +3333,12 @@ export default function Home() {
                 const transitionGeometry = mobileActivityTransition?.id === item.id ? mobileActivityTransition : null;
                 const itemStyle = {
                   "--item-color": CATEGORY_META[item.category].color,
+                  ...(isTouchDragging ? {
+                    "--touch-drag-left": `${touchDragVisual.clientX - touchDragVisual.offsetX}px`,
+                    "--touch-drag-top": `${touchDragVisual.clientY - touchDragVisual.offsetY}px`,
+                    "--touch-drag-width": `${touchDragVisual.width}px`,
+                    "--touch-drag-height": `${touchDragVisual.height}px`,
+                  } : {}),
                   ...(transitionGeometry ? {
                     "--activity-origin-top": `${transitionGeometry.top}px`,
                     "--activity-origin-left": `${transitionGeometry.left}px`,
@@ -3318,15 +3359,18 @@ export default function Home() {
                         <span>{formatTime(displayedMinutes)}</span><i /><strong>{fakeMinutes !== null ? "Preview now" : "Now"}</strong>
                       </div>
                     ) : null}
+                    {isDropBefore && touchDragVisual ? <div className="touch-drop-slot" aria-hidden="true" style={{ "--touch-drag-height": `${touchDragVisual.height}px` } as CSSProperties}><span>Drop here</span></div> : null}
                     <div
                       data-activity-id={item.id}
-                      className={`routine-row is-${activityState} ${isDragging ? "is-dragging" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""} ${nextActivityCueId === item.id ? "is-next-cue" : ""}`}
+                      data-drag-group={dragGroupForItem(item.id)}
+                      className={`routine-row is-${activityState} ${isDragging ? "is-dragging" : ""} ${isTouchDragging ? "is-touch-dragging" : ""} ${isTouchDragging && dropTarget ? "has-touch-drop-target" : ""} ${isDropBefore ? "drop-before" : ""} ${isDropAfter ? "drop-after" : ""} ${nextActivityCueId === item.id ? "is-next-cue" : ""}`}
                       onDragOver={(event) => handleDragOver(event, item.id)}
                       onDragLeave={handleDragLeave}
                       onDrop={(event) => handleDrop(event, item.id)}
                       style={itemStyle}
                     >
-                    {isDropBefore || isDropAfter ? <div className="drop-indicator" aria-hidden="true"><span>Move here</span></div> : null}
+                    {(isDropBefore || isDropAfter) && !touchDragVisual ? <div className="drop-indicator" aria-hidden="true"><span>Move here</span></div> : null}
+                    {isTouchDragging && !dropTarget ? <div className="touch-drag-origin-slot" aria-hidden="true" /> : null}
 
                     {dayMode.showClockState ? <div className="time-label">{isSkipped
                       ? <strong className="sequence-label">Skipped</strong>
@@ -3535,6 +3579,7 @@ export default function Home() {
 
                     </article>
                     </div>
+                    {isDropAfter && touchDragVisual ? <div className="touch-drop-slot" aria-hidden="true" style={{ "--touch-drag-height": `${touchDragVisual.height}px` } as CSSProperties}><span>Drop here</span></div> : null}
                   </Fragment>
                 );
               })}

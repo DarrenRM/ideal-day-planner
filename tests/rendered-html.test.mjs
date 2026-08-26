@@ -283,6 +283,11 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.message-luna \.message-meta \{ justify-content: flex-start; \}/);
   assert.match(css, /conversation-composer textarea:focus/);
   assert.match(css, /\.drop-indicator/);
+  assert.match(page, /className="touch-drop-slot"/);
+  assert.match(page, /className="touch-drag-origin-slot"/);
+  assert.match(page, /data-drag-group={dragGroupForItem\(item\.id\)}/);
+  assert.match(css, /\.routine-row\.is-touch-dragging \.routine-card/);
+  assert.match(css, /\.touch-drop-slot, \.touch-drag-origin-slot/);
   assert.match(css, /\.duration-control/);
   assert.match(css, /--type-micro: \.6875rem/);
   assert.match(css, /--type-label: \.75rem/);

@@ -33,9 +33,9 @@
 .stageHeading h1, .mapIntro h1 { font-size: clamp(27px, 3vw, 42px); font-weight: 400; letter-spacing: -.035em; line-height: 1.05; margin: 0; }
 .stageHeading p { color: #8d9894; font-size: 13px; line-height: 1.55; margin: 8px 0 0; max-width: 520px; }
 .stageActions { align-items: center; display: flex; flex: none; gap: 8px; }
-.widthSwitch { border: 1px solid #2a3437; border-radius: 9px; display: flex; padding: 3px; }
-.widthSwitch button, .resetButton { align-items: center; background: transparent; border: 0; border-radius: 6px; color: #7f8b87; display: flex; font: inherit; font-size: 11px; gap: 6px; padding: 7px 8px; }
-.widthSwitch button[aria-pressed="true"] { background: #263127; color: #cde99a; }
+.widthSwitch, .stateSwitch { border: 1px solid #2a3437; border-radius: 9px; display: flex; padding: 3px; }
+.widthSwitch button, .stateSwitch button, .resetButton { align-items: center; background: transparent; border: 0; border-radius: 6px; color: #7f8b87; display: flex; font: inherit; font-size: 11px; gap: 6px; padding: 7px 8px; }
+.widthSwitch button[aria-pressed="true"], .stateSwitch button[aria-pressed="true"] { background: #263127; color: #cde99a; }
 .resetButton { border: 1px solid #2a3437; padding: 10px; }
 .previewField { align-items: flex-start; background-color: #0c1113; background-image: linear-gradient(#192124 1px, transparent 1px), linear-gradient(90deg, #192124 1px, transparent 1px); background-size: 22px 22px; border: 1px solid #263033; border-radius: 16px; display: flex; justify-content: center; min-height: 620px; overflow: hidden; padding: 34px 18px; }
 .previewShell { box-shadow: 0 18px 60px #0008; max-width: 100%; transition: width 180ms ease; width: 620px; }

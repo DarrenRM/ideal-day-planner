@@ -14,6 +14,7 @@ type CatalogEntry = { type: string; purpose: string; schema: string };
 type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; today: string; usage: ComponentUsageMap };
 type View = "components" | "selection";
 type PreviewWidth = "desktop" | "mobile";
+type SessionChoiceState = "choosing" | "selected";
 
 const activity: WorkspaceActivity = {
   id: "component-library-specimen",
@@ -66,11 +67,12 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
   const [selectedType, setSelectedType] = useState<LibraryComponentType>("summary");
   const [query, setQuery] = useState("");
   const [previewWidth, setPreviewWidth] = useState<PreviewWidth>("desktop");
+  const [sessionChoiceState, setSessionChoiceState] = useState<SessionChoiceState>("choosing");
   const [fixtures, setFixtures] = useState(() => buildComponentLibraryFixtures(today));
   const [notice, setNotice] = useState("Live production renderer");
 
   const specimen = COMPONENT_SPECIMENS.find((entry) => entry.type === selectedType) ?? COMPONENT_SPECIMENS[0];
-  const catalogEntry = catalog.find((entry) => entry.type === (specimen.type === "session_choice_compact" ? "session_choice" : specimen.type));
+  const catalogEntry = catalog.find((entry) => entry.type === specimen.type);
   const usedOn = usage[specimen.type] ?? [];
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -125,6 +127,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
 
   function resetMock() {
     setFixtures(buildComponentLibraryFixtures(today));
+    setSessionChoiceState("choosing");
     setNotice("Mock data reset");
   }
 
@@ -144,9 +147,10 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
     const supportingRecords = fixtures.records.filter((entry) => specimen.supportingRecordKeys?.includes(entry.key));
     const relatedRecords = fixtures.records.filter((entry) => specimen.relatedRecordKeys?.includes(entry.key));
     return <ActivityRecordComponent
+      key={`${record.key}:${specimen.type === "session_choice" ? sessionChoiceState : "default"}`}
       onMutate={mutate}
       onTalkWithLuna={() => setNotice("Mock Luna handoff captured")}
-      presentation={specimen.type === "strength_session" ? "featured" : specimen.type === "session_choice_compact" ? "compact" : "default"}
+      presentation={specimen.type === "strength_session" ? "featured" : specimen.type === "session_choice" && sessionChoiceState === "selected" ? "compact" : "default"}
       record={record}
       relatedRecords={relatedRecords}
       supportingRecords={supportingRecords}
@@ -177,6 +181,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
         <div className={styles.stageHeading}>
           <div><span className={styles.eyebrow}>{specimen.group} · {specimen.layer}</span><h1>{specimen.label}</h1><p>{catalogEntry?.purpose ?? specimen.selection}</p></div>
           <div className={styles.stageActions}>
+            {specimen.type === "session_choice" ? <div className={styles.stateSwitch} aria-label="Session choice state"><button aria-pressed={sessionChoiceState === "choosing"} onClick={() => setSessionChoiceState("choosing")} type="button">Choosing</button><button aria-pressed={sessionChoiceState === "selected"} onClick={() => setSessionChoiceState("selected")} type="button">Selected</button></div> : null}
             <div className={styles.widthSwitch} aria-label="Preview width"><button aria-pressed={previewWidth === "desktop"} onClick={() => setPreviewWidth("desktop")} title="Desktop width" type="button"><Monitor size={15} /></button><button aria-pressed={previewWidth === "mobile"} onClick={() => setPreviewWidth("mobile")} title="Mobile width" type="button"><Smartphone size={15} /></button></div>
             <button className={styles.resetButton} onClick={resetMock} type="button"><RotateCcw size={14} /> Reset mock</button>
           </div>
