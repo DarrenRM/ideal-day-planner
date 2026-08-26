@@ -26,6 +26,7 @@ export type LunaFacetTuning = {
   edgeSteps: number;
   facetOpacity: number;
   colorRotation: number;
+  colorRotationSpeed: number;
   colorLift: number;
   shimmerAmount: number;
   shimmerSpeed: number;
@@ -49,6 +50,7 @@ export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
   edgeSteps: 6,
   facetOpacity: .32,
   colorRotation: 0,
+  colorRotationSpeed: 0,
   colorLift: 0,
   shimmerAmount: .18,
   shimmerSpeed: 1.01,
@@ -301,10 +303,10 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       for (const config of facetConfigs) {
         const facetTime = time * config.motionSpeed;
         const breathWave = Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004;
-        const directionalBreath = breathWave < 0 ? config.breathInward : config.breathOutward;
-        const breath = breathWave * breathReach * directionalBreath;
+        const breathProgress = Math.max(0, Math.min(1, .5 + breathWave / .03));
+        const breath = (-.015 * config.breathInward + .015 * (config.breathInward + config.breathOutward) * breathProgress) * breathReach;
         const artRadius = radius * config.artScale;
-        const colorRotation = config.colorRotation / 360 * TAU;
+        const colorRotation = (config.colorRotation + time * config.colorRotationSpeed) / 360 * TAU;
         const tunedColorAt = (angle: number, alpha = 1, light = 0) => colorAt(angle + colorRotation, alpha, light);
         const facets = Math.max(12, Math.round(config.facetCount));
         const spacing = TAU / facets;
