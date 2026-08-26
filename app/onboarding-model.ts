@@ -1,4 +1,5 @@
 import { addLocalDays, isLocalDate } from "./schedule-model.ts";
+import { ACTIVITY_LIBRARY, activityChoiceSet, activityLibraryEntryFor } from "../bridge/activity-library.mjs";
 
 export const ONBOARDING_CAPACITIES = ["gentle", "balanced", "push"] as const;
 export type OnboardingCapacity = typeof ONBOARDING_CAPACITIES[number];
@@ -32,33 +33,15 @@ function cleanActivityTitle(value: string) {
   return cleaned.replace(/^[a-z]/, (letter) => letter.toLocaleUpperCase());
 }
 
-const ACTIVITY_CHOICE_SETS: Record<string, OnboardingActivityChoice[]> = {
-  movement: [
-    { key: "bodyweight-strength-workout", title: "Bodyweight strength workout", category: "Training", durationMinutes: 25 },
-    { key: "yoga-session", title: "Yoga session", category: "Training", durationMinutes: 20 },
-    { key: "mobility-routine", title: "Mobility routine", category: "Training", durationMinutes: 10 },
-  ],
-  focus: [
-    { key: "deep-work-session", title: "Deep work session", category: "Creativity", durationMinutes: 30 },
-    { key: "creative-project-time", title: "Creative project time", category: "Creativity", durationMinutes: 30 },
-    { key: "planning-session", title: "Planning session", category: "Creativity", durationMinutes: 15 },
-  ],
-  meditation: [
-    { key: "guided-meditation", title: "Guided meditation", category: "Recharge", durationMinutes: 10 },
-    { key: "breathing-practice", title: "Breathing practice", category: "Recharge", durationMinutes: 5 },
-    { key: "body-scan", title: "Body scan", category: "Recharge", durationMinutes: 10 },
-  ],
-  bedtime: [
-    { key: "bed-routine", title: "Bed routine", category: "Care", durationMinutes: 15 },
-    { key: "screen-free-wind-down", title: "Screen-free wind-down", category: "Recharge", durationMinutes: 20 },
-    { key: "prepare-for-tomorrow", title: "Prepare for tomorrow", category: "Logistics", durationMinutes: 10 },
-  ],
-  creativity: [
-    { key: "writing-practice", title: "Writing practice", category: "Creativity", durationMinutes: 20 },
-    { key: "drawing-practice", title: "Drawing practice", category: "Creativity", durationMinutes: 20 },
-    { key: "music-practice", title: "Music practice", category: "Creativity", durationMinutes: 20 },
-  ],
-};
+function choiceSetChoices(key: string | null | undefined): OnboardingActivityChoice[] | undefined {
+  const set = activityChoiceSet(key);
+  return set?.choices.map((choice) => ({
+    key: choice.key,
+    title: choice.title,
+    category: choice.category as OnboardingCategory,
+    durationMinutes: choice.durationMinutes,
+  }));
+}
 
 function inferredCategory(title: string, fallback: OnboardingCategory): OnboardingCategory {
   const normalized = title.toLocaleLowerCase();
@@ -72,13 +55,15 @@ function inferredCategory(title: string, fallback: OnboardingCategory): Onboardi
   return fallback;
 }
 
-function defaultChoicesFor(title: string, category: OnboardingCategory): OnboardingActivityChoice[] | undefined {
+function defaultChoicesFor(title: string): OnboardingActivityChoice[] | undefined {
   const normalized = title.toLocaleLowerCase();
-  if (category === "Training" || /strength|workout|yoga|mobility|stretch/.test(normalized)) return ACTIVITY_CHOICE_SETS.movement;
-  if (/focus block|focused work|deep work/.test(normalized)) return ACTIVITY_CHOICE_SETS.focus;
-  if (/meditat|breath|body scan/.test(normalized)) return ACTIVITY_CHOICE_SETS.meditation;
-  if (/bed|sleep|evening routine/.test(normalized)) return ACTIVITY_CHOICE_SETS.bedtime;
-  if (/creative practice/.test(normalized)) return ACTIVITY_CHOICE_SETS.creativity;
+  const libraryEntry = activityLibraryEntryFor(title);
+  if (libraryEntry) return choiceSetChoices(libraryEntry.onboarding.choiceSet);
+  if (/strength|workout|yoga|mobility/.test(normalized)) return choiceSetChoices("movement");
+  if (/focus block|focused work|deep work/.test(normalized)) return choiceSetChoices("focus");
+  if (/meditat|breath|body scan/.test(normalized)) return choiceSetChoices("meditation");
+  if (/bed|sleep|evening routine/.test(normalized)) return choiceSetChoices("bedtime");
+  if (/creative practice/.test(normalized)) return choiceSetChoices("creativity");
   return undefined;
 }
 
@@ -138,7 +123,7 @@ export function parseOnboardingProposal(value: unknown, capacity: OnboardingCapa
     if (!key || !SAFE_KEY.test(key) || !rawTitle || !rawCategory || durationMinutes === null || !reason || typeof item.selected !== "boolean" || typeof item.immediatelyActionable !== "boolean") return null;
     const normalizedTitle = /^focus block$/i.test(rawTitle) ? "Deep work session" : rawTitle;
     const normalizedCategory = inferredCategory(normalizedTitle, rawCategory);
-    const choices = parseActivityChoices(item.choices) || defaultChoicesFor(normalizedTitle, normalizedCategory);
+    const choices = parseActivityChoices(item.choices) || defaultChoicesFor(normalizedTitle);
     const requestedChoiceKey = boundedText(item.choiceKey, 60, true) || "";
     const chosen = choices?.find((choice) => choice.key === requestedChoiceKey)
       || choices?.find((choice) => choice.title.toLocaleLowerCase() === normalizedTitle.toLocaleLowerCase())
@@ -157,20 +142,15 @@ export function parseOnboardingProposal(value: unknown, capacity: OnboardingCapa
 export function onboardingReviewDate(startDate: string, proposal: OnboardingProposal) { if (!isLocalDate(startDate)) throw new Error("A valid onboarding date is required."); return addLocalDays(startDate, proposal.calibration.afterDays); }
 
 type CatalogCandidate = Omit<OnboardingActivityCandidate, "selected" | "reason" | "choiceKey" | "choices"> & { priorities: OnboardingPriority[]; rhythms: OnboardingRhythm[] };
-const CANDIDATE_CATALOG: CatalogCandidate[] = [
-  { key: "morning-walk", title: "Morning walk", category: "Light", durationMinutes: 20, immediatelyActionable: true, priorities: ["energy", "strength", "calm"], rhythms: ["morning", "movement", "flexible"] },
-  { key: "strength-session", title: "Bodyweight strength workout", category: "Training", durationMinutes: 25, immediatelyActionable: true, priorities: ["strength", "energy"], rhythms: ["movement", "flexible"] },
-  { key: "focus-block", title: "Deep work session", category: "Creativity", durationMinutes: 30, immediatelyActionable: true, priorities: ["focus", "creativity"], rhythms: ["morning", "midday", "flexible"] },
-  { key: "bed-routine", title: "Bed routine", category: "Care", durationMinutes: 15, immediatelyActionable: true, priorities: ["sleep", "calm", "self-care"], rhythms: ["evening", "flexible"] },
-  { key: "ten-minute-meditation", title: "Guided meditation", category: "Recharge", durationMinutes: 10, immediatelyActionable: true, priorities: ["calm", "focus", "sleep"], rhythms: ["morning", "midday", "evening", "flexible"] },
-  { key: "breakfast", title: "Breakfast", category: "Fuel", durationMinutes: 15, immediatelyActionable: true, priorities: ["nourishment", "energy", "self-care"], rhythms: ["morning", "flexible"] },
-  { key: "lunch-away-from-screen", title: "Lunch away from the screen", category: "Fuel", durationMinutes: 20, immediatelyActionable: true, priorities: ["nourishment", "energy", "calm"], rhythms: ["midday", "flexible"] },
-  { key: "skin-routine", title: "Skin routine", category: "Care", durationMinutes: 5, immediatelyActionable: true, priorities: ["self-care", "calm"], rhythms: ["morning", "evening", "flexible"] },
-  { key: "ten-minute-tidy", title: "Quick tidy", category: "Logistics", durationMinutes: 10, immediatelyActionable: true, priorities: ["home", "calm", "focus"], rhythms: ["midday", "evening", "flexible"] },
-  { key: "creative-practice", title: "Creative practice", category: "Creativity", durationMinutes: 25, immediatelyActionable: true, priorities: ["creativity", "focus", "calm"], rhythms: ["morning", "midday", "evening", "flexible"] },
-  { key: "check-in-with-someone", title: "Check in with someone", category: "Spirit", durationMinutes: 10, immediatelyActionable: true, priorities: ["connection", "calm"], rhythms: ["midday", "evening", "flexible"] },
-  { key: "afternoon-stretch", title: "Afternoon stretch", category: "Training", durationMinutes: 10, immediatelyActionable: true, priorities: ["energy", "strength", "calm"], rhythms: ["midday", "movement", "flexible"] },
-];
+const CANDIDATE_CATALOG: CatalogCandidate[] = ACTIVITY_LIBRARY.map((candidate) => ({
+  key: candidate.key,
+  title: candidate.title,
+  category: candidate.category as OnboardingCategory,
+  durationMinutes: candidate.durationMinutes,
+  immediatelyActionable: candidate.immediatelyActionable,
+  priorities: [...candidate.onboarding.priorities] as OnboardingPriority[],
+  rhythms: [...candidate.onboarding.rhythms] as OnboardingRhythm[],
+}));
 
 export function deterministicOnboardingProposal(answers: OnboardingAnswers): OnboardingProposal {
   if (!answers.capacity || !answers.priorities.length || !answers.rhythms.length) throw new Error("Complete onboarding answers are required.");
@@ -181,7 +161,7 @@ export function deterministicOnboardingProposal(answers: OnboardingAnswers): Onb
     const matchedPriority = candidate.priorities.find((item) => answers.priorities.includes(item)); const matchedRhythm = candidate.rhythms.find((item) => answers.rhythms.includes(item));
     const durationMinutes = lowEffort ? Math.max(5, Math.min(candidate.durationMinutes, 20)) : candidate.durationMinutes;
     const reason = matchedPriority ? `Supports ${PRIORITY_LABELS[matchedPriority]} with a concrete ${durationMinutes}-minute action.` : `Fits ${matchedRhythm ? RHYTHM_LABELS[matchedRhythm] : "the flexible rhythm you chose"} without complicated setup.`;
-    const choices = defaultChoicesFor(candidate.title, candidate.category); const chosen = choices?.find((choice) => choice.title === candidate.title) || choices?.[0];
+    const choices = defaultChoicesFor(candidate.title); const chosen = choices?.find((choice) => choice.title === candidate.title) || choices?.[0];
     return { key: candidate.key, title: chosen?.title || candidate.title, category: chosen?.category || candidate.category, durationMinutes: chosen?.durationMinutes || durationMinutes, reason, selected: index < target, immediatelyActionable: candidate.immediatelyActionable, ...(choices && chosen ? { choiceKey: chosen.key, choices } : {}) };
   });
   const namedPriorities = answers.priorities.map((item) => PRIORITY_LABELS[item]).join(", ");

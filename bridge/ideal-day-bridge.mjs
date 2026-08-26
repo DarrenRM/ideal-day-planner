@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { jsonrepair } from "jsonrepair";
 import { CATALOG_VERSION, activityRecipeHint, catalogInstructions } from "./component-catalog.mjs";
+import { activityLibraryInstructions } from "./activity-library.mjs";
 import { researchAcknowledgement, userMessageRequestsResearch } from "./job-policy.mjs";
 import { researchEvidenceForMessage } from "./source-research.mjs";
 
@@ -159,6 +160,7 @@ This is a due check-in the person previously asked for or implied through a fini
 
 const onboardingProposalInstructions = `${personaInstructions}
 ${onboardingProposalShape}
+${activityLibraryInstructions()}
 Design six to eight candidate activities for the person's first Essential set. This is a provisional selection surface, not a home screen and not durable activity data. Every title must name a familiar, concrete action such as Morning walk, Bodyweight strength workout, Yoga session, Deep work session, Breakfast, Bed routine, Guided meditation, or 10-minute tidy. Never use vague containers or outcome labels such as Focus block, Strength session, Morning reset, Important progress, Ease into evening, Move your body, Intentional meal, or Creative practice. Category and title must agree; a Training activity always names the actual form of training. When personal preference materially changes the action—especially training, meditation, creative practice, or an evening routine—return exactly three concrete choices, set choiceKey to the recommended choice, and mirror that choice in title/category/durationMinutes. Otherwise return choices:[] and choiceKey:null. Tie each short reason to an actual priority, friction, or rhythm the person selected. Preselect exactly three candidates for gentle, four for balanced, and five for push. Do not invent medical, dietary, product, or exercise details. Calibration must be 3-7 days from the start.`;
 
 function instructionsForJob(leased) {

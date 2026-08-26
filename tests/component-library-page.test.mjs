@@ -51,6 +51,8 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(route, /redirect\("\/"\)/);
   assert.match(route, /COMPONENT_CATALOG/);
   assert.match(route, /ACTIVITY_RECIPES/);
+  assert.match(route, /ACTIVITY_LIBRARY/);
+  assert.match(route, /ACTIVITY_CHOICE_SETS/);
   assert.match(route, /readComponentUsage\(user\.userId\)/);
   assert.match(client, /<ActivityRecordComponent/);
   assert.match(client, /<TimerComponent/);
@@ -67,6 +69,11 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(client, />Choosing</);
   assert.match(client, />Selected</);
   assert.match(client, /Selection map/);
+  assert.match(client, /> Activities</);
+  assert.match(client, /Core starter set/);
+  assert.match(client, /Onboarding match/);
+  assert.match(client, /Ranking behavior/);
+  assert.match(client, /Personal activities can still exist outside this set/);
   assert.match(client, /data-width={previewWidth}/);
   assert.ok(client.indexOf(">Good fits<") < client.indexOf(">Used on<"));
   assert.ok(client.indexOf(">Used on<") < client.indexOf(">Hierarchy<"));

@@ -1,3 +1,5 @@
+import { activityLibraryEntryFor } from "./activity-library.mjs";
+
 export const CATALOG_VERSION = "workspace-catalog-v13";
 
 export const COMPONENT_CATALOG = [
@@ -36,6 +38,8 @@ export const ACTIVITY_RECIPES = [
   "Bounded trial: when the user commits to one session_choice option for a stated date range or until a check-in, set activeSelection for that inclusive range and create the matching follow-up. Exact dated selections remain one-day overrides.",
   "Product/device care: one product subject root per named item, plus subject-owned adherence or recurring_step, protocol, and resources. Give each product root a concrete routineAction that describes what the person does rather than what they own; items used in the same action share the exact routineAction, such as toothpaste and an electric toothbrush both supporting Brush teeth. Use adherence with effectiveDate for a daily item and recurring_step for an independently scheduled item. A new item never inherits the parent activity's earlier completions. Share one activity-level rhythm only when every item's cadence, start, and completion history are genuinely synchronized. Use activity_event for a dated use and session_choice for modes that do not need schedule variants. Give all item-owned records the product record's subjectKey. Timed devices may also use countdown.",
   "Body routine: protocol or checklist plus goal; optionally quick_log/history and a deliberately chosen timer.",
+  "Preparation workflow: checklist or protocol for concrete repeatable steps; named products/devices use Product/device care ownership; timer/countdown only when fixed time defines the practice.",
+  "Connection practice: use history for meaningful dated contact only when the person wants a record; item_list for people or open follow-ups; goal only for a durable relationship intention. Keep a simple check-in quiet when no tracking need exists.",
   "Supplement routine: use one activity-scoped daily_selection as the canonical roster and dated use history. A confirmed stable supplement adds an active item; only explicit use/taken-today language adds it to today's itemIds. Preserve all prior entries. Never duplicate its history into checklist, history, adherence, or activity_event. Products, protocols, or resources may supplement it when independently useful. No timer merely because the activity occupies schedule time.",
   "Meal, shake, or food-prep routine: use one activity-scoped meal_log as the canonical source. Record the concise thing the person actually ate, drank, made, or prepped. Preserve ingredient, quantity, batch, storage, and recipe-link detail only when supplied or supported by fetched evidence; recipes are reusable details referenced by dated entries and stay collapsed in the UI. Do not force ingredients into daily_selection or duplicate meal history into history, item_list, protocol, or resources.",
   "Supply manager: item_list plus history; preserve urgency and source.",
@@ -51,6 +55,8 @@ export function catalogInstructions() {
 }
 
 export function activityRecipeHint(title = "", category = "") {
+  const libraryEntry = activityLibraryEntryFor(title);
+  if (libraryEntry) return libraryEntry.recipe;
   const value = `${title} ${category}`.toLowerCase();
   if (/lift|kettlebell|strength|weights?/.test(value)) return "Strength session";
   if (/cardio|walk|run|cycle|rowing|swim|hike|ruck|elliptical|stair|conditioning/.test(value)) return "Measured session";

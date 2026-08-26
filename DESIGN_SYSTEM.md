@@ -9,6 +9,7 @@ This is the visual and interaction source of truth for Ideal Day. Read it before
 - Today’s activity sequence is primary. Expanded activities should feel like the natural open state of their list card, not a separate application.
 - Activity color identifies context and active state. Green remains the global action/success accent.
 - Prefer truthful empty, loading, error, and offline states over placeholder content or hollow domain components.
+- The Sites-only `/components` workbench has three peer views: production component specimens, the canonical core activity library, and the component selection map. The activity view reads the same definitions used by onboarding and activity-to-recipe matching; it is not a second documentation-only copy.
 
 ## Typography
 

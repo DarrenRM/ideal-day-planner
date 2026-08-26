@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ACTIVITY_RECIPES, CATALOG_VERSION, COMPONENT_CATALOG } from "../../bridge/component-catalog.mjs";
+import { ACTIVITY_CHOICE_SETS, ACTIVITY_LIBRARY, ACTIVITY_LIBRARY_VERSION } from "../../bridge/activity-library.mjs";
 import { VERCEL_GATEWAY_PRINCIPAL_HEADER } from "../request-principal-model";
 import { getChatGPTUser } from "../chatgpt-auth";
 import { ComponentLibraryPage } from "./component-library-page";
 import { readComponentUsage, type ComponentUsageMap } from "./component-usage";
 
 export const metadata: Metadata = {
-  title: "Component library · Ideal Day",
-  description: "A living workbench for Ideal Day activity components and composition rules.",
+  title: "Ideal Day libraries",
+  description: "A living workbench for Ideal Day activities, components, and composition rules.",
 };
 
 function phoenixDateKey() {
@@ -37,6 +38,9 @@ export default async function ComponentsPage() {
     catalog={COMPONENT_CATALOG.map(([type, purpose, schema]) => ({ type, purpose, schema }))}
     catalogVersion={CATALOG_VERSION}
     recipes={[...ACTIVITY_RECIPES]}
+    activities={ACTIVITY_LIBRARY.map((activity) => ({ ...activity, aliases: [...activity.aliases], components: { starting: [...activity.components.starting], optional: [...activity.components.optional] }, setup: { ...activity.setup }, onboarding: { ...activity.onboarding, priorities: [...activity.onboarding.priorities], rhythms: [...activity.onboarding.rhythms] } }))}
+    activityChoiceSets={ACTIVITY_CHOICE_SETS}
+    activityLibraryVersion={ACTIVITY_LIBRARY_VERSION}
     today={phoenixDateKey()}
     usage={usage}
   />;

@@ -1,20 +1,29 @@
 "use client";
 
-import { ArrowRightLeft, Boxes, CalendarCheck2, CalendarDays, Check, ChevronRight, Columns2, Database, Layers3, Monitor, RotateCcw, Search, Smartphone, Sparkles, WandSparkles } from "lucide-react";
-import { useMemo, useState, type CSSProperties } from "react";
+import { ArrowRightLeft, BookOpen, Boxes, CalendarCheck2, CalendarDays, Check, ChevronRight, Clock3, Columns2, Database, Layers3, Monitor, RotateCcw, Search, Smartphone, Sparkles, WandSparkles } from "lucide-react";
+import { createElement, useMemo, useState, type CSSProperties } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "../activity-record-components";
 import type { ActivityRecord } from "../activity-record-model";
 import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
 import { StreakTrack } from "../streak-track";
 import { ConversationWorkReceipt } from "../conversation-work-receipt";
+import { activityIconFor, CATEGORY_META, type ActivityCategory } from "../activity-presentation";
 import type { WorkReceiptKind } from "../work-receipt-model";
 import { buildComponentLibraryFixtures, COMPONENT_GROUPS, COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-library-fixtures";
 import type { ComponentUsageMap } from "./component-usage";
 import styles from "./component-library.module.css";
 
 type CatalogEntry = { type: string; purpose: string; schema: string };
-type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; today: string; usage: ComponentUsageMap };
-type View = "components" | "selection";
+type ActivityChoice = { key: string; title: string; category: string; durationMinutes: number; recipe: string; components: string[] };
+type ActivityChoiceSet = { label: string; prompt: string; choices: ActivityChoice[] };
+type ActivityEntry = {
+  key: string; title: string; aliases: string[]; category: string; durationMinutes: number; outcome: string; immediatelyActionable: boolean; recipe: string;
+  components: { starting: string[]; optional: string[] };
+  setup: { mode: "ready" | "guided"; guidance: string };
+  onboarding: { priorities: string[]; rhythms: string[]; choiceSet: string | null };
+};
+type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; activities: ActivityEntry[]; activityChoiceSets: Record<string, ActivityChoiceSet>; activityLibraryVersion: string; today: string; usage: ComponentUsageMap };
+type View = "components" | "activities" | "selection";
 type PreviewWidth = "desktop" | "mobile";
 type SessionChoiceState = "choosing" | "selected";
 type ReceiptState = "new" | "viewed";
@@ -72,7 +81,7 @@ function recipeParts(recipe: string) {
   return split < 0 ? { title: recipe, body: "" } : { title: recipe.slice(0, split), body: recipe.slice(split + 1).trim() };
 }
 
-export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, usage }: Props) {
+export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activities, activityChoiceSets, activityLibraryVersion, today, usage }: Props) {
   const [view, setView] = useState<View>("components");
   const [selectedType, setSelectedType] = useState<LibraryComponentType>("summary");
   const [query, setQuery] = useState("");
@@ -186,6 +195,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
       <div className={styles.brand}><span><Boxes size={17} /></span><div><b>Ideal Day</b><small>Component library · {catalogVersion}</small></div></div>
       <nav aria-label="Library views" className={styles.viewTabs}>
         <button aria-pressed={view === "components"} onClick={() => setView("components")} type="button"><Columns2 size={15} /> Components</button>
+        <button aria-pressed={view === "activities"} onClick={() => setView("activities")} type="button"><BookOpen size={15} /> Activities</button>
         <button aria-pressed={view === "selection"} onClick={() => setView("selection")} type="button"><WandSparkles size={15} /> Selection map</button>
       </nav>
       <div className={styles.status}><span /> Sites workbench</div>
@@ -232,8 +242,57 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today, 
         <section><span className={styles.eyebrow}>Data contract</span><code>{catalogEntry?.schema ?? "Legacy app-owned workspace component"}</code></section>
         <section className={styles.syncNote}><Layers3 size={17} /><div><b>One implementation</b><p>This specimen uses the production renderer. A component design change here is the same change activities receive.</p></div></section>
       </aside>
-    </div> : <SelectionMap catalog={catalog} recipes={recipes} />}
+    </div> : view === "activities" ? <ActivityLibrary activities={activities} choiceSets={activityChoiceSets} version={activityLibraryVersion} /> : <SelectionMap catalog={catalog} recipes={recipes} />}
   </main>;
+}
+
+const PRIORITY_LABELS: Record<string, string> = { energy: "More energy", strength: "Strength & movement", focus: "Focused work", sleep: "Better sleep", calm: "Calm & recovery", nourishment: "Nourishment", "self-care": "Self-care", home: "Home & order", creativity: "Creativity", connection: "Connection" };
+const RHYTHM_LABELS: Record<string, string> = { morning: "Morning anchor", midday: "Midday reset", evening: "Evening wind-down", movement: "Movement", flexible: "Flexible day" };
+
+function ActivityLibrary({ activities, choiceSets, version }: { activities: ActivityEntry[]; choiceSets: Record<string, ActivityChoiceSet>; version: string }) {
+  const [selectedKey, setSelectedKey] = useState(activities[0]?.key ?? "");
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return activities;
+    return activities.filter((entry) => `${entry.title} ${entry.key} ${entry.category} ${entry.aliases.join(" ")} ${entry.onboarding.priorities.join(" ")} ${entry.onboarding.rhythms.join(" ")}`.toLowerCase().includes(normalized));
+  }, [activities, query]);
+  const selected = filtered.find((entry) => entry.key === selectedKey) ?? filtered[0] ?? activities[0];
+  if (!selected) return null;
+  const category = selected.category as ActivityCategory;
+  const choiceSet = selected.onboarding.choiceSet ? choiceSets[selected.onboarding.choiceSet] : null;
+  const color = CATEGORY_META[category].color;
+  return <div className={styles.activityLibraryGrid} style={{ "--activity-color": color } as CSSProperties}>
+    <aside className={styles.activitySidebar}>
+      <div className={styles.activitySidebarIntro}><span className={styles.eyebrow}>Core starter set</span><p>Canonical activities used by onboarding and exact activity-to-recipe mapping. Personal activities can still exist outside this set.</p></div>
+      <label className={styles.search}><Search size={15} /><input aria-label="Search activities" onChange={(event) => setQuery(event.target.value)} placeholder="Search activities" value={query} /></label>
+      <div className={styles.activityNav}>{filtered.map((entry) => {
+        const entryCategory = entry.category as ActivityCategory;
+        return <button aria-current={entry.key === selected.key ? "page" : undefined} key={entry.key} onClick={() => setSelectedKey(entry.key)} style={{ "--nav-color": CATEGORY_META[entryCategory].color } as CSSProperties} type="button"><span className={styles.activityNavIcon}>{createElement(activityIconFor({ title: entry.title, category: entryCategory }), { size: 16 })}</span><span><b>{entry.title}</b><small>{entry.category} · {entry.durationMinutes} min</small></span><ChevronRight size={14} /></button>;
+      })}</div>
+      <p className={styles.count}>{filtered.length} of {activities.length} core activities</p>
+    </aside>
+
+    <section className={styles.activityStage}>
+      <header className={styles.activityHero}>
+        <div className={styles.activityHeroIcon}>{createElement(activityIconFor({ title: selected.title, category }), { size: 27 })}</div>
+        <div><span className={styles.eyebrow}>{selected.category} · {selected.key}</span><h1>{selected.title}</h1><p>{selected.outcome}</p></div>
+        <div className={styles.activityFacts}><span><Clock3 size={13} /> {selected.durationMinutes} minutes</span><span><Check size={13} /> {selected.immediatelyActionable ? "Ready to try" : "Needs setup"}</span></div>
+      </header>
+
+      <section className={styles.activitySection}><div className={styles.activitySectionHeading}><span className={styles.eyebrow}>Default experience</span><h2>{selected.recipe}</h2></div><p className={styles.activityGuidance}>{selected.setup.guidance}</p><div className={styles.componentPipeline}><div><small>Start with</small>{selected.components.starting.map((type) => <code key={type}>{type}</code>)}</div><ChevronRight size={16} /><div><small>Add when supported</small>{selected.components.optional.map((type) => <code key={type}>{type}</code>)}</div></div></section>
+
+      {choiceSet ? <section className={styles.activitySection}><div className={styles.activitySectionHeading}><span className={styles.eyebrow}>{choiceSet.label}</span><h2>{choiceSet.prompt}</h2><p>Onboarding recommends one concrete choice and lets the person switch before the starting set is created.</p></div><div className={styles.choiceGrid}>{choiceSet.choices.map((choice) => <article key={choice.key}><span>{choice.category} · {choice.durationMinutes} min</span><h3>{choice.title}</h3><p>{choice.recipe}</p><div>{choice.components.map((component) => <code key={component}>{component}</code>)}</div></article>)}</div></section> : <section className={`${styles.activitySection} ${styles.noChoiceSet}`}><Sparkles size={18} /><div><b>No preference fork</b><p>Onboarding can recommend this action directly because its title already describes what the person will do.</p></div></section>}
+    </section>
+
+    <aside className={styles.activityInspector}>
+      <section><span className={styles.eyebrow}>Onboarding match</span><h2>Priorities</h2><div className={styles.mappingChips}>{selected.onboarding.priorities.map((value) => <span key={value}>{PRIORITY_LABELS[value] ?? value}</span>)}</div><h2>Rhythms</h2><div className={styles.mappingChips}>{selected.onboarding.rhythms.map((value) => <span key={value}>{RHYTHM_LABELS[value] ?? value}</span>)}</div></section>
+      <section><span className={styles.eyebrow}>Ranking behavior</span><p>A priority match adds 4 points; a rhythm match adds 2. Ties follow catalog order. Gentle selects 3, balanced 4, and push 5. Low-energy, getting-started, or physical-limit friction caps fallback durations at 20 minutes.</p></section>
+      <section><span className={styles.eyebrow}>Setup posture</span><strong>{selected.setup.mode === "ready" ? "Quiet by default" : "One useful question"}</strong><p>{selected.setup.mode === "ready" ? "The person can start without durable setup. Luna waits for evidence before adding detail." : "Luna may ask one high-value question when its answer determines the durable design."}</p></section>
+      <section><span className={styles.eyebrow}>Recognized aliases</span><div className={styles.aliasList}>{selected.aliases.map((alias) => <span key={alias}>{alias}</span>)}</div></section>
+      <section><span className={styles.eyebrow}>Catalog identity</span><code>{selected.key}</code><p>{version}</p></section>
+    </aside>
+  </div>;
 }
 
 function SelectionMap({ catalog, recipes }: { catalog: CatalogEntry[]; recipes: string[] }) {

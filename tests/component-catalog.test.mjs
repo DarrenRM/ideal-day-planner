@@ -45,7 +45,7 @@ test("recipe hints cover the live activity families without treating schedule du
   assert.equal(activityRecipeHint("Morning walk", "Light"), "Measured session");
   assert.equal(activityRecipeHint("Red light", "Care"), "Product/device care");
   assert.equal(activityRecipeHint("Shake / Supplements", "Fuel"), "Meal/supplement routine");
-  assert.equal(activityRecipeHint("Breakfast", "Fuel"), "Meal/supplement routine");
+  assert.equal(activityRecipeHint("Breakfast", "Fuel"), "Meal, shake, or food-prep routine");
   assert.equal(activityRecipeHint("Dinner", "Fuel"), "Meal/supplement routine");
   assert.equal(activityRecipeHint("Food Prep", "Logistics"), "Meal/supplement routine");
   assert.equal(activityRecipeHint("Resupply", "Logistics"), "Supply manager");

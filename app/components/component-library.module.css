@@ -89,10 +89,63 @@
 .recipeGrid article { padding: 18px; }
 .recipeGrid h3 { color: #d7e9bf; font-size: 13px; margin: 0 0 8px; }
 
+.activityLibraryGrid { display: grid; grid-template-columns: 270px minmax(520px, 1fr) 300px; margin: 0 auto; max-width: 1500px; min-height: calc(100vh - 68px); }
+.activitySidebar, .activityInspector { align-self: start; height: calc(100vh - 68px); overflow-y: auto; position: sticky; top: 68px; }
+.activitySidebar { border-right: 1px solid #202a2d; padding: 22px 14px 30px; }
+.activitySidebarIntro { border-bottom: 1px solid #202a2d; margin: 0 4px 16px; padding: 0 4px 16px; }
+.activitySidebarIntro .eyebrow { display: block; margin: 0 0 7px; }
+.activitySidebarIntro p { color: #7f8b87; font-size: 11px; line-height: 1.55; margin: 0; }
+.activityNav { display: grid; gap: 4px; }
+.activityNav button { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 10px; color: #9ba4a1; display: grid; font: inherit; gap: 9px; grid-template-columns: 30px minmax(0, 1fr) auto; padding: 8px; text-align: left; width: 100%; }
+.activityNav button:hover { background: #111719; color: #e7ece8; }
+.activityNav button[aria-current="page"] { background: color-mix(in srgb, var(--nav-color) 10%, #111719); border-color: color-mix(in srgb, var(--nav-color) 42%, #263033); color: #f0f4ef; }
+.activityNavIcon { align-items: center; background: color-mix(in srgb, var(--nav-color) 10%, #111719); border: 1px solid color-mix(in srgb, var(--nav-color) 45%, #263033); border-radius: 8px; color: var(--nav-color); display: flex; height: 30px; justify-content: center; width: 30px; }
+.activityNav button > span:nth-child(2) { display: grid; gap: 3px; min-width: 0; }
+.activityNav b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activityNav small { color: #6f7b77; font-size: 10px; }
+.activityStage { min-width: 0; padding: 42px 34px 70px; }
+.activityHero { align-items: start; display: grid; gap: 18px; grid-template-columns: auto minmax(0, 1fr); margin: 0 auto 34px; max-width: 790px; }
+.activityHeroIcon { align-items: center; background: color-mix(in srgb, var(--activity-color) 10%, #111719); border: 1px solid color-mix(in srgb, var(--activity-color) 55%, #263033); border-radius: 15px; color: var(--activity-color); display: flex; height: 58px; justify-content: center; width: 58px; }
+.activityHero .eyebrow, .activitySection .eyebrow, .activityInspector .eyebrow { display: block; margin: 0 0 8px; }
+.activityHero h1 { font-size: clamp(30px, 3.4vw, 46px); font-weight: 420; letter-spacing: -.04em; line-height: 1; margin: 0; }
+.activityHero p { color: #a3adaa; font-size: 15px; line-height: 1.55; margin: 11px 0 0; max-width: 610px; }
+.activityFacts { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 2; }
+.activityFacts span { align-items: center; background: #111719; border: 1px solid #293437; border-radius: 999px; color: #a8b2ae; display: flex; font-size: 11px; gap: 6px; padding: 6px 9px; }
+.activityFacts svg { color: var(--activity-color); }
+.activitySection { background: #101618; border: 1px solid #273134; border-radius: 14px; margin: 0 auto 14px; max-width: 790px; padding: 22px; }
+.activitySectionHeading h2 { color: #e8eee8; font-size: 18px; font-weight: 580; margin: 0; }
+.activitySectionHeading p, .activityGuidance { color: #8d9894; font-size: 12px; line-height: 1.6; margin: 8px 0 0; }
+.componentPipeline { align-items: center; display: grid; gap: 12px; grid-template-columns: 1fr auto 1fr; margin-top: 20px; }
+.componentPipeline > svg { color: #4e5b56; }
+.componentPipeline > div { align-content: start; background: #0c1113; border: 1px solid #222d30; border-radius: 10px; display: flex; flex-wrap: wrap; gap: 6px; min-height: 78px; padding: 12px; }
+.componentPipeline small { color: #7f8a87; flex: 0 0 100%; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+.componentPipeline code, .choiceGrid code { background: color-mix(in srgb, var(--activity-color) 8%, #151c1e); border: 1px solid color-mix(in srgb, var(--activity-color) 30%, #2a3638); border-radius: 6px; color: color-mix(in srgb, var(--activity-color) 70%, white); font: 10px ui-monospace, SFMono-Regular, Consolas, monospace; padding: 4px 6px; }
+.choiceGrid { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); margin-top: 18px; }
+.choiceGrid article { background: #0c1113; border: 1px solid #253033; border-radius: 10px; padding: 13px; }
+.choiceGrid article > span { color: var(--activity-color); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.choiceGrid h3 { font-size: 13px; line-height: 1.35; margin: 9px 0 5px; }
+.choiceGrid p { color: #77837f; font-size: 10px; line-height: 1.45; margin: 0 0 11px; }
+.choiceGrid article > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.noChoiceSet { align-items: flex-start; display: flex; gap: 12px; }
+.noChoiceSet svg { color: var(--activity-color); flex: none; }
+.noChoiceSet b { font-size: 13px; }
+.noChoiceSet p { color: #87928e; font-size: 12px; line-height: 1.55; margin: 5px 0 0; }
+.activityInspector { border-left: 1px solid #202a2d; padding: 30px 22px 45px; }
+.activityInspector > section { border-bottom: 1px solid #20282b; margin-bottom: 20px; padding-bottom: 20px; }
+.activityInspector h2 { color: #cad3ce; font-size: 11px; margin: 13px 0 8px; }
+.activityInspector p { color: #8c9793; font-size: 11px; line-height: 1.65; margin: 7px 0 0; }
+.activityInspector strong { color: #dfe9da; font-size: 13px; }
+.activityInspector code { color: #b9d28e; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.mappingChips { display: flex; flex-wrap: wrap; gap: 5px; }
+.mappingChips span { background: color-mix(in srgb, var(--activity-color) 7%, #151c1e); border: 1px solid color-mix(in srgb, var(--activity-color) 25%, #2a3638); border-radius: 999px; color: #b7c0bc; font-size: 10px; padding: 5px 7px; }
+.aliasList { display: grid; gap: 7px; }
+.aliasList span { color: #b0bab6; font-size: 11px; }
+.aliasList span::before { color: var(--activity-color); content: "↳"; margin-right: 7px; }
+
 @media (max-width: 1100px) {
-  .libraryGrid { grid-template-columns: 220px minmax(460px, 1fr); }
-  .inspector { border-left: 0; border-top: 1px solid #202a2d; display: grid; gap: 20px; grid-column: 2; grid-template-columns: repeat(2, 1fr); height: auto; position: static; }
-  .inspector > section { margin: 0; }
+  .libraryGrid, .activityLibraryGrid { grid-template-columns: 220px minmax(460px, 1fr); }
+  .inspector, .activityInspector { border-left: 0; border-top: 1px solid #202a2d; display: grid; gap: 20px; grid-column: 2; grid-template-columns: repeat(2, 1fr); height: auto; position: static; }
+  .inspector > section, .activityInspector > section { margin: 0; }
 }
 @media (max-width: 760px) {
   .header { grid-template-columns: 1fr auto; padding: 0 14px; }
@@ -100,18 +153,27 @@
   .brand small { display: none; }
   .viewTabs button { padding: 8px; }
   .viewTabs button svg + * { display: none; }
-  .libraryGrid { display: block; }
-  .sidebar { border-bottom: 1px solid #202a2d; border-right: 0; height: auto; overflow: visible; padding-bottom: 10px; position: static; }
+  .libraryGrid, .activityLibraryGrid { display: block; }
+  .sidebar, .activitySidebar { border-bottom: 1px solid #202a2d; border-right: 0; height: auto; overflow: visible; padding-bottom: 10px; position: static; }
   .componentNav { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 5px; }
   .componentNav section { display: contents; }
   .componentNav h2, .count { display: none; }
   .componentNav button { flex: none; width: auto; }
   .componentNav button svg, .componentNav button small { display: none; }
   .stage { padding: 24px 14px 34px; }
+  .activitySidebarIntro, .activitySidebar .count { display: none; }
+  .activityNav { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 5px; }
+  .activityNav button { flex: 0 0 auto; width: 190px; }
+  .activityStage { padding: 28px 14px 40px; }
+  .activityHero { grid-template-columns: auto minmax(0, 1fr); }
+  .activityHeroIcon { height: 46px; width: 46px; }
+  .activityFacts { grid-column: 1 / -1; }
+  .componentPipeline, .choiceGrid { grid-template-columns: 1fr; }
+  .componentPipeline > svg { display: none; }
   .stageHeading { align-items: flex-start; display: grid; }
   .previewField { min-height: 520px; padding: 20px 8px; }
-  .inspector { display: block; grid-column: auto; padding: 24px 18px; }
-  .inspector > section { margin-bottom: 20px; }
+  .inspector, .activityInspector { display: block; grid-column: auto; padding: 24px 18px; }
+  .inspector > section, .activityInspector > section { margin-bottom: 20px; }
   .mapPage { padding: 40px 16px 60px; }
   .flow, .mapColumns, .recipeGrid { grid-template-columns: 1fr; }
 }
