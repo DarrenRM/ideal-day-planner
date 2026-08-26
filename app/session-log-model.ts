@@ -163,6 +163,19 @@ function optionKey(optionId: string, suffix: string) {
   return `${optionId}-${suffix}`.replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
+export function fixedMeasuredSessionOption(title: string) {
+  const label = title.trim().slice(0, 120);
+  const value = label.toLowerCase();
+  if (!label || /strength|lift|lunge|squat|deadlift|workout/.test(value)) return null;
+  const modality = [
+    "treadmill", "elliptical", "walking", "walk", "running", "run", "hiking", "hike", "rucking", "ruck",
+    "cycling", "cycle", "bike", "rowing", "row", "swimming", "swim", "stair", "stepmill", "ski erg", "skierg",
+  ].find((candidate) => new RegExp(`(?:^|\\b)${candidate.replace(" ", "[ -]?")}(?:$|\\b)`, "i").test(value));
+  if (!modality) return null;
+  const id = `fixed-${modality}`.replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+  return { id, label };
+}
+
 export function measuredSessionFields(options: Array<{ id: string; label: string }>): SessionLogField[] {
   const result: SessionLogField[] = [
     field("duration", "Duration", "duration", "number", "min"),
@@ -189,11 +202,28 @@ export function measuredSessionFields(options: Array<{ id: string; label: string
         field(optionKey(option.id, "resistance"), "Resistance", "setting", "number", "", only),
         field(optionKey(option.id, "watts"), "Average power", "result", "number", "W", only),
       );
-    } else if (/treadmill|walk|run|hike|ruck/.test(value)) {
+    } else if (/treadmill/.test(value)) {
       result.push(
         field(optionKey(option.id, "distance"), "Distance", "distance", "number", "mi", only),
         field(optionKey(option.id, "speed"), "Speed", "setting", "number", "mph", only),
         field(optionKey(option.id, "incline"), "Incline", "setting", "number", "%", only),
+      );
+    } else if (/walk/.test(value)) {
+      result.push(field(optionKey(option.id, "distance"), "Distance", "distance", "number", "mi", only));
+    } else if (/run/.test(value)) {
+      result.push(
+        field(optionKey(option.id, "distance"), "Distance", "distance", "number", "mi", only),
+        field(optionKey(option.id, "pace"), "Average pace", "result", "text", "/mi", only),
+      );
+    } else if (/hike/.test(value)) {
+      result.push(
+        field(optionKey(option.id, "distance"), "Distance", "distance", "number", "mi", only),
+        field(optionKey(option.id, "elevation"), "Elevation gain", "result", "number", "ft", only),
+      );
+    } else if (/ruck/.test(value)) {
+      result.push(
+        field(optionKey(option.id, "distance"), "Distance", "distance", "number", "mi", only),
+        field(optionKey(option.id, "load"), "Pack weight", "setting", "number", "lb", only),
       );
     } else if (/elliptical/.test(value)) {
       result.push(

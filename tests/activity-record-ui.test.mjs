@@ -233,6 +233,8 @@ test("renders reusable cadence, equipment, mode, event, and open-workout states"
   assert.match(component, /function EquipmentRecord/);
   assert.match(component, /function SessionChoiceRecord/);
   assert.match(component, /function SessionLogRecord/);
+  assert.match(component, /eyebrow="Overview"/);
+  assert.doesNotMatch(component, /eyebrow="Current state"/);
   assert.match(component, /See all options/);
   assert.match(component, /save_session_log/);
   assert.match(component, /workout-open-choices/);
@@ -241,10 +243,11 @@ test("renders reusable cadence, equipment, mode, event, and open-workout states"
 });
 
 test("renders measured sessions as a canonical log, recap, and conditional choice flow", async () => {
-  const [component, workspace, css, runRoute, dayRoute] = await Promise.all([
+  const [component, workspace, css, store, runRoute, dayRoute] = await Promise.all([
     readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
   ]);
@@ -262,6 +265,8 @@ test("renders measured sessions as a canonical log, recap, and conditional choic
   assert.match(runRoute, /save_session_log/);
   assert.match(runRoute, /elapsedSeconds/);
   assert.match(dayRoute, /backfillMeasuredSessionLogs/);
+  assert.match(store, /fixedMeasuredSessionOption/);
+  assert.match(store, /measured-session-logs-v2/);
 });
 
 test("renders strength plans and dated sets as one specialized workout flow", async () => {

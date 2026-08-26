@@ -763,11 +763,11 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(taskInstaller, /RepetitionInterval \(New-TimeSpan -Minutes 5\)/);
   assert.match(taskInstaller, /MultipleInstances IgnoreNew/);
   assert.match(taskInstaller, /-Hidden/);
-  assert.match(agents, /Production source of truth/);
+  assert.match(agents, /Production data source of truth/);
   assert.match(agents, /Terra low \+ standard tier for durable record\/workspace compilation/);
   assert.match(agents, /activityMoves/);
   assert.match(agents, /Ideal Day Hermes Bridge/);
-  assert.match(agents, /Never run a bare `git push` to the Sites remote/);
+  assert.match(agents, /Never run a bare `git push` to `sites`/);
   assert.match(productSpec, /Opening an activity is a deterministic UI event/);
   assert.match(productSpec, /ordinary opens enqueue no conversational agent job/);
   assert.match(productSpec, /Activity creation is the primary workspace-design moment/);

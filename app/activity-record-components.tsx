@@ -44,7 +44,7 @@ function CheckButton({ checked, label, onClick }: { checked: boolean; label: str
 function SummaryRecord({ record }: { record: ActivityRecord }) {
   const data = record.data as { summary?: string; fields?: Field[] };
   return <section className="workspace-block generic-summary">
-    <Heading eyebrow="Current state" title={record.title} icon={<Sparkles size={15} />} />
+    <Heading eyebrow="Overview" title={record.title} icon={<Sparkles size={15} />} />
     {data.summary ? <p>{data.summary}</p> : null}
     {data.fields?.length ? <dl>{data.fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl> : null}
   </section>;

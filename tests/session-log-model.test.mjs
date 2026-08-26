@@ -2,11 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  fixedMeasuredSessionOption,
   measuredSessionFields,
   selectedSessionOptionId,
   sessionFieldsForOption,
   summarizeSessionLog,
 } from "../app/session-log-model.ts";
+
+test("recognizes a fixed measured modality without inventing a choice", () => {
+  assert.deepEqual(fixedMeasuredSessionOption("Morning walk"), { id: "fixed-walk", label: "Morning walk" });
+  assert.deepEqual(fixedMeasuredSessionOption("Evening run"), { id: "fixed-run", label: "Evening run" });
+  assert.equal(fixedMeasuredSessionOption("Cardio"), null);
+  assert.equal(fixedMeasuredSessionOption("Walking lunges"), null);
+});
 
 test("an explicit daily choice overrides a bounded trial", () => {
   const data = {
@@ -31,6 +39,17 @@ test("builds modality-specific fields without showing another option's settings"
   assert.ok(!elliptical.some((field) => field.id === "rower-damper"));
   assert.ok(rower.some((field) => field.id === "rower-split"));
   assert.ok(rower.some((field) => field.id === "rower-damper"));
+});
+
+test("keeps a walk log focused on details a person is likely to enter", () => {
+  const option = fixedMeasuredSessionOption("Morning walk");
+  assert.ok(option);
+  const fields = measuredSessionFields([option]);
+  assert.deepEqual(fields.map((field) => [field.label, field.unit]), [
+    ["Duration", "min"],
+    ["Effort", "/10"],
+    ["Distance", "mi"],
+  ]);
 });
 
 test("summarizes the selected modality for the current calendar week", () => {

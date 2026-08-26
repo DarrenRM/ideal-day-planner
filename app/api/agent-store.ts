@@ -8,7 +8,7 @@ import { addLocalDays, localDateInTimeZone, parseAdvancement, parseCadence, prev
 import { shouldShowActivitySchedule } from "../schedule-summary";
 import { parentScheduleCadenceFromRecurringStep, recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
-import { measuredSessionFields, type SessionChoiceData } from "../session-log-model";
+import { fixedMeasuredSessionOption, measuredSessionFields, type SessionChoiceData } from "../session-log-model";
 import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
 import { mergeMealLogData, type MealLogData } from "../meal-log-model";
 import { historicalWorkspaceReceipt } from "../work-receipt-model";
@@ -1135,7 +1135,7 @@ export async function backfillParentCadenceSchedules(userId: string, routineId: 
 
 const EXPLICIT_FOLLOW_UP_BACKFILL = "explicit-follow-ups-v2";
 const BOUNDED_SESSION_CHOICE_BACKFILL = "bounded-session-choices-v1";
-const MEASURED_SESSION_LOG_BACKFILL = "measured-session-logs-v1";
+const MEASURED_SESSION_LOG_BACKFILL = "measured-session-logs-v2";
 const STRENGTH_SESSION_BACKFILL = "strength-sessions-v1";
 const STRENGTH_WORKOUT_PHASE_BACKFILL = "strength-workout-phases-v1";
 const DAILY_SELECTION_BACKFILL = "daily-selections-v1";
@@ -1295,9 +1295,9 @@ export async function backfillMeasuredSessionLogs(userId: string) {
     const records = await readActivityRecords(activity.id);
     if (records.some((record) => record.type === "session_log")) continue;
     const choice = records.find((record) => record.type === "session_choice" && record.scope === "activity");
-    if (!choice) continue;
-    const choiceData = choice.data as SessionChoiceData;
-    const options = choiceData.options ?? [];
+    const choiceData = choice?.data as SessionChoiceData | undefined;
+    const defaultOption = choice ? null : fixedMeasuredSessionOption(activity.title);
+    const options = choiceData?.options?.length ? choiceData.options : defaultOption ? [defaultOption] : [];
     if (!options.length) continue;
     const recordKey = "measured-session-log";
     await persistRecordActions({
@@ -1315,7 +1315,7 @@ export async function backfillMeasuredSessionLogs(userId: string) {
           scope: "activity",
           scopeDate: null,
           data: {
-            choiceRecordKey: choice.key,
+            ...(choice ? { choiceRecordKey: choice.key } : { defaultOption }),
             fields: measuredSessionFields(options),
             entries: [],
           },
