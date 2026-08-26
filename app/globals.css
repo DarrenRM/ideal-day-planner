@@ -47,10 +47,17 @@
 .onboarding-menu button:hover { background: rgba(255, 255, 255, .04); }
 .onboarding-kicker { color: var(--accent); font-size: var(--type-micro); font-weight: 800; letter-spacing: .12em; line-height: var(--leading-micro); text-transform: uppercase; }
 .onboarding-hero, .onboarding-center { width: min(100%, 520px); min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; margin: 0 auto; padding: max(84px, calc(env(safe-area-inset-top) + 70px)) 0 max(38px, env(safe-area-inset-bottom)); }
-.onboarding-hero { align-items: flex-start; }
+.onboarding-hero { align-items: stretch; justify-content: flex-start; min-height: max(100dvh, 760px); position: relative; }
+.onboarding-hero-copy { width: 100%; position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+.onboarding-hero-copy > p { max-width: 470px; margin-inline: auto; }
+.onboarding-hero-copy .onboarding-wide { max-width: 420px; margin-inline: auto; }
+.onboarding-hero-copy > small { display: block; margin-top: 14px; color: var(--muted); font-size: var(--type-label); }
+.onboarding-hero-luna { width: min(100%, 460px); height: 290px; position: absolute; top: 70%; left: 50%; transform: translate(-50%, -50%); }
+.onboarding-hero-luna .luna-avatar { position: absolute; right: 0; bottom: 0; }
+.onboarding-hero-bubble { width: min(270px, calc(100% - 92px)); margin: 0; padding: 13px 15px; position: absolute; z-index: 2; top: 7px; left: 0; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 15px; background: color-mix(in srgb, rgba(17, 21, 24, .94) 94%, var(--accent) 6%); box-shadow: 0 14px 40px rgba(0, 0, 0, .28); color: var(--text); font-size: var(--type-body-sm); line-height: var(--leading-body); backdrop-filter: blur(14px); }
+.onboarding-hero-bubble::after { width: 15px; height: 15px; content: ""; position: absolute; right: 29px; bottom: -8px; transform: rotate(45deg); border-right: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-bottom: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); background: color-mix(in srgb, rgba(17, 21, 24, .94) 94%, var(--accent) 6%); }
 .onboarding-hero h1, .onboarding-center h1, .onboarding-question h1, .onboarding-proposal h1, .onboarding-active h1 { margin: 10px 0 0; font-size: clamp(1.85rem, 7vw, 2.75rem); line-height: 1.06; letter-spacing: -.038em; text-wrap: balance; }
-.onboarding-hero p, .onboarding-center > p, .onboarding-question-copy p, .onboarding-review-intro, .onboarding-active > p { margin: 15px 0 0; color: #a5aca8; font-size: var(--type-body-lg); line-height: 1.55; }
-.onboarding-hero > small { margin-top: 14px; color: var(--muted); font-size: var(--type-label); }
+.onboarding-hero-copy > p, .onboarding-center > p, .onboarding-question-copy p, .onboarding-review-intro, .onboarding-active > p { margin-top: 15px; color: #a5aca8; font-size: var(--type-body-lg); line-height: 1.55; }
 .onboarding-primary, .onboarding-secondary, .onboarding-danger, .onboarding-text-button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 17px; border-radius: 11px; font-weight: 760; }
 .onboarding-primary { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); box-shadow: 0 8px 28px rgba(181, 215, 125, .1); }
 .onboarding-primary:hover { background: var(--accent-bright); }

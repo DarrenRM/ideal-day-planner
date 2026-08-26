@@ -47,10 +47,11 @@ test("rejects candidate sets with too few selections or non-actionable selection
 });
 
 test("keeps testing onboarding isolated and materializes only selected Essentials", async () => {
-  const [store, route, page, rootPage, bridge, spec] = await Promise.all([
+  const [store, route, page, styles, rootPage, bridge, spec] = await Promise.all([
     readFile(new URL("../app/api/onboarding-testing-store.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/testing/onboarding/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/testing/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../bridge/ideal-day-bridge.mjs", import.meta.url), "utf8"),
     readFile(new URL("../ONBOARDING_FLOW_SPEC.md", import.meta.url), "utf8"),
@@ -63,12 +64,18 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(route, /mode === "confirm"/);
   assert.match(page, /Make room for the life you want\./);
   assert.match(page, /build momentum one day at a time/);
+  assert.match(page, /Hey, I’m Luna—your new assistant/);
+  assert.match(page, /<LunaAvatar/);
+  assert.match(styles, /\.onboarding-hero-copy[^}]+top: 30%/);
+  assert.match(styles, /\.onboarding-hero-luna[^}]+top: 70%/);
   assert.doesNotMatch(page, /Four quick questions|let Luna help it evolve|MEET LUNA/);
   assert.match(page, /What should your days make room for\?/);
   assert.match(page, /What usually gets in the way\?/);
   assert.match(page, /Where would a little structure help most\?/);
   assert.match(page, /How should Luna start with you\?/);
   assert.match(page, /Confirm your Essentials\./);
+  assert.match(page, /Choose the activities that feel right for you\./);
+  assert.doesNotMatch(page, /These are Luna’s recommendations/);
   assert.match(page, /Reset onboarding/);
   assert.match(page, /ActivityDurationControl/);
   assert.match(page, /category-chip/);

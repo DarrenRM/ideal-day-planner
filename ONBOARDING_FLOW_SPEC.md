@@ -143,13 +143,15 @@ Possible deterministic interface copy:
 > **Make room for the life you want.**
 > Turn your priorities into small, achievable actions—and build momentum one day at a time.
 
-The supporting copy sells the person's resulting capability rather than the questionnaire mechanics or Luna as a feature. A small footer may say only `Takes about 2 minutes`.
+The primary supporting copy sells the person's resulting capability rather than the questionnaire mechanics. In the lower portion of the welcome screen, the Luna avatar introduces herself in one short speech bubble as the assistant who will help turn goals into a plan and track progress. This is the person's first encounter with Luna, so later onboarding copy may use her name without re-explaining who she is. A small footer may say only `Takes about 2 minutes`.
 
 Primary action:
 
 > Build my first day
 
 Do not explain components, activity conversations, universal scheduling, variants, Timeline, or the distinction between global and activity Luna here.
+
+On the Essential-selection review, avoid repeating that the activities are “Luna's recommendations.” The introduction has already established Luna's role, and the review should keep its instruction direct: `Choose the activities that feel right for you.`
 
 ### 5.2 Page one — priorities
 
