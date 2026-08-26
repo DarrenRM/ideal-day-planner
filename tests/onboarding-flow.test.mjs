@@ -122,7 +122,9 @@ test("keeps the Luna avatar code-native, stateful, and motion-aware", async () =
   assert.match(demo, /Color rotation speed · both rows/);
   assert.match(demo, /diamondRows/);
   assert.match(avatar, /facetRows/);
-  assert.match(avatar, /config\.breathInward \+ config\.breathOutward/);
+  assert.match(avatar, /config\.innerTipPosition - inwardBreath/);
+  assert.match(avatar, /config\.outerTipPosition \+ outwardBreath/);
+  assert.match(avatar, /centerRadius = artRadius \* config\.sideTipPosition/);
   assert.match(avatar, /time \* config\.colorRotationSpeed/);
   assert.match(design, /code-native living halo/);
 });

@@ -50,13 +50,13 @@ export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
   edgeSteps: 6,
   facetOpacity: .32,
   colorRotation: 0,
-  colorRotationSpeed: 0,
+  colorRotationSpeed: 30,
   colorLift: 0,
   shimmerAmount: .18,
   shimmerSpeed: 1.01,
   motionSpeed: 1,
-  breathInward: 1,
-  breathOutward: 1,
+  breathInward: 3,
+  breathOutward: 3,
   breathPeriod: 5.8,
   colorDriftAmount: .7,
   colorDriftSpeed: .1,
@@ -304,15 +304,16 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         const facetTime = time * config.motionSpeed;
         const breathWave = Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004;
         const breathProgress = Math.max(0, Math.min(1, .5 + breathWave / .03));
-        const breath = (-.015 * config.breathInward + .015 * (config.breathInward + config.breathOutward) * breathProgress) * breathReach;
+        const inwardBreath = .015 * config.breathInward * breathProgress * breathReach;
+        const outwardBreath = .015 * config.breathOutward * breathProgress * breathReach;
         const artRadius = radius * config.artScale;
         const colorRotation = (config.colorRotation + time * config.colorRotationSpeed) / 360 * TAU;
         const tunedColorAt = (angle: number, alpha = 1, light = 0) => colorAt(angle + colorRotation, alpha, light);
         const facets = Math.max(12, Math.round(config.facetCount));
         const spacing = TAU / facets;
-        const centerRadius = artRadius * (config.sideTipPosition + breath);
-        const inwardRadius = artRadius * (config.innerTipPosition + breath);
-        const outwardRadius = artRadius * (config.outerTipPosition + breath);
+        const centerRadius = artRadius * config.sideTipPosition;
+        const inwardRadius = artRadius * (config.innerTipPosition - inwardBreath);
+        const outwardRadius = artRadius * (config.outerTipPosition + outwardBreath);
         const innerHalfDiagonal = centerRadius - inwardRadius;
         const outerHalfDiagonal = outwardRadius - centerRadius;
         const edgeSteps = Math.max(1, Math.round(config.edgeSteps));
