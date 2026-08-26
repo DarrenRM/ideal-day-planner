@@ -16,11 +16,10 @@ type LunaAvatarProps = {
 export type LunaFacetTuning = {
   facetCount: number;
   artScale: number;
-  coreRatio: number;
-  ringOffset: number;
+  innerTipPosition: number;
+  sideTipPosition: number;
+  outerTipPosition: number;
   angularSpan: number;
-  innerDepth: number;
-  outerDepth: number;
   innerConvexity: number;
   outerConvexity: number;
   edgeSteps: number;
@@ -39,11 +38,10 @@ export type LunaFacetTuning = {
 export const DEFAULT_LUNA_FACET_TUNING: LunaFacetTuning = {
   facetCount: 42,
   artScale: .76,
-  coreRatio: .635,
-  ringOffset: .143,
+  innerTipPosition: .645,
+  sideTipPosition: .778,
+  outerTipPosition: .911,
   angularSpan: 1,
-  innerDepth: 1.14,
-  outerDepth: 1.14,
   innerConvexity: 1.14,
   outerConvexity: 1,
   edgeSteps: 6,
@@ -278,14 +276,15 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       networkContext.restore();
     };
 
-    const drawFacets = (centerX: number, centerY: number, radius: number, coreRadius: number, time: number, energy: number) => {
+    const drawFacets = (centerX: number, centerY: number, radius: number, time: number, energy: number, breath: number) => {
       facetContext.clearRect(0, 0, width, height);
       const facets = Math.max(12, Math.round(config.facetCount));
       const spacing = TAU / facets;
-      const centerRadius = coreRadius + radius * config.ringOffset;
-      const neighborChord = 2 * centerRadius * Math.sin(spacing / 2);
-      const innerHalfDiagonal = neighborChord * config.innerDepth;
-      const outerHalfDiagonal = neighborChord * config.outerDepth;
+      const centerRadius = radius * (config.sideTipPosition + breath);
+      const inwardRadius = radius * (config.innerTipPosition + breath);
+      const outwardRadius = radius * (config.outerTipPosition + breath);
+      const innerHalfDiagonal = centerRadius - inwardRadius;
+      const outerHalfDiagonal = outwardRadius - centerRadius;
       const edgeSteps = Math.max(1, Math.round(config.edgeSteps));
       const innerShapePower = 2 / config.innerConvexity;
       const outerShapePower = 2 / config.outerConvexity;
@@ -314,7 +313,6 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       for (let index = 0; index < facets; index += 1) {
         const angle = index * spacing;
         const shimmer = 1 - config.shimmerAmount + Math.sin(index * 1.83 + time * config.shimmerSpeed) * config.shimmerAmount;
-        const inwardRadius = centerRadius - innerHalfDiagonal;
         const inwardTip = mapPolarPoint(angle, inwardRadius);
 
         facetContext.beginPath();
@@ -348,7 +346,6 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const networkCoreRadius = networkArtRadius * (.635 + networkBreath);
       const facetArtRadius = radius * config.artScale;
       const facetBreath = (Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004) * breathReach * config.breathAmount;
-      const facetCoreRadius = facetArtRadius * (config.coreRatio + facetBreath);
       const compact = Math.min(width, height) < 144;
       const facetInterval = reducedMotion ? Number.POSITIVE_INFINITY : 1000 / (compact ? 18 : 30);
       const networkInterval = reducedMotion
@@ -366,7 +363,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         lastNetworkFrame = now;
       }
       if (usesFacets && now - lastFacetFrame >= facetInterval) {
-        drawFacets(centerX, centerY, facetArtRadius, facetCoreRadius, facetTime, energy);
+        drawFacets(centerX, centerY, facetArtRadius, facetTime, energy, facetBreath);
         lastFacetFrame = now;
       }
 

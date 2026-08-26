@@ -37,11 +37,10 @@ const FACET_GROUPS: Array<{ title: string; controls: FacetControl[] }> = [
     controls: [
       { key: "facetCount", label: "Diamond count", min: 24, max: 72, step: 1 },
       { key: "artScale", label: "Overall ring scale", min: .55, max: .92, step: .01, decimals: 2 },
-      { key: "coreRatio", label: "Opening size", min: .4, max: .78, step: .001, decimals: 3 },
-      { key: "ringOffset", label: "Ring position", min: .04, max: .26, step: .001, decimals: 3 },
+      { key: "innerTipPosition", label: "Inner tip position", min: .45, max: .7, step: .001, decimals: 3 },
+      { key: "sideTipPosition", label: "Side-tip position", min: .705, max: .86, step: .001, decimals: 3 },
+      { key: "outerTipPosition", label: "Outer tip position", min: .865, max: 1.08, step: .001, decimals: 3 },
       { key: "angularSpan", label: "Overlap / width", min: .55, max: 1.35, step: .01, decimals: 2 },
-      { key: "innerDepth", label: "Inner depth", min: .55, max: 1.8, step: .01, decimals: 2 },
-      { key: "outerDepth", label: "Outer depth", min: .55, max: 1.8, step: .01, decimals: 2 },
     ],
   },
   {
@@ -134,14 +133,14 @@ export default function LunaDemoPage() {
   };
 
   return <main className="luna-demo-page">
-    <header className="luna-demo-header"><span className="onboarding-kicker">LUNA · DIAMOND STUDY</span><h1>Shape the ring until it feels right.</h1><p>These 20 controls affect only the diamond row. The constellation stays untouched.</p></header>
+    <header className="luna-demo-header"><span className="onboarding-kicker">LUNA · DIAMOND STUDY</span><h1>Shape the ring until it feels right.</h1><p>These 19 controls affect only the diamond row. The constellation stays untouched.</p></header>
     <section className="luna-demo-grid">
       <article className="luna-demo-stage" aria-label="Large Luna avatar preview"><LunaAvatar facetTuning={facetTuning} layer={layer} size={520} state={state} /><div className="luna-demo-state-copy"><span>{layer === "complete" ? active.label : LAYERS.find((item) => item.id === layer)?.label}</span><p>{layer === "complete" ? active.detail : "Use Diamonds only for the clearest view while tuning the shape."}</p></div></article>
       <aside className="luna-demo-controls">
         <section className="luna-demo-control-section"><span className="onboarding-kicker">BEHAVIOR</span><h2>Try Luna’s states</h2><div className="luna-state-options">{STATES.map((option) => <button aria-pressed={state === option.id} className={state === option.id ? "is-active" : ""} key={option.id} type="button" onClick={() => setState(option.id)}>{option.id === "idle" ? <Pause size={16} /> : <Sparkles size={16} />}<span><strong>{option.label}</strong><small>{option.detail}</small></span></button>)}</div></section>
         <section className="luna-geometry-study"><span className="onboarding-kicker">VIEW</span><div>{LAYERS.map((option) => <button aria-pressed={layer === option.id} className={layer === option.id ? "is-active" : ""} key={option.id} type="button" onClick={() => setLayer(option.id)}>{option.label}</button>)}</div></section>
         <section className="luna-facet-tuner">
-          <div className="luna-tuning-heading"><div><span className="onboarding-kicker">DIAMOND CONTROLS</span><h2>20 live sliders</h2><p>Saved in this browser as you adjust them.</p></div><div className="luna-tuning-actions"><button type="button" onClick={resetFacets}><RotateCcw size={14} />Reset</button><button className="is-primary" type="button" onClick={copyFacets}>{copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}{copyState === "copied" ? "Copied" : "Copy values"}</button></div></div>
+          <div className="luna-tuning-heading"><div><span className="onboarding-kicker">DIAMOND CONTROLS</span><h2>19 live sliders</h2><p>Saved in this browser as you adjust them.</p></div><div className="luna-tuning-actions"><button type="button" onClick={resetFacets}><RotateCcw size={14} />Reset</button><button className="is-primary" type="button" onClick={copyFacets}>{copyState === "copied" ? <Check size={14} /> : <Copy size={14} />}{copyState === "copied" ? "Copied" : "Copy values"}</button></div></div>
           <p className="luna-copy-status" aria-live="polite">{copyState === "failed" ? "Clipboard access failed. Try again from the published page." : "Copy the values when you land on the version you want."}</p>
           <div className="luna-tuning-groups">{FACET_GROUPS.map((group) => <fieldset key={group.title}><legend>{group.title}</legend>{group.controls.map((control) => {
             const inputId = `luna-${control.key}`;

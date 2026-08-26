@@ -106,7 +106,10 @@ test("keeps the Luna avatar code-native, stateful, and motion-aware", async () =
   assert.match(avatar, /prefers-reduced-motion/);
   assert.match(avatar, /"idle" \| "listening" \| "thinking"/);
   assert.match(avatar, /DEFAULT_LUNA_FACET_TUNING/);
-  assert.match(demo, /20 live sliders/);
+  assert.match(demo, /19 live sliders/);
+  assert.match(demo, /Inner tip position/);
+  assert.match(demo, /Side-tip position/);
+  assert.match(demo, /Outer tip position/);
   assert.match(demo, /The constellation stays untouched/);
   assert.match(design, /code-native living halo/);
 });
