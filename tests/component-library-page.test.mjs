@@ -8,9 +8,17 @@ import { buildComponentLibraryFixtures, COMPONENT_SPECIMENS } from "../app/compo
 test("the component workbench covers every production primitive plus the retained routine", () => {
   const catalogTypes = COMPONENT_CATALOG.map(([type]) => type);
   const specimenTypes = COMPONENT_SPECIMENS.map((entry) => entry.type);
-  assert.deepEqual(specimenTypes.filter((type) => type !== "routine").sort(), [...catalogTypes].sort());
+  const catalogSpecimens = COMPONENT_SPECIMENS.filter((entry) => entry.layer === "record-backed" || entry.layer === "workspace-only").map((entry) => entry.type);
+  assert.deepEqual(catalogSpecimens.sort(), [...catalogTypes].sort());
   assert.equal(specimenTypes.filter((type) => type === "routine").length, 1);
   assert.equal(new Set(specimenTypes).size, specimenTypes.length);
+});
+
+test("the workbench includes every app-owned activity workspace surface and the selected Today state", () => {
+  const types = new Set(COMPONENT_SPECIMENS.map((entry) => entry.type));
+  for (const type of ["session_choice_compact", "activity_streak", "activity_schedule", "activity_follow_up", "product_action_tabs", "workspace_working", "workspace_empty", "workspace_invitation"]) {
+    assert.ok(types.has(type), `${type} is missing from the workbench`);
+  }
 });
 
 test("every record-backed specimen has hydrated mock data and valid links", () => {
@@ -25,6 +33,9 @@ test("every record-backed specimen has hydrated mock data and valid links", () =
   assert.ok(fixtures.timer.title);
   assert.ok(fixtures.countdown.durationSeconds > 0);
   assert.ok(fixtures.routine.steps?.length);
+  assert.ok(fixtures.scheduleSummary.upcoming.length);
+  assert.equal(fixtures.followUp.status, "pending");
+  assert.ok(fixtures.productWorkspace.components.length >= 3);
 });
 
 test("the workbench is Sites-only and uses the production renderers", async () => {
@@ -41,9 +52,19 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(client, /<TimerComponent/);
   assert.match(client, /<CountdownComponent/);
   assert.match(client, /<RoutineComponent/);
+  assert.match(client, /<ActivityScheduleSummaryComponent/);
+  assert.match(client, /<ActivityFollowUpComponent/);
+  assert.match(client, /<StreakTrack/);
+  assert.match(client, /<ActivityWorkspace/);
+  assert.match(client, /session_choice_compact/);
   assert.match(client, /Selection map/);
   assert.match(client, /data-width={previewWidth}/);
   assert.match(workspace, /export function TimerComponent/);
   assert.match(workspace, /export function CountdownComponent/);
   assert.match(workspace, /export function RoutineComponent/);
+  assert.match(workspace, /export function ActivityScheduleSummaryComponent/);
+  assert.match(workspace, /export function ActivityFollowUpComponent/);
+  assert.match(workspace, /export function WorkspaceWorkingComponent/);
+  assert.match(workspace, /export function WorkspaceEmptyGuidance/);
+  assert.match(workspace, /export function WorkspaceLunaInvitation/);
 });

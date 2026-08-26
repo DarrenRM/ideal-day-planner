@@ -311,6 +311,87 @@ export function RoutineComponent({ component }: { component: RoutineWorkspaceCom
   );
 }
 
+export function ActivityScheduleSummaryComponent({ activity, scheduleSummary, onManageSchedule }: {
+  activity: Pick<WorkspaceActivity, "title">;
+  scheduleSummary: ActivityScheduleSummary;
+  onManageSchedule?: () => void;
+}) {
+  return <section className="workspace-block activity-schedule-summary" aria-label={`${activity.title} schedule`}>
+    <div className="activity-schedule-summary-copy">
+      <span className="workspace-overline">Schedule</span>
+      <strong>{scheduleSummary.cadenceLabel}</strong>
+      {scheduleSummary.name.trim().toLocaleLowerCase() !== activity.title.trim().toLocaleLowerCase() ? <small>{scheduleSummary.name}</small> : null}
+      {scheduleSummary.upcoming.length ? (
+        <div className="activity-schedule-upcoming">
+          <span className="workspace-overline">Upcoming</span>
+          <div className="activity-schedule-upcoming-list">
+            {scheduleSummary.upcoming.map((occurrence, index) => {
+              const detail = scheduleOccurrenceDetail(occurrence.title, activity.title);
+              return <span className="activity-schedule-occurrence" key={`${occurrence.date}-${index}`}><b>{formatScheduleOccurrenceDate(occurrence.date, scheduleSummary.referenceDate)}</b>{detail ? <small>{detail}</small> : null}</span>;
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+    {onManageSchedule ? <button type="button" onClick={onManageSchedule}>Manage</button> : <CalendarClock aria-hidden="true" size={17} />}
+  </section>;
+}
+
+export function ActivityFollowUpComponent({ followUp, onFollowUpMutation }: {
+  followUp: ActivityFollowUp;
+  onFollowUpMutation?: (id: string, operation: "reschedule" | "dismiss", dueDate?: string) => void;
+}) {
+  return <section className={`workspace-block activity-follow-up ${followUp.status === "due" || followUp.status === "asked" ? "is-due" : ""}`}>
+    <div className="activity-follow-up-heading">
+      <div><span className="workspace-overline">{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : "Upcoming check-in"}</span><strong>{followUp.title}</strong></div>
+      <div className="activity-follow-up-tools">
+        <details className="activity-follow-up-menu">
+          <summary aria-label={`More options for ${followUp.title}`} title="Check-in options"><EllipsisVertical aria-hidden="true" size={17} /></summary>
+          <div className="activity-follow-up-menu-panel" role="menu">
+            <button role="menuitem" type="button" onClick={() => onFollowUpMutation?.(followUp.id, "dismiss")}><Trash2 aria-hidden="true" size={15} /> Remove check-in</button>
+          </div>
+        </details>
+        <CalendarClock aria-hidden="true" size={17} />
+      </div>
+    </div>
+    <p>Luna will check back in with you on <time dateTime={followUp.dueDate}>{formatFollowUpDate(followUp.dueDate)}</time> about {followUpReason(followUp.title)}.</p>
+  </section>;
+}
+
+export function WorkspaceWorkingComponent({ activity, workState, hasVisibleWorkspace = false, workTitle, workDetail }: {
+  activity: Pick<WorkspaceActivity, "title">;
+  workState: "building" | "waiting";
+  hasVisibleWorkspace?: boolean;
+  workTitle?: string | null;
+  workDetail?: string | null;
+}) {
+  return <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""}`} role="status">
+    <span className="workspace-working-mark"><Sparkles size={15} /></span>
+    <div>
+      <strong>{workTitle || (workState === "waiting" ? `${activity.title} is queued` : hasVisibleWorkspace ? `Updating ${activity.title}` : `Building your ${activity.title} setup`)}</strong>
+      <p>{workDetail || (workState === "waiting" ? "Your message is saved, and Luna will pick it up shortly." : "Turning your latest details into something useful here.")}</p>
+    </div>
+    {workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
+  </div>;
+}
+
+export function WorkspaceLunaInvitation({ onTalkWithLuna }: { onTalkWithLuna: () => void }) {
+  return <button className="workspace-luna-invitation" type="button" onClick={onTalkWithLuna}>
+    <MessageCircle aria-hidden="true" size={16} />
+    <span><strong>Want something else here?</strong> Talk with Luna.</span>
+  </button>;
+}
+
+export function WorkspaceEmptyGuidance() {
+  return <div className="workspace-empty-guidance">
+    <span aria-hidden="true"><MessageCircle size={17} /></span>
+    <div>
+      <strong>Shape this with Luna</strong>
+      <p>Talk with Luna about this activity, and she’ll keep useful notes and tools here.</p>
+    </div>
+  </div>;
+}
+
 export function captureActivityTimingSnapshot(activity: WorkspaceActivity, workspace: WorkspaceDocument): ActivityTimingSnapshot | null {
   const now = Date.now();
   const candidates = workspace.components.flatMap((component): ActivityTimingSnapshot[] => {
@@ -508,16 +589,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   if (!hasVisibleWorkspace && !workState && !recordError && !showEmptyState) return null;
   return (
     <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : showEmptyState && !workState && !recordError ? "workspace-empty" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
-      {workState ? (
-        <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""}`} role="status">
-          <span className="workspace-working-mark"><Sparkles size={15} /></span>
-          <div>
-            <strong>{workTitle || (workState === "waiting" ? `${activity.title} is queued` : hasVisibleWorkspace ? `Updating ${activity.title}` : `Building your ${activity.title} setup`)}</strong>
-            <p>{workDetail || (workState === "waiting" ? "Your message is saved, and Luna will pick it up shortly." : "Turning your latest details into something useful here.")}</p>
-          </div>
-          {workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
-        </div>
-      ) : null}
+      {workState ? <WorkspaceWorkingComponent activity={activity} hasVisibleWorkspace={hasVisibleWorkspace} workDetail={workDetail} workState={workState} workTitle={workTitle} /> : null}
       {recordError ? <p className="record-action-error" role="alert">{recordError}</p> : null}
 
       {hasVisibleWorkspace ? (
@@ -586,47 +658,11 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               const record = recordsByKey.get(dataComponent.recordKey);
               return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} /> : null;
             })}
-            {scheduleSummary ? (
-              <section className="workspace-block activity-schedule-summary" aria-label={`${activity.title} schedule`}>
-                <div className="activity-schedule-summary-copy">
-                  <span className="workspace-overline">Schedule</span>
-                  <strong>{scheduleSummary.cadenceLabel}</strong>
-                  {scheduleSummary.name.trim().toLocaleLowerCase() !== activity.title.trim().toLocaleLowerCase() ? <small>{scheduleSummary.name}</small> : null}
-                  {scheduleSummary.upcoming.length ? (
-                    <div className="activity-schedule-upcoming">
-                      <span className="workspace-overline">Upcoming</span>
-                      <div className="activity-schedule-upcoming-list">
-                        {scheduleSummary.upcoming.map((occurrence, index) => {
-                          const detail = scheduleOccurrenceDetail(occurrence.title, activity.title);
-                          return <span className="activity-schedule-occurrence" key={`${occurrence.date}-${index}`}><b>{formatScheduleOccurrenceDate(occurrence.date, scheduleSummary.referenceDate)}</b>{detail ? <small>{detail}</small> : null}</span>;
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                {onManageSchedule ? <button type="button" onClick={onManageSchedule}>Manage</button> : <CalendarClock aria-hidden="true" size={17} />}
-              </section>
-            ) : null}
+            {scheduleSummary ? <ActivityScheduleSummaryComponent activity={activity} onManageSchedule={onManageSchedule} scheduleSummary={scheduleSummary} /> : null}
             {measuredSessionItem && measuredChoiceItem && !measuredOptionId ? renderMeasuredItem(measuredChoiceItem, "default") : null}
             {measuredSessionItem && measuredOptionId ? renderMeasuredItem(measuredSessionItem, "featured") : null}
             {renderStrengthItem()}
-            {followUps.map((followUp) => (
-              <section className={`workspace-block activity-follow-up ${followUp.status === "due" || followUp.status === "asked" ? "is-due" : ""}`} key={followUp.id}>
-                <div className="activity-follow-up-heading">
-                  <div><span className="workspace-overline">{followUp.status === "asked" ? "Check-in asked" : followUp.status === "due" ? "Check-in due" : "Upcoming check-in"}</span><strong>{followUp.title}</strong></div>
-                  <div className="activity-follow-up-tools">
-                    <details className="activity-follow-up-menu">
-                      <summary aria-label={`More options for ${followUp.title}`} title="Check-in options"><EllipsisVertical aria-hidden="true" size={17} /></summary>
-                      <div className="activity-follow-up-menu-panel" role="menu">
-                        <button role="menuitem" type="button" onClick={() => onFollowUpMutation?.(followUp.id, "dismiss")}><Trash2 aria-hidden="true" size={15} /> Remove check-in</button>
-                      </div>
-                    </details>
-                    <CalendarClock aria-hidden="true" size={17} />
-                  </div>
-                </div>
-                <p>Luna will check back in with you on <time dateTime={followUp.dueDate}>{formatFollowUpDate(followUp.dueDate)}</time> about {followUpReason(followUp.title)}.</p>
-              </section>
-            ))}
+            {followUps.map((followUp) => <ActivityFollowUpComponent followUp={followUp} key={followUp.id} onFollowUpMutation={onFollowUpMutation} />)}
             {measuredSessionItem && measuredChoiceItem && measuredOptionId ? renderMeasuredItem(measuredChoiceItem, "compact") : null}
             {remainingItems.filter(({ displayRole }) => displayRole !== "streak" && displayRole !== "recurring").map(({ component }) => {
               if (!component) return null;
@@ -648,21 +684,10 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               return <div className="workspace-record-slot" key={component.id}>{renderedRecord}</div>;
             })}
           </div>
-          <button className="workspace-luna-invitation" type="button" onClick={onTalkWithLuna}>
-            <MessageCircle aria-hidden="true" size={16} />
-            <span><strong>Want something else here?</strong> Talk with Luna.</span>
-          </button>
+          <WorkspaceLunaInvitation onTalkWithLuna={onTalkWithLuna} />
         </>
       ) : null}
-      {showEmptyState && !hasVisibleWorkspace && !workState && !recordError ? (
-        <div className="workspace-empty-guidance">
-          <span aria-hidden="true"><MessageCircle size={17} /></span>
-          <div>
-            <strong>Shape this with Luna</strong>
-            <p>Talk with Luna about this activity, and she’ll keep useful notes and tools here.</p>
-          </div>
-        </div>
-      ) : null}
+      {showEmptyState && !hasVisibleWorkspace && !workState && !recordError ? <WorkspaceEmptyGuidance /> : null}
     </section>
   );
 }

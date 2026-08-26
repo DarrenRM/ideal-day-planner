@@ -4,7 +4,8 @@ import { Boxes, Check, ChevronRight, Columns2, Database, Layers3, Monitor, Rotat
 import { useMemo, useState, type CSSProperties } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "../activity-record-components";
 import type { ActivityRecord } from "../activity-record-model";
-import { CountdownComponent, RoutineComponent, TimerComponent, type WorkspaceActivity } from "../activity-workspace";
+import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
+import { StreakTrack } from "../streak-track";
 import { buildComponentLibraryFixtures, COMPONENT_GROUPS, COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-library-fixtures";
 import styles from "./component-library.module.css";
 
@@ -21,6 +22,14 @@ const activity: WorkspaceActivity = {
   color: "#b7db78",
   timelineEnabled: false,
   recentRuns: [],
+};
+
+const productActivity: WorkspaceActivity = {
+  ...activity,
+  id: "component-library-product-composition",
+  title: "Bed Routine",
+  category: "Care",
+  color: "#d58bb5",
 };
 
 function replaceRecord(records: ActivityRecord[], key: string, update: (record: ActivityRecord) => ActivityRecord) {
@@ -60,7 +69,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today }
   const [notice, setNotice] = useState("Live production renderer");
 
   const specimen = COMPONENT_SPECIMENS.find((entry) => entry.type === selectedType) ?? COMPONENT_SPECIMENS[0];
-  const catalogEntry = catalog.find((entry) => entry.type === specimen.type);
+  const catalogEntry = catalog.find((entry) => entry.type === (specimen.type === "session_choice_compact" ? "session_choice" : specimen.type));
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return COMPONENT_SPECIMENS;
@@ -121,6 +130,13 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today }
     if (specimen.type === "timer") return <TimerComponent activity={activity} component={fixtures.timer} />;
     if (specimen.type === "countdown") return <CountdownComponent activity={activity} component={fixtures.countdown} />;
     if (specimen.type === "routine") return <RoutineComponent component={fixtures.routine} />;
+    if (specimen.type === "activity_streak") return <StreakTrack ariaLabel="Morning practice streak" completedToday count={6} />;
+    if (specimen.type === "activity_schedule") return <ActivityScheduleSummaryComponent activity={{ title: "Cardio" }} onManageSchedule={() => setNotice("Mock schedule manager captured")} scheduleSummary={fixtures.scheduleSummary} />;
+    if (specimen.type === "activity_follow_up") return <ActivityFollowUpComponent followUp={fixtures.followUp} onFollowUpMutation={() => setNotice("Mock check-in action captured")} />;
+    if (specimen.type === "workspace_working") return <WorkspaceWorkingComponent activity={{ title: "Cardio" }} workState="building" />;
+    if (specimen.type === "workspace_empty") return <WorkspaceEmptyGuidance />;
+    if (specimen.type === "workspace_invitation") return <WorkspaceLunaInvitation onTalkWithLuna={() => setNotice("Mock Luna handoff captured")} />;
+    if (specimen.type === "product_action_tabs") return <ActivityWorkspace activity={productActivity} onRecordMutation={mutate} onTalkWithLuna={() => setNotice("Mock Luna handoff captured")} records={fixtures.records} workspace={fixtures.productWorkspace} />;
     const record = fixtures.records.find((entry) => entry.key === specimen.recordKey);
     if (!record) return <p>Fixture unavailable.</p>;
     const supportingRecords = fixtures.records.filter((entry) => specimen.supportingRecordKeys?.includes(entry.key));
@@ -128,7 +144,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today }
     return <ActivityRecordComponent
       onMutate={mutate}
       onTalkWithLuna={() => setNotice("Mock Luna handoff captured")}
-      presentation={specimen.type === "strength_session" ? "featured" : "default"}
+      presentation={specimen.type === "strength_session" ? "featured" : specimen.type === "session_choice_compact" ? "compact" : "default"}
       record={record}
       relatedRecords={relatedRecords}
       supportingRecords={supportingRecords}
@@ -165,8 +181,8 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, today }
         </div>
         <div className={styles.previewField}>
           <div className={styles.previewShell} data-width={previewWidth}>
-            <div className={`activity-workspace workspace-live ${styles.productionSurface}`} style={{ "--item-color": activity.color } as CSSProperties}>
-              <div className="workspace-stack">{renderSpecimen()}</div>
+            <div className={`${specimen.type === "product_action_tabs" ? "" : "activity-workspace workspace-live"} ${styles.productionSurface}`} style={{ "--item-color": specimen.type === "product_action_tabs" ? productActivity.color : activity.color } as CSSProperties}>
+              <div className={specimen.type === "product_action_tabs" ? undefined : "workspace-stack"}>{renderSpecimen()}</div>
             </div>
           </div>
         </div>

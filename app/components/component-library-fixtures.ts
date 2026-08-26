@@ -1,15 +1,19 @@
 import type { ActivityRecord, ActivityRecordType } from "../activity-record-model";
-import type { CountdownWorkspaceComponent, RoutineWorkspaceComponent, TimerWorkspaceComponent } from "../workspace-model";
+import type { ActivityFollowUp } from "../follow-up-model";
+import type { ActivityScheduleSummary } from "../activity-workspace";
+import type { CountdownWorkspaceComponent, RoutineWorkspaceComponent, TimerWorkspaceComponent, WorkspaceDocument } from "../workspace-model";
 
-export type LibraryComponentType = ActivityRecordType | "timer" | "countdown" | "routine";
-export type LibraryGroup = "Foundations" | "Actions" | "Sessions" | "Progress" | "Reference" | "Time";
+export type LibraryComponentType = ActivityRecordType | "timer" | "countdown" | "routine"
+  | "session_choice_compact" | "activity_streak" | "activity_schedule" | "activity_follow_up"
+  | "product_action_tabs" | "workspace_working" | "workspace_empty" | "workspace_invitation";
+export type LibraryGroup = "Foundations" | "Actions" | "Sessions" | "Progress" | "Reference" | "Time" | "Workspace";
 
 export type ComponentSpecimen = {
   type: LibraryComponentType;
   label: string;
   group: LibraryGroup;
   role: "streak" | "recurring" | "countdown" | "primary" | "reference" | "resource";
-  layer: "record-backed" | "workspace-only" | "legacy workspace";
+  layer: "record-backed" | "workspace-only" | "legacy workspace" | "app-owned" | "composition";
   recordKey?: string;
   supportingRecordKeys?: string[];
   relatedRecordKeys?: string[];
@@ -27,6 +31,7 @@ export const COMPONENT_SPECIMENS: ComponentSpecimen[] = [
   { type: "meal_log", label: "Meal log", group: "Sessions", role: "primary", layer: "record-backed", recordKey: "breakfast-log", activities: ["Breakfast", "Shake", "Food prep"], selection: "Use when the outcome is what was eaten, drunk, made, or prepped; details remain optional.", hierarchy: "Canonical primary card. Recipes and recent meals stay inside it rather than becoming peer cards." },
   { type: "workout", label: "Workout plan", group: "Sessions", role: "primary", layer: "record-backed", recordKey: "lift-plan", activities: ["Lift", "Gym", "Strength training"], selection: "Use when exercises, sets, reps, and loads are the meaningful unit.", hierarchy: "Reusable plan linked to a strength-session record; the combined strength flow normally leads." },
   { type: "session_choice", label: "Session choice", group: "Sessions", role: "primary", layer: "record-backed", recordKey: "cardio-choice", activities: ["Cardio", "Recovery session", "Open gym"], selection: "Use for a small set of today-only modes when full schedule variants would be excessive.", hierarchy: "Leads until selected; then collapses beneath its linked measured-session card." },
+  { type: "session_choice_compact", label: "Session choice · compact", group: "Sessions", role: "primary", layer: "composition", recordKey: "cardio-choice", activities: ["Cardio after a modality is chosen", "Bounded trials", "Today-only overrides"], selection: "This is the same session-choice record in its compact selected state, not a separate data component.", hierarchy: "Appears after the featured measured-session card and any check-in once today’s option is known." },
   { type: "session_log", label: "Measured session", group: "Sessions", role: "primary", layer: "record-backed", recordKey: "cardio-log", relatedRecordKeys: ["cardio-choice"], activities: ["Walking", "Running", "Cycling", "Swimming", "Cardio"], selection: "Use when one modality plus duration and a few supported results describe the whole session.", hierarchy: "Adaptive primary card; owns input, last-session context, weekly totals, and rhythm." },
   { type: "strength_session", label: "Strength session", group: "Sessions", role: "primary", layer: "record-backed", recordKey: "lift-sessions", relatedRecordKeys: ["lift-plan", "lift-warmup", "lift-cooldown"], activities: ["Lift", "Gym", "Strength program"], selection: "Use with a workout plan when performed sets—not whole-session metrics—are the evidence.", hierarchy: "Specialized lead card composed with its linked plan and explicit warm-up/cool-down phases." },
   { type: "quick_log", label: "Quick log", group: "Sessions", role: "primary", layer: "record-backed", recordKey: "energy-log", activities: ["Symptoms", "Mood", "Simple observations"], selection: "Use for a compact repeated entry when no richer canonical tracker fits.", hierarchy: "Primary or supporting card; avoid using it to duplicate structured session history." },
@@ -46,9 +51,16 @@ export const COMPONENT_SPECIMENS: ComponentSpecimen[] = [
   { type: "timer", label: "Count-up timer", group: "Time", role: "primary", layer: "workspace-only", activities: ["Focus", "Meditation", "Open-ended practice"], selection: "Use only when measuring elapsed time helps perform the activity or the user asks for it.", hierarchy: "Ordinary primary component; it records real use independently of schedule length." },
   { type: "countdown", label: "Countdown", group: "Time", role: "countdown", layer: "workspace-only", activities: ["Meditation", "Timed devices", "Fixed intervals"], selection: "Use when a fixed duration defines the practice or remaining time is useful.", hierarchy: "After recurring steps and before primary content." },
   { type: "routine", label: "Saved routine", group: "Foundations", role: "primary", layer: "legacy workspace", activities: ["Older configured routines", "Simple saved procedures"], selection: "Existing app-owned routine primitive retained for validated legacy workspaces.", hierarchy: "Independent primary card; new durable routines normally use protocol or checklist records." },
+  { type: "activity_streak", label: "Activity streak", group: "Workspace", role: "streak", layer: "app-owned", activities: ["Daily care", "Starter routines", "Shared product rhythms"], selection: "The app derives this from real activity or subject completion history; Luna does not author a streak record merely to display it.", hierarchy: "First workspace surface, or nested inside a product when the streak belongs to that subject." },
+  { type: "activity_schedule", label: "Schedule summary", group: "Workspace", role: "primary", layer: "app-owned", activities: ["Weekday routines", "Every-N-day plans", "Rotations", "Bounded schedules"], selection: "Shown only when the D1-authoritative schedule contains useful information beyond a simple endless daily default.", hierarchy: "After streak and due recurring steps, before the activity’s primary action or tracker." },
+  { type: "activity_follow_up", label: "Upcoming check-in", group: "Workspace", role: "primary", layer: "app-owned", activities: ["Bounded trials", "Progress reviews", "Decisions that need revisiting"], selection: "Created only when Luna has a concrete, dated reason to check back; pending, due, and asked are visual states of one component.", hierarchy: "After the primary session or action so the current work remains dominant." },
+  { type: "product_action_tabs", label: "Product action tabs", group: "Workspace", role: "primary", layer: "composition", activities: ["Bed routine", "Skin care", "Dental care", "Multi-product routines"], selection: "The app groups product roots by their concrete routineAction when one activity contains multiple named products or devices.", hierarchy: "Navigation above the selected product panel; products sharing one action appear together in that panel." },
+  { type: "workspace_working", label: "Workspace progress", group: "Workspace", role: "primary", layer: "app-owned", activities: ["Any activity while Luna compiles durable changes"], selection: "App-owned transient status shown while durable work is building, waiting, or updating.", hierarchy: "Above existing workspace content; it never replaces useful content during an update." },
+  { type: "workspace_empty", label: "Empty workspace guidance", group: "Workspace", role: "primary", layer: "app-owned", activities: ["New activities without useful records"], selection: "Shown only when an activity has no useful workspace content and no active build or error.", hierarchy: "Sole workspace guidance state until a useful component exists." },
+  { type: "workspace_invitation", label: "Luna invitation", group: "Workspace", role: "resource", layer: "app-owned", activities: ["Every hydrated activity workspace"], selection: "Persistent app-owned path for requesting another useful surface or changing the current setup.", hierarchy: "Footer after all workspace components; never competes with the current action." },
 ];
 
-export const COMPONENT_GROUPS: LibraryGroup[] = ["Foundations", "Actions", "Sessions", "Progress", "Reference", "Time"];
+export const COMPONENT_GROUPS: LibraryGroup[] = ["Foundations", "Actions", "Sessions", "Progress", "Reference", "Time", "Workspace"];
 
 function shiftDate(dateKey: string, amount: number) {
   const [year, month, day] = dateKey.split("-").map(Number);
@@ -97,10 +109,24 @@ export function buildComponentLibraryFixtures(today: string) {
     record("project-timeline", "timeline", "Project milestones", { entries: [{ id: "mile-1", date: shiftDate(today, -12), title: "Direction chosen", detail: "Settled the product story and audience.", value: "Done", tone: "success" }, { id: "mile-2", date: shiftDate(today, -5), title: "First working prototype", detail: "Tested the core flow end to end.", value: "v1", tone: "default" }, { id: "mile-3", date: shiftDate(today, 7), title: "Usability review", detail: "Review the polished workflow with two people.", value: "Next", tone: "important" }] }),
     record("reading-goal", "goal", "Reading goal", { statement: "Finish twelve thoughtful books this year and keep the ideas worth using.", current: 7, target: 12, unit: "books", note: "Depth matters more than pace; unfinished books can be dropped deliberately." }),
     record("care-attention", "attention", "Introduce slowly", { body: "Retinol can be irritating when introduced too quickly. Keep the current twice-weekly rhythm until it is clearly well tolerated.", tone: "warning", actions: ["Pause if irritation persists", "Use sunscreen during the day", "Avoid combining with other strong actives on the same night"] }),
+    record("toothpaste-product", "product", "Toothpaste", { kind: "product", name: "Brisk toothpaste tablets", manufacturer: "Brisk", variant: "Fluoride", routineAction: "Brush teeth", notes: "Chew one tablet, wet the toothbrush, and brush normally." }, "toothpaste-product"),
+    record("toothpaste-protocol", "protocol", "Use toothpaste tablets", { summary: "Keep the familiar brushing sequence while using a tablet format.", steps: [{ id: "chew", label: "Chew one tablet" }, { id: "wet", label: "Wet the toothbrush" }, { id: "brush", label: "Brush for two minutes" }] }, "toothpaste-product"),
+    record("toothbrush-device", "product", "Electric toothbrush", { kind: "device", name: "Brightbrush electric toothbrush", manufacturer: "Brightbrush", variant: "Soft head", routineAction: "Brush teeth", notes: "Use the gentle setting and replace the brush head when the bristles show wear." }, "toothbrush-device"),
+    record("toothbrush-protocol", "protocol", "Electric brushing", { summary: "Let the timer pace the session without adding pressure.", steps: [{ id: "paste", label: "Apply toothpaste" }, { id: "start", label: "Start the gentle cycle" }, { id: "rinse", label: "Rinse the brush head" }] }, "toothbrush-device"),
   ];
 
   const timer: TimerWorkspaceComponent = { id: "focus-timer", type: "timer", title: "Focused work" };
   const countdown: CountdownWorkspaceComponent = { id: "breathing-countdown", type: "countdown", title: "Breathing practice", durationSeconds: 300, durationSource: "fixed" };
   const routine: RoutineWorkspaceComponent = { id: "saved-routine", type: "routine", title: "Start the day", summary: "A compact saved sequence for mornings that need less decision-making.", steps: ["Open the blinds and drink water", "Write the day’s first concrete win", "Begin before checking messages"], facts: [{ label: "Best start", value: "Before 8:30 AM" }, { label: "Typical length", value: "12 minutes" }] };
-  return { records, timer, countdown, routine };
+  const scheduleSummary: ActivityScheduleSummary = { patternId: "library-cardio-pattern", name: "Cardio", referenceDate: today, cadenceLabel: "Mondays, Wednesdays & Saturdays", upcoming: [{ date: today, title: "Cardio · Elliptical" }, { date: shiftDate(today, 3), title: "Cardio · Outdoor walk" }, { date: shiftDate(today, 5), title: "Cardio · Row machine" }] };
+  const followUp: ActivityFollowUp = { id: "library-cardio-check-in", key: "review-elliptical-trial", title: "Review the elliptical trial", question: "Did the elliptical feel sustainable enough to keep?", dueDate: nextTuesday, status: "pending", inferred: false, createdAt: `${today}T12:00:00Z`, askedAt: null };
+  const productWorkspace: WorkspaceDocument = { version: 1, components: [
+    { id: "retinol-product", type: "product", title: "Retinol serum", recordKey: "retinol-product" },
+    { id: "retinol-protocol", type: "protocol", title: "Retinol night protocol", recordKey: "retinol-protocol" },
+    { id: "toothpaste-product", type: "product", title: "Toothpaste", recordKey: "toothpaste-product" },
+    { id: "toothpaste-protocol", type: "protocol", title: "Use toothpaste tablets", recordKey: "toothpaste-protocol" },
+    { id: "toothbrush-device", type: "product", title: "Electric toothbrush", recordKey: "toothbrush-device" },
+    { id: "toothbrush-protocol", type: "protocol", title: "Electric brushing", recordKey: "toothbrush-protocol" },
+  ] };
+  return { records, timer, countdown, routine, scheduleSummary, followUp, productWorkspace };
 }

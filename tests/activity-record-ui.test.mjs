@@ -370,7 +370,7 @@ test("keeps a bounded session choice active through its review date", () => {
 
 test("presents pending check-ins as upcoming commitments rather than date forms", async () => {
   const workspace = await readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8");
-  const followUpRenderer = workspace.match(/\{followUps\.map[\s\S]*?\)\)\}/)?.[0] || "";
+  const followUpRenderer = workspace.match(/export function ActivityFollowUpComponent[\s\S]*?export function WorkspaceWorkingComponent/)?.[0] || "";
   assert.match(followUpRenderer, /Upcoming check-in/);
   assert.match(followUpRenderer, /Luna will check back in with you on/);
   assert.match(followUpRenderer, /EllipsisVertical/);
