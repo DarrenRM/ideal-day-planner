@@ -65,10 +65,10 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /Make room for the life you want\./);
   assert.match(page, /build momentum one day at a time/);
   assert.match(page, /Hey, I’m Luna—your new assistant/);
-  assert.match(page, /<LunaAvatar[^>]+size=\{210\}/);
+  assert.match(page, /<LunaAvatar[^>]+size=\{126\}/);
   assert.match(styles, /\.onboarding-hero-copy[^}]+top: 30%/);
   assert.match(styles, /\.onboarding-hero-luna[^}]+top: 70%/);
-  assert.match(styles, /\.onboarding-hero-bubble[^}]+top: 52px; left: 56px/);
+  assert.match(styles, /\.onboarding-hero-bubble[^}]+top: 116px; left: 124px/);
   assert.doesNotMatch(page, /Four quick questions|let Luna help it evolve|MEET LUNA/);
   assert.match(page, /What should your days make room for\?/);
   assert.match(page, /What usually gets in the way\?/);
@@ -127,6 +127,8 @@ test("keeps the Luna avatar code-native, stateful, and motion-aware", async () =
   assert.doesNotMatch(demo, /Overlay inner row|diamondRows/);
   assert.match(avatar, /facetRows/);
   assert.match(avatar, /config\.artScale \* ringScale/);
+  assert.match(avatar, /openingGuide\.innerTipPosition \* ringScale/);
+  assert.match(avatar, /facetContext\.fillStyle = "#000"/);
   assert.match(avatar, /thinkingBreathDepth: \.14/);
   assert.match(avatar, /networkArtRadius = radius \* \.76;/);
   assert.doesNotMatch(avatar, /networkArtRadius = radius \* \.76 \* ringScale/);

@@ -319,6 +319,12 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
     const drawFacets = (centerX: number, centerY: number, radius: number, time: number, paletteTime: number, energy: number, ringScale: number) => {
       facetContext.clearRect(0, 0, width, height);
       facetContext.save();
+      const openingGuide = facetConfigs[0] ?? DEFAULT_LUNA_FACET_TUNING;
+      const openingRadius = radius * openingGuide.artScale * openingGuide.innerTipPosition * ringScale + Math.max(1, radius * .006);
+      facetContext.beginPath();
+      facetContext.arc(centerX, centerY, openingRadius, 0, TAU);
+      facetContext.fillStyle = "#000";
+      facetContext.fill();
       facetContext.globalCompositeOperation = "lighter";
       for (const config of facetConfigs) {
         const facetTime = time * config.motionSpeed;
