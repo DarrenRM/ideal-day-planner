@@ -212,6 +212,43 @@ export async function GET(request: Request) {
       ORDER BY source.created_at DESC
       LIMIT 10
     `).run();
+    await db.prepare(`
+      INSERT OR IGNORE INTO agent_jobs
+        (id, user_id, activity_id, activity_variant_id, conversation_id, kind, idempotency_key, source_message_id)
+      SELECT 'agent-job:product-research-recovery-v1:' || source.id,
+             source.user_id, source.activity_id, source.activity_variant_id, source.conversation_id,
+             'workspace_refresh', 'product-research-recovery-v1:' || source.id, source.source_message_id
+      FROM agent_jobs source
+      JOIN conversation_messages message ON message.id = source.source_message_id
+      WHERE source.kind = 'user_message'
+        AND source.status = 'succeeded'
+        AND source.created_at >= datetime('now', '-30 days')
+        AND (
+          instr(lower(message.body), ' use ') > 0
+          OR instr(lower(message.body), ' using ') > 0
+          OR instr(lower(message.body), ' added ') > 0
+          OR instr(lower(message.body), ' includes ') > 0
+          OR instr(lower(message.body), ' started ') > 0
+          OR instr(lower(message.body), ' switched ') > 0
+        )
+        AND (
+          instr(lower(message.body), 'product') > 0
+          OR instr(lower(message.body), 'device') > 0
+          OR instr(lower(message.body), 'toothpaste') > 0
+          OR instr(lower(message.body), 'toothbrush') > 0
+          OR instr(lower(message.body), 'serum') > 0
+          OR instr(lower(message.body), 'retinol') > 0
+          OR instr(lower(message.body), 'cleanser') > 0
+          OR instr(lower(message.body), 'moisturizer') > 0
+          OR instr(lower(message.body), 'supplement') > 0
+          OR instr(lower(message.body), 'tracker') > 0
+          OR instr(lower(message.body), ' watch') > 0
+          OR instr(lower(message.body), ' scale') > 0
+          OR instr(lower(message.body), ' roller') > 0
+        )
+      ORDER BY source.created_at DESC
+      LIMIT 10
+    `).run();
     const candidate = await db.prepare(`
       SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
              activity_variant_id AS activityVariantId, day_plan_id AS dayPlanId,

@@ -94,6 +94,13 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(workspace, /nestedSupportingComponents/);
   assert.match(workspace, /record\.subjectKey === product\.key/);
   assert.doesNotMatch(workspace, /productComponents\.length === 1/);
+  assert.match(workspace, /className="workspace-block subject-overview"/);
+  assert.match(workspace, /role="tablist"/);
+  assert.match(workspace, /role="tabpanel"/);
+  assert.match(workspace, /record\.key !== selectedProduct\?\.record\.key/);
+  assert.match(css, /\.subject-tabs > button \{[^}]*min-height: 48px/s);
+  assert.match(css, /\.activity-workbench-grid \{[^}]*height: clamp\(420px, calc\(100dvh - 210px\), 680px\)[^}]*overflow: hidden/s);
+  assert.match(css, /\.activity-workspace \{[^}]*overflow-y: auto/s);
   assert.match(css, /\.product-heading \{[^}]*justify-content: space-between/s);
 
   const record = parseActivityRecord({

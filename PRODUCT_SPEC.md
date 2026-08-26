@@ -673,6 +673,7 @@ Implementation note (2026-08-24, revised 2026-08-25): site-wide Luna is the conv
 - Activity conversations behave as quiet chat rooms: notes are processed without requiring an assistant reply.
 - Direct questions and conversational requests always receive a Luna reply; when the same turn adds durable information, the reply acknowledges what is being kept without exposing internal machinery.
 - Luna may selectively research current external facts through Hermes web search, preferring manufacturer and primary sources and distinguishing them from user-provided details.
+- A newly introduced named product or device automatically enters the research path before Luna writes durable item details. Luna searches the exact brand/model, prefers official or primary sources, and keeps verified directions and links owned by that product/device subject; the person does not need to explicitly ask for a lookup.
 - A sent message immediately shows a chat typing state and a workspace work state; neither waits for the job-enqueue response before becoming visible.
 - Chat follows standard iOS/Telegram visual and interaction conventions, including bubbles, a touch-friendly Send button, and processing checkmarks.
 - One gray check means saved/queued; double checkmarks mean processed by Luna.

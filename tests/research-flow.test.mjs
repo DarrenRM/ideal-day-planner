@@ -5,11 +5,13 @@ import test from "node:test";
 import { globalResearchAcknowledgement, researchAcknowledgement, userMessageRequestsResearch } from "../bridge/job-policy.mjs";
 import { messageRequestsResearch as appMessageRequestsResearch } from "../app/research-intent.ts";
 
-test("treats pasted links and explicit lookup requests as research work", () => {
+test("treats pasted links, explicit lookups, and newly added routine items as research work", () => {
   assert.equal(userMessageRequestsResearch("https://lumenlab.example/"), true);
   assert.equal(userMessageRequestsResearch("Can you look up the manufacturer directions?"), true);
   assert.equal(userMessageRequestsResearch("Can you look into this and advise?"), true);
   assert.equal(appMessageRequestsResearch("Can you look into this and advise?"), true);
+  assert.equal(userMessageRequestsResearch("The other part of my bed routine is using Brisk toothpaste and an Brightbrush electric toothbrush."), true);
+  assert.equal(appMessageRequestsResearch("I added a Garmin watch to my morning walk."), true);
   assert.equal(userMessageRequestsResearch("I use this after showering."), false);
 });
 
@@ -37,6 +39,8 @@ test("research is acknowledged through the bounded conversational path and compi
   assert.match(bridge, /workspaceFollowup: true/);
   assert.match(bridge, /IDEAL_DAY_WORKSPACE_MODEL \|\| "gpt-5\.6-terra"/);
   assert.match(bridge, /reasoning_effort: "low"/);
+  assert.match(bridge, /Introducing a named product or device is lasting detail/);
+  assert.match(bridge, /web-search the exact brand\/model/);
   assert.match(bridge, /researchEvidenceForMessage\(sourceMessage\)/);
   assert.match(bridge, /jsonrepair\(cleaned\)/);
   assert.match(bridge, /Do not leave a learned product, device, cadence, usage event, direction, or protocol only in conversation/);
@@ -45,6 +49,7 @@ test("research is acknowledged through the bounded conversational path and compi
   assert.match(bridge, /Every item-owned resource entry also uses that item's itemKey/);
   assert.match(bridge, /never emit fields or usage subfields/);
   assert.match(route, /'agent-job:workspace-recovery:' \|\| source\.id/);
+  assert.match(route, /'agent-job:product-research-recovery-v1:' \|\| source\.id/);
   assert.match(route, /payload\.workspaceFollowup === true \|\| messageRequestsResearch\(sourceMessage\?\.body\)/);
   assert.match(messageJobs, /researchAcknowledgement\(input\.activityTitle\)/);
   assert.match(messageJobs, /researchRequested \? "workspace_refresh" : "user_message"/);

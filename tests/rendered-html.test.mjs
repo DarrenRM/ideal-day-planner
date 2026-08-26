@@ -67,6 +67,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /useState<RoutineItem\[\]>\(\[\]\)/);
   assert.match(page, /hasLoaded \? <>[\s\S]*displayedScheduledItems\.map/);
   assert.match(page, /<DayHighlights/);
+  assert.doesNotMatch(page, /daily-list-heading[\s\S]{0,220}<small>/);
   assert.match(page, /Keep it going/);
   assert.match(page, /<h3 id="go-further-title">More for today<\/h3>/);
   assert.match(page, /Still going strong\? Here are some stretch goals\./);

@@ -3199,7 +3199,6 @@ export default function Home() {
               {dayAchievementReady ? <DayVictory isArriving={isDayBloom} /> : null}
               {!dayAchievementReady && (!settledEssentialsComplete || unfinishedOtherChosenExtras.length) ? <div className="daily-list-heading">
                 <span>{settledEssentialsComplete ? "Going further" : "Essentials"}</span>
-                <small>{settledEssentialsComplete ? unfinishedOtherChosenExtras.length : Math.max(0, activeItemCount - completedItemCount)} left</small>
               </div> : null}
               {displayedScheduledItems.map((item, displayIndex) => {
                 const start = completedBeforeLaunchIds.has(item.id) ? timestampTimeParts(item.completedAt) ?? timeParts(item.start) : timeParts(item.start);

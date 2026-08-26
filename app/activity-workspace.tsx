@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
+import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Package, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
@@ -112,6 +112,21 @@ function subjectRhythmSignature(record: ActivityRecord) {
   const anchorDate = typeof record.data.anchorDate === "string" ? record.data.anchorDate : "";
   const cadence = record.data.cadence && typeof record.data.cadence === "object" ? record.data.cadence : null;
   return anchorDate && cadence ? `recurring:${anchorDate}:${JSON.stringify(cadence)}` : null;
+}
+
+type ProductIdentity = {
+  kind?: "product" | "device";
+  name?: string;
+  manufacturer?: string;
+};
+
+function productIdentity(record: ActivityRecord) {
+  const data = record.data as ProductIdentity;
+  return {
+    kind: data.kind === "device" ? "device" as const : "product" as const,
+    name: data.name?.trim() || record.title,
+    manufacturer: data.manufacturer?.trim() || "",
+  };
 }
 
 export type ActivityTimingSnapshot = {
@@ -329,6 +344,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
 }
 
 export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, showEmptyState = false, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
+  const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const visibleRecordKeys = new Set<string>();
   const visibleComponents = workspace.components.filter((component) => {
@@ -347,6 +363,10 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
     return record ? [{ component, record }] : [];
   });
+  const hasProductSwitcher = productComponents.length > 1;
+  const selectedProduct = productComponents.find(({ record }) => record.key === selectedProductKey) ?? productComponents[0] ?? null;
+  const productCount = productComponents.filter(({ record }) => productIdentity(record).kind === "product").length;
+  const deviceCount = productComponents.length - productCount;
   const nestedSupportingComponents = new Map<string, ActivityRecord[]>();
   const nestedComponentIds = new Set<string>();
   for (const component of visibleComponents) {
@@ -457,6 +477,41 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
       {hasVisibleWorkspace ? (
         <>
           <div className="workspace-stack">
+            {hasProductSwitcher ? (
+              <section className="workspace-block subject-overview" aria-label={`${activity.title} products and devices`}>
+                <div className="subject-overview-heading">
+                  <div>
+                    <span className="workspace-overline">Routine setup</span>
+                    <strong>{productComponents.length} items</strong>
+                    <small>{[
+                      productCount ? `${productCount} ${productCount === 1 ? "product" : "products"}` : "",
+                      deviceCount ? `${deviceCount} ${deviceCount === 1 ? "device" : "devices"}` : "",
+                    ].filter(Boolean).join(" · ")}</small>
+                  </div>
+                </div>
+                <div aria-label="Choose an item to view" aria-orientation="vertical" className="subject-tabs" role="tablist">
+                  {productComponents.map(({ record }) => {
+                    const identity = productIdentity(record);
+                    const isSelected = record.key === selectedProduct?.record.key;
+                    const IdentityIcon = identity.kind === "device" ? Wrench : Package;
+                    return <button
+                      aria-controls={`subject-panel-${record.key}`}
+                      aria-selected={isSelected}
+                      className={isSelected ? "is-selected" : ""}
+                      id={`subject-tab-${record.key}`}
+                      key={record.key}
+                      onClick={() => setSelectedProductKey(record.key)}
+                      role="tab"
+                      type="button"
+                    >
+                      <span className="subject-tab-icon"><IdentityIcon aria-hidden="true" size={14} /></span>
+                      <span><strong>{identity.name}</strong><small>{identity.kind}{identity.manufacturer && identity.manufacturer.toLocaleLowerCase() !== identity.name.toLocaleLowerCase() ? ` · ${identity.manufacturer}` : ""}</small></span>
+                      <Check aria-hidden="true" size={14} />
+                    </button>;
+                  })}
+                </div>
+              </section>
+            ) : null}
             {sharedProductRhythm ? (() => {
               const today = localDateKey();
               const rhythm = sharedProductRhythm.type === "recurring_step"
@@ -533,18 +588,19 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
-              return record
-                ? <ActivityRecordComponent
+              if (!record || record.type === "product" && hasProductSwitcher && record.key !== selectedProduct?.record.key) return null;
+              const renderedRecord = <ActivityRecordComponent
                     completionDates={record.type === "product" ? productCompletionDates(activity, record.key) : undefined}
-                    key={component.id}
                     onMutate={onRecordMutation}
                     onTalkWithLuna={onTalkWithLuna}
                     presentation={dataComponent.presentation}
                     record={record}
                     relatedRecords={record.type === "session_log" || record.type === "strength_session" ? records : undefined}
                     supportingRecords={record.type === "product" ? (nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step") : undefined}
-                  />
-                : null;
+                  />;
+              return record.type === "product" && hasProductSwitcher
+                ? <div aria-labelledby={`subject-tab-${record.key}`} className="subject-panel" id={`subject-panel-${record.key}`} key={component.id} role="tabpanel">{renderedRecord}</div>
+                : <div className="workspace-record-slot" key={component.id}>{renderedRecord}</div>;
             })}
           </div>
           <button className="workspace-luna-invitation" type="button" onClick={onTalkWithLuna}>
