@@ -47,7 +47,15 @@ type RoutineItem = {
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
 type DropTarget = { id: string; position: "before" | "after" };
-type TouchDrag = { active: boolean; pointerId: number; sourceId: string; startX: number; startY: number; timer: ReturnType<typeof setTimeout> };
+type TouchDrag = {
+  active: boolean;
+  pointerId: number;
+  sourceId: string;
+  startX: number;
+  startY: number;
+  timer: ReturnType<typeof setTimeout>;
+  cleanup: () => void;
+};
 type TouchDragVisual = { sourceId: string; clientX: number; clientY: number; offsetX: number; offsetY: number; width: number; height: number };
 type MobileActivityTransition = {
   id: string;
@@ -1746,7 +1754,10 @@ export default function Home() {
     activityReorderAnimations.current.forEach((animation) => animation.cancel());
     if (nextActivityCueTimer.current) clearTimeout(nextActivityCueTimer.current);
     if (mobileActivityTransitionTimer.current) clearTimeout(mobileActivityTransitionTimer.current);
-    if (touchDragRef.current) clearTimeout(touchDragRef.current.timer);
+    if (touchDragRef.current) {
+      clearTimeout(touchDragRef.current.timer);
+      touchDragRef.current.cleanup();
+    }
     if (suppressActivityClickTimer.current) clearTimeout(suppressActivityClickTimer.current);
     if (extraTransitionTimer.current) clearTimeout(extraTransitionTimer.current);
   }, []);
@@ -2456,6 +2467,7 @@ export default function Home() {
     const drag = touchDragRef.current;
     if (!drag) return;
     clearTimeout(drag.timer);
+    drag.cleanup();
     if (drag.active) {
       const target = moveItemOnRelease ? touchDropTarget(clientX, clientY, drag.sourceId) : null;
       if (target) moveItem(drag.sourceId, target.id, target.position);
@@ -2483,10 +2495,16 @@ export default function Home() {
       sourceId: id,
       startX: event.clientX,
       startY: event.clientY,
+      cleanup: () => undefined,
       timer: setTimeout(() => {
         const bounds = element.closest<HTMLElement>(".routine-card")?.getBoundingClientRect() ?? element.getBoundingClientRect();
         drag.active = true;
-        element.setPointerCapture(pointerId);
+        try {
+          element.setPointerCapture(pointerId);
+        } catch {
+          // Window-level listeners below keep the gesture reliable when a
+          // mobile browser declines delayed pointer capture.
+        }
         setMobileActivityMenuId(null);
         setDraggingId(id);
         setDropTarget(null);
@@ -2501,10 +2519,32 @@ export default function Home() {
         });
       }, 320),
     };
+    const handleWindowPointerMove = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId === pointerId) handleActivityPointerMove(pointerEvent);
+    };
+    const handleWindowPointerUp = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId === pointerId) handleActivityPointerUp(pointerEvent);
+    };
+    const handleWindowPointerCancel = (pointerEvent: PointerEvent) => {
+      if (pointerEvent.pointerId === pointerId) cancelTouchDrag(false);
+    };
+    drag.cleanup = () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove);
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerCancel);
+      try {
+        if (element.hasPointerCapture(pointerId)) element.releasePointerCapture(pointerId);
+      } catch {
+        // The pointer may already have ended or been cancelled.
+      }
+    };
+    window.addEventListener("pointermove", handleWindowPointerMove, { passive: false });
+    window.addEventListener("pointerup", handleWindowPointerUp, { passive: false });
+    window.addEventListener("pointercancel", handleWindowPointerCancel, { passive: false });
     touchDragRef.current = drag;
   }
 
-  function handleActivityPointerMove(event: ReactPointerEvent<HTMLElement>) {
+  function handleActivityPointerMove(event: PointerEvent) {
     const drag = touchDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (!drag.active) {
@@ -2520,11 +2560,10 @@ export default function Home() {
     else if (event.clientY > window.innerHeight - edge) window.scrollBy({ top: 10, behavior: "auto" });
   }
 
-  function handleActivityPointerUp(event: ReactPointerEvent<HTMLElement>) {
+  function handleActivityPointerUp(event: PointerEvent) {
     const drag = touchDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.active) event.preventDefault();
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     cancelTouchDrag(true, event.clientX, event.clientY);
   }
 
@@ -3417,10 +3456,7 @@ export default function Home() {
                           onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
                           onDragStart={(event) => handleDragStart(event, item.id)}
                           onKeyDown={(event) => handleDragKeyDown(event, item.id)}
-                          onPointerCancel={() => cancelTouchDrag(false)}
                           onPointerDown={(event) => handleActivityPointerDown(event, item.id)}
-                          onPointerMove={handleActivityPointerMove}
-                          onPointerUp={handleActivityPointerUp}
                           onClick={(event) => {
                             if (suppressActivityClickRef.current || transitionGeometry) return;
                             if (isExpanded) collapseActivity();

@@ -286,6 +286,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /className="touch-drop-slot"/);
   assert.match(page, /className="touch-drag-origin-slot"/);
   assert.match(page, /data-drag-group={dragGroupForItem\(item\.id\)}/);
+  assert.match(page, /window\.addEventListener\("pointermove", handleWindowPointerMove, \{ passive: false \}\)/);
+  assert.match(page, /window\.addEventListener\("pointerup", handleWindowPointerUp, \{ passive: false \}\)/);
+  assert.match(page, /mobile browser declines delayed pointer capture/);
   assert.match(css, /\.routine-row\.is-touch-dragging \.routine-card/);
   assert.match(css, /\.touch-drop-slot, \.touch-drag-origin-slot/);
   assert.match(css, /\.duration-control/);
