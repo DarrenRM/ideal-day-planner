@@ -65,9 +65,10 @@ test("keeps testing onboarding isolated and materializes only selected Essential
   assert.match(page, /Make room for the life you want\./);
   assert.match(page, /build momentum one day at a time/);
   assert.match(page, /Hey, I’m Luna—your new assistant/);
-  assert.match(page, /<LunaAvatar/);
+  assert.match(page, /<LunaAvatar[^>]+size=\{210\}/);
   assert.match(styles, /\.onboarding-hero-copy[^}]+top: 30%/);
   assert.match(styles, /\.onboarding-hero-luna[^}]+top: 70%/);
+  assert.match(styles, /\.onboarding-hero-bubble[^}]+top: 52px; left: 56px/);
   assert.doesNotMatch(page, /Four quick questions|let Luna help it evolve|MEET LUNA/);
   assert.match(page, /What should your days make room for\?/);
   assert.match(page, /What usually gets in the way\?/);
