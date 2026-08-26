@@ -114,6 +114,18 @@ export function scheduleWorkReceipt(input: {
   cadence?: ScheduleCadence;
   planRole?: "essential" | "extra";
 }) : WorkReceiptDraft {
+  if (input.planRole && input.cadence) {
+    const previous = input.previousCadence ? scheduleCadenceLabel(input.previousCadence) : "Previous schedule";
+    const next = scheduleCadenceLabel(input.cadence);
+    return {
+      kind: "schedule_update",
+      title: `${input.activityTitle} is now essential`,
+      detail: `${previous === next ? next : `${previous} → ${next}`}. It now counts toward your essential set.`,
+      target: "workspace",
+      ...(input.activityId ? { targetActivityId: input.activityId } : {}),
+      ...(input.activityClientKey ? { targetActivityClientKey: input.activityClientKey } : {}),
+    };
+  }
   if (input.planRole) {
     return {
       kind: "schedule_update",

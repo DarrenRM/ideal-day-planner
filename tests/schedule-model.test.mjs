@@ -208,6 +208,23 @@ test("validates a narrow direct cadence change without accepting a partial targe
   assert.equal(parseDirectScheduleAction({ ...action, cadence: { kind: "interval_days", every: 0, anchorDate: "2026-08-23" } }), null);
 });
 
+test("validates an atomic cadence change that promotes a recurring extra", () => {
+  const action = parseDirectScheduleAction({
+    type: "set_pattern_cadence",
+    baseRevision: 9,
+    activityId: "activity:shower",
+    patternId: "schedule-pattern:shower",
+    expectedRevision: 3,
+    cadence: { kind: "interval_days", every: 3, anchorDate: "2026-08-23" },
+    planRole: "essential",
+    effectiveDate: "2026-08-24",
+    summary: "Make Shower essential every third day, counted from yesterday.",
+  });
+  assert.equal(action?.type, "set_pattern_cadence");
+  assert.equal(action?.planRole, "essential");
+  assert.equal(parseDirectScheduleAction({ ...action, planRole: "extra" }), null);
+});
+
 test("validates a direct commitment-role change with an exact pattern step", () => {
   const action = parseDirectScheduleAction({
     type: "set_pattern_step_role",

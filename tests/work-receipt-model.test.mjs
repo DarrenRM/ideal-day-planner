@@ -32,6 +32,24 @@ test("describes a committed role change and links to the affected activity", () 
   });
 });
 
+test("describes an atomic cadence change and essential promotion", () => {
+  assert.deepEqual(scheduleWorkReceipt({
+    activityTitle: "Shower",
+    activityId: "activity:shower",
+    activityClientKey: "shower",
+    previousCadence: { kind: "interval_days", every: 2, anchorDate: "2026-08-21" },
+    cadence: { kind: "interval_days", every: 3, anchorDate: "2026-08-23" },
+    planRole: "essential",
+  }), {
+    kind: "schedule_update",
+    title: "Shower is now essential",
+    detail: "Every other day → Every 3 days. It now counts toward your essential set.",
+    target: "workspace",
+    targetActivityId: "activity:shower",
+    targetActivityClientKey: "shower",
+  });
+});
+
 test("summarizes actual record changes and a check-in without internal language", () => {
   assert.deepEqual(activityWorkReceipt({
     activityTitle: "Hair Routine",

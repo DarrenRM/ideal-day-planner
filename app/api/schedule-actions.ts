@@ -47,6 +47,16 @@ export async function applyDirectScheduleAction(
       await resolveDay(userId, action.effectiveDate, routine.id, `plan:${safeId(userId)}:${action.effectiveDate}`, routine.startMinutes);
       return;
     }
+    if (action.planRole) {
+      await db.prepare(`
+        UPDATE daily_plan_items
+        SET plan_role = ?, activated_at = NULL, revision = revision + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE schedule_pattern_id = ? AND source_date >= ?
+          AND completed_at IS NULL AND skipped_at IS NULL
+          AND removed_at IS NULL AND plan_role <> ?
+      `).bind(action.planRole, action.patternId, action.effectiveDate, action.planRole).run();
+    }
     if (cadenceTriggers(action.cadence, action.effectiveDate, action.effectiveDate)) {
       await resolveDay(userId, action.effectiveDate, routine.id, `plan:${safeId(userId)}:${action.effectiveDate}`, routine.startMinutes);
     } else {
@@ -131,7 +141,7 @@ export async function applyDirectScheduleAction(
   }
 
   const anchorDate = action.cadence.kind === "interval_days" ? action.cadence.anchorDate : action.effectiveDate;
-  await db.batch([
+  const cadenceStatements = [
     db.prepare(`
       UPDATE schedule_patterns
       SET cadence_json = ?, anchor_date = ?, effective_date = ?, revision = revision + 1,
@@ -162,7 +172,15 @@ export async function applyDirectScheduleAction(
       source.actor,
       source.idempotencyKey,
     ),
-  ]);
+  ];
+  if (action.planRole) {
+    cadenceStatements.unshift(db.prepare(`
+      UPDATE schedule_pattern_steps
+      SET plan_role = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE pattern_id = ? AND activity_id = ?
+    `).bind(action.planRole, action.patternId, action.activityId));
+  }
+  await db.batch(cadenceStatements);
   await reconcileEffectiveDate();
   return { action, idempotent: false, revision: action.expectedRevision + 1 };
 }

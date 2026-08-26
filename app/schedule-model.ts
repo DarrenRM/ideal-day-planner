@@ -90,6 +90,7 @@ export type DirectScheduleAction = {
   patternId: string;
   expectedRevision: number;
   cadence: ScheduleCadence;
+  planRole?: "essential";
   effectiveDate: string;
   summary: string;
 } | {
@@ -539,7 +540,9 @@ export function parseDirectScheduleAction(value: unknown): DirectScheduleAction 
     };
   }
   const cadence = parseCadence(source.cadence);
-  if (!cadence) return null;
+  const suppliedPlanRole = Object.prototype.hasOwnProperty.call(source, "planRole");
+  const planRole = source.planRole === "essential" ? "essential" : null;
+  if (!cadence || suppliedPlanRole && !planRole) return null;
   return {
     type: "set_pattern_cadence",
     baseRevision,
@@ -547,6 +550,7 @@ export function parseDirectScheduleAction(value: unknown): DirectScheduleAction 
     patternId,
     expectedRevision,
     cadence,
+    ...(planRole ? { planRole } : {}),
     effectiveDate,
     summary,
   };

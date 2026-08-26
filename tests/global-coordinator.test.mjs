@@ -132,6 +132,13 @@ test("the coordinator is instructed to preserve every part of a combined request
   assert.match(durable, /move the retinol over to my bed routine/);
 });
 
+test("a firm cadence on an extra is promoted atomically unless it is explicitly optional", () => {
+  assert.match(globalInstructions, /firm ongoing cadence/);
+  assert.match(globalInstructions, /planRole:"essential" on that same set_pattern_cadence action/);
+  assert.match(globalInstructions, /optional, tentative, a trial, or a reminder\/offer/);
+  assert.match(globalInstructions, /completion message must mention both cadence and promotion/);
+});
+
 test("global prompts keep the latest message intact and stay below Hermes' content cap", () => {
   const latest = "Move the retinol to Bed Routine and make Bed Routine essential.";
   const oversized = {

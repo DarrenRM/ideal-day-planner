@@ -810,6 +810,7 @@ export async function POST(request: Request) {
             activityClientKey: activity?.clientKey,
             previousCadence,
             cadence: action.cadence,
+            planRole: action.planRole,
           });
         }
         for (const action of occurrenceActions) {
