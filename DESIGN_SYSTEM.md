@@ -90,7 +90,7 @@ The canonical global tokens are:
 - Compact assistant placement sits at the lower right and may carry one short speech bubble. The avatar opens the existing Notes & Assistant surface; it does not introduce a second conversation system.
 - Preserve a transparent outer field so the avatar can sit over app surfaces. Avoid mascot faces, literal moons, neon cyberpunk treatment, particle explosions, or animation that competes with the current task.
 - Under reduced motion, render one composed still frame and remove breathing transforms.
-- The `/luna-demo` tuning lab may override diamond-row geometry, surface, and motion values only. Expose the inner tip, shared side-tip radius, and outer tip as direct ordered anchors; derive the two radial halves from those positions instead of combining opening, offset, and depth controls. Keep constellation density, spread, brightness, and animation fixed while diamond values are being evaluated, and preserve the approved values as the defaults used everywhere else in the app.
+- The `/luna-demo` tuning lab may override diamond-row geometry, surface, and motion values only. Expose the inner tip, shared side-tip radius, and outer tip as direct ordered anchors; derive the two radial halves from those positions instead of combining opening, offset, and depth controls. Keep constellation density, spread, brightness, and animation fixed while diamond values are being evaluated, and preserve the approved values as the defaults used everywhere else in the app. An optional inner row begins with its outer tip on the outer row's shared side-tip anchor and may then be tuned independently. Copied demo settings contain only the diamond rows and whether the inner overlay is visible.
 
 ## Responsive layout
 

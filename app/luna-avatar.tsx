@@ -11,6 +11,7 @@ type LunaAvatarProps = {
   size?: number;
   state?: LunaAvatarState;
   facetTuning?: Partial<LunaFacetTuning>;
+  facetRows?: ReadonlyArray<Partial<LunaFacetTuning>>;
 };
 
 export type LunaFacetTuning = {
@@ -143,7 +144,7 @@ const LUNA_FIELD = (() => {
   return { links, nodes, stars };
 })();
 
-export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, state = "idle", facetTuning }: LunaAvatarProps) {
+export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, state = "idle", facetTuning, facetRows }: LunaAvatarProps) {
   const shellRef = useRef<HTMLSpanElement>(null);
   const networkCanvasRef = useRef<HTMLCanvasElement>(null);
   const facetCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -156,9 +157,9 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
     const networkContext = networkCanvas.getContext("2d");
     const facetContext = facetCanvas.getContext("2d");
     if (!networkContext || !facetContext) return;
-    const config = { ...DEFAULT_LUNA_FACET_TUNING, ...facetTuning };
-    const colorRotation = config.colorRotation / 360 * TAU;
-    const tunedColorAt = (angle: number, alpha = 1, light = 0) => colorAt(angle + colorRotation, alpha, light);
+    const facetConfigs = facetRows?.length
+      ? facetRows.map((row) => ({ ...DEFAULT_LUNA_FACET_TUNING, ...row }))
+      : [{ ...DEFAULT_LUNA_FACET_TUNING, ...facetTuning }];
 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reducedMotion = motion.matches;
@@ -276,55 +277,62 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       networkContext.restore();
     };
 
-    const drawFacets = (centerX: number, centerY: number, radius: number, time: number, energy: number, breath: number) => {
+    const drawFacets = (centerX: number, centerY: number, radius: number, time: number, energy: number, breathReach: number) => {
       facetContext.clearRect(0, 0, width, height);
-      const facets = Math.max(12, Math.round(config.facetCount));
-      const spacing = TAU / facets;
-      const centerRadius = radius * (config.sideTipPosition + breath);
-      const inwardRadius = radius * (config.innerTipPosition + breath);
-      const outwardRadius = radius * (config.outerTipPosition + breath);
-      const innerHalfDiagonal = centerRadius - inwardRadius;
-      const outerHalfDiagonal = outwardRadius - centerRadius;
-      const edgeSteps = Math.max(1, Math.round(config.edgeSteps));
-      const innerShapePower = 2 / config.innerConvexity;
-      const outerShapePower = 2 / config.outerConvexity;
-      const mapPolarPoint = (angle: number, mappedRadius: number) => ({
-        x: centerX + Math.cos(angle) * mappedRadius,
-        y: centerY + Math.sin(angle) * mappedRadius,
-      });
-      const traceFacetQuarter = (
-        angle: number,
-        fromTurn: number,
-        toTurn: number,
-        shapePower: number,
-        radialHalfDiagonal: number,
-      ) => {
-        for (let step = 1; step <= edgeSteps; step += 1) {
-          const turn = fromTurn + (toTurn - fromTurn) * (step / edgeSteps);
-          const cosine = Math.cos(turn);
-          const sine = Math.sin(turn);
-          const angularOffset = spacing * config.angularSpan * Math.sign(cosine) * Math.pow(Math.abs(cosine), shapePower);
-          const radialOffset = radialHalfDiagonal * Math.sign(sine) * Math.pow(Math.abs(sine), shapePower);
-          const point = mapPolarPoint(angle + angularOffset, centerRadius + radialOffset);
-          facetContext.lineTo(point.x, point.y);
-        }
-      };
       facetContext.save();
-      for (let index = 0; index < facets; index += 1) {
-        const angle = index * spacing;
-        const shimmer = 1 - config.shimmerAmount + Math.sin(index * 1.83 + time * config.shimmerSpeed) * config.shimmerAmount;
-        const inwardTip = mapPolarPoint(angle, inwardRadius);
+      for (const config of facetConfigs) {
+        const facetTime = time * config.motionSpeed;
+        const breath = (Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004) * breathReach * config.breathAmount;
+        const artRadius = radius * config.artScale;
+        const colorRotation = config.colorRotation / 360 * TAU;
+        const tunedColorAt = (angle: number, alpha = 1, light = 0) => colorAt(angle + colorRotation, alpha, light);
+        const facets = Math.max(12, Math.round(config.facetCount));
+        const spacing = TAU / facets;
+        const centerRadius = artRadius * (config.sideTipPosition + breath);
+        const inwardRadius = artRadius * (config.innerTipPosition + breath);
+        const outwardRadius = artRadius * (config.outerTipPosition + breath);
+        const innerHalfDiagonal = centerRadius - inwardRadius;
+        const outerHalfDiagonal = outwardRadius - centerRadius;
+        const edgeSteps = Math.max(1, Math.round(config.edgeSteps));
+        const innerShapePower = 2 / config.innerConvexity;
+        const outerShapePower = 2 / config.outerConvexity;
+        const mapPolarPoint = (angle: number, mappedRadius: number) => ({
+          x: centerX + Math.cos(angle) * mappedRadius,
+          y: centerY + Math.sin(angle) * mappedRadius,
+        });
+        const traceFacetQuarter = (
+          angle: number,
+          fromTurn: number,
+          toTurn: number,
+          shapePower: number,
+          radialHalfDiagonal: number,
+        ) => {
+          for (let step = 1; step <= edgeSteps; step += 1) {
+            const turn = fromTurn + (toTurn - fromTurn) * (step / edgeSteps);
+            const cosine = Math.cos(turn);
+            const sine = Math.sin(turn);
+            const angularOffset = spacing * config.angularSpan * Math.sign(cosine) * Math.pow(Math.abs(cosine), shapePower);
+            const radialOffset = radialHalfDiagonal * Math.sign(sine) * Math.pow(Math.abs(sine), shapePower);
+            const point = mapPolarPoint(angle + angularOffset, centerRadius + radialOffset);
+            facetContext.lineTo(point.x, point.y);
+          }
+        };
+        for (let index = 0; index < facets; index += 1) {
+          const angle = index * spacing;
+          const shimmer = 1 - config.shimmerAmount + Math.sin(index * 1.83 + facetTime * config.shimmerSpeed) * config.shimmerAmount;
+          const inwardTip = mapPolarPoint(angle, inwardRadius);
 
-        facetContext.beginPath();
-        facetContext.moveTo(inwardTip.x, inwardTip.y);
-        traceFacetQuarter(angle, -Math.PI / 2, 0, innerShapePower, innerHalfDiagonal);
-        traceFacetQuarter(angle, 0, Math.PI / 2, outerShapePower, outerHalfDiagonal);
-        traceFacetQuarter(angle, Math.PI / 2, Math.PI, outerShapePower, outerHalfDiagonal);
-        traceFacetQuarter(angle, Math.PI, Math.PI * 1.5, innerShapePower, innerHalfDiagonal);
-        facetContext.closePath();
-        const colorDrift = Math.sin(time * config.colorDriftSpeed) * config.colorDriftAmount / 360 * TAU;
-        facetContext.fillStyle = tunedColorAt(angle + colorDrift, config.facetOpacity * shimmer * energy, config.colorLift);
-        facetContext.fill();
+          facetContext.beginPath();
+          facetContext.moveTo(inwardTip.x, inwardTip.y);
+          traceFacetQuarter(angle, -Math.PI / 2, 0, innerShapePower, innerHalfDiagonal);
+          traceFacetQuarter(angle, 0, Math.PI / 2, outerShapePower, outerHalfDiagonal);
+          traceFacetQuarter(angle, Math.PI / 2, Math.PI, outerShapePower, outerHalfDiagonal);
+          traceFacetQuarter(angle, Math.PI, Math.PI * 1.5, innerShapePower, innerHalfDiagonal);
+          facetContext.closePath();
+          const colorDrift = Math.sin(facetTime * config.colorDriftSpeed) * config.colorDriftAmount / 360 * TAU;
+          facetContext.fillStyle = tunedColorAt(angle + colorDrift, config.facetOpacity * shimmer * energy, config.colorLift);
+          facetContext.fill();
+        }
       }
       facetContext.restore();
     };
@@ -336,7 +344,6 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const stateSpeed = state === "thinking" ? 1.22 : state === "listening" ? .86 : .54;
       const energy = 1;
       const networkTime = elapsed * stateSpeed;
-      const facetTime = networkTime * config.motionSpeed;
       const centerX = width / 2;
       const centerY = height / 2;
       const radius = Math.min(width, height) / 2;
@@ -344,8 +351,6 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       const networkArtRadius = radius * .76;
       const networkBreath = (Math.sin(networkTime * TAU / 5.8) * .011 + Math.sin(networkTime * TAU / 11.6 + .7) * .004) * breathReach;
       const networkCoreRadius = networkArtRadius * (.635 + networkBreath);
-      const facetArtRadius = radius * config.artScale;
-      const facetBreath = (Math.sin(facetTime * TAU / config.breathPeriod) * .011 + Math.sin(facetTime * TAU / (config.breathPeriod * 2) + .7) * .004) * breathReach * config.breathAmount;
       const compact = Math.min(width, height) < 144;
       const facetInterval = reducedMotion ? Number.POSITIVE_INFINITY : 1000 / (compact ? 18 : 30);
       const networkInterval = reducedMotion
@@ -363,7 +368,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
         lastNetworkFrame = now;
       }
       if (usesFacets && now - lastFacetFrame >= facetInterval) {
-        drawFacets(centerX, centerY, facetArtRadius, facetTime, energy, facetBreath);
+        drawFacets(centerX, centerY, radius, networkTime, energy, breathReach);
         lastFacetFrame = now;
       }
 
@@ -414,7 +419,7 @@ export function LunaAvatar({ label = "Luna", layer = "complete", size = 240, sta
       resizeObserver.disconnect();
       visibilityObserver.disconnect();
     };
-  }, [facetTuning, layer, state]);
+  }, [facetRows, facetTuning, layer, state]);
 
   return <span ref={shellRef} className="luna-avatar" data-state={state} role="img" aria-label={`${label} is ${state}`} style={{ "--luna-avatar-size": `${size}px` } as CSSProperties}><canvas aria-hidden="true" className="luna-avatar-network" ref={networkCanvasRef} /><canvas aria-hidden="true" className="luna-avatar-facets" ref={facetCanvasRef} /></span>;
 }

@@ -110,6 +110,9 @@ test("keeps the Luna avatar code-native, stateful, and motion-aware", async () =
   assert.match(demo, /Inner tip position/);
   assert.match(demo, /Side-tip position/);
   assert.match(demo, /Outer tip position/);
-  assert.match(demo, /The constellation stays untouched/);
+  assert.match(demo, /Overlay inner row/);
+  assert.match(demo, /Copy settings/);
+  assert.match(demo, /diamondRows/);
+  assert.match(avatar, /facetRows/);
   assert.match(design, /code-native living halo/);
 });
