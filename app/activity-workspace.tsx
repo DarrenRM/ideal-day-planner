@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, ChevronDown, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
+import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
@@ -428,7 +428,6 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     return groups;
   }, new Map<string, { key: string; label: string; items: typeof productComponents }>()).values()];
   const selectedRoutineAction = routineActionGroups.find((group) => group.items.some(({ record }) => record.key === selectedProduct?.record.key)) ?? routineActionGroups[0] ?? null;
-  const selectedProductKeys = new Set(selectedRoutineAction?.items.map(({ record }) => record.key) ?? []);
   function routineActionDueLabel(group: typeof routineActionGroups[number]) {
     const labels = group.items.map(({ record }) => productDueLabel(record));
     if (labels.every((label) => label === "Done Today")) return "Done Today";
@@ -525,27 +524,40 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
         <>
           <div className="workspace-stack">
             {hasProductSwitcher ? (
-              <section className="workspace-block subject-overview" aria-label={`${activity.title} products and devices`}>
-                <div className="subject-overview-heading">
-                  <span className="workspace-overline">Overview</span>
-                </div>
-                <div aria-label={`Choose a ${activity.title} step to view`} className="subject-action-list" role="listbox">
+              <section className="workspace-block subject-overview" aria-label={`${activity.title} steps`}>
+                <div aria-label={`Choose a ${activity.title} step to view`} className="subject-action-tabs" role="tablist">
                   {routineActionGroups.map((group) => {
                     const isSelected = group.key === selectedRoutineAction?.key;
                     return <button
+                      aria-controls={`subject-action-panel-${group.key}`}
                       aria-selected={isSelected}
                       className={isSelected ? "is-selected" : ""}
+                      id={`subject-action-tab-${group.key}`}
                       key={group.key}
                       onClick={() => setSelectedProductKey(group.items[0]?.record.key ?? null)}
-                      role="option"
+                      role="tab"
                       type="button"
                     >
                       <span><strong>{group.label}</strong><small>{routineActionDueLabel(group)}</small></span>
-                      <ChevronDown aria-hidden="true" size={17} />
                     </button>;
                   })}
                 </div>
               </section>
+            ) : null}
+            {hasProductSwitcher && selectedRoutineAction ? (
+              <div aria-labelledby={`subject-action-tab-${selectedRoutineAction.key}`} className="subject-action-panel" id={`subject-action-panel-${selectedRoutineAction.key}`} role="tabpanel">
+                {selectedRoutineAction.items.map(({ component, record }) => {
+                  const dataComponent = component as DataWorkspaceComponent;
+                  return <div className="subject-panel" key={component.id}><ActivityRecordComponent
+                    completionDates={productCompletionDates(activity, record.key)}
+                    onMutate={onRecordMutation}
+                    onTalkWithLuna={onTalkWithLuna}
+                    presentation={dataComponent.presentation}
+                    record={record}
+                    supportingRecords={(nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step")}
+                  /></div>;
+                })}
+              </div>
             ) : null}
             {sharedProductRhythm ? (() => {
               const today = localDateKey();
@@ -623,7 +635,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               if (component.type === "routine") return <RoutineComponent component={component} key={component.id} />;
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
-              if (!record || record.type === "product" && hasProductSwitcher && !selectedProductKeys.has(record.key)) return null;
+              if (!record || record.type === "product" && hasProductSwitcher) return null;
               const renderedRecord = <ActivityRecordComponent
                     completionDates={record.type === "product" ? productCompletionDates(activity, record.key) : undefined}
                     onMutate={onRecordMutation}
@@ -633,9 +645,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                     relatedRecords={record.type === "session_log" || record.type === "strength_session" ? records : undefined}
                     supportingRecords={record.type === "product" ? (nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step") : undefined}
                   />;
-              return record.type === "product" && hasProductSwitcher
-                ? <div className="subject-panel" id={`subject-panel-${record.key}`} key={component.id}>{renderedRecord}</div>
-                : <div className="workspace-record-slot" key={component.id}>{renderedRecord}</div>;
+              return <div className="workspace-record-slot" key={component.id}>{renderedRecord}</div>;
             })}
           </div>
           <button className="workspace-luna-invitation" type="button" onClick={onTalkWithLuna}>
