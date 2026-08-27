@@ -470,6 +470,7 @@ test("keeps recurring-step status visible between scheduled dates", async () => 
   assert.doesNotMatch(workspace, /recurringStepIsDue/);
   assert.match(component, /status\.completedThisCycle/);
   assert.match(component, /className="recurring-rhythm-track"/);
+  assert.match(component, /Heading eyebrow="Streak" title=\{cadence\}/);
   assert.match(component, /has-one-value/);
   assert.doesNotMatch(component.match(/function RecurringStepRecord[\s\S]*?\n}/)?.[0] || "", /label="Use"/);
   assert.match(component, /!startsLater && !status\.completedThisCycle/);

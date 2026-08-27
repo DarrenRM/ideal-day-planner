@@ -529,7 +529,7 @@ function RecurringStepRecord({ record, onMutate, completionDates = [], nested = 
   const startsLater = Boolean(!status.lastCompleted && data.anchorDate && data.anchorDate > today);
   const nextValue = status.dueToday ? "Due today" : status.nextDue ? formatActivityRecordDate(status.nextDue) : "Not scheduled";
   return <section className={`${nested ? "product-supporting-section product-rhythm recurring-step-record" : "workspace-block recurring-step-record"}`}>
-    <Heading eyebrow="Rhythm" title={cadence} icon={<CalendarCheck size={15} />} />
+    <Heading eyebrow="Streak" title={cadence} icon={<CalendarCheck size={15} />} />
     <div className="recurring-rhythm-track" aria-label={`${record.title} schedule`}>
       {occurrences.map((occurrence) => <div aria-current={occurrence.state === "next" ? "date" : undefined} className={`recurring-rhythm-step is-${occurrence.state}`} key={occurrence.date} aria-label={`${formatActivityRecordDate(occurrence.date)}${occurrence.state === "complete" ? ", used" : occurrence.state === "next" ? ", next" : ""}`}><span>{occurrence.state === "complete" ? <Check aria-hidden="true" size={12} strokeWidth={3} /> : null}</span><small>{compactOccurrenceDate(occurrence.date)}</small></div>)}
     </div>

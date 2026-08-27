@@ -297,7 +297,7 @@ function ActivityLibrary({ activities, choiceSets, version }: { activities: Acti
 
 function SelectionMap({ catalog, recipes }: { catalog: CatalogEntry[]; recipes: string[] }) {
   const hierarchy = [
-    ["1", "Adherence / streak", "Current rhythm first"],
+    ["1", "Adherence / streak", "Current streak first"],
     ["2", "Recurring step", "Only when its own cadence is due"],
     ["3", "Countdown", "Before the work it times"],
     ["4", "Primary content", "The action or canonical tracker"],
