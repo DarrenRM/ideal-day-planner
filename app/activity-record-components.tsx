@@ -71,7 +71,7 @@ function ProductAbout({ notes, records }: { notes?: string; records: ActivityRec
   const entries = records.flatMap((record) => ((record.data as { entries?: Array<{ id: string; label: string; url: string; note?: string }> }).entries ?? [])
     .map((entry) => ({ ...entry, renderKey: `${record.key}:${entry.id}` })));
   return <details className="product-supporting-section product-about workspace-disclosure">
-    <summary><span className="workspace-overline">About</span><span className="workspace-disclosure-icons"><BookOpen aria-hidden="true" size={15} /><ChevronDown aria-hidden="true" size={15} /></span></summary>
+    <summary><span className="workspace-overline">About</span><ChevronDown aria-hidden="true" size={15} /></summary>
     <div className="workspace-disclosure-body">
       {notes ? <p className="record-description">{notes}</p> : null}
       {entries.length ? <div className="resource-list">{entries.map((entry) => <a href={entry.url} key={entry.renderKey} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div> : null}
@@ -82,8 +82,9 @@ function ProductAbout({ notes, records }: { notes?: string; records: ActivityRec
 function ProtocolContent({ record, onMutate, nested = false }: Props & { nested?: boolean }) {
   const data = record.data as { summary?: string; steps?: Step[] };
   return <details className={`${nested ? "product-supporting-section product-protocol" : "protocol-content"} workspace-disclosure`}>
-    <summary><span className="workspace-disclosure-heading"><span className="workspace-overline">Protocol</span><strong>{record.title}</strong></span><ChevronDown aria-hidden="true" size={15} /></summary>
+    <summary><span className="workspace-overline">Protocol</span><ChevronDown aria-hidden="true" size={15} /></summary>
     <div className="workspace-disclosure-body">
+      <strong className="workspace-disclosure-title">{record.title}</strong>
       {data.summary ? <p className="record-description">{data.summary}</p> : null}
       {data.steps?.length ? <div className="protocol-steps interactive-protocol">{data.steps.map((step, index) => <div className={completedToday(step) ? "is-complete" : ""} key={step.id}>
         <CheckButton checked={completedToday(step)} label={step.label} onClick={() => void onMutate(record.key, "toggle_item", { itemId: step.id })} />
