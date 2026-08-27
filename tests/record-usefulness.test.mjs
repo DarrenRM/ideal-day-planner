@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasMeaningfulProductNotes, hasUsefulActivityRecordData, validateRecordActions } from "../app/activity-record-model.ts";
+import { hasMeaningfulProductNotes, hasUsefulActivityRecordData, productCompositionIssues, productRoutineAction, validateRecordActions } from "../app/activity-record-model.ts";
 import { validateWorkspaceActions } from "../app/workspace-model.ts";
 
 const record = (type, title, data) => ({ type, title, data });
@@ -30,6 +30,34 @@ test("omits relationship-only product notes instead of rendering a hollow About 
     },
   } }]);
   assert.equal(actions[0].record.data.notes, "");
+});
+
+test("separates legacy hair serum and grooming roller actions before generic hair care", () => {
+  assert.equal(productRoutineAction(record("product", "LL-01", {
+    kind: "product", name: "LL-01", variant: "Hair Serum", notes: "Daily scalp serum",
+  })), "Hair Serum");
+  assert.equal(productRoutineAction(record("product", "Scalp Grooming Roller", {
+    kind: "device", name: "Scalp Grooming Roller", notes: "Used on the scalp once weekly",
+  })), "Grooming Roller");
+  assert.equal(productRoutineAction(record("product", "Second serum", {
+    kind: "product", name: "Another serum", routineAction: "Hair Serum",
+  })), "Hair Serum");
+});
+
+test("requires tracked product updates to name an action and own a rhythm", () => {
+  const incomplete = [
+    { key: "new-serum", subjectKey: "new-serum", type: "product", title: "New Serum", data: { kind: "product", name: "New Serum", routineAction: "" } },
+  ];
+  assert.deepEqual(productCompositionIssues(incomplete, ["new-serum"], ["new-serum"]), [
+    { productKey: "new-serum", kind: "missing_routine_action" },
+    { productKey: "new-serum", kind: "missing_subject_rhythm" },
+  ]);
+
+  const complete = [
+    { ...incomplete[0], data: { ...incomplete[0].data, routineAction: "Hair Serum" } },
+    { key: "new-serum-adherence", subjectKey: "new-serum", type: "adherence", title: "New Serum", data: { effectiveDate: "2026-08-27", entries: [] } },
+  ];
+  assert.deepEqual(productCompositionIssues(complete, ["new-serum"], ["new-serum"]), []);
 });
 
 test("rejects a summary that only repeats schedule information", () => {

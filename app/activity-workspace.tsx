@@ -3,7 +3,7 @@
 import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
-import { hasUsefulActivityRecordData, type ActivityRecord } from "./activity-record-model";
+import { hasUsefulActivityRecordData, productRoutineAction, type ActivityRecord } from "./activity-record-model";
 import { hasUsefulRoutineComponent, type CountdownWorkspaceComponent, type DataWorkspaceComponent, type RoutineWorkspaceComponent, type TimerWorkspaceComponent, type WorkspaceDocument } from "./workspace-model";
 import { orderWorkspaceDisplayItems, type WorkspaceDisplayRole } from "./workspace-order";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -114,28 +114,6 @@ function subjectRhythmSignature(record: ActivityRecord) {
   const anchorDate = typeof record.data.anchorDate === "string" ? record.data.anchorDate : "";
   const cadence = record.data.cadence && typeof record.data.cadence === "object" ? record.data.cadence : null;
   return anchorDate && cadence ? `recurring:${anchorDate}:${JSON.stringify(cadence)}` : null;
-}
-
-type ProductIdentity = {
-  kind?: "product" | "device";
-  name?: string;
-  manufacturer?: string;
-  variant?: string;
-  notes?: string;
-  routineAction?: string;
-};
-
-function productRoutineAction(record: ActivityRecord) {
-  const data = record.data as ProductIdentity;
-  if (data.routineAction?.trim()) return data.routineAction.trim();
-  const identity = [data.name, data.manufacturer, data.variant, data.notes, record.title].filter(Boolean).join(" ").toLowerCase();
-  if (/tooth|oral|dental|brightbrush|brisk/.test(identity)) return "Brush teeth";
-  if (/retinol|face serum|facial serum/.test(identity)) return "Face serum";
-  if (/hair|scalp|shampoo|conditioner/.test(identity)) return "Hair care";
-  if (/cleanser|cleansing|soap/.test(identity)) return "Cleanse";
-  if (/moisturi[sz]|face cream|facial cream/.test(identity)) return "Moisturize";
-  if (/razor|shav/.test(identity)) return "Shave";
-  return `Use ${data.name?.trim() || record.title}`;
 }
 
 export type ActivityTimingSnapshot = {

@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillParentCadenceSchedules, backfillProductSubjectRhythms, backfillResearchedProductAbout, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyProductOwnership, migrateLegacyRedLightOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps, requestIdentity } from "../agent-store";
+import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillParentCadenceSchedules, backfillProductSubjectRhythms, backfillResearchedProductAbout, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyHairActionComposition, migrateLegacyProductOwnership, migrateLegacyRedLightOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps, requestIdentity } from "../agent-store";
 import { ensureDayRoles, ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 import { readCaptureAttention } from "../capture-service";
 
@@ -349,6 +349,7 @@ export async function GET(request: Request) {
     await backfillDailySelections(userId);
     await migrateLegacyProductOwnership(userId);
     await migrateLegacyRedLightOwnership(userId);
+    await migrateLegacyHairActionComposition(userId, date);
     await backfillResearchedProductAbout(userId);
     await backfillProductSubjectRhythms(userId, date);
     if (!await hasTemplateItems(userId, templateId)) {

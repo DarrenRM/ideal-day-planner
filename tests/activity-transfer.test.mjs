@@ -85,3 +85,19 @@ test("migrates the legacy Red Light device bundle through explicit ownership", a
   assert.match(store, /entries: resourceEntries\(resources\)\.map\(\(entry\) => \(\{ \.\.\.entry, itemKey: subjectKey \}\)\)/);
   assert.match(dayRoute, /await migrateLegacyRedLightOwnership\(userId\)/);
 });
+
+test("migrates the legacy Hair Routine into separate action tabs and rhythms", async () => {
+  const [store, dayRoute, jobRoute] = await Promise.all([
+    readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(store, /hair-action-composition-v1/);
+  assert.match(store, /routineAction: "Hair Serum"/);
+  assert.match(store, /routineAction: "Grooming Roller"/);
+  assert.match(store, /key: "hair-ll-01-adherence"/);
+  assert.match(store, /completedSubjectKeys: \[\.\.\.new Set\(\[\.\.\.priorKeys, "hair-ll-01"\]\)\]/);
+  assert.match(dayRoute, /await migrateLegacyHairActionComposition\(userId, date\)/);
+  assert.match(jobRoute, /productCompositionIssues/);
+  assert.match(jobRoute, /prospectiveWorkspace/);
+});

@@ -2101,6 +2101,112 @@ const RESEARCHED_PRODUCT_ABOUT_MIGRATION = "researched-product-about-v1";
 
 const RED_LIGHT_DEVICE_OWNERSHIP_MIGRATION = "red-light-device-ownership-v1";
 
+const HAIR_ACTION_COMPOSITION_MIGRATION = "hair-action-composition-v1";
+
+/**
+ * Separates the owner's legacy Hair Routine into the concrete actions that the
+ * product tabs now represent. LL-01 receives only the historical daily runs
+ * that predate this migration; the weekly roller keeps its independent rhythm.
+ */
+export async function migrateLegacyHairActionComposition(userId: string, referenceDate: string) {
+  const db = getD1();
+  const migrationId = `migration:${safeId(userId)}:${HAIR_ACTION_COMPOSITION_MIGRATION}`;
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, HAIR_ACTION_COMPOSITION_MIGRATION).first<{ id: string }>();
+  if (completed) return { applied: false };
+
+  const activity = await db.prepare("SELECT id FROM activities WHERE user_id = ? AND client_key = 'hair-serum' LIMIT 1")
+    .bind(userId).first<{ id: string }>();
+  if (!activity) {
+    await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+      .bind(migrationId, userId, HAIR_ACTION_COMPOSITION_MIGRATION).run();
+    return { applied: false };
+  }
+
+  const records = await readActivityRecords(activity.id, referenceDate);
+  const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  const runRows = (await db.prepare(`
+    SELECT id, plan_date AS planDate, details_json AS detailsJson
+    FROM activity_runs
+    WHERE user_id = ? AND activity_id = ? AND status = 'completed' AND plan_date <= ?
+    ORDER BY plan_date
+  `).bind(userId, activity.id, referenceDate).all<{ id: string; planDate: string; detailsJson: string | null }>()).results;
+  const completedDates = [...new Set(runRows.map((run) => run.planDate))].sort();
+  const actions: RecordAction[] = [];
+
+  const serum = recordsByKey.get("hair-ll-01");
+  if (serum?.type === "product") {
+    actions.push(migratedRecordAction(serum, "hair-ll-01", {
+      data: { ...serum.data, routineAction: "Hair Serum" },
+    }));
+  }
+  const roller = recordsByKey.get("beard-grooming-roller");
+  if (roller?.type === "product") {
+    actions.push(migratedRecordAction(roller, "beard-grooming-roller", {
+      data: { ...roller.data, routineAction: "Grooming Roller" },
+    }));
+  }
+  const rollerProtocol = recordsByKey.get("skin-routine-protocol");
+  if (rollerProtocol?.type === "protocol" && rollerProtocol.subjectKey === "beard-grooming-roller") {
+    actions.push(migratedRecordAction(rollerProtocol, "beard-grooming-roller", { title: "Scalp Grooming Roller protocol" }));
+  }
+  const serumHasRhythm = records.some((record) => record.subjectKey === "hair-ll-01" && (record.type === "adherence" || record.type === "recurring_step"));
+  if (serum?.type === "product" && !serumHasRhythm) {
+    actions.push({ op: "upsert", record: {
+      key: "hair-ll-01-adherence",
+      subjectKey: "hair-ll-01",
+      type: "adherence",
+      title: "LL-01 daily use",
+      scope: "activity",
+      data: {
+        effectiveDate: completedDates[0] ?? referenceDate,
+        entries: completedDates.map((date) => ({ id: `day-${date}`, date, completed: true, note: "" })),
+      },
+    } });
+  }
+  if (actions.length) {
+    await persistRecordActions({ userId, activityId: activity.id, actionId: `${migrationId}:records`, actions });
+  }
+
+  const refreshedRecords = actions.length ? await readActivityRecords(activity.id, referenceDate) : records;
+  const refreshedByKey = new Map(refreshedRecords.map((record) => [record.key, record]));
+  const currentWorkspace = await readActivityWorkspace(activity.id);
+  const workspaceActions: WorkspaceAction[] = [];
+  const desiredComponents = [
+    { id: "hair-ll-01-product", type: "product" as const, title: "LL-01", recordKey: "hair-ll-01", presentation: "featured" as const },
+    { id: "hair-ll-01-adherence", type: "adherence" as const, title: "LL-01 daily use", recordKey: "hair-ll-01-adherence", presentation: "compact" as const },
+    { id: "beard-grooming-roller-product", type: "product" as const, title: "Scalp Grooming Roller", recordKey: "beard-grooming-roller", presentation: "featured" as const },
+  ];
+  for (const desired of desiredComponents) {
+    if (!refreshedByKey.has(desired.recordKey)) continue;
+    const matches = currentWorkspace.document.components.filter((component) => "recordKey" in component && component.recordKey === desired.recordKey);
+    if (!matches.length) workspaceActions.push({ op: "upsert", component: desired });
+    for (const duplicate of matches.slice(1)) workspaceActions.push({ op: "remove", componentId: duplicate.id });
+  }
+  if (workspaceActions.length) {
+    await persistWorkspaceActions({
+      userId,
+      activityId: activity.id,
+      agentJobId: `${migrationId}:workspace`,
+      actions: workspaceActions,
+    });
+  }
+
+  if (serum?.type === "product" && runRows.length) {
+    await db.batch(runRows.map((run) => {
+      let details: Record<string, unknown> = {};
+      try { details = JSON.parse(run.detailsJson || "{}") as Record<string, unknown>; } catch { /* preserve a valid replacement */ }
+      const priorKeys = Array.isArray(details.completedSubjectKeys) ? details.completedSubjectKeys.filter((key): key is string => typeof key === "string") : [];
+      return db.prepare("UPDATE activity_runs SET details_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?")
+        .bind(JSON.stringify({ ...details, completedSubjectKeys: [...new Set([...priorKeys, "hair-ll-01"])] }), run.id, userId);
+    }));
+  }
+
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, HAIR_ACTION_COMPOSITION_MIGRATION).run();
+  return { applied: Boolean(actions.length || workspaceActions.length || runRows.length) };
+}
+
 /**
  * Repairs the owner's legacy Red Light workspace without rebuilding it. The
  * laser cap device remains the subject root, its existing protocol and source

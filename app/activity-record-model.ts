@@ -60,6 +60,63 @@ export type RecordAction =
 
 export type ActivityRecordContent = Pick<ActivityRecord, "type" | "title" | "data"> & Partial<Pick<ActivityRecord, "key" | "subjectKey">>;
 
+export type ProductCompositionIssue = {
+  productKey: string;
+  kind: "missing_routine_action" | "missing_subject_rhythm";
+};
+
+type ProductIdentity = {
+  kind?: "product" | "device";
+  name?: string;
+  manufacturer?: string;
+  variant?: string;
+  notes?: string;
+  routineAction?: string;
+};
+
+export function productRoutineAction(record: ActivityRecordContent) {
+  const data = record.data as ProductIdentity;
+  if (data.routineAction?.trim()) return data.routineAction.trim();
+  const identity = [data.name, data.manufacturer, data.variant, data.notes, record.title].filter(Boolean).join(" ").toLowerCase();
+  if (/tooth|oral|dental|brightbrush|brisk/.test(identity)) return "Brush teeth";
+  if (/retinol|face serum|facial serum/.test(identity)) return "Face serum";
+  if (/(?:grooming).*roller|roller.*(?:grooming)|scalp roller/.test(identity)) return "Grooming Roller";
+  if (/ll-01|(?:hair|scalp).*serum|serum.*(?:hair|scalp)/.test(identity)) return "Hair Serum";
+  if (/hair|scalp|shampoo|conditioner/.test(identity)) return "Hair care";
+  if (/cleanser|cleansing|soap/.test(identity)) return "Cleanse";
+  if (/moisturi[sz]|face cream|facial cream/.test(identity)) return "Moisturize";
+  if (/razor|shav/.test(identity)) return "Shave";
+  return `Use ${data.name?.trim() || record.title}`;
+}
+
+/**
+ * Product cards are tracked routine subjects. A changed product must name the
+ * action tab it belongs to, and a product visible as a card must own its own
+ * cadence/history record instead of borrowing the parent activity's rhythm.
+ */
+export function productCompositionIssues(
+  records: Iterable<ActivityRecordContent>,
+  changedProductKeys: Iterable<string>,
+  trackedProductKeys: Iterable<string>,
+) {
+  const allRecords = [...records];
+  const recordsByKey = new Map(allRecords.flatMap((record) => record.key ? [[record.key, record] as const] : []));
+  const tracked = new Set(trackedProductKeys);
+  const issues: ProductCompositionIssue[] = [];
+  for (const productKey of new Set(changedProductKeys)) {
+    const product = recordsByKey.get(productKey);
+    if (product?.type !== "product") continue;
+    const routineAction = (product.data as ProductIdentity).routineAction;
+    if (!routineAction?.trim()) issues.push({ productKey, kind: "missing_routine_action" });
+    if (tracked.has(productKey) && !allRecords.some((record) => (
+      record.subjectKey === productKey && (record.type === "adherence" || record.type === "recurring_step")
+    ))) {
+      issues.push({ productKey, kind: "missing_subject_rhythm" });
+    }
+  }
+  return issues;
+}
+
 export type ActivityRecordUsefulnessContext = {
   activityTitle?: string;
   plannedDurationMinutes?: number | null;

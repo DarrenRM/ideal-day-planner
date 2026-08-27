@@ -21,8 +21,8 @@ import {
 } from "../../agent-store";
 import { removeParentCadenceRecordActions } from "../../../activity-cadence-guard";
 import { validateActivityMoveActions } from "../../../activity-transfer-model";
-import { hasUsefulActivityRecordData, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
-import { hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
+import { hasUsefulActivityRecordData, productCompositionIssues, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
+import { applyWorkspaceActions, hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
 import { localDateInTimeZone, parseCadence, parseDirectScheduleAction, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
 import { applyDirectScheduleAction, applyOccurrenceAction } from "../../schedule-actions";
 import { readSchedulePatterns } from "../../schedule-store";
@@ -997,6 +997,19 @@ export async function POST(request: Request) {
           plannedDurationMinutes,
         });
       });
+      const changedProductKeys = recordActions.flatMap((action) => action.op === "upsert" && action.record.type === "product" ? [action.record.key] : []);
+      if (changedProductKeys.length) {
+        const currentWorkspace = await readActivityWorkspace(job.activityId, activityVariantId);
+        const prospectiveWorkspace = applyWorkspaceActions(currentWorkspace.document, safeWorkspaceActions);
+        const trackedProductKeys = prospectiveWorkspace.components.flatMap((component) => component.type === "product" ? [component.recordKey] : []);
+        const compositionIssues = productCompositionIssues(availableRecords.values(), changedProductKeys, trackedProductKeys);
+        if (compositionIssues.length) {
+          return Response.json({
+            error: "Each product or device needs a concrete routine action, and each visible product card needs its own adherence or recurring-step rhythm.",
+            issues: compositionIssues,
+          }, { status: 400 });
+        }
+      }
       if (job.kind === "user_message" && !response && !workspaceFollowup && !safeWorkspaceActions.length && !recordActions.length) {
         return Response.json({ error: "A user message requires a Luna response or a workspace follow-up." }, { status: 400 });
       }
