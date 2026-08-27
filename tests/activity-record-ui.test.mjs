@@ -93,6 +93,7 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(component, /<summary><span className="workspace-overline">About<\/span><ChevronDown/);
   assert.match(component, /<summary><span className="workspace-overline">Protocol<\/span><ChevronDown/);
   assert.match(component, /className="workspace-disclosure-title">\{record\.title\}/);
+  assert.match(css, /\.product-about:not\(\[open\]\) \{ margin-bottom: -11px; \}/);
   assert.match(css, /\.product-about \.workspace-disclosure-body \{ padding-bottom: 0; \}/);
   assert.match(component, /eyebrow="Resources"/);
   assert.doesNotMatch(component, /Pinned resources/);
