@@ -117,6 +117,9 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(css, /\.activity-workbench-grid \{[^}]*height: clamp\(420px, calc\(100dvh - 210px\), 680px\)[^}]*overflow: hidden/s);
   assert.match(css, /\.activity-workspace \{[^}]*overflow-y: auto/s);
   assert.match(css, /\.product-heading \{[^}]*justify-content: space-between/s);
+  assert.doesNotMatch(component, /product-rhythm-status/);
+  assert.doesNotMatch(component, /Ready today/);
+  assert.doesNotMatch(css, /\.product-rhythm-status/);
 
   const record = parseActivityRecord({
     id: "product-1",

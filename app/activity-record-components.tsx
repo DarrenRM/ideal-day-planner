@@ -767,7 +767,6 @@ function AdherenceRecord({ record, onMutate, completionDates = [], nested = fals
   }), []);
   if (nested) return <div className="product-supporting-section product-rhythm daily-product-rhythm">
     <StreakTrack ariaLabel={`${record.title} streak`} completedToday={streak.completedToday} count={streak.count} nested />
-    <div className="product-rhythm-status"><span className="workspace-overline">Daily</span><strong>{data.effectiveDate && data.effectiveDate > today ? `Starts ${formatActivityRecordDate(data.effectiveDate)}` : streak.completedToday ? "Done today" : "Ready today"}</strong></div>
   </div>;
   return <section className="workspace-block"><Heading eyebrow="Adherence" title={record.title} />
     <div className="adherence-row">{days.map((day) => { const complete = byDate.get(day.date)?.completed === true; return <div key={day.date}><button aria-label={`${complete ? "Undo" : "Mark"} ${day.date}`} className={complete ? "is-complete" : ""} disabled={day.date !== today} type="button" onClick={() => void onMutate(record.key, "set_adherence", { date: day.date })}>{complete ? <Check size={12} /> : null}</button><small>{day.label}</small></div>; })}</div>

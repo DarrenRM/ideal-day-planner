@@ -1082,8 +1082,6 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .product-about .record-description:last-child { margin-bottom: 0; }
 .product-rhythm .activity-streak { background: transparent; border: 0; border-radius: 0; padding: 0; }
 .product-rhythm > .workspace-block-heading { margin-top: 14px; }
-.product-rhythm-status { align-items: center; display: flex; justify-content: space-between; margin-top: 11px; }
-.product-rhythm-status strong { color: color-mix(in srgb, var(--item-color) 72%, #dce4dd); font-size: var(--type-micro); font-weight: 620; }
 .protocol-steps { display: grid; gap: 7px; }
 .protocol-steps > div { align-items: center; display: grid; gap: 8px; grid-template-columns: 17px minmax(0, 1fr); }
 .protocol-steps span { align-items: center; border: 1px solid color-mix(in srgb, var(--item-color) 24%, #343d3e); border-radius: 50%; color: #8e9993; display: flex; font-size: var(--type-micro); height: 17px; justify-content: center; }
