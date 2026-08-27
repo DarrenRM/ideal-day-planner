@@ -165,7 +165,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(drawer, /const isOpen = canCollapse \? preferredOpen : true/);
   assert.match(drawer, /isPreferenceReady/);
   assert.match(page, /if \(clockCurrentItem\) setDismissedClockActivityId\(clockCurrentItem\.id\)/);
-  assert.match(page, /"Connected"/);
+  assert.match(page, /Notes &amp; Assistant/);
+  assert.doesNotMatch(page, /conversation-status/);
   assert.match(page, /conversationAnchorTopRef/);
   assert.match(page, /useLayoutEffect/);
   assert.match(page, /scheduleRefresh\(Boolean\(state\.activeJob\)\)/);
@@ -186,7 +187,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /Permanent activity thread/);
   assert.doesNotMatch(page, /Luna is joining/);
   assert.match(page, /agentSurfaceState\(activeJob\?\.kind\)/);
-  assert.match(page, /conversationStatusLabel/);
+  assert.doesNotMatch(page, /conversationStatusLabel/);
   assert.doesNotMatch(page, /activeJob\?\.kind === "activity_setup" \|\| activeJob\?\.kind === "workspace_refresh"/);
   assert.doesNotMatch(page, /Done — I added oranges to your breakfast list/);
   assert.doesNotMatch(page, /maps cleanly to an approved component/);

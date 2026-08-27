@@ -451,15 +451,6 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const workspaceWorkDetail = workspaceWorkState === "waiting"
     ? "Your message is saved, and Luna will pick it up shortly."
     : activeJob?.progressDetail || "Turning your latest details into something useful here.";
-  const conversationStatusLabel = isSending
-    ? "Luna is thinking…"
-    : connectionState === "error" || (activeJob && !activeJobHasWorker)
-      ? "Luna will catch up"
-      : isLunaThinking
-        ? "Luna is thinking…"
-        : workspaceWorkState
-          ? "Working"
-          : "Connected";
   const workspaceActivity = useMemo(() => ({ ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns }), [isComplete, isPreviewingCompletion, item, recentRuns, timelineEnabled]);
   const ReceiptIcon = activityIconFor(item);
   const hasUnreadWorkReceipt = artifacts.some((artifact) => !artifact.viewedAt);
@@ -1015,9 +1006,8 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               onPointerDown={conversationDrawer.handlePointerDown}
               onPointerUp={conversationDrawer.handlePointerUp}
             >
-              <strong>Notes & conversation</strong>
+              <strong>Notes &amp; Assistant</strong>
               <span className="conversation-drawer-state">
-                <span className={`conversation-status ${connectionState === "ready" && (!activeJob || activeJobHasWorker) ? "is-prototype" : ""}`}><span /> {conversationStatusLabel}</span>
                 {conversationDrawer.hasUnreadLuna || hasUnreadWorkReceipt ? <span className="conversation-unread-badge" aria-label="New from Luna">New</span> : null}
                 <ChevronDown className="conversation-drawer-chevron" aria-hidden="true" size={17} />
               </span>

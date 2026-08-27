@@ -210,12 +210,16 @@ test("layers the mobile conversation drawer over actions and shares its handle w
   assert.match(css, /\.activity-expansion \{[^}]*grid-template-rows: minmax\(0, 1fr\) auto var\(--conversation-dock-height\)/s);
   assert.match(css, /\.activity-footer \{[^}]*grid-row: 2;[^}]*z-index: 4;/s);
   assert.match(css, /\.activity-conversation \{[^}]*z-index: 10;/s);
+  assert.match(css, /\.activity-conversation > header \{ background: var\(--accent\);[^}]*border-bottom-color: var\(--accent-bright\);/s);
+  assert.match(css, /\.conversation-drawer-toggle > strong \{ color: var\(--accent-ink\);[^}]*font-weight: 760;/s);
+  assert.match(css, /\.conversation-unread-badge \{[^}]*background: var\(--accent-ink\);[^}]*color: var\(--accent\);/s);
   assert.match(css, /\.activity-expansion\.is-opening-activity \{ grid-template-rows: minmax\(0, 1fr\) auto; \}/);
   assert.match(page, /className="global-luna-dock"/);
   assert.match(page, /aria-expanded=\{isGlobalLunaOpen\}/);
   assert.match(page, /\{hasLoaded && !expandedActivityId \? \(/);
   assert.doesNotMatch(page, /\{isGlobalLunaOpen \? <GlobalLuna/);
   assert.match(page, /Notes &amp; Assistant/);
+  assert.doesNotMatch(page, /conversation-status/);
   assert.match(globalLuna, /aria-hidden=\{!open\}/);
   assert.match(globalLuna, /inert=\{!open\}/);
   assert.match(globalLuna, /global-luna-backdrop \$\{open \? "is-visible" : ""\}/);
