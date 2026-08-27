@@ -122,6 +122,16 @@ export function isPlaceholderActivityText(value: unknown) {
   return !text || /\b(not yet (specified|known|documented)|details? (are )?(not yet specified|needed|unknown)|still need(ed)?|to be determined|tbd|before (creating|building)|need to (ask|confirm|learn))\b/.test(text);
 }
 
+export function hasMeaningfulProductNotes(value: unknown) {
+  const text = boundedString(value, 800);
+  if (!text || isPlaceholderActivityText(text)) return false;
+  const normalized = normalizedText(text);
+  return !(
+    /^(?:this (?:product|device|item) (?:is )?)?used\b.{0,160}\bas part of\b.{0,120}$/.test(normalized)
+    || /^(?:part of|for use in|used in|used for)\b.{0,120}\b(?:routine|activity)\b/.test(normalized)
+  );
+}
+
 export function hasUsefulActivityRecordData(record: ActivityRecordContent, context: ActivityRecordUsefulnessContext = {}) {
   const data = record.data;
   const activityTitle = normalizedText(context.activityTitle);
@@ -201,12 +211,13 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
   if (type === "product") {
     const name = boundedString(source.name, 160);
     if (!name) return null;
+    const notes = boundedString(source.notes, 800);
     return {
       kind: source.kind === "device" ? "device" : "product",
       name,
       manufacturer: boundedString(source.manufacturer, 160),
       variant: boundedString(source.variant, 200),
-      notes: boundedString(source.notes, 800),
+      notes: hasMeaningfulProductNotes(notes) ? notes : "",
       routineAction: boundedString(source.routineAction, 120),
     };
   }

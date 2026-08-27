@@ -4,7 +4,7 @@ export const CATALOG_VERSION = "workspace-catalog-v13";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Stable decision-relevant facts that have no natural home in a more specific component; never a restatement of the activity title, purpose, modality, or schedule", "summary, fields[{label,value}]"],
-  ["product", "One named product or device identity card and subject root", "subjectKey(same as record key); kind(product|device), name, manufacturer, variant, notes, routineAction(the concrete activity step this item supports, such as Brush teeth)"],
+  ["product", "One named product or device identity card and subject root", "subjectKey(same as record key); kind(product|device), name, manufacturer, variant, notes(product-specific facts only; omit relationship-only filler), routineAction(the concrete activity step this item supports, such as Brush teeth)"],
   ["protocol", "Repeatable ordered instructions", "either optional subjectKey for a product/device, or workoutRecordKey plus phase(warmup|cooldown) for an explicitly linked workout phase; summary, steps[{id,label,note,completed}]"],
   ["checklist", "Repeatable actions to check during the current activity", "items[{id,label,detail,completed}]"],
   ["item_list", "Open shopping, queue, inventory, or supply items", "items[{id,label,detail,completed,urgency,source}]"],

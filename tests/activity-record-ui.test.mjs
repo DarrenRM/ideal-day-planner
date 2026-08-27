@@ -88,10 +88,12 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(productRenderer, /<span className="product-mark">/);
   assert.match(productRenderer, /data\.kind === "device" \? Wrench : Package/);
   assert.match(component, /function ProductAbout/);
+  assert.match(component, /hasMeaningfulProductNotes\(data\.notes\)/);
   assert.match(component, /className="workspace-overline">About/);
   assert.match(component, /<summary><span className="workspace-overline">About<\/span><ChevronDown/);
   assert.match(component, /<summary><span className="workspace-overline">Protocol<\/span><ChevronDown/);
   assert.match(component, /className="workspace-disclosure-title">\{record\.title\}/);
+  assert.match(css, /\.product-about \.workspace-disclosure-body \{ padding-bottom: 0; \}/);
   assert.match(component, /eyebrow="Resources"/);
   assert.doesNotMatch(component, /Pinned resources/);
   assert.match(workspace, /nestedSupportingComponents/);

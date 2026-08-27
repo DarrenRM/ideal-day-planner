@@ -3,7 +3,7 @@
 import { AlertTriangle, BookOpen, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Utensils, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
-import type { ActivityRecord } from "./activity-record-model";
+import { hasMeaningfulProductNotes, type ActivityRecord } from "./activity-record-model";
 import { previousDateKey, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
 import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
 import { recurringCadenceDescription, recurringOccurrenceDates, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
@@ -56,14 +56,15 @@ function ProductRecord({ record, onMutate, supportingRecords = [], completionDat
   const identityDetail = [data.manufacturer, data.variant].filter(Boolean).join(" · ");
   const detailRecords = supportingRecords.filter((supportingRecord) => supportingRecord.type !== "resources");
   const resourceRecords = supportingRecords.filter((supportingRecord) => supportingRecord.type === "resources");
+  const aboutNotes = hasMeaningfulProductNotes(data.notes) ? data.notes : undefined;
   const IdentityIcon = data.kind === "device" ? Wrench : Package;
   return <section className="workspace-block protocol-block product-record">
     <div className="product-heading"><div><small className="workspace-overline">{kindLabel}</small><strong>{data.name}</strong>{identityDetail ? <span>{identityDetail}</span> : null}</div><span className="product-mark"><IdentityIcon size={16} /></span></div>
-    {detailRecords.length || resourceRecords.length || data.notes ? <div className="product-supporting-records">{detailRecords.map((supportingRecord) => supportingRecord.type === "adherence"
+    {detailRecords.length || resourceRecords.length || aboutNotes ? <div className="product-supporting-records">{detailRecords.map((supportingRecord) => supportingRecord.type === "adherence"
       ? <AdherenceRecord completionDates={completionDates} key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
       : supportingRecord.type === "recurring_step" ? <RecurringStepRecord completionDates={completionDates} key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
       : supportingRecord.type === "protocol" ? <ProtocolContent key={supportingRecord.id} nested onMutate={onMutate} record={supportingRecord} />
-      : null)}{data.notes || resourceRecords.length ? <ProductAbout notes={data.notes} records={resourceRecords} /> : null}</div> : null}
+      : null)}{aboutNotes || resourceRecords.length ? <ProductAbout notes={aboutNotes} records={resourceRecords} /> : null}</div> : null}
   </section>;
 }
 

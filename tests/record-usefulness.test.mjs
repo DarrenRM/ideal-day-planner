@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasUsefulActivityRecordData, validateRecordActions } from "../app/activity-record-model.ts";
+import { hasMeaningfulProductNotes, hasUsefulActivityRecordData, validateRecordActions } from "../app/activity-record-model.ts";
 import { validateWorkspaceActions } from "../app/workspace-model.ts";
 
 const record = (type, title, data) => ({ type, title, data });
@@ -17,6 +17,19 @@ test("rejects hollow domain records", () => {
   assert.equal(hasUsefulActivityRecordData(record("metric", "Weight", { label: "Weight", current: null, target: null, entries: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("session_log", "Cardio session", { fields: [], entries: [] })), false);
   assert.equal(hasUsefulActivityRecordData(record("strength_session", "Lift sessions", { workoutRecordKey: "" })), false);
+});
+
+test("omits relationship-only product notes instead of rendering a hollow About section", () => {
+  assert.equal(hasMeaningfulProductNotes("Used as part of the bed routine."), false);
+  assert.equal(hasMeaningfulProductNotes("Used on the scalp as part of Hair Routine."), false);
+  assert.equal(hasMeaningfulProductNotes("A fluoride-free toothpaste tablet made with 5% nano-hydroxyapatite."), true);
+
+  const actions = validateRecordActions([{ op: "upsert", record: {
+    key: "toothpaste", type: "product", title: "Toothpaste", scope: "activity", data: {
+      kind: "product", name: "Toothpaste", notes: "Used as part of the bed routine.",
+    },
+  } }]);
+  assert.equal(actions[0].record.data.notes, "");
 });
 
 test("rejects a summary that only repeats schedule information", () => {

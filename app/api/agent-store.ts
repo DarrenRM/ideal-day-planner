@@ -1,5 +1,5 @@
 import { getD1 } from "../../db";
-import { parseActivityRecord, validateRecordActions, type ActivityRecord as PersistedActivityRecord, type RecordAction } from "../activity-record-model";
+import { hasMeaningfulProductNotes, parseActivityRecord, validateRecordActions, type ActivityRecord as PersistedActivityRecord, type RecordAction } from "../activity-record-model";
 import { activitySetupKey, activitySetupKeyMatches } from "../activity-setup-policy";
 import { resolveSubjectMoveRecordKeys } from "../activity-transfer-model";
 import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type WorkspaceAction, type WorkspaceDocument } from "../workspace-model";
@@ -2095,6 +2095,171 @@ export async function migrateLegacyProductOwnership(userId: string) {
   await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
     .bind(migrationId, userId, PRODUCT_SUBJECT_OWNERSHIP_MIGRATION).run();
   return { applied: true };
+}
+
+const RESEARCHED_PRODUCT_ABOUT_MIGRATION = "researched-product-about-v1";
+
+export async function backfillResearchedProductAbout(userId: string) {
+  const db = getD1();
+  const migrationId = `migration:${safeId(userId)}:${RESEARCHED_PRODUCT_ABOUT_MIGRATION}`;
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, RESEARCHED_PRODUCT_ABOUT_MIGRATION).first<{ id: string }>();
+  if (completed) return { applied: false };
+
+  const activityRows = await db.prepare(`
+    SELECT DISTINCT activity_id AS activityId
+    FROM activity_records
+    WHERE user_id = ? AND archived_at IS NULL
+      AND record_key IN ('brisk-toothpaste', 'brightbrush-electric-toothbrush')
+  `).bind(userId).all<{ activityId: string }>();
+
+  let applied = false;
+  for (const { activityId } of activityRows.results) {
+    const records = await readActivityRecords(activityId);
+    const recordsByKey = new Map(records.map((record) => [record.key, record]));
+    const actions: RecordAction[] = [];
+
+    const brisk = recordsByKey.get("brisk-toothpaste");
+    if (brisk?.type === "product") {
+      actions.push(migratedRecordAction(brisk, "brisk-toothpaste", {
+        title: "Brisk Toothpaste Tablets",
+        data: {
+          ...brisk.data,
+          kind: "product",
+          name: "Brisk Toothpaste Tablets",
+          manufacturer: String(brisk.data.manufacturer || "Brisk"),
+          variant: String(brisk.data.variant || "5% nano-hydroxyapatite"),
+          notes: hasMeaningfulProductNotes(brisk.data.notes)
+            ? brisk.data.notes
+            : "Fluoride-free toothpaste tablets formulated with 5% nano-hydroxyapatite; each tablet is one premeasured dose.",
+          routineAction: String(brisk.data.routineAction || "Brush teeth"),
+        },
+      }));
+      const protocol = recordsByKey.get("brisk-toothpaste-protocol");
+      if (protocol?.type === "protocol") {
+        actions.push(migratedRecordAction(protocol, "brisk-toothpaste", {
+          data: {
+            summary: "Chew one tablet until it forms a paste, then brush as you would with traditional toothpaste.",
+            steps: [
+              { id: "chew-tablet", label: "Chew one tablet until it forms a paste", note: "", completed: false, completedDates: [] },
+              { id: "brush-teeth", label: "Brush teeth normally", note: "", completed: false, completedDates: [] },
+            ],
+          },
+        }));
+      }
+      const resources = recordsByKey.get("brisk-toothpaste-resources") ?? {
+        id: "migration-placeholder",
+        key: "brisk-toothpaste-resources",
+        subjectKey: "brisk-toothpaste",
+        type: "resources" as const,
+        title: "Brisk Toothpaste Resources",
+        scope: "activity" as const,
+        scopeDate: null,
+        version: 0,
+        data: {},
+        updatedAt: "",
+      };
+      const resourceMap = new Map(resourceEntries(resources).map((entry) => [String(entry.id || ""), entry]));
+      resourceMap.set("official-product", {
+        id: "official-product",
+        itemKey: "brisk-toothpaste",
+        label: "Official Brisk product information",
+        url: "https://brisktabs.example/products/brisk-toothpaste-tablets",
+        note: "Formula, ingredients, and directions from Brisk.",
+      });
+      actions.push(migratedRecordAction(resources, "brisk-toothpaste", { data: { entries: [...resourceMap.values()] } }));
+    }
+
+    const brightbrush = recordsByKey.get("brightbrush-electric-toothbrush");
+    if (brightbrush?.type === "product") {
+      actions.push(migratedRecordAction(brightbrush, "brightbrush-electric-toothbrush", {
+        data: {
+          ...brightbrush.data,
+          kind: "device",
+          name: "Brightbrush Electric Toothbrush",
+          manufacturer: String(brightbrush.data.manufacturer || "Brightbrush"),
+          notes: hasMeaningfulProductNotes(brightbrush.data.notes)
+            ? brightbrush.data.notes
+            : "A U-shaped sonic toothbrush with nylon bristles that cleans all tooth surfaces at once; it needs a light bite and guided motion rather than being held still.",
+          routineAction: String(brightbrush.data.routineAction || "Brush teeth"),
+        },
+      }));
+      const protocol = recordsByKey.get("brightbrush-electric-toothbrush-protocol");
+      if (protocol?.type === "protocol") {
+        actions.push(migratedRecordAction(protocol, "brightbrush-electric-toothbrush", {
+          data: {
+            summary: "Bite lightly and keep the Brightbrush moving so its bristles reach the gumline and back teeth.",
+            steps: [
+              { id: "bite-lightly", label: "Bite lightly into the mouthpiece", note: "Do not clamp down.", completed: false, completedDates: [] },
+              { id: "guide-brush", label: "Guide it side-to-side or in a figure-eight", note: "The brush is not hands-free.", completed: false, completedDates: [] },
+              { id: "rinse-and-dry", label: "Rinse and let the brush head dry", note: "", completed: false, completedDates: [] },
+            ],
+          },
+        }));
+      }
+      const resources = recordsByKey.get("brightbrush-electric-toothbrush-resources") ?? {
+        id: "migration-placeholder",
+        key: "brightbrush-electric-toothbrush-resources",
+        subjectKey: "brightbrush-electric-toothbrush",
+        type: "resources" as const,
+        title: "Brightbrush Resources",
+        scope: "activity" as const,
+        scopeDate: null,
+        version: 0,
+        data: {},
+        updatedAt: "",
+      };
+      const resourceMap = new Map(resourceEntries(resources).map((entry) => [String(entry.id || ""), entry]));
+      resourceMap.set("official-guide", {
+        id: "official-guide",
+        itemKey: "brightbrush-electric-toothbrush",
+        label: "Official Brightbrush use and care guide",
+        url: "https://brightbrush.example/en-US",
+        note: "Official technique, modes, fit, and care guidance.",
+      });
+      resourceMap.set("ada-acceptance", {
+        id: "ada-acceptance",
+        itemKey: "brightbrush-electric-toothbrush",
+        label: "ADA Seal of Acceptance",
+        url: "https://brightbrush.example/ada-seal",
+        note: "Independent product-series acceptance details.",
+      });
+      actions.push(migratedRecordAction(resources, "brightbrush-electric-toothbrush", { data: { entries: [...resourceMap.values()] } }));
+    }
+
+    if (!actions.length) continue;
+    await persistRecordActions({
+      userId,
+      activityId,
+      actionId: `${migrationId}:${safeId(activityId)}:records`,
+      sourceAgentJobId: migrationId,
+      actions,
+    });
+
+    const refreshed = await readActivityRecords(activityId);
+    const currentWorkspace = await readActivityWorkspace(activityId);
+    const workspaceActions: WorkspaceAction[] = [];
+    for (const key of ["brisk-toothpaste-resources", "brightbrush-electric-toothbrush-resources"]) {
+      const resource = refreshed.find((record) => record.key === key);
+      if (!resource) continue;
+      const matches = currentWorkspace.document.components.filter((component) => "recordKey" in component && component.recordKey === key);
+      if (!matches.length) workspaceActions.push({ op: "upsert", component: { id: key, type: "resources", title: resource.title, recordKey: key, presentation: "compact" } });
+      for (const duplicate of matches.slice(1)) workspaceActions.push({ op: "remove", componentId: duplicate.id });
+    }
+    if (workspaceActions.length) {
+      await persistWorkspaceActions({
+        userId,
+        activityId,
+        agentJobId: `${migrationId}:${safeId(activityId)}:workspace`,
+        actions: workspaceActions,
+      });
+    }
+    applied = true;
+  }
+
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, RESEARCHED_PRODUCT_ABOUT_MIGRATION).run();
+  return { applied };
 }
 
 const PRODUCT_SUBJECT_RHYTHMS_MIGRATION = "product-subject-rhythms-v2";

@@ -1077,7 +1077,9 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .product-supporting-section.workspace-disclosure { padding-top: 0; }
 .product-supporting-section + .product-supporting-section.workspace-disclosure { margin-top: 16px; }
 .product-supporting-section.workspace-disclosure + .product-supporting-section { margin-top: 0; }
+.product-about .workspace-disclosure-body { padding-bottom: 0; }
 .product-about .record-description { margin-bottom: 10px; }
+.product-about .record-description:last-child { margin-bottom: 0; }
 .product-rhythm .activity-streak { background: transparent; border: 0; border-radius: 0; padding: 0; }
 .product-rhythm > .workspace-block-heading { margin-top: 14px; }
 .product-rhythm-status { align-items: center; display: flex; justify-content: space-between; margin-top: 11px; }
