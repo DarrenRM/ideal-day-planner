@@ -70,23 +70,27 @@ function ProductRecord({ record, onMutate, supportingRecords = [], completionDat
 function ProductAbout({ notes, records }: { notes?: string; records: ActivityRecord[] }) {
   const entries = records.flatMap((record) => ((record.data as { entries?: Array<{ id: string; label: string; url: string; note?: string }> }).entries ?? [])
     .map((entry) => ({ ...entry, renderKey: `${record.key}:${entry.id}` })));
-  return <div className="product-supporting-section product-about">
-    <div className="product-about-heading"><span className="workspace-overline">About</span><BookOpen aria-hidden="true" size={15} /></div>
-    {notes ? <p className="record-description">{notes}</p> : null}
-    {entries.length ? <div className="resource-list">{entries.map((entry) => <a href={entry.url} key={entry.renderKey} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div> : null}
-  </div>;
+  return <details className="product-supporting-section product-about workspace-disclosure">
+    <summary><span className="workspace-overline">About</span><span className="workspace-disclosure-icons"><BookOpen aria-hidden="true" size={15} /><ChevronDown aria-hidden="true" size={15} /></span></summary>
+    <div className="workspace-disclosure-body">
+      {notes ? <p className="record-description">{notes}</p> : null}
+      {entries.length ? <div className="resource-list">{entries.map((entry) => <a href={entry.url} key={entry.renderKey} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div> : null}
+    </div>
+  </details>;
 }
 
 function ProtocolContent({ record, onMutate, nested = false }: Props & { nested?: boolean }) {
   const data = record.data as { summary?: string; steps?: Step[] };
-  return <div className={nested ? "product-supporting-section product-protocol" : "protocol-content"}>
-    <Heading eyebrow="Protocol" title={record.title} />
-    {data.summary ? <p className="record-description">{data.summary}</p> : null}
-    {data.steps?.length ? <div className="protocol-steps interactive-protocol">{data.steps.map((step, index) => <div className={completedToday(step) ? "is-complete" : ""} key={step.id}>
-      <CheckButton checked={completedToday(step)} label={step.label} onClick={() => void onMutate(record.key, "toggle_item", { itemId: step.id })} />
-      <p><b>{index + 1}.</b> {step.label}{step.note ? <small>{step.note}</small> : null}</p>
-    </div>)}</div> : <EmptyLine>Add the known steps when the routine is clear.</EmptyLine>}
-  </div>;
+  return <details className={`${nested ? "product-supporting-section product-protocol" : "protocol-content"} workspace-disclosure`}>
+    <summary><span className="workspace-disclosure-heading"><span className="workspace-overline">Protocol</span><strong>{record.title}</strong></span><ChevronDown aria-hidden="true" size={15} /></summary>
+    <div className="workspace-disclosure-body">
+      {data.summary ? <p className="record-description">{data.summary}</p> : null}
+      {data.steps?.length ? <div className="protocol-steps interactive-protocol">{data.steps.map((step, index) => <div className={completedToday(step) ? "is-complete" : ""} key={step.id}>
+        <CheckButton checked={completedToday(step)} label={step.label} onClick={() => void onMutate(record.key, "toggle_item", { itemId: step.id })} />
+        <p><b>{index + 1}.</b> {step.label}{step.note ? <small>{step.note}</small> : null}</p>
+      </div>)}</div> : <EmptyLine>Add the known steps when the routine is clear.</EmptyLine>}
+    </div>
+  </details>;
 }
 
 function ProtocolRecord(props: Props) {
