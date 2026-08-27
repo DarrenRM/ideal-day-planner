@@ -2099,6 +2099,66 @@ export async function migrateLegacyProductOwnership(userId: string) {
 
 const RESEARCHED_PRODUCT_ABOUT_MIGRATION = "researched-product-about-v1";
 
+const RED_LIGHT_DEVICE_OWNERSHIP_MIGRATION = "red-light-device-ownership-v1";
+
+/**
+ * Repairs the owner's legacy Red Light workspace without rebuilding it. The
+ * laser cap device remains the subject root, its existing protocol and source
+ * become explicit children, and peer components such as the countdown remain
+ * untouched in the current workspace revision.
+ */
+export async function migrateLegacyRedLightOwnership(userId: string) {
+  const db = getD1();
+  const migrationId = `migration:${safeId(userId)}:${RED_LIGHT_DEVICE_OWNERSHIP_MIGRATION}`;
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(userId, RED_LIGHT_DEVICE_OWNERSHIP_MIGRATION).first<{ id: string }>();
+  if (completed) return { applied: false };
+
+  const activity = await db.prepare("SELECT id FROM activities WHERE user_id = ? AND client_key = 'red-light' LIMIT 1")
+    .bind(userId).first<{ id: string }>();
+  if (!activity) {
+    await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+      .bind(migrationId, userId, RED_LIGHT_DEVICE_OWNERSHIP_MIGRATION).run();
+    return { applied: false };
+  }
+
+  const subjectKey = "red-light-laser-cap";
+  const records = await readActivityRecords(activity.id);
+  const recordsByKey = new Map(records.map((record) => [record.key, record]));
+  const root = recordsByKey.get(subjectKey);
+  const actions: RecordAction[] = [];
+
+  if (root?.type === "product") actions.push(migratedRecordAction(root, subjectKey));
+
+  const protocol = recordsByKey.get("red-light-laser-cap-protocol");
+  if (protocol?.type === "protocol" && (!protocol.subjectKey || protocol.subjectKey === subjectKey)) {
+    actions.push(migratedRecordAction(protocol, subjectKey));
+  }
+
+  const resources = recordsByKey.get("red-light-laser-cap-source");
+  if (resources?.type === "resources" && (!resources.subjectKey || resources.subjectKey === subjectKey)) {
+    actions.push(migratedRecordAction(resources, subjectKey, {
+      data: {
+        ...resources.data,
+        entries: resourceEntries(resources).map((entry) => ({ ...entry, itemKey: subjectKey })),
+      },
+    }));
+  }
+
+  if (root?.type === "product" && actions.length) {
+    await persistRecordActions({
+      userId,
+      activityId: activity.id,
+      actionId: `${migrationId}:records`,
+      actions,
+    });
+  }
+
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, userId, RED_LIGHT_DEVICE_OWNERSHIP_MIGRATION).run();
+  return { applied: Boolean(root?.type === "product" && actions.length) };
+}
+
 export async function backfillResearchedProductAbout(userId: string) {
   const db = getD1();
   const migrationId = `migration:${safeId(userId)}:${RESEARCHED_PRODUCT_ABOUT_MIGRATION}`;

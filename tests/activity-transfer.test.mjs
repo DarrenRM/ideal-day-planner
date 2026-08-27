@@ -71,3 +71,17 @@ test("later writes keep the durable id of a record that moved activities", async
   assert.match(store, /const persistedRecordId = current\?\.id \?\? recordId/);
   assert.match(store, /revisionId, persistedRecordId, nextVersion/);
 });
+
+test("migrates the legacy Red Light device bundle through explicit ownership", async () => {
+  const [store, dayRoute] = await Promise.all([
+    readFile(new URL("../app/api/agent-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(store, /red-light-device-ownership-v1/);
+  assert.match(store, /client_key = 'red-light'/);
+  assert.match(store, /const subjectKey = "red-light-laser-cap"/);
+  assert.match(store, /red-light-laser-cap-protocol/);
+  assert.match(store, /red-light-laser-cap-source/);
+  assert.match(store, /entries: resourceEntries\(resources\)\.map\(\(entry\) => \(\{ \.\.\.entry, itemKey: subjectKey \}\)\)/);
+  assert.match(dayRoute, /await migrateLegacyRedLightOwnership\(userId\)/);
+});
