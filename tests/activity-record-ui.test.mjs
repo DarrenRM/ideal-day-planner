@@ -102,6 +102,9 @@ test("keeps product cards focused on identity instead of generated subfields", a
   assert.match(workspace, /role="tab"/);
   assert.match(workspace, /role="tabpanel"/);
   assert.match(workspace, /productDueLabel\(record\)/);
+  assert.match(workspace, /productHasDailyRhythm\(record\)/);
+  assert.match(workspace, /\.sort\(\(left, right\) => Number\(right\.items\.some/);
+  assert.doesNotMatch(workspace, /`Due \$\{formatScheduleOccurrenceDate/);
   assert.doesNotMatch(workspace, /productComponents\.length} items/);
   assert.match(workspace, /record\.type === "product" && hasProductSwitcher/);
   assert.match(css, /\.subject-action-tabs > button \{[^}]*flex: 1 0 126px;[^}]*min-height: 54px;[^}]*text-align: center/s);
@@ -136,6 +139,19 @@ test("keeps product cards focused on identity instead of generated subfields", a
     notes: "",
     routineAction: "Apply hair treatment",
   });
+});
+
+test("collapses a completed recurring cycle into the last-used value", async () => {
+  const [component, css] = await Promise.all([
+    readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  const recurringRenderer = component.match(/function RecurringStepRecord[\s\S]*?\n}/)?.[0] || "";
+  assert.match(recurringRenderer, /className=\{status\.completedThisCycle \? "is-complete" : ""\}/);
+  assert.match(recurringRenderer, /className="recurring-last-used-value"/);
+  assert.match(recurringRenderer, /!startsLater && !status\.completedThisCycle/);
+  assert.doesNotMatch(recurringRenderer, /Used this cycle/);
+  assert.match(css, /\.recurring-step-status strong\.is-complete, \.recurring-last-used-value/);
 });
 
 test("preserves explicit resource ownership at both record and entry level", () => {
@@ -456,5 +472,6 @@ test("keeps recurring-step status visible between scheduled dates", async () => 
   assert.match(component, /className="recurring-rhythm-track"/);
   assert.match(component, /has-one-value/);
   assert.doesNotMatch(component.match(/function RecurringStepRecord[\s\S]*?\n}/)?.[0] || "", /label="Use"/);
-  assert.match(component, /disabled=\{completionLocked\}/);
+  assert.match(component, /!startsLater && !status\.completedThisCycle/);
+  assert.doesNotMatch(component, /completionLocked/);
 });

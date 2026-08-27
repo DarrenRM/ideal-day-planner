@@ -524,17 +524,18 @@ function RecurringStepRecord({ record, onMutate, completionDates = [], nested = 
   const lastValue = status.completedToday ? "Today" : status.lastCompleted ? formatActivityRecordDate(status.lastCompleted) : null;
   const startsLater = Boolean(!status.lastCompleted && data.anchorDate && data.anchorDate > today);
   const nextValue = status.dueToday ? "Due today" : status.nextDue ? formatActivityRecordDate(status.nextDue) : "Not scheduled";
-  const completionLocked = status.completedThisCycle && !status.completedToday;
   return <section className={`${nested ? "product-supporting-section product-rhythm recurring-step-record" : "workspace-block recurring-step-record"}`}>
     <Heading eyebrow="Rhythm" title={cadence} icon={<CalendarCheck size={15} />} />
     <div className="recurring-rhythm-track" aria-label={`${record.title} schedule`}>
       {occurrences.map((occurrence) => <div aria-current={occurrence.state === "next" ? "date" : undefined} className={`recurring-rhythm-step is-${occurrence.state}`} key={occurrence.date} aria-label={`${formatActivityRecordDate(occurrence.date)}${occurrence.state === "complete" ? ", used" : occurrence.state === "next" ? ", next" : ""}`}><span>{occurrence.state === "complete" ? <Check aria-hidden="true" size={12} strokeWidth={3} /> : null}</span><small>{compactOccurrenceDate(occurrence.date)}</small></div>)}
     </div>
     <div className={`recurring-step-status ${status.lastCompleted ? "" : "has-one-value"}`} aria-label={status.lastCompleted ? `Last used: ${lastValue}. ${status.dueToday ? "Status" : "Next use"}: ${nextValue}.` : `${startsLater ? "Starts" : status.dueToday ? "First use" : "Next use"}: ${nextValue}.`}>
-      {status.lastCompleted ? <span><small>Last used</small><strong>{lastValue}</strong></span> : null}
+      {status.lastCompleted ? <span><small>Last used</small>{status.completedToday
+        ? <button aria-label={`Mark ${data.label} incomplete`} className="recurring-last-used-value" type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><Check aria-hidden="true" size={13} strokeWidth={3} /><strong>{lastValue}</strong></button>
+        : <strong className={status.completedThisCycle ? "is-complete" : ""}>{status.completedThisCycle ? <Check aria-hidden="true" size={13} strokeWidth={3} /> : null}{lastValue}</strong>}</span> : null}
       <span><small>{startsLater ? "Starts" : status.dueToday && !status.lastCompleted ? "First use" : status.dueToday ? "Status" : "Next use"}</small><strong className={status.dueToday ? "is-due" : ""}>{nextValue}</strong></span>
     </div>
-    {!startsLater ? <button className={status.completedThisCycle ? "is-complete" : ""} disabled={completionLocked} type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span>{status.completedThisCycle ? <Check size={14} strokeWidth={3} /> : null}</span><div><strong>{status.completedThisCycle ? "Used this cycle" : data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button> : null}
+    {!startsLater && !status.completedThisCycle ? <button type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span /><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button> : null}
   </section>;
 }
 

@@ -456,7 +456,6 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     return record ? [{ component, record }] : [];
   });
   const hasProductSwitcher = productComponents.length > 1;
-  const selectedProduct = productComponents.find(({ record }) => record.key === selectedProductKey) ?? productComponents[0] ?? null;
   const nestedSupportingComponents = new Map<string, ActivityRecord[]>();
   const nestedComponentIds = new Set<string>();
   for (const component of visibleComponents) {
@@ -488,9 +487,9 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
         ...(data.entries ?? []).filter((entry) => entry.completed).map((entry) => entry.date),
         ...runCompletionDates,
       ]);
-      if (completedDates.includes(today)) return "Done Today";
-      if (data.effectiveDate && data.effectiveDate > today) return `Due ${formatScheduleOccurrenceDate(data.effectiveDate, today)}`;
-      return "Due Today";
+      if (completedDates.includes(today)) return "Done today";
+      if (data.effectiveDate && data.effectiveDate > today) return formatScheduleOccurrenceDate(data.effectiveDate, today);
+      return "Today";
     }
     if (tracker?.type === "recurring_step") {
       const data = tracker.data as { anchorDate?: string; cadence?: RecurringCadence; completedDates?: string[] };
@@ -498,11 +497,19 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
         ...data,
         completedDates: normalizedCompletionDates([...(data.completedDates ?? []), ...runCompletionDates]),
       }, today);
-      if (status.completedToday) return "Done Today";
-      if (status.dueToday) return "Due Today";
-      if (status.nextDue) return `Due ${formatScheduleOccurrenceDate(status.nextDue, today)}`;
+      if (status.completedToday) return "Done today";
+      if (status.dueToday) return "Today";
+      if (status.nextDue) return formatScheduleOccurrenceDate(status.nextDue, today);
     }
-    return "Ready Anytime";
+    return "Anytime";
+  }
+  function productHasDailyRhythm(record: ActivityRecord) {
+    const tracker = trackersByProduct.get(record.key)?.[0];
+    if (tracker?.type === "adherence") return true;
+    if (tracker?.type !== "recurring_step") return false;
+    const cadence = (tracker.data as { cadence?: RecurringCadence }).cadence;
+    if (cadence?.kind === "interval_days") return (cadence.every ?? 1) === 1;
+    return cadence?.kind === "weekdays" && new Set(cadence.weekdays ?? []).size === 7;
   }
   const routineActionGroups = [...productComponents.reduce((groups, item) => {
     const label = productRoutineAction(item.record);
@@ -511,13 +518,14 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     group.items.push(item);
     groups.set(key, group);
     return groups;
-  }, new Map<string, { key: string; label: string; items: typeof productComponents }>()).values()];
-  const selectedRoutineAction = routineActionGroups.find((group) => group.items.some(({ record }) => record.key === selectedProduct?.record.key)) ?? routineActionGroups[0] ?? null;
+  }, new Map<string, { key: string; label: string; items: typeof productComponents }>()).values()]
+    .sort((left, right) => Number(right.items.some(({ record }) => productHasDailyRhythm(record))) - Number(left.items.some(({ record }) => productHasDailyRhythm(record))));
+  const selectedRoutineAction = routineActionGroups.find((group) => group.items.some(({ record }) => record.key === selectedProductKey)) ?? routineActionGroups[0] ?? null;
   function routineActionDueLabel(group: typeof routineActionGroups[number]) {
     const labels = group.items.map(({ record }) => productDueLabel(record));
-    if (labels.every((label) => label === "Done Today")) return "Done Today";
-    if (labels.includes("Due Today")) return "Due Today";
-    return labels.find((label) => label.startsWith("Due ")) ?? labels.find((label) => label !== "Ready Anytime") ?? "Ready Anytime";
+    if (labels.every((label) => label === "Done today")) return "Done today";
+    if (labels.includes("Today")) return "Today";
+    return labels.find((label) => label !== "Anytime") ?? "Anytime";
   }
   const trackerSignatures = productComponents.map(({ record }) => {
     const trackers = trackersByProduct.get(record.key) ?? [];
