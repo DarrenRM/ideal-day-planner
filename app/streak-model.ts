@@ -65,3 +65,12 @@ export function dailyStreakBlocks(count: number, completedToday: boolean) {
   const completedDays = completedToday && normalizedCount > 0 && remainder === 0 ? 7 : remainder;
   return { completedDays, completedWeeks };
 }
+
+export function dailyStreakDaySteps(count: number, completedToday: boolean) {
+  const normalizedCount = Math.max(0, Math.floor(count));
+  const blockIndex = normalizedCount > 0 && completedToday && normalizedCount % 7 === 0
+    ? Math.floor((normalizedCount - 1) / 7)
+    : Math.floor(normalizedCount / 7);
+  const firstDay = blockIndex * 7 + 1;
+  return Array.from({ length: 7 }, (_, index) => firstDay + index);
+}

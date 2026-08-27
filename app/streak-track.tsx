@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Flame } from "lucide-react";
-import { dailyStreakBlocks, streakSteps } from "./streak-model";
+import { dailyStreakBlocks, dailyStreakDaySteps, streakSteps } from "./streak-model";
 
 export function StreakTrack({
   ariaLabel,
@@ -18,16 +18,17 @@ export function StreakTrack({
 }) {
   const { completedDays, completedWeeks } = dailyStreakBlocks(count, completedToday);
   const waiting = completedToday ? null : completedDays + 1;
-  const daySteps = streakSteps(0);
+  const daySteps = dailyStreakDaySteps(count, completedToday);
   const weekSteps = streakSteps(completedWeeks);
   return (
     <section className={`activity-streak ${nested ? "product-streak" : "workspace-block"}`} aria-label={ariaLabel}>
       <header className="activity-streak-heading"><span className="workspace-overline">Streak</span><Flame aria-hidden="true" size={16} /></header>
       <div className="streak-track">
-        {daySteps.map((number) => {
-          const complete = number <= completedDays;
-          const isWaiting = number === waiting;
-          const latest = complete && number === completedDays;
+        {daySteps.map((number, index) => {
+          const position = index + 1;
+          const complete = position <= completedDays;
+          const isWaiting = position === waiting;
+          const latest = complete && position === completedDays;
           return (
             <div className={`streak-step ${complete ? "is-complete" : ""} ${isWaiting ? "is-waiting" : ""} ${latest ? "is-latest" : ""}`} key={number}>
               <span className="streak-dot">{complete ? <Check aria-hidden="true" size={13} strokeWidth={3} /> : null}</span>

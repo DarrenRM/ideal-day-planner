@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { dailyCompletionStreak, dailyStreakBlocks, recurringCompletionStreak, streakSteps } from "../app/streak-model.ts";
+import { dailyCompletionStreak, dailyStreakBlocks, dailyStreakDaySteps, recurringCompletionStreak, streakSteps } from "../app/streak-model.ts";
 
 test("derives a daily streak without giving a new subject older completions", () => {
   assert.deepEqual(dailyCompletionStreak(["2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24"], "2026-08-24"), { count: 5, completedToday: true });
@@ -15,6 +15,11 @@ test("compresses completed seven-day blocks while keeping the active week readab
   assert.deepEqual(dailyStreakBlocks(8, true), { completedDays: 1, completedWeeks: 1 });
   assert.deepEqual(streakSteps(1), [1, 2, 3, 4, 5, 6, 7]);
   assert.deepEqual(streakSteps(8), [2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(dailyStreakDaySteps(7, true), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(dailyStreakDaySteps(7, false), [8, 9, 10, 11, 12, 13, 14]);
+  assert.deepEqual(dailyStreakDaySteps(8, true), [8, 9, 10, 11, 12, 13, 14]);
+  assert.deepEqual(dailyStreakDaySteps(14, true), [8, 9, 10, 11, 12, 13, 14]);
+  assert.deepEqual(dailyStreakDaySteps(14, false), [15, 16, 17, 18, 19, 20, 21]);
 });
 
 test("keeps a future recurring product at Use 1 until its first eligible day", () => {

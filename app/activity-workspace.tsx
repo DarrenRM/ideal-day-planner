@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, productRoutineAction, type ActivityRecord } from "./activity-record-model";
 import { hasUsefulRoutineComponent, type CountdownWorkspaceComponent, type DataWorkspaceComponent, type RoutineWorkspaceComponent, type TimerWorkspaceComponent, type WorkspaceDocument } from "./workspace-model";
@@ -338,20 +338,83 @@ export function ActivityFollowUpComponent({ followUp, onFollowUpMutation }: {
   </section>;
 }
 
-export function WorkspaceWorkingComponent({ activity, workState, hasVisibleWorkspace = false, workTitle, workDetail }: {
+export function WorkspaceWorkingComponent({ activity, workState, hasVisibleWorkspace = false, workTitle, workDetail, complete = false }: {
   activity: Pick<WorkspaceActivity, "title">;
   workState: "building" | "waiting";
   hasVisibleWorkspace?: boolean;
   workTitle?: string | null;
   workDetail?: string | null;
+  complete?: boolean;
 }) {
-  return <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""}`} role="status">
-    <span className="workspace-working-mark"><Sparkles size={15} /></span>
+  return <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""} ${complete ? "is-complete" : ""}`} role="status">
+    <span className="workspace-working-mark">{complete ? <Check size={15} strokeWidth={2.6} /> : <Sparkles size={15} />}</span>
     <div>
-      <strong>{workTitle || (workState === "waiting" ? `${activity.title} is queued` : hasVisibleWorkspace ? `Updating ${activity.title}` : `Building your ${activity.title} setup`)}</strong>
-      <p>{workDetail || (workState === "waiting" ? "Your message is saved, and Luna will pick it up shortly." : "Turning your latest details into something useful here.")}</p>
+      <strong>{complete ? hasVisibleWorkspace ? `${activity.title} updated` : `${activity.title} is ready` : workTitle || (workState === "waiting" ? `${activity.title} is queued` : hasVisibleWorkspace ? `Updating ${activity.title}` : `Building your ${activity.title} setup`)}</strong>
+      <p>{complete ? "Your latest details are ready." : workDetail || (workState === "waiting" ? "Your message is saved, and Luna will pick it up shortly." : "Turning your latest details into something useful here.")}</p>
     </div>
-    {workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
+    {!complete && workState !== "waiting" ? <span className="workspace-working-dots" aria-hidden="true"><i /><i /><i /></span> : null}
+  </div>;
+}
+
+type WorkspaceWorkSnapshot = {
+  workState: "building" | "waiting";
+  hasVisibleWorkspace: boolean;
+  workTitle?: string | null;
+  workDetail?: string | null;
+};
+
+function WorkspaceWorkingTransition({ activity, workState, hasVisibleWorkspace, workTitle, workDetail }: {
+  activity: Pick<WorkspaceActivity, "title">;
+  workState: "building" | "waiting" | null;
+  hasVisibleWorkspace: boolean;
+  workTitle?: string | null;
+  workDetail?: string | null;
+}) {
+  const [displayedWork, setDisplayedWork] = useState<WorkspaceWorkSnapshot | null>(workState ? { workState, hasVisibleWorkspace, workTitle, workDetail } : null);
+  const displayedWorkRef = useRef(displayedWork);
+  const [phase, setPhase] = useState<"active" | "complete" | "leaving">("active");
+
+  useEffect(() => {
+    if (!workState) return;
+    const next = { workState, hasVisibleWorkspace, workTitle, workDetail };
+    displayedWorkRef.current = next;
+    const updateTimer = window.setTimeout(() => {
+      setDisplayedWork(next);
+      setPhase("active");
+    }, 0);
+    return () => window.clearTimeout(updateTimer);
+  }, [hasVisibleWorkspace, workDetail, workState, workTitle]);
+
+  useEffect(() => {
+    let completeTimer: number | null = null;
+    let leaveTimer: number | null = null;
+    let removeTimer: number | null = null;
+    if (!workState && displayedWorkRef.current) {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        displayedWorkRef.current = null;
+        removeTimer = window.setTimeout(() => setDisplayedWork(null), 0);
+      } else {
+        completeTimer = window.setTimeout(() => setPhase("complete"), 0);
+        leaveTimer = window.setTimeout(() => setPhase("leaving"), 340);
+        removeTimer = window.setTimeout(() => {
+          displayedWorkRef.current = null;
+          setDisplayedWork(null);
+          setPhase("active");
+        }, 620);
+      }
+    }
+    return () => {
+      if (completeTimer !== null) window.clearTimeout(completeTimer);
+      if (leaveTimer !== null) window.clearTimeout(leaveTimer);
+      if (removeTimer !== null) window.clearTimeout(removeTimer);
+    };
+  }, [workState]);
+
+  if (!displayedWork) return null;
+  return <div className={`workspace-working-transition is-${phase}`}>
+    <div className="workspace-working-transition-inner">
+      <WorkspaceWorkingComponent activity={activity} complete={phase !== "active"} {...displayedWork} />
+    </div>
   </div>;
 }
 
@@ -413,6 +476,24 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
 
 export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, showEmptyState = false, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
   const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
+  const [workTransitionVisible, setWorkTransitionVisible] = useState(Boolean(workState));
+  const workTransitionVisibleRef = useRef(Boolean(workState));
+  useEffect(() => {
+    let timer: number | null = null;
+    if (workState) {
+      workTransitionVisibleRef.current = true;
+      timer = window.setTimeout(() => setWorkTransitionVisible(true), 0);
+    } else if (workTransitionVisibleRef.current) {
+      const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 640;
+      timer = window.setTimeout(() => {
+        workTransitionVisibleRef.current = false;
+        setWorkTransitionVisible(false);
+      }, delay);
+    }
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [workState]);
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const siblingRecordTypes = records.map((record) => record.type);
   const visibleRecordKeys = new Set<string>();
@@ -576,10 +657,10 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     const record = recordsByKey.get(dataComponent.recordKey);
     return record ? <ActivityRecordComponent key={strengthSessionItem.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation="featured" record={record} relatedRecords={records} /> : null;
   }
-  if (!hasVisibleWorkspace && !workState && !recordError && !showEmptyState) return null;
+  if (!hasVisibleWorkspace && !workTransitionVisible && !recordError && !showEmptyState) return null;
   return (
     <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : showEmptyState && !workState && !recordError ? "workspace-empty" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
-      {workState ? <WorkspaceWorkingComponent activity={activity} hasVisibleWorkspace={hasVisibleWorkspace} workDetail={workDetail} workState={workState} workTitle={workTitle} /> : null}
+      {workTransitionVisible ? <WorkspaceWorkingTransition activity={activity} hasVisibleWorkspace={hasVisibleWorkspace} workDetail={workDetail} workState={workState} workTitle={workTitle} /> : null}
       {recordError ? <p className="record-action-error" role="alert">{recordError}</p> : null}
 
       {hasVisibleWorkspace ? (

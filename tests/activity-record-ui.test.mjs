@@ -413,6 +413,21 @@ test("gives an activity without components a truthful Luna workspace invitation"
   assert.doesNotMatch(workspace, /Luna is working/);
 });
 
+test("resolves workspace work into a brief success state before collapsing it", async () => {
+  const [workspace, css] = await Promise.all([
+    readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(workspace, /WorkspaceWorkingTransition/);
+  assert.match(workspace, /\$\{activity\.title\} updated/);
+  assert.match(workspace, /\$\{activity\.title\} is ready/);
+  assert.match(workspace, /Your latest details are ready\./);
+  assert.match(workspace, /prefers-reduced-motion: reduce/);
+  assert.match(css, /\.workspace-working-transition\.is-leaving/);
+  assert.match(css, /grid-template-rows: 0fr/);
+  assert.match(css, /\.workspace-working\.is-complete/);
+});
+
 test("uses one activity-colored overline primitive across workspace components", async () => {
   const [records, workspace, streakTrack, css] = await Promise.all([
     readFile(new URL("../app/activity-record-components.tsx", import.meta.url), "utf8"),
