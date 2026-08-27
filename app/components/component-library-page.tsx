@@ -158,7 +158,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
     if (specimen.type === "timer") return <TimerComponent activity={activity} component={fixtures.timer} />;
     if (specimen.type === "countdown") return <CountdownComponent activity={activity} component={fixtures.countdown} />;
     if (specimen.type === "routine") return <RoutineComponent component={fixtures.routine} />;
-    if (specimen.type === "activity_streak") return <StreakTrack ariaLabel="Morning practice streak" completedToday count={6} />;
+    if (specimen.type === "activity_streak") return <StreakTrack ariaLabel="Morning practice streak" completedToday count={8} />;
     if (specimen.type === "activity_schedule") return <ActivityScheduleSummaryComponent activity={{ title: "Cardio" }} onManageSchedule={() => setNotice("Mock schedule manager captured")} scheduleSummary={fixtures.scheduleSummary} />;
     if (specimen.type === "activity_follow_up") return <ActivityFollowUpComponent followUp={fixtures.followUp} onFollowUpMutation={() => setNotice("Mock check-in action captured")} />;
     if (specimen.type === "workspace_working") return <WorkspaceWorkingComponent activity={{ title: "Cardio" }} workState="building" />;

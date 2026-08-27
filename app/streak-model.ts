@@ -54,6 +54,14 @@ export function recurringCompletionStreak(input: {
 }
 
 export function streakSteps(count: number) {
-  const first = count >= 7 ? count - 5 : 1;
+  const first = count >= 7 ? count - 6 : 1;
   return Array.from({ length: 7 }, (_, index) => first + index);
+}
+
+export function dailyStreakBlocks(count: number, completedToday: boolean) {
+  const normalizedCount = Math.max(0, Math.floor(count));
+  const completedWeeks = Math.floor(normalizedCount / 7);
+  const remainder = normalizedCount % 7;
+  const completedDays = completedToday && normalizedCount > 0 && remainder === 0 ? 7 : remainder;
+  return { completedDays, completedWeeks };
 }

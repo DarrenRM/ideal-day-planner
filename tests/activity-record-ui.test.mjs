@@ -423,6 +423,9 @@ test("uses one activity-colored overline primitive across workspace components",
   assert.match(records, /className="workspace-overline">Equipment/);
   assert.match(records, /small className="workspace-overline">\{kindLabel\}/);
   assert.match(streakTrack, /className="workspace-overline">Streak/);
+  assert.match(streakTrack, /completedWeeks > 0/);
+  assert.match(streakTrack, /className="workspace-overline">Weeks/);
+  assert.match(streakTrack, /weekly-streak-track/);
   assert.match(workspace, /className="workspace-overline">Schedule/);
   assert.match(workspace, /className="workspace-overline">\{followUp\.status/);
   assert.match(css, /\.workspace-overline \{[^}]*color: var\(--item-color\)[^}]*font: 720 var\(--type-micro\)\/var\(--leading-micro\)[^}]*letter-spacing: \.09em[^}]*text-transform: uppercase/s);

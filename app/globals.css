@@ -1431,6 +1431,17 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .streak-step.is-complete small { color: color-mix(in srgb, var(--item-color) 56%, #85918a); }
 .streak-step.is-waiting .streak-dot { animation: streak-ready-pulse 2.2s cubic-bezier(.4, 0, .2, 1) infinite; border-color: color-mix(in srgb, var(--item-color) 62%, #45514b); box-shadow: 0 0 0 0 color-mix(in srgb, var(--item-color) 24%, transparent); }
 .streak-step.is-waiting small { animation: streak-label-pulse 2.2s ease-in-out infinite; color: color-mix(in srgb, var(--item-color) 74%, #aeb8b1); }
+.weekly-streak { border-top: 1px solid color-mix(in srgb, var(--item-color) 10%, var(--border)); margin-top: 12px; padding-top: 10px; }
+.weekly-streak > .workspace-overline { color: color-mix(in srgb, var(--item-color) 52%, var(--muted)); }
+.weekly-streak-track { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 7px; }
+.weekly-streak-step { align-items: center; display: flex; flex-direction: column; gap: 4px; min-width: 0; position: relative; }
+.weekly-streak-step::before { background: #293234; content: ""; height: 1px; position: absolute; right: 50%; top: 7px; width: 100%; }
+.weekly-streak-step:first-child::before { display: none; }
+.weekly-streak-step.is-complete::before { background: color-mix(in srgb, var(--item-color) 48%, #394541); }
+.weekly-streak-dot { align-items: center; background: #101618; border: 1px solid #344043; border-radius: 50%; color: #17200f; display: flex; height: 15px; justify-content: center; position: relative; width: 15px; z-index: 1; }
+.weekly-streak-step.is-complete .weekly-streak-dot { background: color-mix(in srgb, var(--item-color) 68%, var(--accent)); border-color: color-mix(in srgb, var(--item-color) 64%, var(--accent)); }
+.weekly-streak-step small { color: #59645f; font-size: var(--type-micro); font-weight: 600; white-space: nowrap; }
+.weekly-streak-step.is-complete small { color: color-mix(in srgb, var(--item-color) 56%, #85918a); }
 .routine-card.is-celebrating .streak-step.is-latest .streak-dot { animation: streak-complete-pop 680ms cubic-bezier(.18, .86, .24, 1.28) both; }
 .routine-card.is-celebrating .streak-step.is-latest .streak-dot::after { animation: streak-complete-ring 720ms ease-out both; border: 1px solid color-mix(in srgb, var(--item-color) 78%, var(--accent)); border-radius: 50%; content: ""; inset: -1px; position: absolute; }
 @keyframes streak-ready-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--item-color) 20%, transparent); transform: scale(1); } 50% { box-shadow: 0 0 0 6px transparent; transform: scale(1.06); } }
