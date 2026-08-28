@@ -465,6 +465,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /className="item-icon"/);
   assert.doesNotMatch(css, /\.drag-button/);
   assert.match(page, /className="mobile-top-meta">\s*<ActivityAgenda item=\{item\}/s);
+  assert.match(page, /aria-label=\{`\$\{statusLabel\}: \$\{actionLabel\}`\}/);
+  assert.match(page, /className="activity-agenda-dot"/);
+  assert.doesNotMatch(page, /className="activity-agenda-status"/);
   assert.match(css, /\.item-title \{[^}]*grid-column: 1;[^}]*padding-right: 0/s);
   assert.match(css, /\.mobile-top-meta \{[^}]*display: flex;[^}]*grid-column: 3;[^}]*grid-row: 1/s);
   assert.match(css, /\.item-meta \{ display: none; \}/);

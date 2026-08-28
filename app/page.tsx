@@ -139,10 +139,12 @@ function ActivityAgenda({ item }: { item: Pick<RoutineItem, "agenda" | "category
   if (!item.agenda || !labels.length) return <span className="category-chip">{item.category}</span>;
   const visible = labels.slice(0, 2);
   const remaining = labels.length - visible.length;
+  const actionLabel = `${visible.join(" · ")}${remaining > 0 ? ` · +${remaining} more` : ""}`;
+  const statusLabel = item.agenda.status === "overdue" ? "Overdue" : "Today";
   return (
-    <span className={`activity-agenda is-${item.agenda.status}`}>
-      <span className="activity-agenda-status">{item.agenda.status === "overdue" ? "Overdue" : "Today"}</span>
-      <span className="activity-agenda-actions">{visible.join(" · ")}{remaining > 0 ? ` · +${remaining} more` : ""}</span>
+    <span aria-label={`${statusLabel}: ${actionLabel}`} className={`activity-agenda is-${item.agenda.status}`}>
+      <span aria-hidden="true" className="activity-agenda-dot" />
+      <span className="activity-agenda-actions">{actionLabel}</span>
     </span>
   );
 }
