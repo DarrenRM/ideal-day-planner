@@ -21,6 +21,10 @@ test("server-renders the idealized day planner", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>Idealized day<\/title>/i);
+  assert.match(html, /<meta name="viewport" content="[^"]*viewport-fit=cover[^"]*"\/>/i);
+  assert.match(html, /<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"\/>/i);
+  assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest"\/>/i);
+  assert.match(html, /<link rel="apple-touch-icon" href="\/apple-touch-icon\.png"[^>]*\/>/i);
   assert.match(html, /id="page-title">[A-Z][a-z]+, [A-Z][a-z]+ \d{1,2}(?:st|nd|rd|th)<\/h1>/);
   assert.match(html, /Loading your saved day/);
   assert.doesNotMatch(html, /Walk in sun|Stretch \/ yoga|>Shake<|>Breakfast</);
@@ -37,6 +41,25 @@ test("server-renders the idealized day planner", async () => {
   assert.doesNotMatch(html, /Primary navigation/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|SkeletonPreview/i);
   assert.doesNotMatch(html, /__variable_geist|_vinext_fonts/i);
+});
+
+test("supports an installed iOS app and every display safe area", async () => {
+  const [layout, css, manifestText] = await Promise.all([
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+
+  assert.match(layout, /viewport-fit=cover/);
+  assert.match(layout, /statusBarStyle:\s*"black-translucent"/);
+  assert.match(layout, /manifest:\s*"\/manifest\.webmanifest"/);
+  assert.match(layout, /apple-touch-icon\.png/);
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "/");
+  assert.equal(manifest.background_color, "#0a0c0f");
+  assert.match(css, /\.global-luna-dock[^}]*safe-area-inset-bottom[^}]*safe-area-inset-right[^}]*safe-area-inset-left/);
+  assert.match(css, /\.conversation-drawer-toggle[^}]*safe-area-inset-right[^}]*safe-area-inset-left/);
 });
 
 test("uses one shared, direct-import Phosphor icon system", async () => {
