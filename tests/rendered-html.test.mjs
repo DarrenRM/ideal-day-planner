@@ -43,7 +43,7 @@ test("server-renders the idealized day planner", async () => {
   assert.doesNotMatch(html, /__variable_geist|_vinext_fonts/i);
 });
 
-test("supports an installed iOS app and every display safe area", async () => {
+test("supports an installed iOS app without resizing the assistant dock", async () => {
   const [layout, css, manifestText] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -58,8 +58,9 @@ test("supports an installed iOS app and every display safe area", async () => {
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.background_color, "#0a0c0f");
-  assert.match(css, /\.global-luna-dock[^}]*safe-area-inset-bottom[^}]*safe-area-inset-right[^}]*safe-area-inset-left/);
-  assert.match(css, /\.conversation-drawer-toggle[^}]*safe-area-inset-right[^}]*safe-area-inset-left/);
+  assert.match(css, /--conversation-dock-height:\s*58px/);
+  assert.match(css, /\.global-luna-dock[^}]*min-height:\s*58px[^}]*padding:\s*0 16px/);
+  assert.doesNotMatch(css, /--conversation-dock-height:[^;]*safe-area-inset-bottom/);
 });
 
 test("uses one shared, direct-import Phosphor icon system", async () => {
@@ -323,7 +324,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /transform: translate\(var\(--activity-origin-left\), var\(--activity-origin-top\)\)/);
   assert.match(css, /\.routine-card\.is-expanded\.is-mobile-opening \.activity-expansion/);
   assert.match(css, /is-drawer-collapsed/);
-  assert.match(css, /--conversation-dock-height: calc\(58px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(css, /--conversation-dock-height: 58px/);
   assert.match(css, /translateY\(calc\(100% - var\(--conversation-dock-height\)\)\)/);
   assert.match(css, /grid-template-rows: minmax\(0, 1fr\) auto var\(--conversation-dock-height\)/);
   assert.match(css, /\.activity-footer \{[^}]*grid-row: 2;[^}]*z-index: 4;/s);
