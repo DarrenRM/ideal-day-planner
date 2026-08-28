@@ -32,6 +32,7 @@ export function ActivityDurationControl({
           onBlur={() => onSet(normalizeActivityDuration(item.duration))}
           onChange={(event) => onSet(event.target.valueAsNumber)}
           step={DURATION_STEP}
+          style={{ width: `${String(item.duration).length}ch` }}
           type="number"
           value={item.duration}
         />

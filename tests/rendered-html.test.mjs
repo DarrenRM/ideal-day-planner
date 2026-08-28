@@ -531,8 +531,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
-  assert.match(css, /\.routine-card\.is-editing \.activity-header-front \{[^}]*transform: rotateX\(-180deg\)/s);
-  assert.match(css, /\.routine-card\.is-editing \.activity-header-back \{[^}]*transform: none/s);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-front \{[^}]*opacity: 0;[^}]*transform: scaleY\(\.04\)/s);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-back \{[^}]*opacity: 1;[^}]*transform: scaleY\(1\)/s);
   assert.match(css, /\.duration-control \{[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.duration-control button \{[^}]*border: 1px solid #2c3336;[^}]*height: 32px;[^}]*width: 32px/s);
   assert.match(css, /\.inline-edit-form/);

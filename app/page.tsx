@@ -2397,6 +2397,7 @@ export default function Home() {
 
   function saveEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     commitEdit();
   }
 

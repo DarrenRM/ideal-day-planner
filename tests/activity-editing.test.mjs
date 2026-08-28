@@ -17,14 +17,16 @@ test("renaming an activity does not make Luna rebuild an established setup", () 
 });
 
 test("collapsed and expanded activities share a stable two-faced editing header", async () => {
-  const [css, page] = await Promise.all([
+  const [css, page, durationControl] = await Promise.all([
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-duration-control.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(css, /\.activity-header-flip \{[^}]*min-height: 44px;[^}]*perspective: 900px/s);
-  assert.match(css, /\.routine-card\.is-editing \.activity-header-front \{[^}]*transform: rotateX\(-180deg\)/s);
-  assert.match(css, /\.activity-header-front \{[^}]*transform: none/s);
-  assert.match(css, /\.routine-card\.is-editing \.activity-header-back \{[^}]*transform: none/s);
+  assert.match(css, /\.activity-header-flip \{[^}]*min-height: 44px;[^}]*position: relative/s);
+  assert.doesNotMatch(css, /perspective:|backface-visibility:|rotateX\(/);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-front \{[^}]*opacity: 0;[^}]*transform: scaleY\(\.04\)/s);
+  assert.match(css, /\.activity-header-front \{[^}]*opacity: 1;[^}]*transform: scaleY\(1\)/s);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-back \{[^}]*opacity: 1;[^}]*transform: scaleY\(1\)/s);
   assert.doesNotMatch(css, /transform-style: preserve-3d/);
   assert.doesNotMatch(css, /\.routine-card\.is-editing \.activity-header-flip-inner \{[^}]*transform:/s);
   assert.match(css, /\.routine-card \{[^}]*grid-template-rows: auto;[^}]*min-height: 90px;[^}]*row-gap: 0/s);
@@ -33,6 +35,9 @@ test("collapsed and expanded activities share a stable two-faced editing header"
   assert.match(css, /\.activity-header-back\.inline-edit-form \{[^}]*gap: 8px/s);
   assert.match(css, /\.activity-header-back\.inline-edit-form \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px;[^}]*grid-template-rows: 32px 32px/s);
   assert.match(css, /\.front-duration-value \{ font-size: var\(--type-body-lg\)/);
+  assert.match(css, /\.activity-back-duration \.duration-value \{ min-width: 0; \}/);
+  assert.match(durationControl, /style=\{\{ width: `\$\{String\(item\.duration\)\.length\}ch` \}\}/);
+  assert.match(page, /document\.activeElement instanceof HTMLElement\) document\.activeElement\.blur\(\)/);
   assert.ok(page.indexOf('aria-label="Save and return"') < page.indexOf('className={`mobile-activity-menu'), "save-and-return precedes the overflow menu");
   assert.match(css, /\.routine-card\.is-expanded \.activity-header-flip \{ min-height: max\(88px, calc\(80px \+ env\(safe-area-inset-top\)\)\); \}/);
 });
