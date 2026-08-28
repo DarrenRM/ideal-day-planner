@@ -381,12 +381,14 @@ function MobileDateHeading({ date }: { date: Date }) {
     <span aria-label={formatTodayHeading(date)} className="mobile-schedule-title mobile-date-lockup">
       <span aria-hidden="true" className="mobile-date-copy">
         <span className="mobile-date-month">{month}</span>
-        <strong className="mobile-date-weekday">{weekday}</strong>
+        <span className="mobile-date-primary">
+          <strong className="mobile-date-weekday">{weekday}</strong>
+          <span className="mobile-date-number">
+            {day}<sup>{ordinal}</sup>
+          </span>
+        </span>
       </span>
       <span aria-hidden="true" className="mobile-date-divider" />
-      <span aria-hidden="true" className="mobile-date-number">
-        {day}<sup>{ordinal}</sup>
-      </span>
     </span>
   );
 }

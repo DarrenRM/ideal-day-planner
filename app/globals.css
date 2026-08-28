@@ -1736,18 +1736,19 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .planner-header { align-items: flex-start; border-bottom: 0; gap: 12px; min-height: 78px; padding: 8px 0 12px; }
   .planner-heading-copy { min-width: 0; }
   .planner-header h2 { font-size: 18px; line-height: 24px; margin: 7px 0 5px; white-space: nowrap; }
-  .planner-header:has(.mobile-date-lockup) { display: block; min-height: 128px; position: relative; }
-  .planner-header:has(.mobile-date-lockup) .planner-heading-copy { width: 100%; }
+  .planner-header:has(.mobile-date-lockup) { display: flex; min-height: 112px; }
+  .planner-header:has(.mobile-date-lockup) .planner-heading-copy { flex: 1 1 auto; width: auto; }
   .planner-header:has(.mobile-date-lockup) h2 { margin: 0; }
   .desktop-schedule-title { display: none; }
   .mobile-schedule-title { display: inline; }
-  .mobile-date-lockup { align-items: center; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 1px auto; max-width: 360px; min-height: 76px; white-space: normal; }
+  .mobile-date-lockup { align-items: stretch; display: grid; gap: 14px; grid-template-columns: max-content 1px; max-width: 100%; min-height: 64px; white-space: normal; }
   .mobile-date-copy { display: grid; gap: 1px; min-width: 0; }
   .mobile-date-month { color: var(--accent-bright); font: 760 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .28em; text-transform: uppercase; }
+  .mobile-date-primary { align-items: flex-start; display: flex; gap: 12px; min-width: 0; }
   .mobile-date-weekday { color: var(--text); font: 430 clamp(2rem, 9vw, 2.75rem)/.94 ui-serif, Georgia, Cambria, "Times New Roman", serif; letter-spacing: -.045em; white-space: nowrap; }
   .mobile-date-divider { align-self: stretch; background: var(--border-strong); display: block; margin: 3px 0; width: 1px; }
-  .mobile-date-number { align-items: flex-start; color: var(--accent-bright); display: flex; font: 430 clamp(3.25rem, 14vw, 4rem)/.9 ui-serif, Georgia, Cambria, "Times New Roman", serif; letter-spacing: -.06em; }
-  .mobile-date-number sup { font: 760 var(--type-label)/1 var(--type-sans); letter-spacing: .08em; margin: 5px 0 0 4px; text-transform: uppercase; }
+  .mobile-date-number { align-items: flex-start; color: var(--accent-bright); display: flex; font: 430 clamp(2rem, 9vw, 2.75rem)/.94 ui-serif, Georgia, Cambria, "Times New Roman", serif; letter-spacing: -.06em; }
+  .mobile-date-number sup { font: 760 var(--type-micro)/1 var(--type-sans); letter-spacing: .08em; margin: 3px 0 0 3px; text-transform: uppercase; }
   .desktop-schedule-summary { display: none; }
   .mobile-schedule-summary { display: none; }
   .mobile-day-nav { align-items: center; display: flex; gap: 14px; min-height: 28px; margin-top: 8px; width: max-content; }
@@ -1756,7 +1757,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .mobile-day-nav > .mobile-day-nav-today { color: var(--accent); padding: 0 4px; }
   .mobile-day-nav > button:focus-visible { outline: 2px solid rgba(181, 215, 125, .65); outline-offset: 2px; }
   .planner-actions { align-self: center; flex: 0 0 auto; margin-top: 0; }
-  .planner-header:has(.mobile-date-lockup) .planner-actions { bottom: 12px; position: absolute; right: 0; }
+  .planner-header:has(.mobile-date-lockup) .planner-actions { align-self: flex-start; margin-top: 24px; position: static; }
   .planner-menu-trigger { height: 40px; width: 40px; }
   .add-block-form { grid-template-columns: 1fr 1fr; padding: 14px 0 15px; }
   .add-name-field, .add-form-actions { grid-column: 1 / -1; }
