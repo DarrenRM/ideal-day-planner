@@ -383,12 +383,12 @@ function MobileDateHeading({ date }: { date: Date }) {
         <span className="mobile-date-month">{month}</span>
         <span className="mobile-date-primary">
           <strong className="mobile-date-weekday">{weekday}</strong>
+          <span className="mobile-date-divider" />
           <span className="mobile-date-number">
             {day}<sup>{ordinal}</sup>
           </span>
         </span>
       </span>
-      <span aria-hidden="true" className="mobile-date-divider" />
     </span>
   );
 }

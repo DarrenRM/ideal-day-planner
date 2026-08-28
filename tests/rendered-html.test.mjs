@@ -176,7 +176,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /mobile-date-primary/);
   assert.match(page, /mobile-date-weekday/);
   assert.match(page, /mobile-date-number/);
-  assert.match(css, /\.mobile-date-lockup[^}]*grid-template-columns: max-content 1px/);
+  assert.match(css, /\.mobile-date-primary[^}]*grid-template-columns: max-content 1px auto/);
   assert.match(css, /\.planner-header:has\(\.mobile-date-lockup\) \.planner-actions[^}]*position: static/);
   assert.match(css, /\.mobile-date-month[^}]*text-transform: uppercase/);
   assert.match(css, /\.mobile-date-weekday[^}]*color: var\(--text\)/);

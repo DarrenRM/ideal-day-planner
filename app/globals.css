@@ -1741,12 +1741,12 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .planner-header:has(.mobile-date-lockup) h2 { margin: 0; }
   .desktop-schedule-title { display: none; }
   .mobile-schedule-title { display: inline; }
-  .mobile-date-lockup { align-items: stretch; display: grid; gap: 14px; grid-template-columns: max-content 1px; max-width: 100%; min-height: 64px; white-space: normal; }
+  .mobile-date-lockup { display: block; max-width: 100%; min-height: 64px; white-space: normal; }
   .mobile-date-copy { display: grid; gap: 1px; min-width: 0; }
   .mobile-date-month { color: var(--accent-bright); font: 760 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .28em; text-transform: uppercase; }
-  .mobile-date-primary { align-items: flex-start; display: flex; gap: 12px; min-width: 0; }
+  .mobile-date-primary { align-items: stretch; display: grid; gap: 14px; grid-template-columns: max-content 1px auto; min-width: 0; }
   .mobile-date-weekday { color: var(--text); font: 430 clamp(2rem, 9vw, 2.75rem)/.94 ui-serif, Georgia, Cambria, "Times New Roman", serif; letter-spacing: -.045em; white-space: nowrap; }
-  .mobile-date-divider { align-self: stretch; background: var(--border-strong); display: block; margin: 3px 0; width: 1px; }
+  .mobile-date-divider { align-self: stretch; background: var(--border-strong); display: block; margin: 2px 0; width: 1px; }
   .mobile-date-number { align-items: flex-start; color: var(--accent-bright); display: flex; font: 430 clamp(2rem, 9vw, 2.75rem)/.94 ui-serif, Georgia, Cambria, "Times New Roman", serif; letter-spacing: -.06em; }
   .mobile-date-number sup { font: 760 var(--type-micro)/1 var(--type-sans); letter-spacing: .08em; margin: 3px 0 0 3px; text-transform: uppercase; }
   .desktop-schedule-summary { display: none; }
