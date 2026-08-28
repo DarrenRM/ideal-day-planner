@@ -469,13 +469,13 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /className="activity-agenda-dot"/);
   assert.doesNotMatch(page, /className="activity-agenda-status"/);
   assert.match(css, /\.item-title \{[^}]*grid-column: 1;[^}]*padding-right: 0/s);
-  assert.match(css, /\.mobile-top-meta \{[^}]*display: flex;[^}]*grid-column: 3;[^}]*grid-row: 1/s);
+  assert.match(css, /\.mobile-top-meta \{[^}]*display: flex;[^}]*grid-column: 3;[^}]*grid-row: 2/s);
   assert.match(css, /\.item-meta \{ display: none; \}/);
   assert.match(css, /\.item-state \{ display: none; \}/);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.item-controls \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px/s);
-  assert.match(css, /\.mobile-activity-menu \{[^}]*grid-column: 2;[^}]*grid-row: 2/s);
-  assert.match(css, /\.item-controls > \.control-tooltip \{[^}]*grid-column: 3;[^}]*grid-row: 2/s);
+  assert.match(css, /\.mobile-activity-menu \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
+  assert.match(css, /\.item-controls > \.control-tooltip \{[^}]*grid-column: 3;[^}]*grid-row: 1/s);
   assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*grid-column: 1;[^}]*justify-self: stretch;[^}]*width: 100%/s);
   assert.match(css, /\.duration-inline-meta \{[^}]*margin-left: auto;/);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{ display: none; \}/);

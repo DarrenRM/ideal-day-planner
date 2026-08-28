@@ -1767,7 +1767,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .item-title { align-self: center; display: flex; grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; padding-right: 0; }
   .activity-title-icon { flex-basis: 22px; }
   .item-title h3 { display: block; font-size: var(--type-body-lg); font-weight: 610; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .mobile-top-meta { align-items: center; display: flex; grid-column: 3; grid-row: 1; justify-content: flex-end; min-width: 0; overflow: hidden; }
+  .mobile-top-meta { align-items: center; display: flex; grid-column: 3; grid-row: 2; justify-content: flex-end; min-width: 0; overflow: hidden; }
   .item-meta { display: none; }
   .item-state { display: none; }
   .mobile-item-state { align-items: center; display: flex; gap: 7px; }
@@ -1779,9 +1779,9 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .routine-card.is-expanded > .item-controls { display: grid; }
   .item-controls > .desktop-row-action, .item-controls > .desktop-skip-control, .item-controls > .duration-control { display: none; }
   .control-tooltip-bubble { display: none; }
-  .item-controls > .control-tooltip { align-self: center; grid-column: 3; grid-row: 2; justify-self: end; }
+  .item-controls > .control-tooltip { align-self: center; grid-column: 3; grid-row: 1; justify-self: end; }
   .item-controls > .control-tooltip .complete-status-button { height: 32px; width: 32px; }
-  .mobile-activity-menu { align-self: center; display: block; grid-column: 2; grid-row: 2; justify-self: center; position: relative; }
+  .mobile-activity-menu { align-self: center; display: block; grid-column: 2; grid-row: 1; justify-self: center; position: relative; }
   .mobile-activity-menu-trigger { align-items: center; background: transparent; border: 0; border-radius: 7px; color: #7d8782; cursor: pointer; display: flex; height: 32px; justify-content: center; padding: 0; width: 32px; }
   .mobile-activity-menu-trigger:hover, .mobile-activity-menu-trigger[aria-expanded="true"] { background: #1b2023; color: #c5cdc7; }
   .mobile-activity-menu-panel { background: #171c1f; border: 1px solid #343c3e; border-radius: 10px; box-shadow: 0 16px 36px rgba(0, 0, 0, .42); display: grid; min-width: 164px; overflow: hidden; padding: 5px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
