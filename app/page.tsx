@@ -3464,7 +3464,7 @@ export default function Home() {
 
                             <div className="item-controls">
                               {isExpanded ? <button className="collapse-activity-button" tabIndex={isEditing ? -1 : undefined} type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /></button> : null}
-                              <span className="front-duration-label">{item.duration} minutes</span>
+                              <span className="front-duration-label"><span className="front-duration-value">{item.duration}</span><span className="front-duration-unit">minutes</span></span>
                               <button aria-label={`Edit ${item.title}`} className="activity-edit-trigger" tabIndex={isEditing ? -1 : undefined} type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} strokeWidth={1.9} /></button>
                               <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `${item.title} is complete` : `Mark ${item.title} complete`}>
                                 <button
@@ -3512,6 +3512,8 @@ export default function Home() {
                               }}
                             ><span>{isSkipped ? "Restore" : "Skip"}</span><SkipForward aria-hidden="true" size={15} strokeWidth={2} /></button>
 
+                            <button aria-label="Save and return" className="activity-edit-done" disabled={!editTitle.trim()} tabIndex={isEditing ? undefined : -1} type="submit"><ArrowLeft aria-hidden="true" size={17} strokeWidth={2} /></button>
+
                             <div className={`mobile-activity-menu ${mobileActivityMenuId === item.id ? "is-open" : ""}`} data-activity-id={item.id}>
                               <button
                                 aria-expanded={mobileActivityMenuId === item.id}
@@ -3547,7 +3549,6 @@ export default function Home() {
                                 </div>
                               ) : null}
                             </div>
-                            <button aria-label="Save and return" className="activity-edit-done" disabled={!editTitle.trim()} tabIndex={isEditing ? undefined : -1} type="submit"><ArrowLeft aria-hidden="true" size={17} strokeWidth={2} /></button>
                           </form>
                         </div>
                       </div>

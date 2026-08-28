@@ -439,7 +439,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /activity-header-flip-inner/);
   assert.match(page, /activity-header-face activity-header-front/);
   assert.match(page, /activity-header-face activity-header-back inline-edit-form/);
-  assert.match(page, /className="front-duration-label">\{item\.duration\} minutes/);
+  assert.match(page, /className="front-duration-label"><span className="front-duration-value">\{item\.duration\}<\/span><span className="front-duration-unit">minutes<\/span>/);
   assert.match(page, /className="activity-edit-trigger"/);
   assert.match(page, /className="activity-back-duration"/);
   assert.match(page, /className=\{`activity-back-skip/);
@@ -482,7 +482,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.item-state \{ display: none; \}/);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 1 \/ 3/s);
   assert.match(css, /\.item-controls \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px/s);
-  assert.match(css, /\.activity-header-back > \.mobile-activity-menu \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
+  assert.match(css, /\.activity-edit-done \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
+  assert.match(css, /\.activity-header-back > \.mobile-activity-menu \{[^}]*grid-column: 3;[^}]*grid-row: 1/s);
   assert.match(css, /\.item-controls > \.control-tooltip \{[^}]*grid-column: 3;[^}]*grid-row: 1/s);
   assert.match(css, /\.front-duration-label \{[^}]*grid-column: 1;[^}]*grid-row: 2/s);
   assert.match(css, /\.activity-edit-trigger \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
@@ -501,7 +502,8 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
-  assert.match(css, /\.routine-card\.is-editing \.activity-header-flip-inner \{ transform: rotateX\(180deg\); \}/);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-front \{[^}]*transform: rotateX\(-180deg\)/s);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-back \{[^}]*transform: rotateX\(0\)/s);
   assert.match(css, /\.duration-control \{[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.duration-control button \{[^}]*border: 1px solid #2c3336;[^}]*height: 32px;[^}]*width: 32px/s);
   assert.match(css, /\.inline-edit-form/);
