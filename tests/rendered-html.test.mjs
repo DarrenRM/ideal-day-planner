@@ -463,7 +463,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /--summary-rail-width: 294px/);
   assert.match(css, /\.day-overview \{[^}]*width: var\(--summary-rail-width\)/s);
   assert.match(css, /\.main-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--summary-rail-width\)/s);
-  assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px minmax\(68px, min\(38vw, 180px\)\)/s);
+  assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px/s);
   assert.match(page, /mobile-activity-menu/);
   assert.match(page, /activity-header-flip-inner/);
   assert.match(page, /activity-header-face activity-header-front/);
@@ -506,7 +506,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /className="activity-agenda-dot"/);
   assert.doesNotMatch(page, /className="activity-agenda-status"/);
   assert.match(css, /\.item-title \{[^}]*grid-column: 1;[^}]*padding-right: 0/s);
-  assert.match(css, /\.mobile-top-meta \{[^}]*display: flex;[^}]*grid-column: 3;[^}]*grid-row: 2/s);
+  assert.match(css, /\.mobile-top-meta \{[^}]*display: flex;[^}]*grid-column: 1 \/ 4;[^}]*grid-row: 2;[^}]*max-width: min\(55%, 180px\)/s);
   assert.match(css, /\.item-meta \{ display: none; \}/);
   assert.match(css, /\.item-state \{ display: none; \}/);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 1 \/ 3/s);
