@@ -1774,7 +1774,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .mobile-time-label { align-items: baseline; color: #87918c; display: inline-flex; gap: 4px; min-width: 0; }
   .mobile-time-label strong { color: #aab3af; font: 500 var(--type-body)/var(--leading-body) var(--type-sans); letter-spacing: -.015em; }
   .mobile-time-label span { color: #68716e; font: 500 var(--type-micro)/var(--leading-micro) var(--type-sans); letter-spacing: .05em; }
-  .item-controls { align-self: stretch; display: grid; gap: 6px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) 32px minmax(68px, min(38vw, 180px)); grid-template-rows: 32px 32px; min-width: 0; pointer-events: none; position: relative; width: 100%; z-index: 3; }
+  .item-controls { align-self: stretch; display: grid; gap: 6px 8px; grid-column: 1 / -1; grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr) 32px 32px; grid-template-rows: 32px 32px; min-width: 0; pointer-events: none; position: relative; width: 100%; z-index: 3; }
   .item-controls > * { pointer-events: auto; }
   .routine-card.is-expanded > .item-controls { display: grid; }
   .item-controls > .desktop-row-action, .item-controls > .desktop-skip-control, .item-controls > .duration-control { display: none; }
@@ -1974,7 +1974,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 }
 
 @media (max-width: 360px) {
-  .item-copy, .item-controls { gap: 6px 5px; grid-template-columns: minmax(0, 1fr) 30px minmax(68px, 38vw); }
+  .item-copy { gap: 6px 5px; grid-template-columns: minmax(0, 1fr) 30px minmax(68px, 38vw); }
+  .item-controls { gap: 6px 5px; grid-template-columns: minmax(0, 1fr) 32px 32px; }
   .routine-card .item-controls > .duration-control { gap: 6px; }
   .routine-card .item-controls > .duration-control button { width: 30px; }
   .routine-card .item-controls > .duration-control .duration-inline-meta { gap: 5px; }
