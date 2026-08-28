@@ -1838,9 +1838,9 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .activity-back-duration { align-self: center; grid-column: 1; grid-row: 2; min-width: 0; }
   .activity-back-duration .duration-control { min-height: 32px; }
   .activity-back-duration .duration-control button { height: 32px; width: 32px; }
-  .activity-back-duration .duration-value { min-width: 78px; }
-  .activity-back-duration .duration-control input { font-size: var(--type-body-lg); }
-  .activity-back-duration .duration-unit { font-size: var(--type-body-sm); }
+  .activity-back-duration .duration-value { min-width: 0; }
+  .activity-back-duration .duration-control input { color: #aab3af; font: 500 var(--type-body-lg)/var(--leading-body-lg) var(--type-sans); letter-spacing: -.015em; }
+  .activity-back-duration .duration-unit { color: #78817d; font: 400 var(--type-body-sm)/var(--leading-body-sm) var(--type-sans); }
   .activity-back-skip { align-self: center; grid-column: 2 / 4; grid-row: 2; justify-self: end; }
   .activity-edit-done { align-self: center; grid-column: 2; grid-row: 1; justify-self: center; }
   .activity-header-back > .mobile-activity-menu { grid-column: 3; grid-row: 1; justify-self: end; }
