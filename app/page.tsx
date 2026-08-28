@@ -371,6 +371,26 @@ function formatTodayHeading(date = new Date()) {
   return `${weekday}, ${month} ${formatDayOrdinal(date.getDate())}`;
 }
 
+function MobileDateHeading({ date }: { date: Date }) {
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
+  const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
+  const day = date.getDate();
+  const ordinal = formatDayOrdinal(day).slice(String(day).length);
+
+  return (
+    <span aria-label={formatTodayHeading(date)} className="mobile-schedule-title mobile-date-lockup">
+      <span aria-hidden="true" className="mobile-date-copy">
+        <span className="mobile-date-month">{month}</span>
+        <strong className="mobile-date-weekday">{weekday}</strong>
+      </span>
+      <span aria-hidden="true" className="mobile-date-divider" />
+      <span aria-hidden="true" className="mobile-date-number">
+        {day}<sup>{ordinal}</sup>
+      </span>
+    </span>
+  );
+}
+
 function dateFromKey(dateKey: string) {
   const [year, month, day] = dateKey.split("-").map(Number);
   return new Date(year, month - 1, day, 12);
@@ -3221,7 +3241,7 @@ export default function Home() {
               <div className="planner-heading-copy">
                 <h2 id="schedule-title">
                   <span className="desktop-schedule-title">{timelineEnabled ? "Schedule" : "Today"}</span>
-                  <span className="mobile-schedule-title">{formatTodayHeading(dateFromKey(viewDate))}</span>
+                  <MobileDateHeading date={dateFromKey(viewDate)} />
                 </h2>
                 <p>
                   <span className="desktop-schedule-summary">{isReviewingPastDay ? `Reviewing ${reviewDayLabel(viewDate, todayDateKey)}` : hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} more` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>

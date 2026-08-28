@@ -171,6 +171,13 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /ActivityWorkbench/);
   assert.match(page, /function formatTodayHeading/);
   assert.match(page, /formatDayOrdinal/);
+  assert.match(page, /function MobileDateHeading/);
+  assert.match(page, /mobile-date-month/);
+  assert.match(page, /mobile-date-weekday/);
+  assert.match(page, /mobile-date-number/);
+  assert.match(css, /\.mobile-date-lockup[^}]*grid-template-columns: minmax\(0, 1fr\) 1px auto/);
+  assert.match(css, /\.mobile-date-month[^}]*text-transform: uppercase/);
+  assert.match(css, /\.mobile-date-weekday[^}]*color: var\(--text\)/);
   assert.match(page, /ActivityWorkspace/);
   assert.match(page, /workspaceWorkState/);
   assert.match(page, /activeJobHasWorker/);
