@@ -23,6 +23,11 @@ test("collapsed and expanded activities share a stable two-faced editing header"
     readFile(new URL("../app/activity-duration-control.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(css, /\.activity-header-flip \{[^}]*min-height: 44px;[^}]*position: relative/s);
+  assert.match(page, /activity-card-surface activity-card-surface-front/);
+  assert.match(page, /activity-card-surface activity-card-surface-back/);
+  assert.match(css, /\.routine-card\.is-editing \.activity-card-surface-front \{[^}]*opacity: 0;[^}]*transform: scaleY\(\.04\)/s);
+  assert.match(css, /\.routine-card\.is-editing \.activity-card-surface-back \{[^}]*opacity: 1;[^}]*transform: scaleY\(1\)/s);
+  assert.match(css, /\.routine-row \.routine-card:not\(\.is-expanded\) \{[^}]*background: transparent;[^}]*border-color: transparent/s);
   assert.doesNotMatch(css, /perspective:|backface-visibility:|rotateX\(/);
   assert.match(css, /\.routine-card\.is-editing \.activity-header-front \{[^}]*opacity: 0;[^}]*transform: scaleY\(\.04\)/s);
   assert.match(css, /\.activity-header-front \{[^}]*opacity: 1;[^}]*transform: scaleY\(1\)/s);

@@ -3426,6 +3426,8 @@ export default function Home() {
                         : <strong className="sequence-label">Queued</strong>}</div> : null}
 
                     <article className={`routine-card ${isEditing ? "is-editing" : ""} ${isExpanded ? "is-expanded" : ""} ${transitionGeometry ? `is-mobile-${transitionGeometry.phase}` : ""} ${mobileActivityMenuId === item.id ? "has-open-mobile-menu" : ""} ${celebratingActivityId === item.id ? "is-celebrating" : ""} ${skippingActivityId === item.id ? "is-skipping" : ""}`}>
+                      <span className="activity-card-surface activity-card-surface-front" aria-hidden="true" />
+                      <span className="activity-card-surface activity-card-surface-back" aria-hidden="true" />
                       {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
                       {celebratingActivityId === item.id && isExpanded ? <span className="completion-full-view-wash" aria-hidden="true" /> : null}
                       {skippingActivityId === item.id ? <span className="skip-sweep" aria-hidden="true" /> : null}
