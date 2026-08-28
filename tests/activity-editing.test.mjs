@@ -16,9 +16,10 @@ test("renaming an activity does not make Luna rebuild an established setup", () 
   );
 });
 
-test("the expanded mobile editor owns its header without overlapping activity controls", async () => {
+test("collapsed and expanded activities share a stable two-faced editing header", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.routine-card\.is-expanded\.is-editing > \.item-controls \{ display: none; \}/);
-  assert.match(css, /\.routine-card\.is-expanded\.is-editing \.inline-edit-form \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) auto;[\s\S]*?min-height: 104px;/);
-  assert.match(css, /\.routine-card\.is-expanded\.is-editing \.inline-edit-form > input \{ grid-column: 1 \/ -1; grid-row: 1; \}/);
+  assert.match(css, /\.activity-header-flip \{[^}]*min-height: 44px;[^}]*perspective: 900px/s);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-flip-inner \{ transform: rotateX\(180deg\); \}/);
+  assert.match(css, /\.activity-header-back\.inline-edit-form \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px;[^}]*grid-template-rows: 32px 32px/s);
+  assert.match(css, /\.routine-card\.is-expanded \.activity-header-flip \{ min-height: max\(86px, calc\(78px \+ env\(safe-area-inset-top\)\)\); \}/);
 });

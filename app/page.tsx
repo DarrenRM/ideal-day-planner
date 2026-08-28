@@ -2,7 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MoreVertical, Pencil, Plus, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, Trophy, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MoreVertical, Pencil, Plus, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, Trophy, X } from "lucide-react";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -2349,17 +2349,19 @@ export default function Home() {
     setEditingId(item.id);
     setEditTitle(item.title);
     setEditCategory(item.category);
+    window.setTimeout(() => document.getElementById(`activity-title-edit-${item.id}`)?.focus(), 240);
   }
 
   function cancelEditing() {
     setEditingId(null);
     setEditTitle("");
+    setMobileActivityMenuId(null);
+    setMobileResetActivity(null);
   }
 
-  function saveEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function commitEdit() {
     const title = editTitle.trim();
-    if (!editingId || !title) return;
+    if (!editingId || !title) return false;
     const editingItem = items.find((item) => item.id === editingId);
     setItems((current) => current.map((item) => {
       if (item.id !== editingId) return item;
@@ -2390,6 +2392,12 @@ export default function Home() {
       }).catch(() => setSaveState("retrying"));
     }
     cancelEditing();
+    return true;
+  }
+
+  function saveEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    commitEdit();
   }
 
   function moveItem(sourceId: string, targetId: string, position: "before" | "after") {
@@ -3420,173 +3428,129 @@ export default function Home() {
                       {celebratingActivityId === item.id ? <span className="completion-sweep" aria-hidden="true" /> : null}
                       {celebratingActivityId === item.id && isExpanded ? <span className="completion-full-view-wash" aria-hidden="true" /> : null}
                       {skippingActivityId === item.id ? <span className="skip-sweep" aria-hidden="true" /> : null}
-                      {isEditing ? (
-                        <>
-                          {dayMode.showClockState ? <div className="mobile-time-label mobile-edit-time" aria-hidden="true">{isDayStarted ? <><strong>{start.time}</strong><span>{start.suffix}</span></> : <strong>Queued</strong>}</div> : null}
-                          <form className="inline-edit-form" onSubmit={saveEdit}>
+                      <div className="activity-header-flip">
+                        <div className="activity-header-flip-inner">
+                          <div aria-hidden={isEditing} className="activity-header-face activity-header-front">
+                            <button
+                              aria-label={`${item.title}${isSkipped ? ", skipped today" : isComplete ? ", done" : ""}`}
+                              aria-expanded={isExpanded}
+                              aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                              className="item-copy"
+                              draggable={!isExpanded && !isEditing}
+                              tabIndex={isEditing ? -1 : undefined}
+                              type="button"
+                              onContextMenu={(event) => { if (touchDragRef.current?.sourceId === item.id) event.preventDefault(); }}
+                              onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
+                              onDragStart={(event) => handleDragStart(event, item.id)}
+                              onKeyDown={(event) => handleDragKeyDown(event, item.id)}
+                              onPointerDown={(event) => handleActivityPointerDown(event, item.id)}
+                              onClick={(event) => {
+                                if (suppressActivityClickRef.current || transitionGeometry) return;
+                                if (isExpanded) collapseActivity();
+                                else openActivity(item.id, event.currentTarget.closest<HTMLElement>(".routine-card")?.getBoundingClientRect());
+                              }}
+                            >
+                              <div className="item-title">
+                                <span className={`activity-title-icon ${itemIconState}`} aria-hidden="true"><ItemIcon size={18} strokeWidth={isComplete ? 2.4 : 1.9} /></span>
+                                <h3>{activityDisplayTitle(item)}</h3>
+                              </div>
+                              <div className="mobile-top-meta"><ActivityAgenda item={item} /></div>
+                              <div className="item-state">{activityState === "current" ? <span className="now-chip">Now</span> : null}</div>
+                              <div className="item-meta">
+                                <ActivityAgenda item={item} />
+                                <div className="mobile-item-state">{activityState === "current" ? <span className="now-chip">Now</span> : null}</div>
+                              </div>
+                            </button>
+
+                            <div className="item-controls">
+                              {isExpanded ? <button className="collapse-activity-button" tabIndex={isEditing ? -1 : undefined} type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /></button> : null}
+                              <span className="front-duration-label">{item.duration} minutes</span>
+                              <button aria-label={`Edit ${item.title}`} className="activity-edit-trigger" tabIndex={isEditing ? -1 : undefined} type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} strokeWidth={1.9} /></button>
+                              <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `${item.title} is complete` : `Mark ${item.title} complete`}>
+                                <button
+                                  aria-describedby={`complete-tooltip-${item.id}`}
+                                  aria-label={isComplete ? `${item.title} completed` : `Mark ${item.title} complete`}
+                                  className={`closed-status-button complete-status-button ${isComplete ? "is-active" : ""}`}
+                                  disabled={isPending || isComplete}
+                                  tabIndex={isEditing ? -1 : undefined}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isExpanded && expandedCompletionActionRef.current) {
+                                      expandedCompletionActionRef.current();
+                                      return;
+                                    }
+                                    void updateActivityStatus(item, isComplete ? "reopen" : "complete");
+                                  }}
+                                ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
+                              </ControlTooltip>
+                            </div>
+                          </div>
+
+                          <form aria-hidden={!isEditing} className="activity-header-face activity-header-back inline-edit-form" onSubmit={saveEdit}>
                             <input
                               aria-label={`Title for ${item.title}`}
+                              id={`activity-title-edit-${item.id}`}
                               maxLength={60}
                               onChange={(event) => setEditTitle(event.target.value)}
                               onKeyDown={(event) => { if (event.key === "Escape") cancelEditing(); }}
-                              value={editTitle}
+                              tabIndex={isEditing ? undefined : -1}
+                              value={isEditing ? editTitle : item.title}
                             />
-                            <CategoryPicker
-                              id={`tag-${item.id}`}
-                              ariaLabel={`Tag for ${item.title}`}
-                              onChange={setEditCategory}
-                              value={editCategory}
-                            />
-                            <div className="inline-edit-actions">
-                              <button type="button" aria-label="Cancel editing" onClick={cancelEditing}>×</button>
-                              <button className="save-edit-button" disabled={!editTitle.trim()} type="submit" aria-label="Save changes">✓</button>
+                            <div className="activity-back-duration">
+                              <DurationControl item={item} onAdjust={(delta) => adjustDuration(item.id, delta)} onSet={(value) => setDuration(item.id, value)} />
                             </div>
-                          </form>
-                        </>
-                      ) : (
-                        <button
-                          aria-label={`${item.title}${isSkipped ? ", skipped today" : isComplete ? ", done" : ""}`}
-                          aria-expanded={isExpanded}
-                          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                          className="item-copy"
-                          draggable={!isExpanded}
-                          type="button"
-                          onContextMenu={(event) => { if (touchDragRef.current?.sourceId === item.id) event.preventDefault(); }}
-                          onDragEnd={() => { setDraggingId(null); setDropTarget(null); }}
-                          onDragStart={(event) => handleDragStart(event, item.id)}
-                          onKeyDown={(event) => handleDragKeyDown(event, item.id)}
-                          onPointerDown={(event) => handleActivityPointerDown(event, item.id)}
-                          onClick={(event) => {
-                            if (suppressActivityClickRef.current || transitionGeometry) return;
-                            if (isExpanded) collapseActivity();
-                            else openActivity(item.id, event.currentTarget.closest<HTMLElement>(".routine-card")?.getBoundingClientRect());
-                          }}
-                        >
-                          <div className="item-title">
-                            <span className={`activity-title-icon ${itemIconState}`} aria-hidden="true"><ItemIcon size={18} strokeWidth={isComplete ? 2.4 : 1.9} /></span>
-                            <h3>{activityDisplayTitle(item)}</h3>
-                          </div>
-                          <div className="mobile-top-meta">
-                            <ActivityAgenda item={item} />
-                          </div>
-                          <div className="item-state">
-                            {activityState === "current" ? <span className="now-chip">Now</span> : null}
-                          </div>
-                          <div className="item-meta">
-                            {dayMode.showClockState ? <div className="mobile-time-label" aria-hidden="true">{isSkipped
-                              ? <strong>Skipped</strong>
-                              : isDayStarted
-                                ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
-                                : <strong>Queued</strong>}</div> : null}
-                            <ActivityAgenda item={item} />
-                            <div className="mobile-item-state">
-                              {activityState === "current" ? <span className="now-chip">Now</span> : null}
-                            </div>
-                          </div>
-                        </button>
-                      )}
-
-                      {isExpanded ? <button className="collapse-activity-button" type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /></button> : null}
-                      <div className="item-controls">
-                          <button
-                            className="edit-item-button desktop-row-action"
-                            type="button"
-                            aria-label={`Change ${item.title} for today`}
-                            onClick={() => setOccurrenceEditorItem(item)}
-                          ><CalendarDays aria-hidden="true" size={14} strokeWidth={1.8} /></button>
-                          <button
-                            className="edit-item-button desktop-row-action"
-                            type="button"
-                            aria-label={`Edit ${item.title}`}
-                            onClick={() => startEditing(item)}
-                          ><Pencil aria-hidden="true" size={14} strokeWidth={1.8} /></button>
-
-                          <button
-                            className="delete-item-button desktop-row-action"
-                            type="button"
-                            aria-label={normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? `Return ${item.title} to More for today` : `Remove ${item.title} from today`}
-                            onClick={() => requestRemoveItem(item)}
-                          >{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={14} strokeWidth={1.8} /> : <Trash2 aria-hidden="true" size={14} strokeWidth={1.8} />}</button>
-
-                          <ControlTooltip className="desktop-skip-control" id={`skip-tooltip-${item.id}`} label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}>
                             <button
-                              aria-describedby={`skip-tooltip-${item.id}`}
-                              aria-label={isSkipped ? `Put ${item.title} back into today` : `Skip ${item.title} for today`}
-                              className={`closed-status-button skip-status-button ${isSkipped ? "is-active" : ""}`}
-                              disabled={isPending}
-                              type="button"
-                              onClick={() => void updateActivityStatus(item, isSkipped ? "unskip" : "skip")}
-                            ><SkipForward aria-hidden="true" size={14} strokeWidth={2} /></button>
-                          </ControlTooltip>
-
-                          <div className={`mobile-activity-menu ${mobileActivityMenuId === item.id ? "is-open" : ""}`} data-activity-id={item.id}>
-                            <button
-                              aria-expanded={mobileActivityMenuId === item.id}
-                              aria-haspopup={mobileResetActivity?.id === item.id ? "dialog" : "menu"}
-                              aria-label={`More options for ${item.title}`}
-                              className="mobile-activity-menu-trigger"
-                              type="button"
-                              onClick={() => {
-                                setMobileResetActivity(null);
-                                setMobileActivityMenuId((current) => current === item.id ? null : item.id);
-                              }}
-                            ><MoreVertical aria-hidden="true" size={18} strokeWidth={2} /></button>
-                            {mobileActivityMenuId === item.id ? (
-                              <div className={`mobile-activity-menu-panel ${mobileResetActivity?.id === item.id ? "is-confirming" : ""}`} role={mobileResetActivity?.id === item.id ? "dialog" : "menu"}>
-                                {mobileResetActivity?.id === item.id ? (
-                                  <div className="activity-reset-confirmation">
-                                    <strong>{mobileResetActivity.state === "error" ? "Reset didn’t work" : "Reset this activity?"}</strong>
-                                    <span>{mobileResetActivity.state === "error" ? "Nothing was changed. You can try again." : "This clears Luna’s thread, workspace, saved activity details, and run history. The activity stays in your day."}</span>
-                                    <div>
-                                      <button type="button" onClick={() => setMobileResetActivity(null)}>Cancel</button>
-                                      <button className="activity-reset-confirm-button" disabled={mobileResetActivity.state === "resetting"} type="button" onClick={() => void resetActivityForTesting(item)}>{mobileResetActivity.state === "resetting" ? "Resetting…" : mobileResetActivity.state === "error" ? "Try Again" : "Reset Activity"}</button>
-                                    </div>
-                                  </div>
-                                ) : <>
-                                  <button role="menuitem" type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
-                                  <button role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
-                                  <button role="menuitem" type="button" onClick={() => void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential")}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
-                                  {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : <button disabled={isPending} role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); void updateActivityStatus(item, isSkipped ? "unskip" : "skip"); }}><SkipForward aria-hidden="true" size={15} /> {isSkipped ? "Restore to today" : "Skip for today"}</button>}
-                                  <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
-                                  <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => requestRemoveItem(item)}>{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={15} /> : <Trash2 aria-hidden="true" size={15} />} {normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? "Return to More for today" : "Remove from today"}</button>
-                                </>}
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `${item.title} is complete` : `Mark ${item.title} complete`}>
-                            <button
-                              aria-describedby={`complete-tooltip-${item.id}`}
-                              aria-label={isComplete ? `${item.title} completed` : `Mark ${item.title} complete`}
-                              className={`closed-status-button complete-status-button ${isComplete ? "is-active" : ""}`}
+                              aria-label={isSkipped ? `Restore ${item.title} to today` : `Skip ${item.title} for today`}
+                              className={`activity-back-skip ${isSkipped ? "is-active" : ""}`}
                               disabled={isPending || isComplete}
+                              tabIndex={isEditing ? undefined : -1}
                               type="button"
                               onClick={() => {
-                                if (isExpanded && expandedCompletionActionRef.current) {
-                                  expandedCompletionActionRef.current();
-                                  return;
-                                }
-                                void updateActivityStatus(item, isComplete ? "reopen" : "complete");
+                                if (editTitle.trim()) commitEdit();
+                                else cancelEditing();
+                                void updateActivityStatus(item, isSkipped ? "unskip" : "skip");
                               }}
-                            ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
-                          </ControlTooltip>
+                            ><span>{isSkipped ? "Restore" : "Skip"}</span><SkipForward aria-hidden="true" size={15} strokeWidth={2} /></button>
 
-                          <DurationControl
-                            inlineMeta={<>
-                              {dayMode.showClockState ? <div className="mobile-time-label" aria-hidden="true">{isSkipped
-                                ? <strong>Skipped</strong>
-                                : isDayStarted
-                                  ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
-                                  : <strong>Queued</strong>}</div> : null}
-                              <div className="mobile-item-state">
-                                {activityState === "current" ? <span className="now-chip">Now</span> : null}
-                              </div>
-                            </>}
-                            item={item}
-                            onAdjust={(delta) => adjustDuration(item.id, delta)}
-                            onSet={(value) => setDuration(item.id, value)}
-                          />
+                            <div className={`mobile-activity-menu ${mobileActivityMenuId === item.id ? "is-open" : ""}`} data-activity-id={item.id}>
+                              <button
+                                aria-expanded={mobileActivityMenuId === item.id}
+                                aria-haspopup={mobileResetActivity?.id === item.id ? "dialog" : "menu"}
+                                aria-label={`More options for ${item.title}`}
+                                className="mobile-activity-menu-trigger"
+                                tabIndex={isEditing ? undefined : -1}
+                                type="button"
+                                onClick={() => {
+                                  setMobileResetActivity(null);
+                                  setMobileActivityMenuId((current) => current === item.id ? null : item.id);
+                                }}
+                              ><MoreVertical aria-hidden="true" size={18} strokeWidth={2} /></button>
+                              {mobileActivityMenuId === item.id ? (
+                                <div className={`mobile-activity-menu-panel ${mobileResetActivity?.id === item.id ? "is-confirming" : ""}`} role={mobileResetActivity?.id === item.id ? "dialog" : "menu"}>
+                                  {mobileResetActivity?.id === item.id ? (
+                                    <div className="activity-reset-confirmation">
+                                      <strong>{mobileResetActivity.state === "error" ? "Reset didn’t work" : "Reset this activity?"}</strong>
+                                      <span>{mobileResetActivity.state === "error" ? "Nothing was changed. You can try again." : "This clears Luna’s thread, workspace, saved activity details, and run history. The activity stays in your day."}</span>
+                                      <div>
+                                        <button type="button" onClick={() => setMobileResetActivity(null)}>Cancel</button>
+                                        <button className="activity-reset-confirm-button" disabled={mobileResetActivity.state === "resetting"} type="button" onClick={() => void resetActivityForTesting(item)}>{mobileResetActivity.state === "resetting" ? "Resetting…" : mobileResetActivity.state === "error" ? "Try Again" : "Reset Activity"}</button>
+                                      </div>
+                                    </div>
+                                  ) : <>
+                                    <button role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); document.getElementById(`activity-title-edit-${item.id}`)?.focus(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
+                                    <button role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
+                                    <button role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
+                                    {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
+                                    <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
+                                    <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); requestRemoveItem(item); }}>{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={15} /> : <Trash2 aria-hidden="true" size={15} />} {normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? "Return to More for today" : "Remove from today"}</button>
+                                  </>}
+                                </div>
+                              ) : null}
+                            </div>
+                            <button aria-label="Save and return" className="activity-edit-done" disabled={!editTitle.trim()} tabIndex={isEditing ? undefined : -1} type="submit"><ArrowLeft aria-hidden="true" size={17} strokeWidth={2} /></button>
+                          </form>
                         </div>
+                      </div>
 
                       {isExpanded ? (
                         <ActivityWorkbench
