@@ -1736,7 +1736,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .planner-header { align-items: flex-start; border-bottom: 0; gap: 12px; min-height: 78px; padding: 8px 0 12px; }
   .planner-heading-copy { min-width: 0; }
   .planner-header h2 { font-size: 18px; line-height: 24px; margin: 7px 0 5px; white-space: nowrap; }
-  .planner-header:has(.mobile-date-lockup) { display: flex; min-height: 112px; }
+  .planner-header:has(.mobile-date-lockup) { display: flex; min-height: 108px; padding-bottom: 8px; }
   .planner-header:has(.mobile-date-lockup) .planner-heading-copy { flex: 1 1 auto; width: auto; }
   .planner-header:has(.mobile-date-lockup) h2 { margin: 0; }
   .desktop-schedule-title { display: none; }
@@ -1751,7 +1751,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
   .mobile-date-number sup { font: 760 var(--type-micro)/1 var(--type-sans); letter-spacing: .08em; margin: 3px 0 0 3px; text-transform: uppercase; }
   .desktop-schedule-summary { display: none; }
   .mobile-schedule-summary { display: none; }
-  .mobile-day-nav { align-items: center; display: flex; gap: 14px; min-height: 28px; margin-top: 8px; width: max-content; }
+  .mobile-day-nav { align-items: center; display: flex; gap: 14px; min-height: 28px; margin-top: 0; width: max-content; }
   .mobile-day-nav > button { align-items: center; background: transparent; border: 0; border-radius: 6px; color: #87918c; cursor: pointer; display: inline-flex; font: 600 var(--type-label)/var(--leading-label) var(--type-sans); gap: 3px; min-height: 28px; padding: 0 2px; }
   .mobile-day-nav > button:hover { color: var(--accent-bright); }
   .mobile-day-nav > .mobile-day-nav-today { color: var(--accent); padding: 0 4px; }
