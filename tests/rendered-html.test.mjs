@@ -434,7 +434,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /--summary-rail-width: 294px/);
   assert.match(css, /\.day-overview \{[^}]*width: var\(--summary-rail-width\)/s);
   assert.match(css, /\.main-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\) var\(--summary-rail-width\)/s);
-  assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/s);
+  assert.match(css, /\.item-copy \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px minmax\(68px, min\(38vw, 180px\)\)/s);
   assert.match(page, /mobile-activity-menu/);
   assert.match(page, /Dev reset activity/);
   assert.match(page, /fetch\("\/api\/activity\/reset"/);
@@ -464,12 +464,16 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.doesNotMatch(page, /className="skipped-chip"/);
   assert.doesNotMatch(page, /className="item-icon"/);
   assert.doesNotMatch(css, /\.drag-button/);
-  assert.match(css, /\.item-title \{[^}]*padding-right: 76px/s);
+  assert.match(page, /className="mobile-top-meta">\s*<ActivityAgenda item=\{item\}/s);
+  assert.match(css, /\.item-title \{[^}]*grid-column: 1;[^}]*padding-right: 0/s);
+  assert.match(css, /\.mobile-top-meta \{[^}]*display: flex;[^}]*grid-column: 3;[^}]*grid-row: 1/s);
   assert.match(css, /\.item-meta \{ display: none; \}/);
   assert.match(css, /\.item-state \{ display: none; \}/);
   assert.match(css, /\.item-controls \{[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 1 \/ 3/s);
-  assert.match(css, /\.item-controls \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px 32px/s);
-  assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*grid-column: 1 \/ -1;[^}]*justify-self: stretch;[^}]*width: 100%/s);
+  assert.match(css, /\.item-controls \{[^}]*grid-template-columns: minmax\(0, 1fr\) 32px minmax\(68px, min\(38vw, 180px\)\)/s);
+  assert.match(css, /\.mobile-activity-menu \{[^}]*grid-column: 2;[^}]*grid-row: 1/s);
+  assert.match(css, /\.item-controls > \.control-tooltip \{[^}]*grid-column: 3;[^}]*grid-row: 2/s);
+  assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*grid-column: 1 \/ 3;[^}]*justify-self: stretch;[^}]*width: 100%/s);
   assert.match(css, /\.duration-inline-meta \{[^}]*margin-left: auto;/);
   assert.match(css, /\.routine-card\.is-expanded \.collapse-activity-button \{ display: none; \}/);
   assert.match(css, /\.routine-card\.is-expanded > \.item-controls \{ display: grid; \}/);
@@ -482,7 +486,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner \{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none;[^}]*overflow: visible/s);
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
-  assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*display: flex;[^}]*grid-column: 1 \/ -1;[^}]*grid-row: 2;[^}]*position: static/s);
+  assert.match(css, /\.routine-card \.item-controls > \.duration-control \{[^}]*display: flex;[^}]*grid-column: 1 \/ 3;[^}]*grid-row: 2;[^}]*position: static/s);
   assert.match(css, /\.duration-control \{[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.duration-control button \{[^}]*border: 1px solid #2c3336;[^}]*height: 32px;[^}]*width: 32px/s);
   assert.match(css, /\.inline-edit-form/);

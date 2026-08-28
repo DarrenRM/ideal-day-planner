@@ -3464,6 +3464,9 @@ export default function Home() {
                             <span className={`activity-title-icon ${itemIconState}`} aria-hidden="true"><ItemIcon size={18} strokeWidth={isComplete ? 2.4 : 1.9} /></span>
                             <h3>{activityDisplayTitle(item)}</h3>
                           </div>
+                          <div className="mobile-top-meta">
+                            <ActivityAgenda item={item} />
+                          </div>
                           <div className="item-state">
                             {activityState === "current" ? <span className="now-chip">Now</span> : null}
                           </div>
@@ -3573,7 +3576,6 @@ export default function Home() {
                                 : isDayStarted
                                   ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                   : <strong>Queued</strong>}</div> : null}
-                              <ActivityAgenda item={item} />
                               <div className="mobile-item-state">
                                 {activityState === "current" ? <span className="now-chip">Now</span> : null}
                               </div>
