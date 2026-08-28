@@ -258,7 +258,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /height: 100dvh/);
   assert.match(css, /\.page-shell:has\(\.routine-card\.is-expanded\).*padding: 0/);
   assert.match(css, /\.routine-card\.is-expanded \{ background: #101416;[^}]*margin: 0;[^}]*padding: 0;[^}]*position: fixed;/);
-  assert.match(css, /\.routine-card\.is-expanded \.activity-header-flip \{ min-height: max\(86px, calc\(78px \+ env\(safe-area-inset-top\)\)\); \}/);
+  assert.match(css, /\.routine-card\.is-expanded \.activity-header-flip \{ min-height: max\(88px, calc\(80px \+ env\(safe-area-inset-top\)\)\); \}/);
   assert.match(css, /\.routine-card\.is-expanded \.activity-header-face \{[^}]*padding: max\(8px, env\(safe-area-inset-top\)\) 12px 8px 16px;/);
   assert.match(css, /\.routine-row:has\(\.routine-card\.is-expanded\) \{ padding: 0; \}/);
   assert.match(page, /type MobileActivityTransition/);
@@ -495,7 +495,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.activity-footer-tools \{ display: none; \}/);
   assert.match(css, /\.now-line span \{ font-size: var\(--type-micro\); justify-self: start; \}/);
   assert.match(css, /\.routine-card\.is-expanded \{[^}]*overflow: hidden;[^}]*padding-left: 0;[^}]*padding-right: 0/s);
-  assert.match(css, /\.routine-card\.is-expanded \.activity-header-face \{[^}]*border-bottom: 1px solid #293033;[^}]*padding:/s);
+  assert.match(css, /\.routine-card\.is-expanded \.activity-header-face \{[^}]*border-bottom: 0;[^}]*box-shadow: inset 0 -1px #293033;[^}]*padding:/s);
   assert.match(css, /\.routine-card\.is-expanded \.item-copy \{[^}]*background: transparent;[^}]*padding: 0/s);
   assert.match(css, /\.activity-expansion \{[^}]*grid-row: 2;[^}]*height: 100%;[^}]*margin: 0/s);
   assert.match(css, /\.control-tooltip-bubble \{ display: none; \}/);
@@ -503,7 +503,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.planner-help \{ display: none; \}/);
   assert.match(css, /\.schedule \{ padding: 8px 0 16px; \}/);
   assert.match(css, /\.routine-card\.is-editing \.activity-header-front \{[^}]*transform: rotateX\(-180deg\)/s);
-  assert.match(css, /\.routine-card\.is-editing \.activity-header-back \{[^}]*transform: rotateX\(0\)/s);
+  assert.match(css, /\.routine-card\.is-editing \.activity-header-back \{[^}]*transform: none/s);
   assert.match(css, /\.duration-control \{[^}]*justify-self: start;[^}]*width: auto/s);
   assert.match(css, /\.duration-control button \{[^}]*border: 1px solid #2c3336;[^}]*height: 32px;[^}]*width: 32px/s);
   assert.match(css, /\.inline-edit-form/);
