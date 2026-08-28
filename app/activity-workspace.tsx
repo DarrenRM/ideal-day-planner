@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "lucide-react";
+import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "./icons";
 import { useEffect, useRef, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, productRoutineAction, type ActivityRecord } from "./activity-record-model";
@@ -347,7 +347,7 @@ export function WorkspaceWorkingComponent({ activity, workState, hasVisibleWorks
   complete?: boolean;
 }) {
   return <div className={`workspace-working ${workState === "waiting" ? "is-waiting" : ""} ${hasVisibleWorkspace ? "is-updating" : ""} ${complete ? "is-complete" : ""}`} role="status">
-    <span className="workspace-working-mark">{complete ? <Check size={15} strokeWidth={2.6} /> : <Sparkles size={15} />}</span>
+    <span className="workspace-working-mark">{complete ? <Check size={15} weight="bold" /> : <Sparkles size={15} />}</span>
     <div>
       <strong>{complete ? hasVisibleWorkspace ? `${activity.title} updated` : `${activity.title} is ready` : workTitle || (workState === "waiting" ? `${activity.title} is queued` : hasVisibleWorkspace ? `Updating ${activity.title}` : `Building your ${activity.title} setup`)}</strong>
       <p>{complete ? "Your latest details are ready." : workDetail || (workState === "waiting" ? "Your message is saved, and Luna will pick it up shortly." : "Turning your latest details into something useful here.")}</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, BookOpen, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Utensils, Wrench } from "lucide-react";
+import { AlertTriangle, BookOpen, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Utensils, Wrench } from "./icons";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import { hasMeaningfulProductNotes, type ActivityRecord } from "./activity-record-model";
@@ -38,7 +38,7 @@ function EmptyLine({ children }: { children: ReactNode }) {
 }
 
 function CheckButton({ checked, label, onClick }: { checked: boolean; label: string; onClick: () => void }) {
-  return <button aria-label={`${checked ? "Uncheck" : "Check"} ${label}`} className={`workspace-check ${checked ? "is-checked" : ""}`} type="button" onClick={onClick}>{checked ? <Check size={11} strokeWidth={3} /> : null}</button>;
+  return <button aria-label={`${checked ? "Uncheck" : "Check"} ${label}`} className={`workspace-check ${checked ? "is-checked" : ""}`} type="button" onClick={onClick}>{checked ? <Check size={11} weight="bold" /> : null}</button>;
 }
 
 function SummaryRecord({ record }: { record: ActivityRecord }) {
@@ -113,7 +113,7 @@ function ItemListRecord({ record, onMutate }: Props) {
   return <section className={`workspace-block item-list-record is-${record.type.replace("_", "-")}`}>
     <Heading eyebrow={eyebrow} title={record.title} />
     {data.items?.length ? <div className="record-item-list">{data.items.map((item) => <button aria-pressed={completedToday(item)} className={`record-item-row ${completedToday(item) ? "is-checked" : ""}`} key={item.id} type="button" onClick={() => void onMutate(record.key, "toggle_item", { itemId: item.id })}>
-      <span className="record-item-check" aria-hidden="true">{completedToday(item) ? <Check size={12} strokeWidth={3} /> : null}</span>
+      <span className="record-item-check" aria-hidden="true">{completedToday(item) ? <Check size={12} weight="bold" /> : null}</span>
       <span className="record-item-copy"><strong>{item.label}</strong>{item.detail || item.source ? <small>{[item.detail, item.source ? `From ${item.source}` : ""].filter(Boolean).join(" · ")}</small> : null}</span>
       {item.urgency ? <span className={`urgency-badge urgency-${item.urgency.replace("_", "-")}`}>{item.urgency.replace("_", " ")}</span> : null}
     </button>)}</div> : <EmptyLine>No items yet.</EmptyLine>}
@@ -207,7 +207,7 @@ function DailySelectionRecord({ record, onMutate }: Props) {
       {activeItems.map((item) => {
         const selected = selectedIds.includes(item.id);
         return <button aria-pressed={selected} className={selected ? "is-selected" : ""} disabled={saving} key={item.id} type="button" onClick={() => void toggle(item)}>
-          <span aria-hidden="true">{selected ? <Check size={12} strokeWidth={3} /> : null}</span>
+          <span aria-hidden="true">{selected ? <Check size={12} weight="bold" /> : null}</span>
           <strong>{item.label}</strong>
         </button>;
       })}
@@ -339,14 +339,14 @@ function StrengthWorkoutPhase({ record, onMutate }: { record: ActivityRecord; on
 
   return <section className={`strength-workout-phase is-${data.phase} ${complete ? "is-complete" : ""}`}>
     <button aria-expanded={expanded} className="strength-phase-toggle" type="button" onClick={() => setExpandedPreference((current) => !current)}>
-      <span className="strength-phase-mark">{complete ? <Check aria-hidden="true" size={14} strokeWidth={3} /> : data.phase === "warmup" ? "1" : "✓"}</span>
+      <span className="strength-phase-mark">{complete ? <Check aria-hidden="true" size={14} weight="bold" /> : data.phase === "warmup" ? "1" : "✓"}</span>
       <span><small className="workspace-overline">{data.phase === "warmup" ? "Warm-up" : "Cool-down"}</small><strong>{record.title}</strong><em>{complete ? "Complete" : `${completedSteps} of ${steps.length} steps`}</em></span>
       <ChevronDown aria-hidden="true" size={16} />
     </button>
     {expanded ? <div className="strength-phase-body">
       {data.summary ? <p>{data.summary}</p> : null}
       <div className="strength-phase-steps">{steps.map((step) => <button aria-pressed={completedToday(step)} className={completedToday(step) ? "is-complete" : ""} key={step.id} type="button" onClick={() => void onMutate(record.key, "toggle_item", { itemId: step.id })}>
-        <span aria-hidden="true">{completedToday(step) ? <Check size={11} strokeWidth={3} /> : null}</span>
+        <span aria-hidden="true">{completedToday(step) ? <Check size={11} weight="bold" /> : null}</span>
         <span><strong>{step.label}</strong>{step.note ? <small>{step.note}</small> : null}</span>
       </button>)}</div>
     </div> : null}
@@ -495,13 +495,13 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
             <div className="strength-set-head" aria-hidden="true"><span>Set</span>{prior ? <span>Previous</span> : null}<span>Weight</span><span>Reps</span><span>Done</span></div>
             {sets.map((set, index) => <div className="strength-set-row is-logged" key={set.id}>
               <span>{index + 1}</span>{prior ? <span>{prior.sets[index] ? `${prior.sets[index].load || "BW"} × ${prior.sets[index].reps}` : "—"}</span> : null}<strong>{set.load || "BW"}</strong><strong>{set.reps}</strong>
-              <button aria-label={`Remove set ${index + 1} from ${exercise.name}`} className="workspace-check is-checked" disabled={saving === set.id} type="button" onClick={() => void removeSet(exercise.id, set)}><Check size={11} strokeWidth={3} /></button>
+              <button aria-label={`Remove set ${index + 1} from ${exercise.name}`} className="workspace-check is-checked" disabled={saving === set.id} type="button" onClick={() => void removeSet(exercise.id, set)}><Check size={11} weight="bold" /></button>
             </div>)}
             <div className="strength-set-row is-entry">
               <span>{sets.length + 1}</span>{prior ? <span>{previousSet ? `${previousSet.load || "BW"} × ${previousSet.reps}` : "—"}</span> : null}
               <input aria-label={`Weight for set ${sets.length + 1} of ${exercise.name}`} inputMode="decimal" placeholder="BW" value={draft.load} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, load: event.target.value } }))} />
               <input aria-label={`Reps for set ${sets.length + 1} of ${exercise.name}`} inputMode="numeric" min="1" placeholder="—" type="number" value={draft.reps} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, reps: event.target.value } }))} />
-              <button aria-label={`Log set ${sets.length + 1} for ${exercise.name}`} className="workspace-check" disabled={!draft.reps || saving === exercise.id} type="button" onClick={() => void logSet(exercise)}><Check size={11} strokeWidth={3} /></button>
+              <button aria-label={`Log set ${sets.length + 1} for ${exercise.name}`} className="workspace-check" disabled={!draft.reps || saving === exercise.id} type="button" onClick={() => void logSet(exercise)}><Check size={11} weight="bold" /></button>
             </div>
           </div>}
           <details className="strength-set-options"><summary>Set details</summary><div><label>Type<select value={draft.setType} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, setType: event.target.value as StrengthDraft["setType"] } }))}><option value="working">Working</option><option value="warmup">Warm-up</option><option value="drop">Drop set</option><option value="failure">To failure</option></select></label><label>Reps left (optional)<input inputMode="numeric" max="10" min="0" placeholder="—" type="number" value={draft.rir} onChange={(event) => setDrafts((current) => ({ ...current, [exercise.id]: { ...draft, rir: event.target.value } }))} /></label></div></details>
@@ -533,12 +533,12 @@ function RecurringStepRecord({ record, onMutate, completionDates = [], nested = 
   return <section className={`${nested ? "product-supporting-section product-rhythm recurring-step-record" : "workspace-block recurring-step-record"}`}>
     <Heading eyebrow="Streak" title={cadence} icon={<CalendarCheck size={15} />} />
     <div className="recurring-rhythm-track" aria-label={`${record.title} schedule`}>
-      {occurrences.map((occurrence) => <div aria-current={occurrence.state === "next" ? "date" : undefined} className={`recurring-rhythm-step is-${occurrence.state}`} key={occurrence.date} aria-label={`${formatActivityRecordDate(occurrence.date)}${occurrence.state === "complete" ? ", used" : occurrence.state === "next" ? ", next" : ""}`}><span>{occurrence.state === "complete" ? <Check aria-hidden="true" size={12} strokeWidth={3} /> : null}</span><small>{compactOccurrenceDate(occurrence.date)}</small></div>)}
+      {occurrences.map((occurrence) => <div aria-current={occurrence.state === "next" ? "date" : undefined} className={`recurring-rhythm-step is-${occurrence.state}`} key={occurrence.date} aria-label={`${formatActivityRecordDate(occurrence.date)}${occurrence.state === "complete" ? ", used" : occurrence.state === "next" ? ", next" : ""}`}><span>{occurrence.state === "complete" ? <Check aria-hidden="true" size={12} weight="bold" /> : null}</span><small>{compactOccurrenceDate(occurrence.date)}</small></div>)}
     </div>
     <div className={`recurring-step-status ${status.lastCompleted ? "" : "has-one-value"}`} aria-label={status.lastCompleted ? `Last used: ${lastValue}. ${status.dueToday ? "Status" : "Next use"}: ${nextValue}.` : `${startsLater ? "Starts" : status.dueToday ? "First use" : "Next use"}: ${nextValue}.`}>
       {status.lastCompleted ? <span><small>Last used</small>{status.completedToday
-        ? <button aria-label={`Mark ${data.label} incomplete`} className="recurring-last-used-value" type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><Check aria-hidden="true" size={13} strokeWidth={3} /><strong>{lastValue}</strong></button>
-        : <strong className={status.completedThisCycle ? "is-complete" : ""}>{status.completedThisCycle ? <Check aria-hidden="true" size={13} strokeWidth={3} /> : null}{lastValue}</strong>}</span> : null}
+        ? <button aria-label={`Mark ${data.label} incomplete`} className="recurring-last-used-value" type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><Check aria-hidden="true" size={13} weight="bold" /><strong>{lastValue}</strong></button>
+        : <strong className={status.completedThisCycle ? "is-complete" : ""}>{status.completedThisCycle ? <Check aria-hidden="true" size={13} weight="bold" /> : null}{lastValue}</strong>}</span> : null}
       <span><small>{startsLater ? "Starts" : status.dueToday && !status.lastCompleted ? "First use" : status.dueToday ? "Status" : "Next use"}</small><strong className={status.dueToday ? "is-due" : ""}>{nextValue}</strong></span>
     </div>
     {!startsLater && !status.completedThisCycle ? <button type="button" onClick={() => void onMutate(record.key, "toggle_recurring_step", {})}><span /><div><strong>{data.label}</strong>{data.note ? <small>{data.note}</small> : null}</div></button> : null}

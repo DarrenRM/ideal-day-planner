@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowDown, ArrowUp, CalendarDays, ChevronDown, ChevronRight, MessageCircle, MoreVertical, Plus, RotateCcw, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, CalendarDays, ChevronDown, ChevronRight, MessageCircle, MoreVertical, Plus, RotateCcw, X } from "./icons";
 import { previewPattern, type AdvancementPolicy, type ScheduleCadence, type SchedulePattern } from "./schedule-model";
 import { groupRoutinePatterns, isRotationPattern, isSimpleDailyPattern, type RoutinePatternView } from "./routine-schedule-view";
 

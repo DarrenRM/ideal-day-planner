@@ -39,6 +39,35 @@ test("server-renders the idealized day planner", async () => {
   assert.doesNotMatch(html, /__variable_geist|_vinext_fonts/i);
 });
 
+test("uses one shared, direct-import Phosphor icon system", async () => {
+  const surfacePaths = [
+    "../app/activity-duration-control.tsx",
+    "../app/activity-presentation.ts",
+    "../app/activity-record-components.tsx",
+    "../app/activity-workspace.tsx",
+    "../app/components/component-library-page.tsx",
+    "../app/global-luna.tsx",
+    "../app/luna-demo/page.tsx",
+    "../app/occurrence-editor.tsx",
+    "../app/page.tsx",
+    "../app/schedule-manager.tsx",
+    "../app/streak-track.tsx",
+    "../app/testing/page.tsx",
+  ];
+  const [packageText, icons, ...surfaces] = await Promise.all([
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/icons.ts", import.meta.url), "utf8"),
+    ...surfacePaths.map((path) => readFile(new URL(path, import.meta.url), "utf8")),
+  ]);
+  const packageJson = JSON.parse(packageText);
+
+  assert.equal(packageJson.dependencies["@phosphor-icons/react"], "^2.1.10");
+  assert.equal(packageJson.dependencies["lucide-react"], undefined);
+  assert.match(icons, /@phosphor-icons\/react\/dist\/csr\/Heart/);
+  assert.ok((icons.match(/@phosphor-icons\/react\/dist\/csr\//g) ?? []).length > 40);
+  assert.doesNotMatch(surfaces.join("\n"), /lucide-react/);
+});
+
 test("keeps the routine data and interactions in the page", async () => {
   const [page, workspace, drawer, css, durationControl, activityPresentation, workReceipt] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -462,7 +491,7 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(page, /mobile-schedule-title/);
   assert.match(page, /formatDuration\(totalMinutes\).*total/s);
   assert.match(activityPresentation, /function activityIconFor/);
-  assert.match(activityPresentation, /CATEGORY_ICONS: Record<ActivityCategory, LucideIcon>/);
+  assert.match(activityPresentation, /CATEGORY_ICONS: Record<ActivityCategory, AppIcon>/);
   assert.match(page, /"--item-color": CATEGORY_META\[item\.category\]\.color/);
   assert.match(page, /const ItemIcon = isSkipped \? SkipForward : isComplete \? Check : ActivityIcon/);
   assert.match(page, /className=\{`activity-title-icon \$\{itemIconState\}`\}/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Flame } from "lucide-react";
+import { Check, Flame } from "./icons";
 import { dailyStreakBlocks, dailyStreakDaySteps, streakSteps } from "./streak-model";
 
 export function StreakTrack({
@@ -31,7 +31,7 @@ export function StreakTrack({
           const latest = complete && position === completedDays;
           return (
             <div className={`streak-step ${complete ? "is-complete" : ""} ${isWaiting ? "is-waiting" : ""} ${latest ? "is-latest" : ""}`} key={number}>
-              <span className="streak-dot">{complete ? <Check aria-hidden="true" size={13} strokeWidth={3} /> : null}</span>
+              <span className="streak-dot">{complete ? <Check aria-hidden="true" size={13} weight="bold" /> : null}</span>
               <small>{label} {number}</small>
             </div>
           );
@@ -41,7 +41,7 @@ export function StreakTrack({
         <span className="workspace-overline">Weeks</span>
         <div className="weekly-streak-track">
           {weekSteps.map((number) => <div className={`weekly-streak-step ${number <= completedWeeks ? "is-complete" : ""}`} key={number}>
-            <span className="weekly-streak-dot">{number <= completedWeeks ? <Check aria-hidden="true" size={9} strokeWidth={3} /> : null}</span>
+            <span className="weekly-streak-dot">{number <= completedWeeks ? <Check aria-hidden="true" size={9} weight="bold" /> : null}</span>
             <small>W{number}</small>
           </div>)}
         </div>

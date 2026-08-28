@@ -73,8 +73,8 @@ The canonical global tokens are:
 - Primary mobile controls and form fields are at least 40px high; 44px is preferred when space allows.
 - Compact repeated icon controls may be 32px only when clearly separated and backed by an accessible name. Do not introduce new controls below 32px.
 - Icon-only controls require an `aria-label`; desktop hover/focus may add a tooltip. Menus use icon plus text.
-- Use Lucide icons already present in the app. Keep ordinary control icons between 14 and 18px and align them optically with their labels.
-- Give each activity a meaningful Lucide line icon immediately left of its title, colored with its category color. Match familiar activity words when possible (walk, shower, lifting, meals, meditation, and so on), then fall back to the category icon. Icons add recognition but never replace the title.
+- Use Phosphor icons through the shared `app/icons.ts` module. Default to the regular weight, use bold only for compact confirmation marks, and keep ordinary control icons between 14 and 18px with optical alignment to their labels. Do not mix another general-purpose icon family into product UI.
+- Give each activity a meaningful Phosphor icon immediately left of its title, colored with its category color. Match familiar activity words when possible (walk, shower, lifting, meals, meditation, and so on), then fall back to the category icon. Icons add recognition but never replace the title.
 - Every interactive element needs default, hover, keyboard-focus, active/pressed, disabled, loading, success, and error treatment where applicable.
 - Loading feedback appears where work will land. Luna typing belongs in conversation; workspace preparation belongs in the workspace. Do not leave either region apparently frozen.
 - When workspace preparation finishes, resolve its working card into one brief app-owned success state, then fade and collapse that same surface without shifting the completed workspace abruptly. Under reduced motion, remove it immediately without the intermediate animation.

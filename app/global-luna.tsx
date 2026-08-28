@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, Inbox, Send, Sparkles, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Inbox, Send, Sparkles, X } from "./icons";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PendingCapture } from "./capture-model";
 import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./conversation-work-receipt";

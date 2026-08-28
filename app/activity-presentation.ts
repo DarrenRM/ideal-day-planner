@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { BedDouble, BicepsFlexed, Brain, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Package, Palette, PersonStanding, Pill, ShoppingBasket, ShowerHead, Sparkles, Sun, SunMedium, Utensils, Vibrate, Waves } from "lucide-react";
+import type { AppIcon } from "./icons";
+import { BedDouble, BicepsFlexed, Brain, CookingPot, Droplet, Dumbbell, Film, Footprints, Hammer, Heart, HeartPulse, Package, Palette, PersonStanding, Pill, ShoppingBasket, ShowerHead, Sparkles, Sun, SunMedium, Utensils, Vibrate, Waves } from "./icons";
 
 export type ActivityCategory = "Light" | "Recharge" | "Training" | "Fuel" | "Care" | "Logistics" | "Creativity" | "Spirit";
 
@@ -16,7 +16,7 @@ export const CATEGORY_META: Record<ActivityCategory, { icon: string; color: stri
   Spirit: { icon: "✧", color: "#9a8ed8" },
 };
 
-const CATEGORY_ICONS: Record<ActivityCategory, LucideIcon> = {
+const CATEGORY_ICONS: Record<ActivityCategory, AppIcon> = {
   Care: Heart,
   Training: Dumbbell,
   Fuel: Utensils,
@@ -27,7 +27,7 @@ const CATEGORY_ICONS: Record<ActivityCategory, LucideIcon> = {
   Spirit: Sparkles,
 };
 
-export function activityIconFor(item: { title: string; category: ActivityCategory }): LucideIcon {
+export function activityIconFor(item: { title: string; category: ActivityCategory }): AppIcon {
   const title = item.title.toLowerCase();
   if (/chin-up|pull-up|hang/.test(title)) return BicepsFlexed;
   if (/kettlebell|\blift\b|weight/.test(title)) return Dumbbell;

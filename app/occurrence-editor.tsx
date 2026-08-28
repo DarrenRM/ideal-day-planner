@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, X } from "lucide-react";
+import { CalendarDays, X } from "./icons";
 import { FormEvent, useEffect, useState } from "react";
 
 type Item = { id: string; activityId?: string; title: string; duration: number; activityVariantId?: string | null; variantName?: string | null; displayLabel?: string | null };

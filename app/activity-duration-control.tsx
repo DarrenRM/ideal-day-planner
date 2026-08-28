@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "./icons";
 
 export const DURATION_STEP = 5;
 
@@ -38,8 +38,8 @@ export function ActivityDurationControl({
         <span className="duration-unit">minutes</span>
       </div>
       <div className="duration-adjustments">
-        <button disabled={item.duration <= 5} type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjust(-DURATION_STEP)}><Minus aria-hidden="true" size={15} strokeWidth={2} /></button>
-        <button disabled={item.duration >= 480} type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjust(DURATION_STEP)}><Plus aria-hidden="true" size={15} strokeWidth={2} /></button>
+        <button disabled={item.duration <= 5} type="button" aria-label={`Reduce ${item.title} by ${DURATION_STEP} minutes`} onClick={() => onAdjust(-DURATION_STEP)}><Minus aria-hidden="true" size={15} /></button>
+        <button disabled={item.duration >= 480} type="button" aria-label={`Add ${DURATION_STEP} minutes to ${item.title}`} onClick={() => onAdjust(DURATION_STEP)}><Plus aria-hidden="true" size={15} /></button>
       </div>
       {inlineMeta ? <div className="duration-inline-meta">{inlineMeta}</div> : null}
     </div>

@@ -17,9 +17,9 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "drizzle-orm": "0.45.2",
     "jsonrepair": "^3.15.0",
-    "lucide-react": "^0.468.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

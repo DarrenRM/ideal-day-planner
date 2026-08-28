@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Pause, RotateCcw, Sparkles } from "lucide-react";
+import { Check, Copy, Pause, RotateCcw, Sparkles } from "../icons";
 import { useEffect, useState } from "react";
 import {
   DEFAULT_LUNA_FACET_TUNING,

@@ -2,7 +2,7 @@
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MoreVertical, Pencil, Plus, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, Trophy, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MoreVertical, Pencil, Plus, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, Trophy, X } from "./icons";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
 import type { ActivityFollowUp } from "./follow-up-model";
@@ -258,7 +258,7 @@ function CategoryPicker({ id, ariaLabel, value, onChange }: CategoryPickerProps)
         onKeyDown={handleTriggerKeyDown}
       >
         <span>{value}</span>
-        <ChevronDown aria-hidden="true" size={16} strokeWidth={1.8} />
+        <ChevronDown aria-hidden="true" size={16} />
       </button>
       {isOpen ? (
         <div className="category-picker-options" id={optionsId} role="listbox" aria-label={ariaLabel}>
@@ -276,7 +276,7 @@ function CategoryPicker({ id, ariaLabel, value, onChange }: CategoryPickerProps)
             >
               <span className="category-option-dot" aria-hidden="true" />
               <span>{category}</span>
-              {category === value ? <Check aria-hidden="true" size={14} strokeWidth={2} /> : null}
+              {category === value ? <Check aria-hidden="true" size={14} /> : null}
             </button>
           ))}
         </div>
@@ -1003,7 +1003,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       <div className={`activity-workbench-grid ${isOpeningActivity ? "is-opening" : ""}`}>
         {isOpeningActivity ? (
           <div className="activity-opening-state" role="status" aria-live="polite">
-            <span className="activity-opening-mark" aria-hidden="true"><Sparkles size={17} strokeWidth={1.8} /></span>
+            <span className="activity-opening-mark" aria-hidden="true"><Sparkles size={17} /></span>
             <strong>Getting things ready…</strong>
             <p>Your notes and activity space will be here in a moment.</p>
             <span className="activity-opening-progress" aria-hidden="true" />
@@ -1053,7 +1053,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               return (
                 <ConversationWorkReceipt
                   artifact={artifact}
-                  icon={<ReceiptIcon size={17} strokeWidth={2} />}
+                  icon={<ReceiptIcon size={17} />}
                   key={artifact.id}
                   onView={(origin) => viewWorkspaceUpdate(artifact, origin)}
                   timestamp={conversationTime(artifact.createdAt)}
@@ -1091,7 +1091,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
               rows={2}
               value={draft}
             />
-            <button aria-label="Send message" disabled={!draft.trim() || isSending} type="button" onClick={() => void sendMessage()}><Send aria-hidden="true" size={16} strokeWidth={1.9} /></button>
+            <button aria-label="Send message" disabled={!draft.trim() || isSending} type="button" onClick={() => void sendMessage()}><Send aria-hidden="true" size={16} /></button>
           </div>
           </section>
         </>}
@@ -1110,7 +1110,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                 setIsFooterMenuOpen((current) => !current);
                 setResetActivityState("idle");
               }}
-            ><MoreVertical aria-hidden="true" size={17} strokeWidth={2} /></button>
+            ><MoreVertical aria-hidden="true" size={17} /></button>
             {isFooterMenuOpen ? (
               <div
                 aria-label={resetActivityState === "confirming" || resetActivityState === "error" ? `Reset ${item.title}` : `Options for ${item.title}`}
@@ -1143,10 +1143,10 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         </div>
         <div className="activity-footer-status">
           {!isComplete ? <button className={`skip-activity-button ${isSkipped ? "is-skipped" : ""}`} disabled={isSkipping} type="button" onClick={() => void toggleActivitySkip()}>
-            <SkipForward aria-hidden="true" size={15} strokeWidth={2} /> {isSkipping ? "Saving…" : isSkipped ? "Skipped Today" : "Skip for Today"}
+            <SkipForward aria-hidden="true" size={15} /> {isSkipping ? "Saving…" : isSkipped ? "Skipped Today" : "Skip for Today"}
           </button> : null}
           <button aria-label={isComplete ? `${item.title} completed` : `Mark ${item.title} complete`} className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting || isComplete} type="button" onClick={() => void toggleActivityComplete()}>
-            <Check aria-hidden="true" size={16} strokeWidth={2.2} /> {isCompleting ? "Saving…" : isComplete ? "Completed" : "Mark Complete"}
+            <Check aria-hidden="true" size={16} weight="bold" /> {isCompleting ? "Saving…" : isComplete ? "Completed" : "Mark Complete"}
           </button>
         </div>
       </footer>
@@ -1221,7 +1221,7 @@ function DayHighlights({
         <span className="day-highlights-icon-grid" aria-label={`${completedItems.length} completed activities`} style={{ "--highlight-columns": Math.min(completedItems.length, 6), "--highlight-mobile-columns": Math.min(completedItems.length, 4) } as CSSProperties}>
           {completedItems.map((item, index) => {
             const ActivityIcon = activityIconFor(item);
-            return <span className={`day-highlight-icon ${celebratingActivityId === item.id ? "is-new" : ""}`} key={item.id} style={{ "--highlight-color": CATEGORY_META[item.category].color, "--highlight-index": index } as CSSProperties} title={activityDisplayTitle(item)}><ActivityIcon aria-hidden="true" size={17} strokeWidth={2} /></span>;
+            return <span className={`day-highlight-icon ${celebratingActivityId === item.id ? "is-new" : ""}`} key={item.id} style={{ "--highlight-color": CATEGORY_META[item.category].color, "--highlight-index": index } as CSSProperties} title={activityDisplayTitle(item)}><ActivityIcon aria-hidden="true" size={17} /></span>;
           })}
         </span>
         <ChevronDown className="day-highlights-chevron" aria-hidden="true" size={18} />
@@ -1281,9 +1281,9 @@ function PastDayReview({
           type="button"
           onClick={() => onToggle(item)}
         >
-          <span className="past-day-review-icon" aria-hidden="true"><ActivityIcon size={17} strokeWidth={1.9} /></span>
+          <span className="past-day-review-icon" aria-hidden="true"><ActivityIcon size={17} /></span>
           <span className="past-day-review-copy"><strong>{activityDisplayTitle(item)}</strong><small>{isPending ? "Saving…" : status} · {item.duration} minutes</small></span>
-          <span className={`past-day-review-check ${isComplete ? "is-complete" : ""}`} aria-hidden="true">{isComplete ? <Check size={16} strokeWidth={2.4} /> : null}</span>
+          <span className={`past-day-review-check ${isComplete ? "is-complete" : ""}`} aria-hidden="true">{isComplete ? <Check size={16} weight="bold" /> : null}</span>
         </button>;
       })}
     </div> : <div className="past-day-review-empty"><strong>Nothing was scheduled.</strong><span>There’s nothing to correct for this day.</span></div>}
@@ -1294,13 +1294,13 @@ function DayVictory({ isArriving, skippedEssentials }: { isArriving: boolean; sk
   const fullyCompleted = skippedEssentials === 0;
   return (
     <section className={`day-victory ${isArriving ? "is-arriving" : ""}`} aria-labelledby="day-victory-title">
-      <span className="day-victory-medal" aria-hidden="true"><Trophy size={24} strokeWidth={1.8} /></span>
+      <span className="day-victory-medal" aria-hidden="true"><Trophy size={24} /></span>
       <div className="day-victory-copy">
         <span>Today’s achievement</span>
         <h3 id="day-victory-title">{fullyCompleted ? "Essentials complete" : "Today settled"}</h3>
         <p>{fullyCompleted ? "The rest of today is yours." : `${skippedEssentials} ${skippedEssentials === 1 ? "activity" : "activities"} skipped without changing your progress.`}</p>
       </div>
-      <Sparkles className="day-victory-spark" aria-hidden="true" size={21} strokeWidth={1.6} />
+      <Sparkles className="day-victory-spark" aria-hidden="true" size={21} weight="light" />
     </section>
   );
 }
@@ -3007,7 +3007,7 @@ export default function Home() {
             className="luna-shell-trigger"
             type="button"
             onClick={() => { setIsDevMenuOpen(false); setIsSettingsOpen(false); setIsGlobalLunaOpen(true); }}
-          ><Sparkles aria-hidden="true" size={17} strokeWidth={1.8} /><span>Luna</span>{lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? <i className="luna-shell-notification" aria-hidden="true" /> : null}</button>
+          ><Sparkles aria-hidden="true" size={17} /><span>Luna</span>{lunaSummary.unreadCount || lunaSummary.pendingDecisionCount ? <i className="luna-shell-notification" aria-hidden="true" /> : null}</button>
           <button
             aria-expanded={isSettingsOpen}
             aria-haspopup="dialog"
@@ -3018,7 +3018,7 @@ export default function Home() {
               setIsDevMenuOpen(false);
               setIsSettingsOpen(true);
             }}
-          ><Settings aria-hidden="true" size={17} strokeWidth={1.8} /></button>
+          ><Settings aria-hidden="true" size={17} /></button>
           <div className="dev-clock" ref={devMenuRef}>
             <button
               aria-expanded={isDevMenuOpen}
@@ -3030,7 +3030,7 @@ export default function Home() {
                 setIsDevMenuOpen((current) => !current);
               }}
             >
-              <Clock3 aria-hidden="true" size={14} strokeWidth={1.9} />
+              <Clock3 aria-hidden="true" size={14} />
               <span>Dev</span>
               {fakeMinutes !== null ? <strong>{formatTime(fakeMinutes)}</strong> : null}
             </button>
@@ -3241,11 +3241,11 @@ export default function Home() {
                     disabled={!hasLoaded}
                     type="button"
                     onClick={() => setIsMenuOpen((current) => !current)}
-                  ><MoreVertical aria-hidden="true" size={16} strokeWidth={1.8} /></button>
+                  ><MoreVertical aria-hidden="true" size={16} /></button>
                   {isMenuOpen ? (
                     <div className="planner-menu-popover" role="menu">
                       <button className="planner-menu-item" role="menuitem" type="button" onClick={() => { setIsMenuOpen(false); setScheduleManagerActivityId(null); setIsScheduleManagerOpen(true); }}>
-                        <CalendarDays aria-hidden="true" size={15} strokeWidth={1.8} />
+                        <CalendarDays aria-hidden="true" size={15} />
                         <span>Manage routine</span>
                       </button>
                     </div>
@@ -3451,7 +3451,7 @@ export default function Home() {
                               }}
                             >
                               <div className="item-title">
-                                <span className={`activity-title-icon ${itemIconState}`} aria-hidden="true"><ItemIcon size={18} strokeWidth={isComplete ? 2.4 : 1.9} /></span>
+                                <span className={`activity-title-icon ${itemIconState}`} aria-hidden="true"><ItemIcon size={18} weight={isComplete ? "bold" : "regular"} /></span>
                                 <h3>{activityDisplayTitle(item)}</h3>
                               </div>
                               <div className="mobile-top-meta"><ActivityAgenda item={item} /></div>
@@ -3465,7 +3465,7 @@ export default function Home() {
                             <div className="item-controls">
                               {isExpanded ? <button className="collapse-activity-button" tabIndex={isEditing ? -1 : undefined} type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /></button> : null}
                               <span className="front-duration-label"><span className="front-duration-value">{item.duration}</span><span className="front-duration-unit">minutes</span></span>
-                              <button aria-label={`Edit ${item.title}`} className="activity-edit-trigger" tabIndex={isEditing ? -1 : undefined} type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} strokeWidth={1.9} /></button>
+                              <button aria-label={`Edit ${item.title}`} className="activity-edit-trigger" tabIndex={isEditing ? -1 : undefined} type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /></button>
                               <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `${item.title} is complete` : `Mark ${item.title} complete`}>
                                 <button
                                   aria-describedby={`complete-tooltip-${item.id}`}
@@ -3481,7 +3481,7 @@ export default function Home() {
                                     }
                                     void updateActivityStatus(item, isComplete ? "reopen" : "complete");
                                   }}
-                                ><Check aria-hidden="true" size={14} strokeWidth={2.2} /></button>
+                                ><Check aria-hidden="true" size={14} weight="bold" /></button>
                               </ControlTooltip>
                             </div>
                           </div>
@@ -3510,9 +3510,9 @@ export default function Home() {
                                 else cancelEditing();
                                 void updateActivityStatus(item, isSkipped ? "unskip" : "skip");
                               }}
-                            ><span>{isSkipped ? "Restore" : "Skip"}</span><SkipForward aria-hidden="true" size={15} strokeWidth={2} /></button>
+                            ><span>{isSkipped ? "Restore" : "Skip"}</span><SkipForward aria-hidden="true" size={15} /></button>
 
-                            <button aria-label="Save and return" className="activity-edit-done" disabled={!editTitle.trim()} tabIndex={isEditing ? undefined : -1} type="submit"><ArrowLeft aria-hidden="true" size={17} strokeWidth={2} /></button>
+                            <button aria-label="Save and return" className="activity-edit-done" disabled={!editTitle.trim()} tabIndex={isEditing ? undefined : -1} type="submit"><ArrowLeft aria-hidden="true" size={17} /></button>
 
                             <div className={`mobile-activity-menu ${mobileActivityMenuId === item.id ? "is-open" : ""}`} data-activity-id={item.id}>
                               <button
@@ -3526,7 +3526,7 @@ export default function Home() {
                                   setMobileResetActivity(null);
                                   setMobileActivityMenuId((current) => current === item.id ? null : item.id);
                                 }}
-                              ><MoreVertical aria-hidden="true" size={18} strokeWidth={2} /></button>
+                              ><MoreVertical aria-hidden="true" size={18} /></button>
                               {mobileActivityMenuId === item.id ? (
                                 <div className={`mobile-activity-menu-panel ${mobileResetActivity?.id === item.id ? "is-confirming" : ""}`} role={mobileResetActivity?.id === item.id ? "dialog" : "menu"}>
                                   {mobileResetActivity?.id === item.id ? (
@@ -3608,7 +3608,7 @@ export default function Home() {
                           key={item.id}
                           style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
                         >
-                          <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
+                          <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} /></span>
                           <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{labels}{captures.length > 2 ? ` +${captures.length - 2}` : ""}</small></span>
                           <button aria-label={`Add ${activityDisplayTitle(item)} to today`} className="go-further-add" disabled={extraTransitionLocked || promotingExtraId === item.id} type="button" onClick={(event) => void promoteExtra(item, event.currentTarget.closest<HTMLElement>(".go-further-option")?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect())}>{promotingExtraId === item.id ? <Sparkles aria-hidden="true" size={16} /> : <><Plus aria-hidden="true" size={16} /><span>Add</span></>}</button>
                         </div>;
@@ -3626,7 +3626,7 @@ export default function Home() {
                           key={item.id}
                           style={{ "--item-color": CATEGORY_META[item.category].color } as CSSProperties}
                         >
-                          <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} strokeWidth={1.9} /></span>
+                          <span className="go-further-icon" aria-hidden="true"><ExtraIcon size={17} /></span>
                           <span className="go-further-copy"><strong>{activityDisplayTitle(item)}</strong><small>{formatDuration(item.duration)} · {item.category}</small></span>
                           <button aria-label={`Add ${activityDisplayTitle(item)} to today`} className="go-further-add" disabled={extraTransitionLocked || promotingExtraId === item.id} type="button" onClick={(event) => void promoteExtra(item, event.currentTarget.closest<HTMLElement>(".go-further-option")?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect())}>{promotingExtraId === item.id ? <Sparkles aria-hidden="true" size={16} /> : <><Plus aria-hidden="true" size={16} /><span>Add</span></>}</button>
                         </div>;
