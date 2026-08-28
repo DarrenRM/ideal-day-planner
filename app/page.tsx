@@ -44,6 +44,7 @@ type RoutineItem = {
   previousCompletedAt?: string | null;
   previousActivatedAt?: string | null;
   previousPlanRole?: PlanRole | null;
+  agenda?: { status: "today" | "overdue"; labels: string[] } | null;
 };
 
 type ScheduledItem = RoutineItem & { start: number; end: number };
@@ -131,6 +132,19 @@ const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
 
 function activityDisplayTitle(item: Pick<RoutineItem, "title" | "variantName" | "displayLabel" | "displayTitle">) {
   return item.displayTitle || (item.displayLabel || item.variantName ? `${item.title} — ${item.displayLabel || item.variantName}` : item.title);
+}
+
+function ActivityAgenda({ item }: { item: Pick<RoutineItem, "agenda" | "category"> }) {
+  const labels = item.agenda?.labels.filter(Boolean) ?? [];
+  if (!item.agenda || !labels.length) return <span className="category-chip">{item.category}</span>;
+  const visible = labels.slice(0, 2);
+  const remaining = labels.length - visible.length;
+  return (
+    <span className={`activity-agenda is-${item.agenda.status}`}>
+      <span className="activity-agenda-status">{item.agenda.status === "overdue" ? "Overdue" : "Today"}</span>
+      <span className="activity-agenda-actions">{visible.join(" · ")}{remaining > 0 ? ` · +${remaining} more` : ""}</span>
+    </span>
+  );
 }
 
 
@@ -3459,7 +3473,7 @@ export default function Home() {
                               : isDayStarted
                                 ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                 : <strong>Queued</strong>}</div> : null}
-                            <span className="category-chip">{item.category}</span>
+                            <ActivityAgenda item={item} />
                             <div className="mobile-item-state">
                               {activityState === "current" ? <span className="now-chip">Now</span> : null}
                             </div>
@@ -3559,7 +3573,7 @@ export default function Home() {
                                 : isDayStarted
                                   ? <><strong>{start.time}</strong><span>{start.suffix}</span></>
                                   : <strong>Queued</strong>}</div> : null}
-                              <span className="category-chip">{item.category}</span>
+                              <ActivityAgenda item={item} />
                               <div className="mobile-item-state">
                                 {activityState === "current" ? <span className="now-chip">Now</span> : null}
                               </div>

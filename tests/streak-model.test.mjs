@@ -35,6 +35,7 @@ test("completion API snapshots due subject keys instead of inheriting the activi
   const source = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../app/api/activity/run/route.ts", import.meta.url), "utf8"));
   assert.match(source, /completedSubjectKeysForDate/);
   assert.match(source, /effectiveDate <= date/);
-  assert.match(source, /recurringDateIsDue/);
+  assert.match(source, /recurringStepScheduleStatus/);
+  assert.match(source, /status\.dueDate/);
   assert.match(source, /completedSubjectKeys,/);
 });

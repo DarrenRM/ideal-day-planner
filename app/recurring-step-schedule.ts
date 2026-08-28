@@ -65,12 +65,13 @@ export function recurringOccurrenceDates(data: RecurringStepScheduleData, today:
     .slice(-2);
   const result: RecurringOccurrence[] = completed.map((date) => ({ date, state: "complete" }));
   const status = recurringStepScheduleStatus(data, today);
+  const effectiveAnchor = effectiveRecurringAnchor(data, completed.at(-1) ?? null);
   let candidate = status.dueToday ? today : status.nextDue;
   while (candidate && result.length < limit) {
     if (!result.some((entry) => entry.date === candidate)) {
       result.push({ date: candidate, state: result.some((entry) => entry.state === "next") ? "upcoming" : "next" });
     }
-    candidate = nextRecurringDate(data.anchorDate, data.cadence, candidate);
+    candidate = nextRecurringDate(effectiveAnchor, data.cadence, candidate);
   }
   return result;
 }
@@ -84,22 +85,32 @@ function previousRecurringDate(anchorDate: string | undefined, cadence: Recurrin
   return null;
 }
 
+function effectiveRecurringAnchor(data: RecurringStepScheduleData, lastCompleted: string | null) {
+  if (data.cadence?.kind !== "interval_days" || !lastCompleted) return data.anchorDate;
+  if (!data.anchorDate || lastCompleted < data.anchorDate) return data.anchorDate;
+  return lastCompleted;
+}
+
 export function recurringStepScheduleStatus(data: RecurringStepScheduleData, today: string) {
   const completedDates = [...new Set(data.completedDates ?? [])]
     .filter((date) => DATE_KEY.test(date) && date <= today)
     .sort();
   const lastCompleted = completedDates.at(-1) ?? null;
   const completedToday = lastCompleted === today;
-  const previousDue = previousRecurringDate(data.anchorDate, data.cadence, today);
+  const effectiveAnchor = effectiveRecurringAnchor(data, lastCompleted);
+  const previousDue = previousRecurringDate(effectiveAnchor, data.cadence, today);
   const completedThisCycle = Boolean(previousDue && completedDates.some((date) => date >= previousDue && date <= today));
-  const dueToday = !completedThisCycle && recurringDateIsDue(data.anchorDate, data.cadence, today);
+  const dueDate = !completedThisCycle && previousDue ? previousDue : null;
+  const dueToday = dueDate === today;
 
   return {
     completedToday,
     completedThisCycle,
     dueToday,
+    dueDate,
+    dueState: dueDate ? dueToday ? "today" as const : "overdue" as const : null,
     lastCompleted,
-    nextDue: dueToday ? today : nextRecurringDate(data.anchorDate, data.cadence, today),
+    nextDue: dueDate ?? nextRecurringDate(effectiveAnchor, data.cadence, today),
   };
 }
 

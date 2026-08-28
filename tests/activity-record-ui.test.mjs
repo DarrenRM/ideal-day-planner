@@ -472,13 +472,16 @@ test("normalizes recurring substeps and derives their due dates", () => {
 test("derives recurring-step history and next due dates from the shared cadence schedule", () => {
   const weekly = { anchorDate: "2026-08-21", cadence: { kind: "weekly", every: 1 }, completedDates: ["2026-08-21"] };
   assert.deepEqual(recurringStepScheduleStatus(weekly, "2026-08-21"), {
-    completedToday: true, completedThisCycle: true, dueToday: false, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
+    completedToday: true, completedThisCycle: true, dueToday: false, dueDate: null, dueState: null, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
   });
   assert.deepEqual(recurringStepScheduleStatus(weekly, "2026-08-23"), {
-    completedToday: false, completedThisCycle: true, dueToday: false, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
+    completedToday: false, completedThisCycle: true, dueToday: false, dueDate: null, dueState: null, lastCompleted: "2026-08-21", nextDue: "2026-08-28",
   });
   assert.deepEqual(recurringStepScheduleStatus({ ...weekly, completedDates: [] }, "2026-08-21"), {
-    completedToday: false, completedThisCycle: false, dueToday: true, lastCompleted: null, nextDue: "2026-08-21",
+    completedToday: false, completedThisCycle: false, dueToday: true, dueDate: "2026-08-21", dueState: "today", lastCompleted: null, nextDue: "2026-08-21",
+  });
+  assert.deepEqual(recurringStepScheduleStatus({ anchorDate: "2026-08-21", cadence: { kind: "interval_days", every: 3 }, completedDates: ["2026-08-25"] }, "2026-08-28"), {
+    completedToday: false, completedThisCycle: false, dueToday: true, dueDate: "2026-08-28", dueState: "today", lastCompleted: "2026-08-25", nextDue: "2026-08-28",
   });
   assert.equal(nextRecurringDate("2026-08-21", { kind: "interval_days", every: 3 }, "2026-08-22"), "2026-08-24");
   assert.equal(nextRecurringDate("2026-08-21", { kind: "weekdays", weekdays: [1, 3] }, "2026-08-21"), "2026-08-24");
@@ -490,6 +493,12 @@ test("derives recurring-step history and next due dates from the shared cadence 
     { date: "2026-09-01", state: "upcoming" },
     { date: "2026-09-04", state: "upcoming" },
     { date: "2026-09-08", state: "upcoming" },
+  ]);
+  assert.deepEqual(recurringOccurrenceDates({ anchorDate: "2026-08-21", cadence: { kind: "interval_days", every: 3 }, completedDates: ["2026-08-25"] }, "2026-08-25", 4), [
+    { date: "2026-08-25", state: "complete" },
+    { date: "2026-08-28", state: "next" },
+    { date: "2026-08-31", state: "upcoming" },
+    { date: "2026-09-03", state: "upcoming" },
   ]);
 });
 

@@ -35,6 +35,7 @@ export type ResolvedDayItem = {
   previousCompletedAt: string | null;
   previousActivatedAt: string | null;
   previousPlanRole: "essential" | "extra" | null;
+  agenda: { status: "today" | "overdue"; labels: string[] } | null;
   revision: number;
 };
 
@@ -73,8 +74,39 @@ async function dueStepsByActivity(userId: string, activityIds: string[], date: s
     list.push(parsed);
     records.set(row.activityId, list);
   }
+  const runs = await getD1().prepare(`
+    SELECT activity_id AS activityId, plan_date AS planDate, details_json AS detailsJson
+    FROM activity_runs
+    WHERE user_id = ? AND status = 'completed' AND plan_date <= ?
+      AND activity_id IN (${activityIds.map(() => "?").join(", ")})
+    ORDER BY plan_date
+  `).bind(userId, date, ...activityIds).all<{ activityId: string; planDate: string; detailsJson: string | null }>();
+  const completionDates = new Map<string, Map<string, string[]>>();
+  for (const run of runs.results) {
+    let subjectKeys: string[] = [];
+    try {
+      const details = JSON.parse(run.detailsJson || "{}") as { completedSubjectKeys?: unknown };
+      subjectKeys = Array.isArray(details.completedSubjectKeys)
+        ? details.completedSubjectKeys.filter((value): value is string => typeof value === "string")
+        : [];
+    } catch {
+      subjectKeys = [];
+    }
+    const bySubject = completionDates.get(run.activityId) ?? new Map<string, string[]>();
+    for (const subjectKey of subjectKeys) bySubject.set(subjectKey, [...(bySubject.get(subjectKey) ?? []), run.planDate]);
+    completionDates.set(run.activityId, bySubject);
+  }
   for (const [activityId, activityRecords] of records) {
-    const due = dueRecurringSteps(activityRecords, date);
+    const bySubject = completionDates.get(activityId);
+    const hydratedRecords = activityRecords.map((record) => {
+      if (record.type !== "recurring_step" || !record.subjectKey) return record;
+      const completedDates = [...new Set([
+        ...(Array.isArray(record.data.completedDates) ? record.data.completedDates.filter((value): value is string => typeof value === "string") : []),
+        ...(bySubject?.get(record.subjectKey) ?? []),
+      ])].sort();
+      return { ...record, data: { ...record.data, completedDates } } as ActivityRecord;
+    });
+    const due = dueRecurringSteps(hydratedRecords, date);
     if (due.length) result.set(activityId, due);
   }
   return result;
@@ -282,11 +314,107 @@ export async function resolveDay(userId: string, date: string, routineId: string
     VALUES (?, ?, ?, ?, ?)
   `).bind(planId, userId, date, routineId, startMinutes).run();
 
-  const patterns = await readSchedulePatterns(userId, routineId);
+  const storedPatterns = await readSchedulePatterns(userId, routineId);
+  const intervalPatternIds = storedPatterns
+    .filter(({ pattern }) => pattern.steps.length === 1 && pattern.cadence.kind === "interval_days")
+    .map(({ pattern }) => pattern.id);
+  const latestCompletions = new Map<string, string>();
+  if (intervalPatternIds.length) {
+    const rows = await db.prepare(`
+      SELECT dpi.schedule_pattern_id AS patternId, MAX(dp.plan_date) AS completedDate
+      FROM daily_plan_items dpi
+      JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
+      WHERE dp.user_id = ? AND dp.plan_date < ? AND dpi.completed_at IS NOT NULL
+        AND dpi.schedule_pattern_id IN (${intervalPatternIds.map(() => "?").join(", ")})
+      GROUP BY dpi.schedule_pattern_id
+    `).bind(userId, date, ...intervalPatternIds).all<{ patternId: string; completedDate: string }>();
+    for (const row of rows.results) latestCompletions.set(row.patternId, row.completedDate);
+  }
+  const patterns = storedPatterns.map(({ pattern, state, archivedAt }) => {
+    const completedDate = latestCompletions.get(pattern.id);
+    if (!completedDate || pattern.cadence.kind !== "interval_days" || pattern.steps.length !== 1) return { pattern, state, archivedAt };
+    return { pattern: { ...pattern, cadence: { ...pattern.cadence, anchorDate: completedDate }, anchorDate: completedDate }, state, archivedAt };
+  });
+
+  const carryEligibleIds = patterns
+    .filter(({ pattern }) => pattern.steps.length === 1 && pattern.cadence.kind !== "daily")
+    .map(({ pattern }) => pattern.id);
+  const carriedPatternIds = new Set<string>();
+  if (carryEligibleIds.length) {
+    const candidates = await db.prepare(`
+      SELECT dpi.id, dpi.schedule_pattern_id AS schedulePatternId,
+             dpi.schedule_pattern_step_id AS schedulePatternStepId,
+             dpi.activity_id AS activityId, dpi.activity_variant_id AS activityVariantId,
+             dpi.client_key AS clientKey, dpi.title,
+             dpi.variant_name_snapshot AS variantName,
+             dpi.display_label_override AS displayLabel, dpi.category, dpi.icon, dpi.color,
+             dpi.position, dpi.duration, dpi.occurrence_key AS occurrenceKey,
+             COALESCE(dpi.source_date, previous_plan.plan_date) AS obligationDate
+      FROM daily_plan_items dpi
+      JOIN daily_plans previous_plan ON previous_plan.id = dpi.daily_plan_id
+      WHERE previous_plan.user_id = ? AND previous_plan.plan_date < ?
+        AND dpi.schedule_pattern_id IN (${carryEligibleIds.map(() => "?").join(", ")})
+        AND NOT EXISTS (
+          SELECT 1
+          FROM daily_plan_items completed
+          JOIN daily_plans completed_plan ON completed_plan.id = completed.daily_plan_id
+          WHERE completed.schedule_pattern_id = dpi.schedule_pattern_id
+            AND completed.completed_at IS NOT NULL
+            AND completed_plan.plan_date >= COALESCE(dpi.source_date, previous_plan.plan_date)
+            AND completed_plan.plan_date <= ?
+        )
+      ORDER BY obligationDate DESC, previous_plan.plan_date DESC, dpi.created_at DESC
+    `).bind(userId, date, ...carryEligibleIds, date).all<{
+      id: string; schedulePatternId: string; schedulePatternStepId: string | null;
+      activityId: string; activityVariantId: string | null; clientKey: string; title: string;
+      variantName: string | null; displayLabel: string | null; category: string; icon: string;
+      color: string; position: number; duration: number; occurrenceKey: string | null; obligationDate: string;
+    }>();
+    const latestByPattern = new Map<string, typeof candidates.results[number]>();
+    for (const candidate of candidates.results) if (!latestByPattern.has(candidate.schedulePatternId)) latestByPattern.set(candidate.schedulePatternId, candidate);
+    const statements = [...latestByPattern.values()].map((candidate) => {
+      carriedPatternIds.add(candidate.schedulePatternId);
+      const carryKey = `carry:${candidate.schedulePatternId}:${candidate.obligationDate}`;
+      const occurrenceId = `day-item:${safeId(userId)}:${date}:${safeId(carryKey)}`;
+      return db.prepare(`
+        INSERT OR IGNORE INTO daily_plan_items
+          (id, daily_plan_id, activity_id, occurrence_key, schedule_pattern_id,
+           schedule_pattern_step_id, activity_variant_id, client_key, title,
+           variant_name_snapshot, display_label_override, category, icon, color,
+           position, duration, plan_role, activated_at, source_date,
+           moved_from_daily_plan_item_id, revision)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'essential',
+                CURRENT_TIMESTAMP, ?, ?, 1)
+      `).bind(
+        occurrenceId, planId, candidate.activityId, carryKey, candidate.schedulePatternId,
+        candidate.schedulePatternStepId, candidate.activityVariantId, candidate.clientKey,
+        candidate.title, candidate.variantName, candidate.displayLabel, candidate.category,
+        candidate.icon, candidate.color, candidate.position, candidate.duration,
+        candidate.obligationDate, candidate.id,
+      );
+    });
+    if (statements.length) await db.batch(statements);
+  }
+
   const emissions = patterns.flatMap(({ pattern, state }) => {
+    if (carriedPatternIds.has(pattern.id)) return [];
     const resolved = resolvePattern(pattern, date, state);
     return resolved ? [{ pattern, resolved }] : [];
   });
+
+  if (intervalPatternIds.length) {
+    const emittedIds = new Set(emissions.map(({ pattern }) => pattern.id));
+    const staleIds = intervalPatternIds.filter((id) => !emittedIds.has(id) && !carriedPatternIds.has(id));
+    if (staleIds.length) {
+      await db.prepare(`
+        DELETE FROM daily_plan_items
+        WHERE daily_plan_id = ? AND source_date = ?
+          AND schedule_pattern_id IN (${staleIds.map(() => "?").join(", ")})
+          AND completed_at IS NULL AND skipped_at IS NULL AND activated_at IS NULL
+          AND moved_from_daily_plan_item_id IS NULL AND revision = 1
+      `).bind(planId, date, ...staleIds).run();
+    }
+  }
   if (emissions.length) {
     const activityIds = [...new Set(emissions.map(({ resolved }) => resolved.step.activityId))];
     const placeholders = activityIds.map(() => "?").join(", ");
@@ -367,12 +495,13 @@ export async function resolveDay(userId: string, date: string, routineId: string
 export async function readResolvedDay(userId: string, planId: string) {
   const result = await getD1().prepare(`
     SELECT dpi.id AS occurrenceId, dpi.occurrence_key AS occurrenceKey,
-           dpi.client_key AS activityId, dpi.title,
+           dpi.client_key AS activityId, dpi.activity_id AS databaseActivityId, dpi.title,
            dpi.activity_variant_id AS activityVariantId,
            dpi.variant_name_snapshot AS variantName,
            dpi.display_label_override AS displayLabel,
            dpi.duration, dpi.category, dpi.icon, dpi.color, dpi.position,
            dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt,
+           dp.plan_date AS planDate, COALESCE(dpi.source_date, dp.plan_date) AS sourceDate,
            CASE WHEN dpi.plan_role = 'extra' THEN 'extra' ELSE 'essential' END AS planRole,
            dpi.activated_at AS activatedAt,
            (
@@ -436,11 +565,28 @@ export async function readResolvedDay(userId: string, planId: string) {
     JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
     WHERE dpi.daily_plan_id = ? AND dp.user_id = ? AND dpi.removed_at IS NULL
     ORDER BY dpi.position, dpi.created_at, dpi.id
-  `).bind(planId, userId).all<Omit<ResolvedDayItem, "id" | "displayTitle">>();
+  `).bind(planId, userId).all<Omit<ResolvedDayItem, "id" | "displayTitle" | "agenda"> & {
+    databaseActivityId: string;
+    planDate: string;
+    sourceDate: string;
+  }>();
+  const date = result.results[0]?.planDate;
+  const dueSteps = date
+    ? await dueStepsByActivity(userId, [...new Set(result.results.map((item) => item.databaseActivityId))], date)
+    : new Map<string, ReturnType<typeof dueRecurringSteps>>();
   return result.results.map((item) => ({
-    ...item,
+    ...Object.fromEntries(Object.entries(item).filter(([key]) => !["databaseActivityId", "planDate", "sourceDate"].includes(key))),
     id: item.occurrenceId,
     occurrenceKey: item.occurrenceKey || `legacy:${item.occurrenceId}`,
     displayTitle: derivedDisplayTitle(item.title, item.variantName, item.displayLabel),
-  }));
+    agenda: (() => {
+      const steps = dueSteps.get(item.databaseActivityId) ?? [];
+      if (steps.length) return {
+        status: steps.some((step) => step.dueState === "overdue") ? "overdue" as const : "today" as const,
+        labels: steps.map((step) => step.label.replace(/^use\s+(?:the\s+)?/i, "").trim()).filter(Boolean),
+      };
+      if (item.sourceDate < item.planDate) return { status: "overdue" as const, labels: [derivedDisplayTitle(item.title, item.variantName, item.displayLabel)] };
+      return null;
+    })(),
+  })) as ResolvedDayItem[];
 }

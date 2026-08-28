@@ -1,7 +1,7 @@
 import { getD1 } from "../../../../db";
 import { parseAdvancement } from "../../../schedule-model";
 import { selectedSessionOptionId, sessionFieldValue, sessionFieldsForOption, type SessionChoiceData, type SessionLogData } from "../../../session-log-model";
-import { recurringDateIsDue, type RecurringCadence } from "../../../recurring-step-schedule";
+import { recurringStepScheduleStatus, type RecurringCadence } from "../../../recurring-step-schedule";
 import { apiFailure, applyUserRecordMutation, ensureAgentSchema, findActivity, queueDayHighlight, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
 
 function validDate(value: unknown) {
@@ -14,7 +14,7 @@ function boundedSeconds(value: unknown, allowZero = false) {
   return rounded >= (allowZero ? 0 : 1) && rounded <= 24 * 60 * 60 ? rounded : null;
 }
 
-function completedSubjectKeysForDate(records: Awaited<ReturnType<typeof readActivityRecords>>, date: string) {
+function completedSubjectKeysForDate(records: Awaited<ReturnType<typeof readActivityRecords>>, date: string, completionDates = new Map<string, string[]>()) {
   const productKeys = new Set(records.filter((record) => record.type === "product").map((record) => record.key));
   return [...productKeys].filter((subjectKey) => records.some((record) => {
     if (record.subjectKey !== subjectKey) return false;
@@ -23,11 +23,15 @@ function completedSubjectKeysForDate(records: Awaited<ReturnType<typeof readActi
       return /^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) && effectiveDate <= date;
     }
     if (record.type !== "recurring_step") return false;
-    return recurringDateIsDue(
-      typeof record.data.anchorDate === "string" ? record.data.anchorDate : undefined,
-      record.data.cadence as RecurringCadence | undefined,
-      date,
-    );
+    const status = recurringStepScheduleStatus({
+      anchorDate: typeof record.data.anchorDate === "string" ? record.data.anchorDate : undefined,
+      cadence: record.data.cadence as RecurringCadence | undefined,
+      completedDates: [...new Set([
+        ...(Array.isArray(record.data.completedDates) ? record.data.completedDates.filter((value): value is string => typeof value === "string") : []),
+        ...(completionDates.get(subjectKey) ?? []),
+      ])],
+    }, date);
+    return Boolean(status.dueDate);
   }));
 }
 
@@ -200,7 +204,19 @@ export async function POST(request: Request) {
     const timerComponentId = typeof timing?.componentId === "string" ? timing.componentId.trim().slice(0, 64) : null;
     const startedAt = typeof timing?.startedAt === "string" && !Number.isNaN(Date.parse(timing.startedAt)) ? timing.startedAt : null;
     const activityRecords = await readActivityRecords(activity.id, date, item.activityVariantId);
-    const completedSubjectKeys = completedSubjectKeysForDate(activityRecords, date);
+    const priorRuns = await db.prepare(`
+      SELECT plan_date AS planDate, details_json AS detailsJson
+      FROM activity_runs
+      WHERE user_id = ? AND activity_id = ? AND status = 'completed' AND plan_date < ?
+      ORDER BY plan_date
+    `).bind(userId, activity.id, date).all<{ planDate: string; detailsJson: string | null }>();
+    const completionDates = new Map<string, string[]>();
+    for (const priorRun of priorRuns.results) {
+      for (const subjectKey of completedSubjectKeysFromDetails(priorRun.detailsJson)) {
+        completionDates.set(subjectKey, [...(completionDates.get(subjectKey) ?? []), priorRun.planDate]);
+      }
+    }
+    const completedSubjectKeys = completedSubjectKeysForDate(activityRecords, date, completionDates);
     const recordVersions = activityRecords.map((record) => ({
       key: record.key,
       type: record.type,
