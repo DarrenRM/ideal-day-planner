@@ -6,6 +6,7 @@ import { ACTIVITY_CHOICE_SETS, ACTIVITY_LIBRARY, ACTIVITY_LIBRARY_VERSION } from
 import { VERCEL_GATEWAY_PRINCIPAL_HEADER } from "../request-principal-model";
 import { getChatGPTUser } from "../chatgpt-auth";
 import { ComponentLibraryPage } from "./component-library-page";
+import { COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-library-fixtures";
 import { readComponentUsage, type ComponentUsageMap } from "./component-usage";
 
 export const metadata: Metadata = {
@@ -24,7 +25,11 @@ function phoenixDateKey() {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
-export default async function ComponentsPage() {
+type ComponentsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function ComponentsPage({ searchParams }: ComponentsPageProps) {
   const requestHeaders = await headers();
   if (requestHeaders.get(VERCEL_GATEWAY_PRINCIPAL_HEADER)) redirect("/");
   const user = await getChatGPTUser();
@@ -33,6 +38,10 @@ export default async function ComponentsPage() {
     try { usage = await readComponentUsage(user.userId); }
     catch (error) { console.error("Unable to load component usage", error); }
   }
+  const requestedComponent = (await searchParams)?.component;
+  const initialSelectedType = typeof requestedComponent === "string" && COMPONENT_SPECIMENS.some((entry) => entry.type === requestedComponent)
+    ? requestedComponent as LibraryComponentType
+    : "summary";
 
   return <ComponentLibraryPage
     catalog={COMPONENT_CATALOG.map(([type, purpose, schema]) => ({ type, purpose, schema }))}
@@ -43,5 +52,6 @@ export default async function ComponentsPage() {
     activityLibraryVersion={ACTIVITY_LIBRARY_VERSION}
     today={phoenixDateKey()}
     usage={usage}
+    initialSelectedType={initialSelectedType}
   />;
 }

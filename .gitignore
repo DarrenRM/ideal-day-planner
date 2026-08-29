@@ -13,6 +13,7 @@
 # testing
 /coverage
 /evals/results/
+/.mini-figma/
 
 # next.js
 /.next/

@@ -22,7 +22,7 @@ type ActivityEntry = {
   setup: { mode: "ready" | "guided"; guidance: string };
   onboarding: { priorities: string[]; rhythms: string[]; choiceSet: string | null };
 };
-type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; activities: ActivityEntry[]; activityChoiceSets: Record<string, ActivityChoiceSet>; activityLibraryVersion: string; today: string; usage: ComponentUsageMap };
+type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; activities: ActivityEntry[]; activityChoiceSets: Record<string, ActivityChoiceSet>; activityLibraryVersion: string; today: string; usage: ComponentUsageMap; initialSelectedType?: LibraryComponentType };
 type View = "components" | "activities" | "selection";
 type PreviewWidth = "desktop" | "mobile";
 type SessionChoiceState = "choosing" | "selected";
@@ -81,9 +81,9 @@ function recipeParts(recipe: string) {
   return split < 0 ? { title: recipe, body: "" } : { title: recipe.slice(0, split), body: recipe.slice(split + 1).trim() };
 }
 
-export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activities, activityChoiceSets, activityLibraryVersion, today, usage }: Props) {
+export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activities, activityChoiceSets, activityLibraryVersion, today, usage, initialSelectedType = "summary" }: Props) {
   const [view, setView] = useState<View>("components");
-  const [selectedType, setSelectedType] = useState<LibraryComponentType>("summary");
+  const [selectedType, setSelectedType] = useState<LibraryComponentType>(initialSelectedType);
   const [query, setQuery] = useState("");
   const [previewWidth, setPreviewWidth] = useState<PreviewWidth>("desktop");
   const [sessionChoiceState, setSessionChoiceState] = useState<SessionChoiceState>("choosing");
@@ -154,6 +154,13 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
     setNotice("Mock data reset");
   }
 
+  function selectSpecimen(next: LibraryComponentType) {
+    setSelectedType(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("component", next);
+    window.history.replaceState(window.history.state, "", url);
+  }
+
   function renderSpecimen() {
     if (specimen.type === "timer") return <TimerComponent activity={activity} component={fixtures.timer} />;
     if (specimen.type === "countdown") return <CountdownComponent activity={activity} component={fixtures.countdown} />;
@@ -206,7 +213,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
         <label className={styles.search}><Search size={15} /><input aria-label="Search components" onChange={(event) => setQuery(event.target.value)} placeholder="Search components" value={query} /></label>
         <div className={styles.componentNav}>{COMPONENT_GROUPS.map((group) => {
           const entries = filtered.filter((entry) => entry.group === group);
-          return entries.length ? <section key={group}><h2>{group}</h2>{entries.map((entry) => <button aria-current={entry.type === selectedType ? "page" : undefined} key={entry.type} onClick={() => setSelectedType(entry.type)} type="button"><span><b>{entry.label}</b><small>{entry.type}</small></span><ChevronRight size={14} /></button>)}</section> : null;
+          return entries.length ? <section key={group}><h2>{group}</h2>{entries.map((entry) => <button aria-current={entry.type === selectedType ? "page" : undefined} key={entry.type} onClick={() => selectSpecimen(entry.type)} type="button"><span><b>{entry.label}</b><small>{entry.type}</small></span><ChevronRight size={14} /></button>)}</section> : null;
         })}</div>
         <p className={styles.count}>{filtered.length} of {COMPONENT_SPECIMENS.length} component types</p>
       </aside>
