@@ -42,6 +42,8 @@ test("renders daily subset selection, copy, inline add, and derived history as o
   assert.match(component, /<details className="daily-selection-history">/);
   assert.match(component, /daily-selection-history-entries/);
   assert.match(component, /set_daily_selection/);
+  assert.match(component, /createDailySelectionSaveQueue/);
+  assert.doesNotMatch(component, /className=\{selected \? "is-selected" : ""\} disabled=\{saving\}/);
   assert.match(css, /\.daily-selection-items > button \{[^}]*min-height: 42px/s);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.daily-selection-items > button \{ min-height: 44px; \}/);
   assert.match(store, /backfillDailySelections/);

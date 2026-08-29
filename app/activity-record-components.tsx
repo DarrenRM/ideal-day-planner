@@ -4,6 +4,7 @@ import { AlertTriangle, BookOpen, CalendarCheck, Check, ChevronDown, Dumbbell, E
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import { hasMeaningfulProductNotes, type ActivityRecord } from "./activity-record-model";
+import { createDailySelectionSaveQueue } from "./daily-selection-save-queue";
 import { previousDateKey, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
 import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
 import { recurringCadenceDescription, recurringOccurrenceDates, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
@@ -12,7 +13,7 @@ import { StreakTrack } from "./streak-track";
 import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
 import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPhaseProtocolData, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
 
-export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<void>;
+export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<boolean>;
 
 type Props = { record: ActivityRecord; onMutate: RecordMutation; onTalkWithLuna?: () => void; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[]; completionDates?: string[] };
 type Item = { id: string; label: string; detail?: string; completed?: boolean; completedDates?: string[]; urgency?: string; source?: string };
@@ -131,12 +132,18 @@ function DailySelectionRecord({ record, onMutate }: Props) {
   const yesterday = previousDateKey(today);
   const persistedToday = selectionForDate(data, today);
   const yesterdaySelection = selectionForDate(data, yesterday);
-  const [optimistic, setOptimistic] = useState<{ version: number; itemIds: string[] } | null>(null);
+  const [optimistic, setOptimistic] = useState<string[] | null>(null);
   const [undo, setUndo] = useState<{ version: number; itemIds: string[] } | null>(null);
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
-  const selectedIds = optimistic?.version === record.version ? optimistic.itemIds : persistedToday;
+  const selectedIds = optimistic ?? persistedToday;
+  const [saveQueue] = useState(() => createDailySelectionSaveQueue({
+    save: (itemIds) => onMutate(record.key, "set_daily_selection", { itemIds }),
+    onSavingChange: setSaving,
+    onError: () => setOptimistic(null),
+    onIdle: () => setOptimistic(null),
+  }));
   const activeItems = data.items.filter((item) => item.active !== false);
   const labels = new Map(data.items.map((item) => [item.id, item.label]));
   const priorEntries = [...data.entries].filter((entry) => entry.date !== today).sort((left, right) => right.date.localeCompare(left.date)).slice(0, 4);
@@ -147,40 +154,33 @@ function DailySelectionRecord({ record, onMutate }: Props) {
     return () => window.clearTimeout(timer);
   }, [record.version, undo]);
 
-  async function setSelection(nextIds: string[]) {
-    if (saving) return;
-    setSaving(true);
-    setOptimistic({ version: record.version, itemIds: nextIds });
-    try {
-      await onMutate(record.key, "set_daily_selection", { itemIds: nextIds });
-    } catch (error) {
-      setOptimistic(null);
-      throw error;
-    } finally {
-      setSaving(false);
-    }
+  useEffect(() => () => saveQueue.dispose(), [saveQueue]);
+
+  function setSelection(nextIds: string[]) {
+    setOptimistic(nextIds);
+    saveQueue.push(nextIds);
   }
 
   async function copyYesterday() {
     if (saving) return;
     const previous = selectedIds;
     setSaving(true);
-    setOptimistic({ version: record.version, itemIds: yesterdaySelection });
+    setOptimistic(yesterdaySelection);
     setUndo({ version: record.version + 1, itemIds: previous });
     try {
-      await onMutate(record.key, "copy_daily_selection_previous", {});
-    } catch (error) {
+      if (!await onMutate(record.key, "copy_daily_selection_previous", {})) throw new Error("Selection was not saved.");
+      setOptimistic(null);
+    } catch {
       setOptimistic(null);
       setUndo(null);
-      throw error;
     } finally { setSaving(false); }
   }
 
-  async function toggle(item: DailySelectionItem) {
+  function toggle(item: DailySelectionItem) {
     const nextIds = selectedIds.includes(item.id)
       ? selectedIds.filter((id) => id !== item.id)
       : [...selectedIds, item.id];
-    await setSelection(nextIds);
+    setSelection(nextIds);
   }
 
   async function add(event: FormEvent) {
@@ -206,7 +206,7 @@ function DailySelectionRecord({ record, onMutate }: Props) {
     <div aria-label={`${record.title} for today`} className="daily-selection-items">
       {activeItems.map((item) => {
         const selected = selectedIds.includes(item.id);
-        return <button aria-pressed={selected} className={selected ? "is-selected" : ""} disabled={saving} key={item.id} type="button" onClick={() => void toggle(item)}>
+        return <button aria-pressed={selected} className={selected ? "is-selected" : ""} key={item.id} type="button" onClick={() => toggle(item)}>
           <span aria-hidden="true">{selected ? <Check size={12} weight="bold" /> : null}</span>
           <strong>{item.label}</strong>
         </button>;

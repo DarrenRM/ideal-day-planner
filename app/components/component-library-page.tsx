@@ -144,6 +144,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
       return { ...record, version: record.version + 1 };
     }) }));
     setNotice(`Mock ${operation.replaceAll("_", " ")} captured`);
+    return true;
   };
 
   function resetMock() {

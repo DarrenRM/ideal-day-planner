@@ -878,8 +878,10 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       const result = await response.json() as { records?: ActivityRecord[]; error?: string };
       if (!response.ok || !result.records) throw new Error(result.error || "That change could not be saved.");
       setRecords(result.records);
+      return true;
     } catch (error) {
       setRecordError(error instanceof Error ? error.message : "That change could not be saved.");
+      return false;
     }
   }
 
