@@ -571,6 +571,9 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.inline-edit-form/);
   assert.match(css, /\.schedule-loading-row/);
   assert.match(css, /\.message-bubble,[\s\S]*?font-size: var\(--type-body\);[\s\S]*?line-height: var\(--leading-body\);/);
+  assert.match(css, /\.message-bubble \{[^}]*overflow-wrap: anywhere;[^}]*word-break: break-word;/s);
+  assert.match(css, /\.global-luna-message p \{[^}]*overflow-wrap: anywhere;[^}]*word-break: break-word;/s);
+  assert.doesNotMatch(css, /word-break:\s*break-all/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*?input,[\s\S]*?font-size: var\(--type-body-lg\);[\s\S]*?line-height: var\(--leading-body-lg\);/);
   for (const declaration of css.matchAll(/(?:font-size|font)\s*:\s*([^;]+)/g)) {
     const pixels = declaration[1].match(/(\d+(?:\.\d+)?)px/);
