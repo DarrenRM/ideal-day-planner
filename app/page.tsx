@@ -19,6 +19,7 @@ import type { CaptureAttention } from "./capture-model";
 import { ActivityDurationControl as DurationControl, DURATION_STEP, normalizeActivityDuration } from "./activity-duration-control";
 import { activityIconFor, CATEGORY_META, CATEGORY_OPTIONS, CATEGORY_ORDER, normalizeCategory, type ActivityCategory } from "./activity-presentation";
 import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./conversation-work-receipt";
+import { millisecondsUntilNextLocalDay, reconcileLocalDay } from "./day-rollover";
 
 type Category = ActivityCategory;
 
@@ -1423,8 +1424,13 @@ function hydrateStoredItems(value: unknown): RoutineItem[] {
 }
 
 export default function Home() {
+  const initialDateKeyRef = useRef(localDateKey());
+  const [dayNavigation, setDayNavigation] = useState(() => ({
+    todayDateKey: initialDateKeyRef.current,
+    viewDate: initialDateKeyRef.current,
+  }));
+  const { todayDateKey, viewDate } = dayNavigation;
   const [items, setItems] = useState<RoutineItem[]>([]);
-  const [viewDate, setViewDate] = useState(localDateKey);
   const [pastDayItems, setPastDayItems] = useState<RoutineItem[]>([]);
   const [pastDayState, setPastDayState] = useState<"loading" | "ready" | "error">("ready");
   const [pastDayPendingIds, setPastDayPendingIds] = useState<Set<string>>(() => new Set());
@@ -1511,10 +1517,47 @@ export default function Home() {
   const suppressActivityClickRef = useRef(false);
   const suppressActivityClickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const extraTransitionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const dayLoadDateRef = useRef(todayDateKey);
 
   useEffect(() => {
     const timer = window.setInterval(() => setRealMinutes(minutesNow()), 30_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let rolloverTimer: number | undefined;
+
+    function syncLocalDay() {
+      const observedDateKey = localDateKey();
+      setDayNavigation((current) => reconcileLocalDay(current, observedDateKey));
+    }
+
+    function scheduleRollover() {
+      if (rolloverTimer) window.clearTimeout(rolloverTimer);
+      rolloverTimer = window.setTimeout(() => {
+        syncLocalDay();
+        scheduleRollover();
+      }, millisecondsUntilNextLocalDay(new Date()));
+    }
+
+    function syncAfterWake() {
+      syncLocalDay();
+      scheduleRollover();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") syncAfterWake();
+    }
+
+    syncLocalDay();
+    scheduleRollover();
+    window.addEventListener("focus", syncAfterWake);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      if (rolloverTimer) window.clearTimeout(rolloverTimer);
+      window.removeEventListener("focus", syncAfterWake);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -1547,8 +1590,48 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    const date = localDateKey();
+    const date = todayDateKey;
     const endpoint = `/api/day?date=${date}`;
+    const isRollover = dayLoadDateRef.current !== date;
+    dayLoadDateRef.current = date;
+
+    if (isRollover) {
+      if (completionCelebrationTimer.current) clearTimeout(completionCelebrationTimer.current);
+      if (completionHandoffTimer.current) clearTimeout(completionHandoffTimer.current);
+      if (skipMotionTimer.current) clearTimeout(skipMotionTimer.current);
+      if (skipHandoffTimer.current) clearTimeout(skipHandoffTimer.current);
+      if (nextActivityCueTimer.current) clearTimeout(nextActivityCueTimer.current);
+      if (mobileActivityTransitionTimer.current) clearTimeout(mobileActivityTransitionTimer.current);
+      if (extraTransitionTimer.current) clearTimeout(extraTransitionTimer.current);
+      completionPlacementTimers.current.forEach((timer) => clearTimeout(timer));
+      completionPlacementTimers.current.clear();
+      setItems([]);
+      setCaptureAttention([]);
+      setCompletedIds(new Set());
+      setPendingActivityIds(new Set());
+      setSettlingCompletedIds(new Set());
+      setHasLoaded(false);
+      setDayStartedAt(null);
+      setDayHighlight(EMPTY_DAY_HIGHLIGHT);
+      setSelectedActivityId(null);
+      setReceiptPreviewActivityId(null);
+      setMobileActivityTransition(null);
+      setStartConversationActivityId(null);
+      setDismissedClockActivityId(null);
+      setCelebratingActivityId(null);
+      setSkippingActivityId(null);
+      setPromotingExtraId(null);
+      setExtraTransitionLocked(false);
+      setRecentlyActivatedExtra(null);
+      setRemoveTodayItem(null);
+      setIsRemovingToday(false);
+      setRemoveTodayError(null);
+      setExtraPromotionError(null);
+      setNextActivityCueId(null);
+      setShowAllExtras(false);
+      setMobileActivityMenuId(null);
+      setOccurrenceEditorItem(null);
+    }
 
     async function load() {
       try {
@@ -1597,10 +1680,10 @@ export default function Home() {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, []);
+  }, [todayDateKey]);
 
   useEffect(() => {
-    if (viewDate === localDateKey()) return;
+    if (viewDate === todayDateKey) return;
 
     let cancelled = false;
     void fetch(`/api/day?date=${viewDate}`, { cache: "no-store" })
@@ -1615,7 +1698,7 @@ export default function Home() {
         if (!cancelled) setPastDayState("error");
       });
     return () => { cancelled = true; };
-  }, [viewDate]);
+  }, [todayDateKey, viewDate]);
 
   useEffect(() => {
     if (!hasLoaded) return;
@@ -1643,7 +1726,7 @@ export default function Home() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
       try {
-        const response = await fetch(`/api/day/highlight?date=${localDateKey()}`, { cache: "no-store" });
+        const response = await fetch(`/api/day/highlight?date=${todayDateKey}`, { cache: "no-store" });
         if (!response.ok) throw new Error("Highlight refresh failed.");
         const result = await response.json() as { highlight?: unknown };
         if (cancelled) return;
@@ -1659,7 +1742,7 @@ export default function Home() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [dayHighlight.revision, dayHighlight.status, hasLoaded]);
+  }, [dayHighlight.revision, dayHighlight.status, hasLoaded, todayDateKey]);
 
   useEffect(() => {
     if (!isSettingsOpen) return;
@@ -1963,7 +2046,6 @@ export default function Home() {
     && (!completedIds.has(item.id) || settlingCompletedIds.has(item.id)));
   const dayAchievementReady = settledEssentialsComplete && unfinishedChosenExtras.length === 0;
   const isDayBloom = dayAchievementReady && Boolean(celebratingActivityId);
-  const todayDateKey = localDateKey();
   const isReviewingPastDay = viewDate !== todayDateKey;
 
   function showDay(date: string) {
@@ -1975,7 +2057,7 @@ export default function Home() {
       setPastDayState("loading");
       setPastDayPendingIds(new Set());
     }
-    setViewDate(date);
+    setDayNavigation((current) => ({ ...current, viewDate: date }));
     setIsAdding(false);
     setIsMenuOpen(false);
     setSelectedActivityId(null);
@@ -2044,7 +2126,7 @@ export default function Home() {
 
   async function reloadToday(): Promise<RoutineItem[] | null> {
     try {
-      const response = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
+      const response = await fetch(`/api/day?date=${todayDateKey}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Today could not be refreshed.");
       const day = await response.json() as { items: unknown; attention?: CaptureAttention[]; highlight?: unknown };
       const refreshedItems = hydrateStoredItems(day.items);
@@ -2064,7 +2146,7 @@ export default function Home() {
     if (isStartingDay || isDayStarted) return;
     setIsStartingDay(true);
     try {
-      const response = await fetch(`/api/day?date=${localDateKey()}`, {
+      const response = await fetch(`/api/day?date=${todayDateKey}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode: "start-day", currentMinutes: displayedMinutes }),
@@ -2093,7 +2175,7 @@ export default function Home() {
     if (resetTodayState === "resetting") return;
     setResetTodayState("resetting");
     try {
-      const response = await fetch(`/api/day?date=${localDateKey()}`, {
+      const response = await fetch(`/api/day?date=${todayDateKey}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode: "reset-today" }),
@@ -2285,11 +2367,11 @@ export default function Home() {
           duration: item.duration,
           icon: item.icon,
           color: item.color,
-          date: localDateKey(),
+          date: todayDateKey,
           schedule: draftScheduleKind === "weekdays"
             ? { kind: "weekdays", weekdays: draftWeekdays, intervalWeeks: 1 }
             : draftScheduleKind === "interval_days"
-              ? { kind: "interval_days", every: draftIntervalDays, anchorDate: localDateKey() }
+              ? { kind: "interval_days", every: draftIntervalDays, anchorDate: todayDateKey }
               : draftScheduleKind === "daily"
                 ? { kind: "daily" }
                 : { kind: "none" },
@@ -2301,7 +2383,7 @@ export default function Home() {
       });
       const created = await response.json() as { activity?: { id: string; title: string }; error?: string };
       if (!response.ok) throw new Error(created.error || "The activity could not be created.");
-      const dayResponse = await fetch(`/api/day?date=${localDateKey()}`, { cache: "no-store" });
+      const dayResponse = await fetch(`/api/day?date=${todayDateKey}`, { cache: "no-store" });
       if (!dayResponse.ok) throw new Error("The new activity could not be loaded.");
       const day = await dayResponse.json() as { items: unknown };
       const nextItems = hydrateStoredItems(day.items);
@@ -2641,7 +2723,7 @@ export default function Home() {
       const response = await fetch("/api/activity/reset", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ activityId: item.activityId ?? item.id, date: localDateKey() }),
+        body: JSON.stringify({ activityId: item.activityId ?? item.id, date: todayDateKey }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "This activity could not be reset.");
@@ -2991,7 +3073,7 @@ export default function Home() {
       const response = await fetch("/api/activity/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode, activityId: item.activityId ?? item.id, occurrenceId: item.occurrenceId ?? item.id, date: localDateKey(), timing: null }),
+        body: JSON.stringify({ mode, activityId: item.activityId ?? item.id, occurrenceId: item.occurrenceId ?? item.id, date: todayDateKey, timing: null }),
       });
       if (!response.ok) throw new Error("Activity status could not be saved.");
       if (mode === "complete" || mode === "reopen") {
