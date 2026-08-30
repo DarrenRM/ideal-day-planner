@@ -12,6 +12,7 @@ import { formatScheduleOccurrenceDate, scheduleOccurrenceDetail } from "./schedu
 import { dailyCompletionStreak, normalizedCompletionDates, recurringCompletionStreak } from "./streak-model";
 import { StreakTrack } from "./streak-track";
 import { recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
+import { activityRecordTargetId } from "./activity-workspace-target";
 
 export type ActivityScheduleSummary = {
   patternId: string;
@@ -649,13 +650,13 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     if (!item?.component || item.component.type === "timer" || item.component.type === "countdown" || item.component.type === "routine") return null;
     const dataComponent = item.component as DataWorkspaceComponent;
     const record = recordsByKey.get(dataComponent.recordKey);
-    return record ? <ActivityRecordComponent key={item.id} onMutate={onRecordMutation} presentation={presentation ?? dataComponent.presentation} record={record} relatedRecords={records} /> : null;
+    return record ? <ActivityRecordComponent key={item.id} onMutate={onRecordMutation} presentation={presentation ?? dataComponent.presentation} record={record} relatedRecords={records} targetId={activityRecordTargetId(activity.id, record.key)} /> : null;
   }
   function renderStrengthItem() {
     if (!strengthSessionItem?.component || strengthSessionItem.component.type !== "strength_session") return null;
     const dataComponent = strengthSessionItem.component as DataWorkspaceComponent;
     const record = recordsByKey.get(dataComponent.recordKey);
-    return record ? <ActivityRecordComponent key={strengthSessionItem.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation="featured" record={record} relatedRecords={records} /> : null;
+    return record ? <ActivityRecordComponent key={strengthSessionItem.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation="featured" record={record} relatedRecords={records} targetId={activityRecordTargetId(activity.id, record.key)} /> : null;
   }
   if (!hasVisibleWorkspace && !workTransitionVisible && !recordError && !showEmptyState) return null;
   return (
@@ -698,6 +699,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                     presentation={dataComponent.presentation}
                     record={record}
                     supportingRecords={(nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step")}
+                    targetId={activityRecordTargetId(activity.id, record.key)}
                   /></div>;
                 })}
               </div>
@@ -721,13 +723,13 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               }
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
-              return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} /> : null;
+              return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} targetId={activityRecordTargetId(activity.id, record.key)} /> : null;
             })}
             {orderedItems.filter(({ displayRole }) => displayRole === "recurring").map(({ component }) => {
               if (!component) return null;
               const dataComponent = component as DataWorkspaceComponent;
               const record = recordsByKey.get(dataComponent.recordKey);
-              return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} /> : null;
+              return record ? <ActivityRecordComponent key={component.id} onMutate={onRecordMutation} presentation={dataComponent.presentation} record={record} targetId={activityRecordTargetId(activity.id, record.key)} /> : null;
             })}
             {scheduleSummary ? <ActivityScheduleSummaryComponent activity={activity} onManageSchedule={onManageSchedule} scheduleSummary={scheduleSummary} /> : null}
             {measuredSessionItem && measuredChoiceItem && !measuredOptionId ? renderMeasuredItem(measuredChoiceItem, "default") : null}
@@ -745,14 +747,16 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               if (!record || record.type === "product" && hasProductSwitcher) return null;
               const renderedRecord = <ActivityRecordComponent
                     completionDates={record.type === "product" ? productCompletionDates(activity, record.key) : undefined}
+                    key={component.id}
                     onMutate={onRecordMutation}
                     onTalkWithLuna={onTalkWithLuna}
                     presentation={dataComponent.presentation}
                     record={record}
                     relatedRecords={record.type === "session_log" || record.type === "strength_session" ? records : undefined}
                     supportingRecords={record.type === "product" ? (nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step") : undefined}
+                    targetId={activityRecordTargetId(activity.id, record.key)}
                   />;
-              return <div className="workspace-record-slot" key={component.id}>{renderedRecord}</div>;
+              return renderedRecord;
             })}
           </div>
           <WorkspaceLunaInvitation onTalkWithLuna={onTalkWithLuna} />

@@ -20,6 +20,7 @@ import { ActivityDurationControl as DurationControl, DURATION_STEP, normalizeAct
 import { activityIconFor, CATEGORY_META, CATEGORY_OPTIONS, CATEGORY_ORDER, normalizeCategory, type ActivityCategory } from "./activity-presentation";
 import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./conversation-work-receipt";
 import { millisecondsUntilNextLocalDay, reconcileLocalDay } from "./day-rollover";
+import { activityRecordTargetId } from "./activity-workspace-target";
 
 type Category = ActivityCategory;
 
@@ -71,7 +72,7 @@ type MobileActivityTransition = {
 type ConversationMessage = { id: string; author: "user" | "luna"; body: string; agentJobId?: string | null; createdAt: string; pending?: boolean };
 type ConversationArtifact = ConversationWorkReceiptData & {
   detail: string;
-  meta: { secondary?: string; target?: "workspace"; targetActivityId?: string; targetActivityClientKey?: string };
+  meta: { secondary?: string; target?: "workspace"; targetActivityId?: string; targetActivityClientKey?: string; targetRecordKey?: string };
   sourceAgentJobId: string;
 };
 type ConversationJob = {
@@ -825,8 +826,18 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       return;
     }
     const revealWorkspace = () => {
-      const target = document.getElementById(`activity-workspace-${item.id}`);
-      target?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      const workspaceTarget = document.getElementById(`activity-workspace-${item.id}`);
+      const recordKey = artifact.meta.targetRecordKey?.trim();
+      const recordTarget = recordKey
+        ? document.getElementById(activityRecordTargetId(item.id, recordKey))
+        : null;
+      const target = recordTarget ?? workspaceTarget;
+      if (recordTarget) {
+        recordTarget.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      } else {
+        workspaceTarget?.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+        workspaceTarget?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      }
       target?.classList.remove("is-receipt-target");
       if (target) void target.offsetWidth;
       target?.classList.add("is-receipt-target");

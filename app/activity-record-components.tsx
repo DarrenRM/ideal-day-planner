@@ -11,11 +11,11 @@ import { recurringCadenceDescription, recurringOccurrenceDates, recurringStepSch
 import { dailyCompletionStreak, normalizedCompletionDates } from "./streak-model";
 import { StreakTrack } from "./streak-track";
 import { selectedSessionOptionId, sessionEntryValues, sessionFieldsForOption, sessionFieldValue, summarizeSessionLog, type SessionChoiceData, type SessionLogData, type SessionLogEntry, type SessionLogField } from "./session-log-model";
-import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPhaseProtocolData, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
+import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, strengthWeekSummary, summarizeStrengthExerciseSets, summarizeStrengthSets, type StrengthSessionData, type StrengthSet, type WorkoutPhaseProtocolData, type WorkoutPlanData, type WorkoutPlanExercise } from "./strength-session-model";
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<boolean>;
 
-type Props = { record: ActivityRecord; onMutate: RecordMutation; onTalkWithLuna?: () => void; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[]; completionDates?: string[] };
+type Props = { record: ActivityRecord; onMutate: RecordMutation; onTalkWithLuna?: () => void; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[]; completionDates?: string[]; targetId?: string };
 type Item = { id: string; label: string; detail?: string; completed?: boolean; completedDates?: string[]; urgency?: string; source?: string };
 type Step = { id: string; label: string; note?: string; completed?: boolean; completedDates?: string[] };
 type Entry = { id: string; title: string; detail?: string; date?: string; value?: string; tone?: string };
@@ -367,6 +367,10 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
   const exercises = useMemo(() => plan.exercises ?? [], [plan.exercises]);
   const today = localDateKey();
   const session = strengthSessionForDate(data, today);
+  const performedExercises = session?.exercises.filter((exercise) => exercise.sets.length) ?? [];
+  const plannedExerciseIds = new Set(exercises.map((exercise) => exercise.id));
+  const unplannedExercises = performedExercises.filter((exercise) => !plannedExerciseIds.has(exercise.exerciseId));
+  const hasModifiedSession = unplannedExercises.length > 0;
   const progress = strengthSessionProgress(session, exercises.map((exercise) => exercise.id));
   const week = strengthWeekSummary(data, today);
   const hasLoggedSets = (data.sessions ?? []).some((entry) => entry.exercises.some((exercise) => exercise.sets.length));
@@ -459,13 +463,18 @@ function StrengthSessionRecord({ record, onMutate, onTalkWithLuna, relatedRecord
       <span className="strength-session-mark"><Dumbbell aria-hidden="true" size={17} /></span>
     </div>
     {warmup ? <StrengthWorkoutPhase onMutate={onMutate} record={warmup} /> : null}
+    {hasModifiedSession ? <div className="strength-modified-session">
+      <div className="strength-modified-heading"><span><small className="workspace-overline">Today · Modified session</small><strong>What you did</strong></span><em>{performedExercises.length} {performedExercises.length === 1 ? "exercise" : "exercises"}</em></div>
+      {session?.note ? <p>{session.note}</p> : null}
+      <div className="strength-modified-exercises">{performedExercises.map((exercise) => <div key={exercise.id}><strong>{exercise.name}</strong><small>{summarizeStrengthExerciseSets(exercise.sets)}</small></div>)}</div>
+    </div> : null}
     {!hasLoggedSets && !firstSetReady ? <div className="strength-first-session">
       <span className="workspace-overline">Exercises</span>
       <div className="strength-plan-preview" aria-label="Today’s planned exercises">{exercises.map((exercise, index) => <span key={exercise.id}><b>{index + 1}</b><span><strong>{exercise.name}</strong>{strengthTarget(exercise) ? <small>{strengthTarget(exercise)}</small> : null}</span></span>)}</div>
       <button className="strength-first-action" type="button" onClick={() => { setExpandedExerciseId(firstExercise.id); setFirstSetReady(true); }}>Log first set</button>
     </div> : <>
       {hasLoggedSets ? <div className="strength-progress" aria-label={`${progress.completedExercises} of ${progress.totalExercises} exercises and ${progress.completedSets} sets logged`}>
-        <span><strong>{progress.completedExercises}/{progress.totalExercises}</strong><small>exercises</small></span>
+        <span><strong>{hasModifiedSession ? performedExercises.length : `${progress.completedExercises}/${progress.totalExercises}`}</strong><small>{hasModifiedSession ? "exercises today" : "exercises"}</small></span>
         <span><strong>{progress.completedSets}</strong><small>sets today</small></span>
         <span><strong>{week.sessions}</strong><small>workouts this week</small></span>
       </div> : null}
@@ -795,26 +804,27 @@ function ResourcesRecord({ record }: { record: ActivityRecord }) {
 
 export function ActivityRecordComponent(props: Props) {
   const { record } = props;
-  if (record.type === "summary") return <SummaryRecord record={record} />;
-  if (record.type === "product") return <ProductRecord {...props} />;
-  if (record.type === "protocol") return <ProtocolRecord {...props} />;
-  if (record.type === "checklist" || record.type === "item_list") return <ItemListRecord {...props} />;
-  if (record.type === "daily_selection") return <DailySelectionRecord {...props} />;
-  if (record.type === "meal_log") return <MealLogRecord record={record} />;
-  if (record.type === "workout") return <WorkoutRecord {...props} />;
-  if (record.type === "recurring_step") return <RecurringStepRecord {...props} />;
-  if (record.type === "activity_event") return <ActivityEventRecord record={record} />;
-  if (record.type === "equipment") return <EquipmentRecord record={record} />;
-  if (record.type === "session_choice") return <SessionChoiceRecord {...props} />;
-  if (record.type === "session_log") return <SessionLogRecord {...props} />;
-  if (record.type === "strength_session") return <StrengthSessionRecord {...props} />;
-  if (record.type === "quick_log") return <QuickLogRecord {...props} />;
-  if (record.type === "history" || record.type === "timeline") return <HistoryRecord record={record} />;
-  if (record.type === "comparison") return <ComparisonRecord record={record} />;
-  if (record.type === "metric" || record.type === "trend") return <MetricRecord record={record} />;
-  if (record.type === "adherence") return <AdherenceRecord {...props} />;
-  if (record.type === "goal") return <GoalRecord record={record} />;
-  if (record.type === "attention") return <AttentionRecord record={record} />;
-  if (record.type === "resources") return <ResourcesRecord record={record} />;
-  return null;
+  let content: ReactNode = null;
+  if (record.type === "summary") content = <SummaryRecord record={record} />;
+  else if (record.type === "product") content = <ProductRecord {...props} />;
+  else if (record.type === "protocol") content = <ProtocolRecord {...props} />;
+  else if (record.type === "checklist" || record.type === "item_list") content = <ItemListRecord {...props} />;
+  else if (record.type === "daily_selection") content = <DailySelectionRecord {...props} />;
+  else if (record.type === "meal_log") content = <MealLogRecord record={record} />;
+  else if (record.type === "workout") content = <WorkoutRecord {...props} />;
+  else if (record.type === "recurring_step") content = <RecurringStepRecord {...props} />;
+  else if (record.type === "activity_event") content = <ActivityEventRecord record={record} />;
+  else if (record.type === "equipment") content = <EquipmentRecord record={record} />;
+  else if (record.type === "session_choice") content = <SessionChoiceRecord {...props} />;
+  else if (record.type === "session_log") content = <SessionLogRecord {...props} />;
+  else if (record.type === "strength_session") content = <StrengthSessionRecord {...props} />;
+  else if (record.type === "quick_log") content = <QuickLogRecord {...props} />;
+  else if (record.type === "history" || record.type === "timeline") content = <HistoryRecord record={record} />;
+  else if (record.type === "comparison") content = <ComparisonRecord record={record} />;
+  else if (record.type === "metric" || record.type === "trend") content = <MetricRecord record={record} />;
+  else if (record.type === "adherence") content = <AdherenceRecord {...props} />;
+  else if (record.type === "goal") content = <GoalRecord record={record} />;
+  else if (record.type === "attention") content = <AttentionRecord record={record} />;
+  else if (record.type === "resources") content = <ResourcesRecord record={record} />;
+  return content && props.targetId ? <div className="workspace-record-slot" id={props.targetId}>{content}</div> : content;
 }

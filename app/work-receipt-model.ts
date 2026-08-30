@@ -14,6 +14,7 @@ export type WorkReceiptDraft = {
   target: "workspace";
   targetActivityId?: string;
   targetActivityClientKey?: string;
+  targetRecordKey?: string;
 };
 
 type ExistingRecord = { key: string; title: string };
@@ -186,6 +187,7 @@ export function activityWorkReceipt(input: {
   const hasWorkspaceChange = input.workspaceActions.length > 0;
   const hasDurableChange = input.recordActions.length > 0 || hasWorkspaceChange || input.activityMoves.length > 0 || Boolean(followUp);
   if (!hasDurableChange) return null;
+  const targetRecordKey = upserts.length === 1 ? upserts[0].record.key : null;
 
   const details: string[] = [];
   if (added.length) details.push(`Added ${humanList(added)}.`);
@@ -203,6 +205,7 @@ export function activityWorkReceipt(input: {
         title: `${input.activityTitle} check-in scheduled`,
         detail: `Luna will return on ${due} about ${followUp.title.toLowerCase()}.`,
         target: "workspace",
+        ...(targetRecordKey ? { targetRecordKey } : {}),
       };
     }
     return {
@@ -211,6 +214,7 @@ export function activityWorkReceipt(input: {
       detail: details.slice(0, 2).join(" "),
       secondary: `Check-in set for ${due}.`,
       target: "workspace",
+      ...(targetRecordKey ? { targetRecordKey } : {}),
     };
   }
 
@@ -219,5 +223,6 @@ export function activityWorkReceipt(input: {
     title: input.jobKind === "activity_setup" ? `${input.activityTitle} is ready` : `${input.activityTitle} updated`,
     detail: details.slice(0, 2).join(" "),
     target: "workspace",
+    ...(targetRecordKey ? { targetRecordKey } : {}),
   };
 }

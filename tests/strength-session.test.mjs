@@ -6,6 +6,7 @@ import {
   strengthSessionForDate,
   strengthSessionProgress,
   strengthWeekSummary,
+  summarizeStrengthExerciseSets,
   summarizeStrengthSets,
 } from "../app/strength-session-model.ts";
 import { parseActivityRecord } from "../app/activity-record-model.ts";
@@ -40,6 +41,16 @@ test("derives today's strength progress and previous exercise values from dated 
     completedSets: 1,
   });
   assert.equal(summarizeStrengthSets(data.sessions[0].exercises[0].sets), "25 lb × 10 · 25 lb × 9");
+});
+
+test("compresses repeated performed sets for a modified-session recap", () => {
+  assert.equal(summarizeStrengthExerciseSets([
+    { id: "a", ordinal: 1, type: "working", load: "5 lb in each hand", reps: 8, completedAt: "" },
+    { id: "b", ordinal: 2, type: "working", load: "5 lb in each hand", reps: 8, completedAt: "" },
+    { id: "c", ordinal: 3, type: "working", load: "5 lb in each hand", reps: 8, completedAt: "" },
+    { id: "d", ordinal: 4, type: "working", load: "5 lb in each hand", reps: 8, completedAt: "" },
+    { id: "e", ordinal: 5, type: "working", load: "5 lb in each hand", reps: 8, completedAt: "" },
+  ]), "5 sets × 8 reps · 5 lb in each hand");
 });
 
 test("derives weekly workout and set counts without agent-maintained summaries", () => {

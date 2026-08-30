@@ -70,6 +70,7 @@ function workReceiptStatement(db: ReturnType<typeof getD1>, input: {
       target: input.receipt.target,
       targetActivityId: input.receipt.targetActivityId || "",
       targetActivityClientKey: input.receipt.targetActivityClientKey || "",
+      targetRecordKey: input.receipt.targetRecordKey || "",
     }),
   );
 }

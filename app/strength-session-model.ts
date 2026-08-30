@@ -92,6 +92,14 @@ export function summarizeStrengthSets(sets: StrengthSet[]) {
   return sets.map((set) => `${set.load || "BW"} × ${set.reps}`).join(" · ");
 }
 
+export function summarizeStrengthExerciseSets(sets: StrengthSet[]) {
+  if (!sets.length) return "No sets recorded";
+  const first = sets[0];
+  const sameResult = sets.every((set) => set.reps === first.reps && (set.load || "") === (first.load || ""));
+  if (!sameResult) return summarizeStrengthSets(sets);
+  return `${sets.length} ${sets.length === 1 ? "set" : "sets"} × ${first.reps} ${first.reps === 1 ? "rep" : "reps"}${first.load ? ` · ${first.load}` : ""}`;
+}
+
 export function strengthWeekSummary(data: StrengthSessionData, referenceDate: string) {
   const reference = new Date(`${referenceDate}T12:00:00`);
   const monday = new Date(reference);

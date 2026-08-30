@@ -83,6 +83,24 @@ test("does not create a receipt when no durable activity work was committed", ()
   }), null);
 });
 
+test("links a single record update to the exact workspace result", () => {
+  assert.deepEqual(activityWorkReceipt({
+    activityTitle: "Lift",
+    jobKind: "workspace_refresh",
+    existingRecords: [{ key: "strength-session-log", title: "Lift sessions" }],
+    recordActions: [{ op: "upsert", record: { key: "strength-session-log", type: "strength_session", title: "Lift sessions", data: { workoutRecordKey: "leg-day", sessions: [] } } }],
+    workspaceActions: [],
+    activityMoves: [],
+    followUpActions: [],
+  }), {
+    kind: "activity_update",
+    title: "Lift updated",
+    detail: "Updated Lift sessions.",
+    target: "workspace",
+    targetRecordKey: "strength-session-log",
+  });
+});
+
 test("a subject move receipt carries the destination used by View", () => {
   assert.deepEqual(activityWorkReceipt({
     activityTitle: "Skin Routine",

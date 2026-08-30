@@ -324,12 +324,15 @@ test("renders strength plans and dated sets as one specialized workout flow", as
   assert.match(component, /remove_strength_set/);
   assert.match(component, /Reps left \(optional\)/);
   assert.match(component, /Recent workouts/);
+  assert.match(component, /Today · Modified session/);
+  assert.match(component, /summarizeStrengthExerciseSets/);
   assert.match(workspace, /linkedWorkoutKey/);
   assert.match(workspace, /renderStrengthItem/);
   assert.match(css, /\.strength-set-table/);
   assert.match(css, /\.strength-first-session/);
   assert.match(css, /\.strength-first-set-form/);
   assert.match(css, /\.strength-rest/);
+  assert.match(css, /\.strength-modified-session/);
   assert.match(store, /backfillStrengthSessions/);
   assert.match(store, /backfillStrengthWorkoutPhases/);
   assert.match(store, /finish_strength_session/);
@@ -430,8 +433,25 @@ test("resolves workspace work into a brief success state before collapsing it", 
   assert.match(workspace, /Your latest details are ready\./);
   assert.match(workspace, /prefers-reduced-motion: reduce/);
   assert.match(css, /\.workspace-working-transition\.is-leaving/);
+  assert.match(css, /\.workspace-working-transition \{[^}]*position: sticky;[^}]*top: 0;/s);
   assert.match(css, /grid-template-rows: 0fr/);
   assert.match(css, /\.workspace-working\.is-complete/);
+});
+
+test("keeps workspace work visible and lets receipts reveal the changed record", async () => {
+  const [page, workspace, jobs, css] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/activity-workspace.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/agent/jobs/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(jobs, /targetRecordKey: input\.receipt\.targetRecordKey/);
+  assert.match(workspace, /targetId=\{activityRecordTargetId\(activity\.id, record\.key\)\}/);
+  assert.match(page, /artifact\.meta\.targetRecordKey/);
+  assert.match(page, /workspaceTarget\?\.scrollTo\(\{ top: 0/);
+  assert.match(page, /recordTarget\.scrollIntoView/);
+  assert.match(css, /\.workspace-working-transition \{[^}]*position: sticky;[^}]*top: 0;/s);
+  assert.match(css, /\.workspace-record-slot\.is-receipt-target/);
 });
 
 test("uses one activity-colored overline primitive across workspace components", async () => {
