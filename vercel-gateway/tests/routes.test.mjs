@@ -4,7 +4,7 @@ import login from "../api/login.mjs";
 import logout from "../api/logout.mjs";
 import proxy from "../api/proxy.mjs";
 import session from "../api/session.mjs";
-import { makePasswordHash } from "../lib/auth.mjs";
+import { makePasswordHash, sessionFromRequest } from "../lib/auth.mjs";
 
 const testEnvironment = {
   IDEAL_DAY_SESSION_SECRET: "route-test-session-secret-that-is-long-enough",
@@ -61,4 +61,31 @@ test("a valid password creates a secure session while failures stay generic", as
 test("login rejects cross-origin requests", async () => withEnvironment(async () => {
   const response = await login.fetch(new Request("https://example.vercel.app/_ideal-day/login", { method: "POST", headers: { "content-type": "application/json", origin: "https://attacker.example" }, body: JSON.stringify({ password: "first password" }) }));
   assert.equal(response.status, 403);
+}));
+
+test("a valid password switches demo identity while an invalid password preserves it", async () => withEnvironment(async () => {
+  let cookie = "";
+  for (const [password, expectedUser] of [["first password", "vercel-a"], ["second password", "vercel-b"], ["first password", "vercel-a"]]) {
+    const response = await login.fetch(new Request("https://example.vercel.app/_ideal-day/login", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://example.vercel.app", cookie, "x-forwarded-for": "192.0.2.12" },
+      body: JSON.stringify({ password, returnTo: "/" }),
+    }));
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, redirectTo: "/" });
+    const replacement = response.headers.get("set-cookie") || "";
+    assert.match(replacement, /^__Host-ideal_day_session=/);
+    assert.match(replacement, /Path=\//);
+    assert.match(replacement, /HttpOnly; Secure; SameSite=Lax/);
+    cookie = replacement.split(";")[0];
+    assert.equal(sessionFromRequest(new Request("https://example.vercel.app/", { headers: { cookie } }))?.userId, expectedUser);
+  }
+  const rejected = await login.fetch(new Request("https://example.vercel.app/_ideal-day/login", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "https://example.vercel.app", cookie, "x-forwarded-for": "192.0.2.12" },
+    body: JSON.stringify({ password: "wrong" }),
+  }));
+  assert.equal(rejected.status, 401);
+  assert.equal(rejected.headers.get("set-cookie"), null);
+  assert.equal(sessionFromRequest(new Request("https://example.vercel.app/", { headers: { cookie } }))?.userId, "vercel-a");
 }));

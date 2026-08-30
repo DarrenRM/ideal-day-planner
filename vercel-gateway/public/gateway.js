@@ -5,10 +5,6 @@ const button = document.querySelector("button");
 const requestedNext = new URLSearchParams(window.location.search).get("next");
 const returnTo = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/testing";
 
-fetch("/_ideal-day/session", { cache: "no-store" }).then((response) => {
-  if (response.ok) window.location.replace(returnTo);
-}).catch(() => undefined);
-
 form.addEventListener("submit", async (event) => {
   event.preventDefault(); error.textContent = ""; button.disabled = true; button.textContent = "Checking…";
   try {
