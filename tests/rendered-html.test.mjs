@@ -135,8 +135,16 @@ test("keeps the routine data and interactions in the page", async () => {
   assert.match(css, /\.keep-going-heading \{[^}]*text-transform: uppercase/);
   assert.doesNotMatch(css, /\.keep-going-option/);
   assert.doesNotMatch(page, /Build on what worked last time/);
-  assert.match(page, /completedItems\.length > 1 \? <span[^>]*className=\{`day-highlights-count/);
-  assert.match(css, /\.day-highlights\.is-single \.day-highlights-overview \{ grid-template-columns: minmax\(0, 1fr\) 38px 14px; \}/);
+  assert.match(page, /<span[^>]*className=\{`day-highlights-count/);
+  assert.doesNotMatch(page, /completedItems\.length > 1 \? <span/);
+  assert.match(css, /\.day-highlights\.is-single \.day-highlights-overview \{ grid-template-columns: 52px minmax\(0, 1fr\) 38px 14px; \}/);
+  assert.match(css, /\.day-highlights\.is-single \.day-highlights-overview \{ grid-template-columns: 50px minmax\(0, 1fr\) 38px 14px; \}/);
+  assert.match(css, /--day-card-inline-padding: 12px;/);
+  const alignedCardRules = [...css.matchAll(/^\s*\.(?:day-highlights-overview|day-highlights-history|routine-card) \{[^}]*\}/gm)];
+  assert.equal(alignedCardRules.length, 7, "check base and narrow-screen card spacing rules");
+  for (const [rule] of alignedCardRules) {
+    assert.match(rule, /padding: \d+px var\(--day-card-inline-padding\);/);
+  }
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.day-highlights-overview \{[^}]*min-height: 86px;/);
   assert.match(page, /draggable/);
   assert.match(page, /onDrop/);

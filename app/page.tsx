@@ -1247,9 +1247,9 @@ function DayHighlights({
     <section className={`day-highlights ${density} ${planComplete ? "is-plan-complete" : ""} ${isDayBloom ? "is-day-bloom" : ""} ${isOpen ? "is-open" : ""}`} aria-labelledby="day-highlights-title">
       {isDayBloom ? <span aria-atomic="true" className="visually-hidden" role="status">Today complete.</span> : null}
       <button className="day-highlights-overview" type="button" aria-expanded={isOpen} onClick={() => setIsOpen((current) => !current)}>
-        {completedItems.length > 1 ? <span aria-label={`${completedActivities} of ${totalSelectedActivities} activities selected for today complete`} className={`day-highlights-count ${planComplete ? "is-complete" : ""} ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
+        <span aria-label={`${completedActivities} of ${totalSelectedActivities} activities selected for today complete`} className={`day-highlights-count ${planComplete ? "is-complete" : ""} ${celebratingActivityId ? "is-updating" : ""}`} style={{ "--highlight-progress": `${progress}%` } as CSSProperties}>
           <strong>{completedActivities}/{totalSelectedActivities}</strong>
-        </span> : null}
+        </span>
         <span className="day-highlights-copy">
           <strong id="day-highlights-title">{isDayBloom ? "Today complete" : "Completed"}</strong>
           {visibleCopy ? <span>{visibleCopy}</span> : null}
