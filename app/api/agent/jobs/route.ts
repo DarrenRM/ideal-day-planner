@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { CATALOG_VERSION } from "../../../../bridge/component-catalog.mjs";
 import { getD1 } from "../../../../db";
 import {
   apiFailure,
@@ -88,6 +89,7 @@ type LeasedJob = {
   sourceMessageId: string | null;
   delegationInstruction: string | null;
   attempts: number;
+  previousFailure?: string | null;
 };
 
 type ActivityWorkRequest = {
@@ -170,6 +172,9 @@ async function bridgeOnly(request: Request) {
 export async function GET(request: Request) {
   const denied = await bridgeOnly(request);
   if (denied) return denied;
+  if (new URL(request.url).searchParams.get("catalogVersion") !== CATALOG_VERSION) {
+    return Response.json({ code: "bridge_catalog_mismatch", error: "The bridge must refresh its component instructions before accepting work.", expectedCatalogVersion: CATALOG_VERSION }, { status: 409 });
+  }
   const workerId = new URL(request.url).searchParams.get("workerId")?.trim().slice(0, 120) || "ideal-day-local-bridge";
   let claimedJob: { id: string; leaseToken: string } | null = null;
 
@@ -255,7 +260,7 @@ export async function GET(request: Request) {
              activity_variant_id AS activityVariantId, day_plan_id AS dayPlanId,
              day_revision AS dayRevision, conversation_id AS conversationId,
              kind, source_message_id AS sourceMessageId,
-             delegation_instruction AS delegationInstruction, attempts
+             delegation_instruction AS delegationInstruction, attempts, error AS previousFailure
       FROM agent_jobs
       WHERE attempts < 3 AND (
         status = 'queued'
@@ -451,6 +456,14 @@ export async function GET(request: Request) {
 
     if (!candidate.activityId) throw new Error("An activity job is missing its activity.");
 
+    const routine = await db.prepare("SELECT id FROM routine_templates WHERE user_id = ? ORDER BY created_at LIMIT 1")
+      .bind(candidate.userId).first<{ id: string }>();
+    const patterns = routine ? await readSchedulePatterns(candidate.userId, routine.id) : [];
+    const activityPatterns = patterns.filter(({ pattern }) => pattern.steps.some((step) => step.activityId === candidate.activityId));
+    const setting = await db.prepare("SELECT time_zone AS timeZone FROM settings WHERE user_id = ?")
+      .bind(candidate.userId).first<{ timeZone: string }>();
+    const localDate = localDateInTimeZone(new Date(), setting?.timeZone || "America/Phoenix");
+
     const activity = await db.prepare(`
       SELECT client_key AS clientKey, title, category
       FROM activities
@@ -524,6 +537,8 @@ export async function GET(request: Request) {
       context: {
         activity,
         activities: availableActivities.results,
+        localDate,
+        activityPatterns: activityPatterns.map(({ pattern, state }) => ({ ...pattern, state })),
         schedule: schedule ? {
           planDate: schedule.planDate,
           timelineEnabled: Boolean(schedule.dayTimelineEnabled),
@@ -646,7 +661,7 @@ export async function POST(request: Request) {
         ? workspaceClarificationSource.body.trim().slice(0, 4000)
         : "";
       const response = job.kind === "workspace_refresh"
-        ? messageRequestsResearch(sourceMessage?.body) ? suppliedResponse : workspaceClarification
+        ? workspaceClarification || (messageRequestsResearch(sourceMessage?.body) ? suppliedResponse : "")
         : suppliedResponse;
       const requestedWorkspaceFollowup = payload.workspaceFollowup === true || messageRequestsResearch(sourceMessage?.body);
       const scheduleOnlyRequest = messageHasScheduleIntent(sourceMessage?.body || "")
@@ -1006,6 +1021,10 @@ export async function POST(request: Request) {
         const compositionIssues = productCompositionIssues(availableRecords.values(), changedProductKeys, trackedProductKeys);
         if (compositionIssues.length) {
           return Response.json({
+            code: "invalid_product_composition",
+            // Subject moves above may already have committed; never tell the
+            // bridge to replay a mixed result in that case.
+            correctionAllowed: activityMoves.length === 0,
             error: "Each product or device needs a concrete routine action, and each visible product card needs its own adherence or recurring-step rhythm.",
             issues: compositionIssues,
           }, { status: 400 });

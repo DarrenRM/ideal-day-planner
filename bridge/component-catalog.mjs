@@ -1,6 +1,6 @@
 import { activityLibraryEntryFor } from "./activity-library.mjs";
 
-export const CATALOG_VERSION = "workspace-catalog-v13";
+export const CATALOG_VERSION = "workspace-catalog-v14";
 
 export const COMPONENT_CATALOG = [
   ["summary", "Stable decision-relevant facts that have no natural home in a more specific component; never a restatement of the activity title, purpose, modality, or schedule", "summary, fields[{label,value}]"],

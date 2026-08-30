@@ -60,21 +60,26 @@ try {
   }
 
   Set-Location -LiteralPath $projectRoot
-  Write-BridgeLog "Starting the Ideal Day bridge worker."
   $bridgePath = Join-Path $projectRoot "bridge\ideal-day-bridge.mjs"
-  $bridgeProcess = Start-Process `
-    -FilePath $nodeExe `
-    -ArgumentList @($bridgePath) `
-    -WindowStyle Hidden `
-    -PassThru `
-    -Wait `
-    -RedirectStandardOutput $workerOutPath `
-    -RedirectStandardError $workerErrPath
-  $bridgeExitCode = $bridgeProcess.ExitCode
-  if ((Test-Path -LiteralPath $workerErrPath) -and (Get-Item -LiteralPath $workerErrPath).Length -gt 0) {
-    Get-Content -LiteralPath $workerErrPath -Tail 40 | ForEach-Object { Write-BridgeLog "Worker stderr: $_" }
-  }
-  Write-BridgeLog "Bridge worker exited with code $bridgeExitCode."
+  do {
+    Write-BridgeLog "Starting the Ideal Day bridge worker."
+    $bridgeProcess = Start-Process `
+      -FilePath $nodeExe `
+      -ArgumentList @("`"$bridgePath`"") `
+      -WindowStyle Hidden `
+      -PassThru `
+      -Wait `
+      -RedirectStandardOutput $workerOutPath `
+      -RedirectStandardError $workerErrPath
+    $bridgeExitCode = $bridgeProcess.ExitCode
+    if ((Test-Path -LiteralPath $workerErrPath) -and (Get-Item -LiteralPath $workerErrPath).Length -gt 0) {
+      Get-Content -LiteralPath $workerErrPath -Tail 40 | ForEach-Object { Write-BridgeLog "Worker stderr: $_" }
+    }
+    Write-BridgeLog "Bridge worker exited with code $bridgeExitCode."
+    # The worker drains its active lease, then requests a fresh process when any
+    # bridge source changes. Unexpected failures stay with the bounded watchdog.
+    if ($bridgeExitCode -eq 75) { Start-Sleep -Seconds 2 }
+  } while ($bridgeExitCode -eq 75)
   exit $bridgeExitCode
 } catch {
   Write-BridgeLog "Bridge startup failed: $($_.Exception.Message)"

@@ -808,12 +808,12 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /completeActivitySetup/);
   assert.match(jobRoute, /markActivitySetupAnswered/);
   assert.match(jobRoute, /const response = job\.kind === "workspace_refresh"/);
-  assert.match(jobRoute, /messageRequestsResearch\(sourceMessage\?\.body\) \? suppliedResponse : workspaceClarification/);
+  assert.match(jobRoute, /workspaceClarification \|\| \(messageRequestsResearch\(sourceMessage\?\.body\) \? suppliedResponse : ""\)/);
   assert.match(store, /requestIdentity/);
   assert.match(store, /request-identity/);
   assert.match(bridge, /profiles", "ideal-day"/);
   assert.match(bridge, /readHermesKey/);
-  assert.match(bridge, /Title already in use by session/);
+  assert.doesNotMatch(bridge, /Title already in use by session/);
   assert.match(bridge, /IDEAL_DAY_SITES_BYPASS_TOKEN/);
   assert.match(bridge, /OAI-Sites-Authorization/);
   assert.match(store, /persistWorkspaceActions/);
@@ -850,7 +850,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(bridge, /mode: "progress"/);
   assert.match(bridge, /runJobWithHeartbeat/);
   assert.match(bridge, /heartbeatIntervalMs = 5_000/);
-  assert.match(bridge, /activity-blueprint-v3/);
+  assert.match(bridge, /\$\{CATALOG_VERSION\}:\$\{job.id\}:\$\{job.leaseToken\}/);
   assert.match(bridge, /runtimeSessionId\(leased\.job\)/);
   assert.doesNotMatch(bridge, /existingSessionId \|\|/);
   assert.match(bridge, /This is the fast conversational pass/);
