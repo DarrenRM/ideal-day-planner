@@ -15,7 +15,7 @@ import { priorExerciseResult, strengthSessionForDate, strengthSessionProgress, s
 
 export type RecordMutation = (recordKey: string, operation: string, payload: Record<string, unknown>) => Promise<boolean>;
 
-type Props = { record: ActivityRecord; onMutate: RecordMutation; onTalkWithLuna?: () => void; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[]; completionDates?: string[]; targetId?: string };
+type Props = { record: ActivityRecord; onMutate: RecordMutation; onTalkWithLuna?: () => void; presentation?: "default" | "compact" | "featured"; supportingRecords?: ActivityRecord[]; relatedRecords?: ActivityRecord[]; completionDates?: string[]; targetId?: string; protocolInitiallyOpen?: boolean };
 type Item = { id: string; label: string; detail?: string; completed?: boolean; completedDates?: string[]; urgency?: string; source?: string };
 type Step = { id: string; label: string; note?: string; completed?: boolean; completedDates?: string[] };
 type Entry = { id: string; title: string; detail?: string; date?: string; value?: string; tone?: string };
@@ -81,12 +81,15 @@ function ProductAbout({ notes, records }: { notes?: string; records: ActivityRec
   </details>;
 }
 
-function ProtocolContent({ record, onMutate, nested = false }: Props & { nested?: boolean }) {
+function ProtocolContent({ record, onMutate, nested = false, protocolInitiallyOpen = false }: Props & { nested?: boolean }) {
   const data = record.data as { summary?: string; steps?: Step[] };
-  return <details className={`${nested ? "product-supporting-section product-protocol" : "protocol-content"} workspace-disclosure`}>
-    <summary><span className="workspace-overline">Protocol</span><ChevronDown aria-hidden="true" size={15} /></summary>
+  // Use the layout only as an initial preference. Saving a step or refreshing
+  // record data must not reopen a disclosure the person deliberately closed.
+  const [open, setOpen] = useState(() => !nested && protocolInitiallyOpen);
+  return <details className={`${nested ? "product-supporting-section product-protocol" : "protocol-content"} workspace-disclosure`} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary>{nested ? <span className="workspace-overline">Protocol</span> : <span className="protocol-heading-copy"><span className="workspace-overline">Protocol</span><strong>{record.title}</strong></span>}<ChevronDown aria-hidden="true" size={15} /></summary>
     <div className="workspace-disclosure-body">
-      <strong className="workspace-disclosure-title">{record.title}</strong>
+      {nested ? <strong className="workspace-disclosure-title">{record.title}</strong> : null}
       {data.summary ? <p className="record-description">{data.summary}</p> : null}
       {data.steps?.length ? <div className="protocol-steps interactive-protocol">{data.steps.map((step, index) => <div className={completedToday(step) ? "is-complete" : ""} key={step.id}>
         <CheckButton checked={completedToday(step)} label={step.label} onClick={() => void onMutate(record.key, "toggle_item", { itemId: step.id })} />

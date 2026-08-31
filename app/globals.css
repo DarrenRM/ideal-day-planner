@@ -1118,8 +1118,8 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .protocol-block { background: radial-gradient(circle at 92% 0, color-mix(in srgb, var(--item-color) 9%, transparent), transparent 35%), #0d1214; }
 .product-heading { align-items: flex-start; display: flex; gap: 12px; justify-content: space-between; margin-bottom: 12px; }
 .product-mark { align-items: center; background: color-mix(in srgb, var(--item-color) 12%, #151a1d); border: 1px solid color-mix(in srgb, var(--item-color) 24%, #2c3335); border-radius: 8px; color: color-mix(in srgb, var(--item-color) 76%, #d5ddd6); display: flex; flex: 0 0 auto; height: 34px; justify-content: center; width: 34px; }
-.product-heading > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.product-heading strong { color: #dbe2dc; font-size: var(--type-label); font-weight: 600; }
+.product-heading > div, .protocol-heading-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.product-heading strong, .protocol-heading-copy strong { color: #dbe2dc; font-size: var(--type-label); font-weight: 600; }
 .product-supporting-records { display: grid; margin-top: 14px; }
 .product-supporting-section { border-top: 1px solid #242c2e; padding-top: 14px; }
 .product-supporting-section + .product-supporting-section { margin-top: 14px; }
@@ -1131,6 +1131,10 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .workspace-disclosure > summary > svg { color: color-mix(in srgb, var(--item-color) 70%, var(--muted)); flex: 0 0 auto; transition: transform 160ms ease; }
 .workspace-disclosure[open] > summary > svg { transform: rotate(180deg); }
 .workspace-disclosure-body { padding: 2px 0 16px; }
+.protocol-content > summary { align-items: flex-start; min-height: 44px; padding: 0 0 7px; }
+.protocol-content > summary > svg { margin-top: 1px; }
+.protocol-content > .workspace-disclosure-body { padding: 0; }
+.protocol-heading-copy strong { overflow-wrap: anywhere; }
 .workspace-disclosure-title { color: #dbe2dc; display: block; font-size: var(--type-label); font-weight: 600; margin-bottom: 8px; }
 .product-supporting-section.workspace-disclosure { padding-top: 0; }
 .product-supporting-section + .product-supporting-section.workspace-disclosure { margin-top: 16px; }
@@ -2211,6 +2215,7 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .record-item-copy strong,
 .exercise-row strong,
 .product-heading strong,
+.protocol-heading-copy strong,
 .exercise-card > header strong,
 .timeline-entry p strong,
 .goal-record > strong,

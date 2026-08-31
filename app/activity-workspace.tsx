@@ -645,6 +645,14 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     ...linkedWorkoutPhaseItems.map(({ id }) => id),
   ].filter((id): id is string => Boolean(id)));
   const remainingItems = orderedItems.filter(({ id }) => !measuredIds.has(id) && !groupedIds.has(id));
+  // Match the actual rendering order below, after hidden and owned records have
+  // been removed. A protocol below any durable workspace content stays closed.
+  const hasContentBeforeRemaining = hasProductSwitcher || Boolean(sharedProductRhythm)
+    || orderedItems.some(({ displayRole }) => displayRole === "streak" || displayRole === "recurring")
+    || Boolean(scheduleSummary) || Boolean(measuredSessionItem && (measuredOptionId || measuredChoiceItem))
+    || Boolean(strengthSessionItem) || followUps.length > 0;
+  const leadingProtocolId = !hasContentBeforeRemaining && remainingItems[0]?.component?.type === "protocol"
+    ? remainingItems[0].id : null;
 
   function renderMeasuredItem(item: typeof measuredSessionItem, presentation?: "default" | "compact" | "featured") {
     if (!item?.component || item.component.type === "timer" || item.component.type === "countdown" || item.component.type === "routine") return null;
@@ -746,6 +754,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               const record = recordsByKey.get(dataComponent.recordKey);
               if (!record || record.type === "product" && hasProductSwitcher) return null;
               const renderedRecord = <ActivityRecordComponent
+                    protocolInitiallyOpen={component.id === leadingProtocolId}
                     completionDates={record.type === "product" ? productCompletionDates(activity, record.key) : undefined}
                     key={component.id}
                     onMutate={onRecordMutation}
