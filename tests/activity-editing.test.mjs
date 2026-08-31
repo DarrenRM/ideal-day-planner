@@ -1,8 +1,26 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import { activitySetupKey, activitySetupKeyMatches } from "../app/activity-setup-policy.ts";
+import { derivedDisplayTitle } from "../app/activity-title.ts";
+
+test("renamed titles preserve variant and occurrence labels", () => {
+  assert.equal(derivedDisplayTitle("Morning mobility"), "Morning mobility");
+  assert.equal(derivedDisplayTitle("Morning mobility", "Gentle"), "Morning mobility — Gentle");
+  assert.equal(derivedDisplayTitle("Morning mobility", "Gentle", "  Recovery  "), "Morning mobility — Recovery");
+  assert.equal(derivedDisplayTitle("Morning mobility", "Gentle", " "), "Morning mobility — Gentle");
+});
+
+test("renames persist across reloads without changing history, scheduling, or other users", () => {
+  const result = spawnSync(process.execPath, [
+    "--experimental-sqlite", "--experimental-strip-types",
+    fileURLToPath(new URL("./fixtures/activity-edit-sqlite.mjs", import.meta.url)),
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+});
 
 test("renaming an activity does not make Luna rebuild an established setup", () => {
   const legacyHairSerum = "workspace-catalog-v2_3Ahair_20serum_3Acare";

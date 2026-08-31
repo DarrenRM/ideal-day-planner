@@ -1,11 +1,12 @@
 import { getD1 } from "../../../db";
-import { addLocalDays, isLocalDate, parseAdvancement, parseCadence } from "../../schedule-model";
+import { addLocalDays, isLocalDate, localDateInTimeZone, parseAdvancement, parseCadence } from "../../schedule-model";
 import { normalizeActivityOrigin, normalizePlanRole } from "../../day-role";
 import { apiFailure, ensureAgentSchema, ensureConversation, queueActivitySetup, requestIdentity, safeId } from "../agent-store";
 import { activityMessageJobStatements } from "../activity-message-jobs";
 import { applyOccurrenceAction } from "../schedule-actions";
 import { resolveDay } from "../schedule-store";
 import { activitySetupKey } from "../../activity-setup-policy";
+import { updateActivityDetails } from "../activity-edit-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 
@@ -105,12 +106,11 @@ export async function POST(request: Request) {
       const title = text(payload.title, 60);
       const category = text(payload.category, 40);
       if (!clientKey || !title || !CATEGORIES.has(category)) return Response.json({ error: "A valid name and category are required." }, { status: 400 });
-      const result = await db.prepare(`
-        UPDATE activities
-        SET title = ?, category = ?, color = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ? AND client_key = ?
-      `).bind(title, category, text(payload.color, 20), userId, clientKey).run();
-      if (!result.meta.changes) return Response.json({ error: "Activity not found." }, { status: 404 });
+      const settings = await db.prepare(`SELECT time_zone AS timeZone FROM settings WHERE user_id = ?`)
+        .bind(userId).first<{ timeZone: string }>();
+      const date = isLocalDate(payload.date) ? payload.date : localDateInTimeZone(new Date(), settings?.timeZone || "America/Phoenix");
+      const updated = await updateActivityDetails(db, { userId, clientKey, title, category, color: text(payload.color, 20), date });
+      if (!updated) return Response.json({ error: "Activity not found." }, { status: 404 });
       return Response.json({ updated: true });
     }
 

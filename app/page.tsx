@@ -21,6 +21,7 @@ import { activityIconFor, CATEGORY_META, CATEGORY_OPTIONS, CATEGORY_ORDER, norma
 import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./conversation-work-receipt";
 import { millisecondsUntilNextLocalDay, reconcileLocalDay } from "./day-rollover";
 import { activityRecordTargetId } from "./activity-workspace-target";
+import { derivedDisplayTitle } from "./activity-title";
 
 type Category = ActivityCategory;
 
@@ -133,7 +134,7 @@ const INITIAL_ITEMS: RoutineItem[] = [
 const INITIAL_IDS = new Set(INITIAL_ITEMS.map((item) => item.id));
 
 function activityDisplayTitle(item: Pick<RoutineItem, "title" | "variantName" | "displayLabel" | "displayTitle">) {
-  return item.displayTitle || (item.displayLabel || item.variantName ? `${item.title} — ${item.displayLabel || item.variantName}` : item.title);
+  return derivedDisplayTitle(item.title, item.variantName, item.displayLabel);
 }
 
 function ActivityAgenda({ item }: { item: Pick<RoutineItem, "agenda" | "category"> }) {
@@ -1455,7 +1456,7 @@ export default function Home() {
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [touchDragVisual, setTouchDragVisual] = useState<TouchDragVisual | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "retrying">("loading");
+  const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "retrying" | "error">("loading");
   const [isAdding, setIsAdding] = useState(false);
   const [isScheduleManagerOpen, setIsScheduleManagerOpen] = useState(false);
   const [scheduleManagerActivityId, setScheduleManagerActivityId] = useState<string | null>(null);
@@ -1474,6 +1475,9 @@ export default function Home() {
   const [draftPlanRole, setDraftPlanRole] = useState<PlanRole>("essential");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const savingEditRef = useRef(false);
   const [editCategory, setEditCategory] = useState<Category>("Care");
   const [mobileActivityMenuId, setMobileActivityMenuId] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -2461,6 +2465,8 @@ export default function Home() {
   }
 
   function startEditing(item: RoutineItem) {
+    if (savingEditRef.current) return;
+    setEditError(null);
     setMobileActivityMenuId(null);
     setMobileResetActivity(null);
     setEditingId(item.id);
@@ -2470,52 +2476,68 @@ export default function Home() {
   }
 
   function cancelEditing() {
+    if (savingEditRef.current) return;
+    setEditError(null);
     setEditingId(null);
     setEditTitle("");
     setMobileActivityMenuId(null);
     setMobileResetActivity(null);
   }
 
-  function commitEdit() {
-    const title = editTitle.trim();
-    if (!editingId || !title) return false;
+  async function commitEdit() {
+    const title = editTitle.trim().slice(0, 60);
+    if (!editingId || !title || savingEditRef.current) return false;
     const editingItem = items.find((item) => item.id === editingId);
-    setItems((current) => current.map((item) => {
-      if (item.id !== editingId) return item;
-      const categoryChanged = item.category !== editCategory;
-      return {
-        ...item,
-        title: title.slice(0, 60),
-        category: editCategory,
-        color: CATEGORY_META[editCategory].color,
-        icon: categoryChanged && item.id.startsWith("custom-") ? CATEGORY_META[editCategory].icon : item.icon,
-      };
-    }));
-    if (editingItem) {
+    if (!editingItem) return false;
+    if (editingItem.title === title && editingItem.category === editCategory) {
+      cancelEditing();
+      return true;
+    }
+    const activityId = editingItem.activityId ?? editingItem.id;
+    savingEditRef.current = true;
+    setIsSavingEdit(true);
+    setEditError(null);
+    setMobileActivityMenuId(null);
+    try {
       setSaveState("saving");
-      void fetch("/api/activities", {
+      const response = await fetch("/api/activities", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           mode: "update",
-          activityId: editingItem.activityId ?? editingItem.id,
-          title: title.slice(0, 60),
+          activityId,
+          title,
+          date: todayDateKey,
           category: editCategory,
           color: CATEGORY_META[editCategory].color,
         }),
-      }).then((response) => {
-        if (!response.ok) throw new Error("Activity update failed.");
-        setSaveState("saved");
-      }).catch(() => setSaveState("retrying"));
+      });
+      if (!response.ok) throw new Error("Activity update failed.");
+      setItems((current) => current.map((item) => (item.activityId ?? item.id) === activityId ? {
+        ...item,
+        title,
+        displayTitle: derivedDisplayTitle(title, item.variantName, item.displayLabel),
+        category: editCategory,
+        color: CATEGORY_META[editCategory].color,
+      } : item));
+      setSaveState("saved");
+      savingEditRef.current = false;
+      cancelEditing();
+      return true;
+    } catch {
+      setSaveState("error");
+      setEditError("Couldn’t save this change. Your edit is still here—try saving again.");
+      return false;
+    } finally {
+      savingEditRef.current = false;
+      setIsSavingEdit(false);
     }
-    cancelEditing();
-    return true;
   }
 
   function saveEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    commitEdit();
+    void commitEdit();
   }
 
   function moveItem(sourceId: string, targetId: string, position: "before" | "after") {
@@ -3117,7 +3139,7 @@ export default function Home() {
           <div><strong>Ideal Day</strong><span>Personal protocol</span></div>
         </div>
         <div className="header-actions">
-          <div className={`save-state save-state-${saveState}`}><span /> {{ loading: "Loading your day", saving: "Saving", saved: "Saved to your day", retrying: "Offline · retrying" }[saveState]}</div>
+          <div className={`save-state save-state-${saveState}`}><span /> {{ loading: "Loading your day", saving: "Saving", saved: "Saved to your day", retrying: "Offline · retrying", error: "Change not saved" }[saveState]}</div>
           <button
             aria-expanded={isGlobalLunaOpen}
             aria-haspopup="dialog"
@@ -3611,6 +3633,7 @@ export default function Home() {
                               aria-label={`Title for ${item.title}`}
                               id={`activity-title-edit-${item.id}`}
                               maxLength={60}
+                              disabled={isSavingEdit}
                               onChange={(event) => setEditTitle(event.target.value)}
                               onKeyDown={(event) => { if (event.key === "Escape") cancelEditing(); }}
                               tabIndex={isEditing ? undefined : -1}
@@ -3622,17 +3645,17 @@ export default function Home() {
                             <button
                               aria-label={isSkipped ? `Restore ${item.title} to today` : `Skip ${item.title} for today`}
                               className={`activity-back-skip ${isSkipped ? "is-active" : ""}`}
-                              disabled={isPending || isComplete}
+                              disabled={isPending || isComplete || isSavingEdit}
                               tabIndex={isEditing ? undefined : -1}
                               type="button"
-                              onClick={() => {
-                                if (editTitle.trim()) commitEdit();
+                              onClick={async () => {
+                                if (editTitle.trim()) { if (!await commitEdit()) return; }
                                 else cancelEditing();
                                 void updateActivityStatus(item, isSkipped ? "unskip" : "skip");
                               }}
                             ><span>{isSkipped ? "Restore" : "Skip"}</span><SkipForward aria-hidden="true" size={15} /></button>
 
-                            <button aria-label="Save and return" className="activity-edit-done" disabled={!editTitle.trim()} tabIndex={isEditing ? undefined : -1} type="submit"><ArrowLeft aria-hidden="true" size={17} /></button>
+                            <button aria-label="Save and return" aria-busy={isSavingEdit} className="activity-edit-done" disabled={!editTitle.trim() || isSavingEdit} tabIndex={isEditing ? undefined : -1} type="submit"><ArrowLeft aria-hidden="true" size={17} /></button>
 
                             <div className={`mobile-activity-menu ${mobileActivityMenuId === item.id ? "is-open" : ""}`} data-activity-id={item.id}>
                               <button
@@ -3640,6 +3663,7 @@ export default function Home() {
                                 aria-haspopup={mobileResetActivity?.id === item.id ? "dialog" : "menu"}
                                 aria-label={`More options for ${item.title}`}
                                 className="mobile-activity-menu-trigger"
+                                disabled={isSavingEdit}
                                 tabIndex={isEditing ? undefined : -1}
                                 type="button"
                                 onClick={() => {
@@ -3660,11 +3684,11 @@ export default function Home() {
                                     </div>
                                   ) : <>
                                     <button role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); document.getElementById(`activity-title-edit-${item.id}`)?.focus(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
-                                    <button role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
-                                    <button role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
-                                    {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
+                                    <button role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
+                                    <button role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
+                                    {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
                                     <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
-                                    <button className="mobile-remove-action" role="menuitem" type="button" onClick={() => { if (editTitle.trim()) commitEdit(); requestRemoveItem(item); }}>{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={15} /> : <Trash2 aria-hidden="true" size={15} />} {normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? "Return to More for today" : "Remove from today"}</button>
+                                    <button className="mobile-remove-action" role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; requestRemoveItem(item); }}>{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={15} /> : <Trash2 aria-hidden="true" size={15} />} {normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? "Return to More for today" : "Remove from today"}</button>
                                   </>}
                                 </div>
                               ) : null}
@@ -3673,6 +3697,7 @@ export default function Home() {
                         </div>
                       </div>
 
+                      {isEditing && editError ? <p className="activity-edit-error" role="alert">{editError}</p> : null}
                       {isExpanded ? (
                         <ActivityWorkbench
                           key={`${item.id}:${activityResetVersions[item.id] ?? 0}`}

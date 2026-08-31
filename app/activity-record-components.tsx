@@ -76,7 +76,7 @@ function ProductAbout({ notes, records }: { notes?: string; records: ActivityRec
     <summary><span className="workspace-overline">About</span><ChevronDown aria-hidden="true" size={15} /></summary>
     <div className="workspace-disclosure-body">
       {notes ? <p className="record-description">{notes}</p> : null}
-      {entries.length ? <div className="resource-list">{entries.map((entry) => <a href={entry.url} key={entry.renderKey} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div> : null}
+      {entries.length ? <div className="resource-list">{entries.map((entry) => <a href={entry.url} key={entry.renderKey} rel="noreferrer" target="_blank"><span><strong title={entry.label}>{entry.label}</strong>{entry.note ? <small title={entry.note}>{entry.note}</small> : null}</span><ExternalLink aria-hidden="true" size={16} /></a>)}</div> : null}
     </div>
   </details>;
 }
@@ -795,7 +795,7 @@ function AttentionRecord({ record }: { record: ActivityRecord }) {
 
 function ResourcesContent({ record, nested = false }: { record: ActivityRecord; nested?: boolean }) {
   const data = record.data as { entries?: Array<{ id: string; label: string; url: string; note?: string }> };
-  return <div className={nested ? "product-supporting-section product-resources" : "resources-content"}><Heading eyebrow="Resources" title={record.title} /><div className="resource-list">{data.entries?.map((entry) => <a href={entry.url} key={entry.id} rel="noreferrer" target="_blank"><span><strong>{entry.label}</strong>{entry.note ? <small>{entry.note}</small> : null}</span><ExternalLink size={13} /></a>)}</div></div>;
+  return <div className={nested ? "product-supporting-section product-resources" : "resources-content"}><Heading eyebrow="Resources" title={record.title} /><div className="resource-list">{data.entries?.map((entry) => <a href={entry.url} key={entry.id} rel="noreferrer" target="_blank"><span><strong title={entry.label}>{entry.label}</strong>{entry.note ? <small title={entry.note}>{entry.note}</small> : null}</span><ExternalLink aria-hidden="true" size={16} /></a>)}</div></div>;
 }
 
 function ResourcesRecord({ record }: { record: ActivityRecord }) {

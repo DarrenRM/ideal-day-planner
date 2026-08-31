@@ -1532,7 +1532,10 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .resource-list a { align-items: center; border-top: 1px solid #22292c; color: #b8c2ba; display: flex; gap: 9px; justify-content: space-between; padding: 8px 1px; text-decoration: none; }
 .resource-list a:first-child { border-top: 0; }
 .resource-list a:hover { color: var(--accent-bright); }
-.resource-list a > span { display: flex; flex-direction: column; gap: 2px; }
+.resource-list a > span { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.resource-list a > svg { flex: 0 0 16px; height: 16px; width: 16px; }
+.resource-list strong, .resource-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-edit-error { color: var(--accent-bright); font-size: var(--type-label); grid-column: 1 / -1; margin: 0; padding: 0 12px 8px; }
 .resource-list strong { font-size: var(--type-micro); font-weight: 580; }
 .resource-list small { color: #65706b; font-size: var(--type-micro); }
 .component-request { background: #0e1315; border: 1px dashed #2c3537; border-radius: 9px; margin-top: 10px; }

@@ -11,6 +11,8 @@ import { parseActivityRecord, type ActivityRecord } from "../activity-record-mod
 import { dueRecurringSteps } from "../due-recurring-step";
 import { safeId } from "./agent-store";
 import { KEEP_GOING_WINDOW_DAYS } from "../day-role";
+import { derivedDisplayTitle } from "../activity-title";
+export { derivedDisplayTitle } from "../activity-title";
 
 export type ResolvedDayItem = {
   id: string;
@@ -146,11 +148,6 @@ function parseJson(value: string) {
   } catch {
     return null;
   }
-}
-
-export function derivedDisplayTitle(title: string, variantName: string | null, label: string | null) {
-  const suffix = label?.trim() || variantName?.trim();
-  return suffix ? `${title} — ${suffix}` : title;
 }
 
 export async function ensureDefaultSchedule(userId: string, routineId: string) {
