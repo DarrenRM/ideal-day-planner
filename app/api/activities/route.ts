@@ -7,6 +7,7 @@ import { applyOccurrenceAction } from "../schedule-actions";
 import { resolveDay } from "../schedule-store";
 import { activitySetupKey } from "../../activity-setup-policy";
 import { updateActivityDetails } from "../activity-edit-store";
+import { findRoleOccurrence } from "../activity-role-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 
@@ -59,13 +60,12 @@ export async function POST(request: Request) {
 
     if (mode === "set-role") {
       const occurrenceId = text(payload.occurrenceId, 200);
+      const occurrenceKey = text(payload.occurrenceKey, 240);
+      const activityId = text(payload.activityId, 200);
+      const activityVariantId = text(payload.activityVariantId, 200);
+      const date = isLocalDate(payload.date) ? payload.date : "";
       const planRole = normalizePlanRole(payload.planRole);
-      const occurrence = await db.prepare(`
-        SELECT dpi.id, dpi.schedule_pattern_step_id AS schedulePatternStepId
-        FROM daily_plan_items dpi
-        JOIN daily_plans dp ON dp.id = dpi.daily_plan_id
-        WHERE dpi.id = ? AND dp.user_id = ?
-      `).bind(occurrenceId, userId).first<{ id: string; schedulePatternStepId: string | null }>();
+      const occurrence = await findRoleOccurrence(db, { userId, occurrenceId, occurrenceKey, activityId, activityVariantId, date });
       if (!occurrence) return Response.json({ error: "Activity occurrence not found." }, { status: 404 });
       const statements = [db.prepare(`
         UPDATE daily_plan_items

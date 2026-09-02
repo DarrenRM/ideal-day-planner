@@ -28,6 +28,7 @@ type Category = ActivityCategory;
 type RoutineItem = {
   id: string;
   occurrenceId?: string;
+  occurrenceKey?: string;
   activityId?: string;
   activityVariantId?: string | null;
   variantName?: string | null;
@@ -1166,7 +1167,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                 ) : (
                   <>
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onChangeToday(); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
-                    <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onSetRole(normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
+                    <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onSetRole(normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move out of Essentials" : "Make essential"}</button>
                     {isComplete ? <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); void toggleActivityComplete(); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
                     <button role="menuitem" type="button" onClick={() => { setIsFooterMenuOpen(false); onEdit(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                     <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setResetActivityState("confirming")}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
@@ -2319,6 +2320,7 @@ export default function Home() {
 
   async function setActivityRole(item: RoutineItem, planRole: PlanRole) {
     if (normalizePlanRole(item.planRole) === planRole) return;
+    setExtraPromotionError(null);
     setMobileActivityMenuId(null);
     if (planRole === "extra" && selectedActivityId === item.id) collapseActivity();
     captureActivityListPositions();
@@ -2328,13 +2330,22 @@ export default function Home() {
       const response = await fetch("/api/activities", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "set-role", occurrenceId: item.id, planRole }),
+        body: JSON.stringify({
+          mode: "set-role",
+          occurrenceId: item.occurrenceId ?? item.id,
+          occurrenceKey: item.occurrenceKey,
+          activityId: item.activityId,
+          activityVariantId: item.activityVariantId,
+          date: todayDateKey,
+          planRole,
+        }),
       });
       if (!response.ok) throw new Error("The daily role could not be saved.");
       setSaveState("saved");
     } catch {
       await reloadToday();
-      setSaveState("retrying");
+      setExtraPromotionError(`${activityDisplayTitle(item)} couldn’t move. Try it again.`);
+      setSaveState("saved");
     }
   }
 
@@ -3685,7 +3696,7 @@ export default function Home() {
                                   ) : <>
                                     <button role="menuitem" type="button" onClick={() => { setMobileActivityMenuId(null); document.getElementById(`activity-title-edit-${item.id}`)?.focus(); }}><Pencil aria-hidden="true" size={15} /> Edit activity</button>
                                     <button role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; setOccurrenceEditorItem(item); }}><CalendarDays aria-hidden="true" size={15} /> Change today</button>
-                                    <button role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move to Go Further" : "Make essential"}</button>
+                                    <button role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; void setActivityRole(item, normalizePlanRole(item.planRole) === "essential" ? "extra" : "essential"); }}><Sparkles aria-hidden="true" size={15} /> {normalizePlanRole(item.planRole) === "essential" ? "Move out of Essentials" : "Make essential"}</button>
                                     {isComplete ? <button disabled={isPending} role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; void updateActivityStatus(item, "reopen"); }}><RotateCcw aria-hidden="true" size={15} /> Mark incomplete</button> : null}
                                     <button className="activity-reset-menu-action" role="menuitem" type="button" onClick={() => setMobileResetActivity({ id: item.id, state: "confirming" })}><RotateCcw aria-hidden="true" size={15} /> Dev reset activity</button>
                                     <button className="mobile-remove-action" role="menuitem" type="button" onClick={async () => { if (editTitle.trim() && !await commitEdit()) return; requestRemoveItem(item); }}>{normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? <RotateCcw aria-hidden="true" size={15} /> : <Trash2 aria-hidden="true" size={15} />} {normalizePlanRole(item.planRole) === "extra" && item.activatedAt && !item.completedAt && !item.skippedAt ? "Return to More for today" : "Remove from today"}</button>
