@@ -392,6 +392,8 @@ Move durable product state from `localStorage` to the project’s D1 database be
 
 `localStorage` may remain for temporary drafts and device-only preferences, but not as the source of truth for activities, notes, history, or conversations.
 
+Each open client revalidates the current D1-backed day when its tab gains focus or becomes visible and at a modest interval while visible. A lightweight read path avoids rerunning migrations or queuing agent work during those checks. Background responses must not replace an in-flight local edit or transition. This keeps separate devices current without treating either device's React state as authoritative.
+
 ### Draft schema
 
 - `users`

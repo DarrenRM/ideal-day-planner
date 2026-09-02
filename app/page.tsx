@@ -106,6 +106,19 @@ type ConversationState = {
 type ActivityScheduleProposal = { id: string; status: string; createdAt: string; document: { summary: string; effectiveDate: string; impact: { todayChanges: number; futurePatternChanges: number } } };
 type LunaSummary = { unreadCount: number; pendingDecisionCount: number; captureRevision: string | null; agentOnline: boolean };
 
+const DAY_SYNC_INTERVAL_MS = 15_000;
+
+type DayResponse = {
+  items: unknown;
+  attention?: CaptureAttention[];
+  startMinutes: number;
+  preferredStartMinutes?: number;
+  startedAt?: string | null;
+  settings?: unknown;
+  highlight?: unknown;
+  needsImport?: boolean;
+};
+
 const START_MINUTES = 8 * 60;
 const DEFAULT_DEV_MINUTES = 7 * 60 + 30;
 const STORAGE_KEY = "idealized-day-items-v1";
@@ -1536,6 +1549,63 @@ export default function Home() {
   const suppressActivityClickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const extraTransitionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dayLoadDateRef = useRef(todayDateKey);
+  const backgroundSyncBlockedRef = useRef(true);
+  const backgroundSyncInFlightRef = useRef(false);
+
+  backgroundSyncBlockedRef.current = !hasLoaded
+    || saveState !== "saved"
+    || isSavingEdit
+    || savingEditRef.current
+    || pendingActivityIds.size > 0
+    || pastDayPendingIds.size > 0
+    || settlingCompletedIds.size > 0
+    || isStartingDay
+    || isRemovingToday
+    || resetTodayState === "resetting"
+    || mobileResetActivity?.state === "resetting"
+    || settingsSaveState === "saving"
+    || extraTransitionLocked
+    || Boolean(
+      editingId
+      || draggingId
+      || touchDragVisual
+      || occurrenceEditorItem
+      || isScheduleManagerOpen
+      || promotingExtraId
+      || removeTodayItem
+      || celebratingActivityId
+      || skippingActivityId,
+    );
+
+  const reloadToday = useCallback(async (options: { background?: boolean } = {}): Promise<RoutineItem[] | null> => {
+    const background = options.background === true;
+    if (background && (backgroundSyncBlockedRef.current || backgroundSyncInFlightRef.current)) return null;
+    if (background) backgroundSyncInFlightRef.current = true;
+
+    try {
+      const response = await fetch(`/api/day?date=${todayDateKey}&sync=1`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Today could not be refreshed.");
+      const day = await response.json() as DayResponse;
+      if (background && backgroundSyncBlockedRef.current) return null;
+
+      const refreshedItems = hydrateStoredItems(day.items);
+      setItems(refreshedItems);
+      setCaptureAttention(Array.isArray(day.attention) ? day.attention : []);
+      setCompletedIds(new Set(refreshedItems.filter((item) => item.completedAt).map((item) => item.id)));
+      setStartMinutes(day.startMinutes);
+      setPreferredStartMinutes(day.preferredStartMinutes ?? START_MINUTES);
+      setDayStartedAt(day.startedAt ?? null);
+      setDaySettings(normalizeDaySettings(day.settings));
+      setDayHighlight(normalizeDayHighlight(day.highlight));
+      if (!background) setSaveState("saved");
+      return refreshedItems;
+    } catch {
+      if (!background) setSaveState("retrying");
+      return null;
+    } finally {
+      if (background) backgroundSyncInFlightRef.current = false;
+    }
+  }, [todayDateKey]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setRealMinutes(minutesNow()), 30_000);
@@ -1561,6 +1631,7 @@ export default function Home() {
     function syncAfterWake() {
       syncLocalDay();
       scheduleRollover();
+      if (localDateKey() === todayDateKey) void reloadToday({ background: true });
     }
 
     function handleVisibilityChange() {
@@ -1569,14 +1640,20 @@ export default function Home() {
 
     syncLocalDay();
     scheduleRollover();
+    const daySyncTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && localDateKey() === todayDateKey) {
+        void reloadToday({ background: true });
+      }
+    }, DAY_SYNC_INTERVAL_MS);
     window.addEventListener("focus", syncAfterWake);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       if (rolloverTimer) window.clearTimeout(rolloverTimer);
+      window.clearInterval(daySyncTimer);
       window.removeEventListener("focus", syncAfterWake);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [reloadToday, todayDateKey]);
 
   useEffect(() => {
     if (!recentlyActivatedExtra) return;
@@ -1660,7 +1737,7 @@ export default function Home() {
           return;
         }
         if (!response.ok) throw new Error(`Could not load the saved day (${response.status}).`);
-        let day = await response.json() as { items: unknown; attention?: CaptureAttention[]; startMinutes: number; preferredStartMinutes?: number; startedAt?: string | null; settings?: unknown; highlight?: unknown; needsImport: boolean };
+        let day = await response.json() as DayResponse;
 
         if (day.needsImport) {
           const legacyItems = readLegacyRoutine();
@@ -1729,14 +1806,14 @@ export default function Home() {
         const next = await response.json() as LunaSummary;
         if (cancelled) return;
         setLunaSummary(next);
-        if (previousRevision && next.captureRevision && previousRevision !== next.captureRevision) void reloadToday();
+        if (previousRevision && next.captureRevision && previousRevision !== next.captureRevision) void reloadToday({ background: true });
         previousRevision = next.captureRevision;
       } catch { /* The saved day remains usable while Luna catches up. */ }
     };
     void refresh();
     const timer = window.setInterval(() => void refresh(), 4_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [hasLoaded]);
+  }, [hasLoaded, reloadToday]);
 
   useEffect(() => {
     if (!hasLoaded || dayHighlight.status !== "queued" && dayHighlight.status !== "running") return;
@@ -2139,24 +2216,6 @@ export default function Home() {
       setSettingsSaveState("idle");
     } catch {
       setSettingsSaveState("error");
-    }
-  }
-
-  async function reloadToday(): Promise<RoutineItem[] | null> {
-    try {
-      const response = await fetch(`/api/day?date=${todayDateKey}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("Today could not be refreshed.");
-      const day = await response.json() as { items: unknown; attention?: CaptureAttention[]; highlight?: unknown };
-      const refreshedItems = hydrateStoredItems(day.items);
-      setItems(refreshedItems);
-      setCaptureAttention(Array.isArray(day.attention) ? day.attention : []);
-      setCompletedIds(new Set(refreshedItems.filter((item) => item.completedAt).map((item) => item.id)));
-      setDayHighlight(normalizeDayHighlight(day.highlight));
-      setSaveState("saved");
-      return refreshedItems;
-    } catch {
-      setSaveState("retrying");
-      return null;
     }
   }
 

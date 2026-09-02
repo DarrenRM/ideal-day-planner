@@ -91,7 +91,7 @@ async function ensureAccount(userId: string, date: string) {
   return templateId;
 }
 
-async function readDay(userId: string, date: string) {
+async function readDay(userId: string, date: string, options: { queueWork?: boolean } = {}) {
   const db = getD1();
   const { planId } = ids(userId, date);
   const plan = await db.prepare(`
@@ -110,8 +110,8 @@ async function readDay(userId: string, date: string) {
 
   const items = await readResolvedDay(userId, planId);
   const attention = await readCaptureAttention(userId);
-  await queueDueFollowUps(userId, date);
-  const queuedHighlight = items.some((item) => item.completedAt)
+  if (options.queueWork !== false) await queueDueFollowUps(userId, date);
+  const queuedHighlight = options.queueWork !== false && items.some((item) => item.completedAt)
     ? await queueDayHighlightIfNeeded(userId, planId)
     : null;
 
@@ -332,10 +332,17 @@ function failure(error: unknown) {
 export async function GET(request: Request) {
   const userId = requestIdentity(request);
   const date = requestedDate(request);
+  const syncOnly = new URL(request.url).searchParams.get("sync") === "1";
   if (!userId) return unauthorized();
   if (!date) return Response.json({ error: "A valid local date is required." }, { status: 400 });
 
   try {
+    if (syncOnly) {
+      const day = await readDay(userId, date, { queueWork: false });
+      return day
+        ? Response.json({ date, ...day, needsImport: false })
+        : Response.json({ error: "Today has not loaded yet." }, { status: 404 });
+    }
     await ensureAgentSchema();
     const templateId = await ensureAccount(userId, date);
     await ensureDefaultSchedule(userId, templateId);

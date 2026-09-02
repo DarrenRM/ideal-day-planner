@@ -45,3 +45,18 @@ test("wires date changes and wake events into a fresh current-day load", async (
   assert.match(page, /\}, \[todayDateKey\]\);/);
   assert.doesNotMatch(page, /const \[viewDate, setViewDate\] = useState\(localDateKey\)/);
 });
+
+test("revalidates the shared day after wake and while a tab remains visible", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /const DAY_SYNC_INTERVAL_MS = 15_000/);
+  assert.match(page, /`\/api\/day\?date=\$\{todayDateKey\}&sync=1`/);
+  assert.match(page, /void reloadToday\(\{ background: true \}\)/);
+  assert.match(page, /document\.visibilityState === "visible" && localDateKey\(\) === todayDateKey/);
+  assert.match(page, /window\.setInterval\([\s\S]*DAY_SYNC_INTERVAL_MS/);
+  assert.match(page, /backgroundSyncBlockedRef\.current = !hasLoaded[\s\S]*saveState !== "saved"/);
+  assert.match(page, /if \(background && backgroundSyncBlockedRef\.current\) return null/);
+
+  const route = await readFile(new URL("../app/api/day/route.ts", import.meta.url), "utf8");
+  assert.match(route, /if \(syncOnly\) \{[\s\S]*readDay\(userId, date, \{ queueWork: false \}\)/);
+  assert.match(route, /if \(options\.queueWork !== false\) await queueDueFollowUps/);
+});
