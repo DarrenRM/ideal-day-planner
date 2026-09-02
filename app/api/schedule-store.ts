@@ -461,6 +461,7 @@ export async function resolveDay(userId: string, date: string, routineId: string
         SET activated_at = COALESCE(activated_at, CURRENT_TIMESTAMP),
             revision = revision + 1, updated_at = CURRENT_TIMESTAMP
         WHERE daily_plan_id = ? AND plan_role = 'extra' AND activated_at IS NULL
+          AND deactivated_at IS NULL
           AND activity_id IN (${dueActivityIds.map(() => "?").join(", ")})
       `).bind(planId, ...dueActivityIds).run();
     }
@@ -474,6 +475,7 @@ export async function resolveDay(userId: string, date: string, routineId: string
     WHERE daily_plan_id = ?
       AND plan_role = 'extra'
       AND activated_at IS NULL
+      AND deactivated_at IS NULL
       AND EXISTS (
         SELECT 1
         FROM daily_plan_items previous

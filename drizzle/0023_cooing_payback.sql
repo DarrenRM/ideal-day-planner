@@ -1,0 +1,1 @@
+ALTER TABLE `daily_plan_items` ADD `deactivated_at` text;

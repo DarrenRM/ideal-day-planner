@@ -162,6 +162,13 @@
       "when": 1787682924034,
       "tag": "0022_bizarre_gravity",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1788322507501,
+      "tag": "0023_cooing_payback",
+      "breakpoints": true
     }
   ]
 }

@@ -302,6 +302,7 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
     await db.prepare(`
       UPDATE daily_plan_items
       SET activated_at = COALESCE(activated_at, CURRENT_TIMESTAMP),
+          deactivated_at = NULL,
           revision = revision + 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(occurrence.id).run();
@@ -309,7 +310,8 @@ export async function applyOccurrenceAction(userId: string, rawAction: unknown, 
     if (occurrence.planRole !== "extra") throw new Error("Only a Go Further activity can return to More for today.");
     const result = await db.prepare(`
       UPDATE daily_plan_items
-      SET activated_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
+      SET activated_at = NULL, deactivated_at = CURRENT_TIMESTAMP,
+          revision = revision + 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND completed_at IS NULL AND skipped_at IS NULL AND removed_at IS NULL
     `).bind(occurrence.id).run();
     if (!result.meta.changes) throw new Error("Only an unfinished activity can return to More for today.");

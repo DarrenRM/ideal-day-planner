@@ -7,7 +7,7 @@ import { applyOccurrenceAction } from "../schedule-actions";
 import { resolveDay } from "../schedule-store";
 import { activitySetupKey } from "../../activity-setup-policy";
 import { updateActivityDetails } from "../activity-edit-store";
-import { findRoleOccurrence } from "../activity-role-store";
+import { findRoleOccurrence, persistActivityRole } from "../activity-role-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 
@@ -67,37 +67,7 @@ export async function POST(request: Request) {
       const planRole = normalizePlanRole(payload.planRole);
       const occurrence = await findRoleOccurrence(db, { userId, occurrenceId, occurrenceKey, activityId, activityVariantId, date });
       if (!occurrence) return Response.json({ error: "Activity occurrence not found." }, { status: 404 });
-      const statements = [db.prepare(`
-        UPDATE daily_plan_items
-        SET plan_role = ?, activated_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).bind(planRole, occurrence.id)];
-      if (occurrence.schedulePatternStepId) {
-        statements.push(
-          db.prepare(`UPDATE schedule_pattern_steps SET plan_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(planRole, occurrence.schedulePatternStepId),
-          db.prepare(`
-            UPDATE daily_plan_items
-            SET plan_role = ?, activated_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP
-            WHERE schedule_pattern_step_id = ? AND completed_at IS NULL AND skipped_at IS NULL
-          `).bind(planRole, occurrence.schedulePatternStepId),
-        );
-      }
-      const eventKey = `set-plan-role:${occurrence.id}:${planRole}:${crypto.randomUUID()}`;
-      statements.push(
-        db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id),
-        db.prepare(`
-          INSERT INTO schedule_action_events
-            (id, user_id, action_type, action_json, source, actor, idempotency_key)
-          VALUES (?, ?, 'set_plan_role', ?, 'user', ?, ?)
-        `).bind(
-          `schedule-event:${safeId(userId)}:${crypto.randomUUID()}`,
-          userId,
-          JSON.stringify({ occurrenceId: occurrence.id, schedulePatternStepId: occurrence.schedulePatternStepId, planRole }),
-          userId,
-          eventKey,
-        ),
-      );
-      await db.batch(statements);
+      await persistActivityRole(db, { userId, routineId: routine.id, occurrence, planRole });
       return Response.json({ updated: true, planRole });
     }
 

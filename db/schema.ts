@@ -154,6 +154,7 @@ export const dailyPlanItems = sqliteTable("daily_plan_items", {
   duration: integer("duration").notNull(),
   planRole: text("plan_role").notNull().default("essential"),
   activatedAt: text("activated_at"),
+  deactivatedAt: text("deactivated_at"),
   completedAt: text("completed_at"),
   skippedAt: text("skipped_at"),
   removedAt: text("removed_at"),
