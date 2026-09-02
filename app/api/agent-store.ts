@@ -2440,7 +2440,7 @@ export async function migrateFaceCareToVariableRoutine(input: { userId: string; 
   const db = getD1();
   const activity = await db.prepare(`
     SELECT id, title FROM activities
-    WHERE id = ? AND user_id = ? AND archived_at IS NULL
+    WHERE id = ? AND user_id = ?
     LIMIT 1
   `).bind(input.activityId, input.userId).first<{ id: string; title: string }>();
   if (!activity || activity.title.trim().toLocaleLowerCase() !== "face care") {
