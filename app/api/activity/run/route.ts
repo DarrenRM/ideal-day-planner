@@ -2,6 +2,7 @@ import { getD1 } from "../../../../db";
 import { parseAdvancement } from "../../../schedule-model";
 import { selectedSessionOptionId, sessionFieldValue, sessionFieldsForOption, type SessionChoiceData, type SessionLogData } from "../../../session-log-model";
 import { recurringStepScheduleStatus, type RecurringCadence } from "../../../recurring-step-schedule";
+import { selectionForDate, type DailySelectionData } from "../../../daily-selection-model";
 import { apiFailure, applyUserRecordMutation, ensureAgentSchema, findActivity, queueDayHighlight, readActivityRecords, requestIdentity, safeId } from "../../agent-store";
 
 function validDate(value: unknown) {
@@ -16,7 +17,16 @@ function boundedSeconds(value: unknown, allowZero = false) {
 
 function completedSubjectKeysForDate(records: Awaited<ReturnType<typeof readActivityRecords>>, date: string, completionDates = new Map<string, string[]>()) {
   const productKeys = new Set(records.filter((record) => record.type === "product").map((record) => record.key));
+  const variableSelections = records.filter((record) => record.type === "daily_selection" && record.data.kind === "routine");
+  const variableSubjectKeys = new Set(variableSelections.flatMap((record) => (record.data as DailySelectionData).items
+    .flatMap((item) => item.subjectKey ? [item.subjectKey] : [])));
+  const selectedSubjectKeys = new Set(variableSelections.flatMap((record) => {
+    const data = record.data as DailySelectionData;
+    const selected = new Set(selectionForDate(data, date));
+    return data.items.flatMap((item) => selected.has(item.id) && item.subjectKey ? [item.subjectKey] : []);
+  }));
   return [...productKeys].filter((subjectKey) => records.some((record) => {
+    if (variableSubjectKeys.has(subjectKey)) return selectedSubjectKeys.has(subjectKey);
     if (record.subjectKey !== subjectKey) return false;
     if (record.type === "adherence") {
       const effectiveDate = typeof record.data.effectiveDate === "string" ? record.data.effectiveDate : "";

@@ -9,7 +9,7 @@ import { shouldShowActivitySchedule } from "../schedule-summary";
 import { parentScheduleCadenceFromRecurringStep, recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 import { fixedMeasuredSessionOption, measuredSessionFields, type SessionChoiceData } from "../session-log-model";
-import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
+import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionCountsForDate, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
 import { mergeMealLogData, type MealLogData } from "../meal-log-model";
 import { historicalWorkspaceReceipt } from "../work-receipt-model";
 export { requestIdentity } from "./request-identity";
@@ -2428,6 +2428,121 @@ export async function backfillResearchedProductAbout(userId: string) {
   return { applied };
 }
 
+const FACE_CARE_VARIABLE_ROUTINE_MIGRATION = "face-care-variable-routine-v1";
+
+/**
+ * One reviewed production conversion. It is bridge-invoked, idempotent, and
+ * refuses to touch any activity that is not the established Face Care shape.
+ * Product/source rows and all conversation history remain in place; only the
+ * active interaction and the no-longer-accurate daily trackers are replaced.
+ */
+export async function migrateFaceCareToVariableRoutine(input: { userId: string; activityId: string }) {
+  const db = getD1();
+  const activity = await db.prepare(`
+    SELECT id, title FROM activities
+    WHERE id = ? AND user_id = ? AND archived_at IS NULL
+    LIMIT 1
+  `).bind(input.activityId, input.userId).first<{ id: string; title: string }>();
+  if (!activity || activity.title.trim().toLocaleLowerCase() !== "face care") {
+    throw new Error("The reviewed Face Care activity was not found.");
+  }
+
+  const migrationId = `migration:${safeId(input.userId)}:${FACE_CARE_VARIABLE_ROUTINE_MIGRATION}`;
+  const completed = await db.prepare("SELECT id FROM user_migrations WHERE user_id = ? AND migration_key = ? LIMIT 1")
+    .bind(input.userId, FACE_CARE_VARIABLE_ROUTINE_MIGRATION).first<{ id: string }>();
+  if (completed) return { applied: false, activityId: activity.id, recordKey: "face-care-daily-choices" };
+
+  const records = await readActivityRecords(activity.id);
+  const protocol = records.find((record) => record.type === "protocol" && record.key === "face-care-routine")
+    ?? records.find((record) => record.type === "protocol");
+  if (!protocol || !Array.isArray(protocol.data.steps) || protocol.data.steps.length < 4) {
+    throw new Error("Face Care no longer matches the reviewed routine, so it was left unchanged.");
+  }
+
+  const itemSpecs = [
+    { id: "dewfield-berry-soft-cleanser", label: "Dewfield Berry Soft Gentle Cleanser", detail: "Wash face", subjectKey: "dewfield-berry-soft-cleanser" },
+    { id: "plainleaf-caffeine-serum", label: "Plainleaf Caffeine Eye Serum", detail: "Apply when it fits today", subjectKey: "plainleaf-caffeine-serum" },
+    { id: "halcyon-serum", label: "Halcyon Copper Serum", detail: "Apply when it fits today", subjectKey: "halcyon-serum" },
+    { id: "vitamin-c-hyaluronic-acid-serum", label: "Clearwell Vitamin C Serum", detail: "With vitamin E and hyaluronic acid", subjectKey: "vitamin-c-hyaluronic-acid-serum" },
+    { id: "led-face-mask", label: "LED face mask", detail: "Add another session when you use another color", subjectKey: "led-face-mask", allowMultiple: true, unitLabel: "session" },
+    { id: "light-lotion", label: "Softwater Gel Cream", detail: "Finish with lotion when used", subjectKey: "light-lotion" },
+  ] satisfies DailySelectionData["items"];
+  const itemBySubject = new Map(itemSpecs.map((item) => [item.subjectKey, item.id]));
+  const itemByWords = [
+    [/wash face|berry soft|cleanser/i, itemSpecs[0].id],
+    [/plainleaf|caffeine/i, itemSpecs[1].id],
+    [/halcyon|copper/i, itemSpecs[2].id],
+    [/clearwell|vitamin c/i, itemSpecs[3].id],
+    [/led|face mask/i, itemSpecs[4].id],
+    [/softwater|hydrogel|lotion/i, itemSpecs[5].id],
+  ] as const;
+  const selections = new Map<string, Set<string>>();
+  function select(date: unknown, itemId: string | undefined) {
+    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !itemId) return;
+    const values = selections.get(date) ?? new Set<string>();
+    values.add(itemId);
+    selections.set(date, values);
+  }
+  for (const tracker of records.filter((record) => record.type === "adherence")) {
+    const itemId = tracker.subjectKey ? itemBySubject.get(tracker.subjectKey) : undefined;
+    const entries = Array.isArray(tracker.data.entries) ? tracker.data.entries as Array<Record<string, unknown>> : [];
+    for (const entry of entries) if (entry.completed === true) select(entry.date, itemId);
+  }
+  for (const step of protocol.data.steps as Array<Record<string, unknown>>) {
+    const text = `${typeof step.label === "string" ? step.label : ""} ${typeof step.note === "string" ? step.note : ""}`;
+    const itemId = itemByWords.find(([pattern]) => pattern.test(text))?.[1];
+    const dates = Array.isArray(step.completedDates) ? step.completedDates : [];
+    for (const date of dates) select(date, itemId);
+  }
+  const existingSelection = records.find((record) => record.type === "daily_selection");
+  if (existingSelection) {
+    const existing = existingSelection.data as DailySelectionData;
+    for (const entry of existing.entries) for (const itemId of entry.itemIds) select(entry.date, itemId);
+  }
+  const selectionData: DailySelectionData = {
+    kind: "routine",
+    prompt: "What fits your skin today?",
+    items: itemSpecs,
+    entries: [...selections.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, itemIds]) => ({
+      id: `selection-${date}`, date, itemIds: [...itemIds],
+    })),
+  };
+
+  const recordActions: RecordAction[] = [];
+  if (!records.some((record) => record.key === "plainleaf-caffeine-serum" && record.type === "product")) {
+    recordActions.push({ op: "upsert", record: {
+      key: "plainleaf-caffeine-serum", subjectKey: "plainleaf-caffeine-serum", type: "product", title: "Plainleaf Caffeine Eye Serum", scope: "activity", scopeDate: null,
+      data: { kind: "product", name: "Caffeine Eye Serum", manufacturer: "Plainleaf", variant: "", notes: "", routineAction: "Apply face serum" },
+    } });
+  }
+  if (!records.some((record) => record.key === "vitamin-c-hyaluronic-acid-serum" && record.type === "product")) {
+    recordActions.push({ op: "upsert", record: {
+      key: "vitamin-c-hyaluronic-acid-serum", subjectKey: "vitamin-c-hyaluronic-acid-serum", type: "product", title: "Clearwell Vitamin C Serum", scope: "activity", scopeDate: null,
+      data: { kind: "product", name: "Vitamin C Serum", manufacturer: "Clearwell", variant: "with vitamin E and hyaluronic acid", notes: "", routineAction: "Apply face serum" },
+    } });
+  }
+  recordActions.push({ op: "upsert", record: {
+    key: "face-care-daily-choices", subjectKey: null, type: "daily_selection", title: "Face care choices", scope: "activity", scopeDate: null, data: selectionData,
+  } });
+  for (const tracker of records.filter((record) => record.type === "adherence" && Boolean(record.subjectKey && itemBySubject.has(record.subjectKey)))) {
+    recordActions.push({ op: "remove", recordKey: tracker.key });
+  }
+  recordActions.push({ op: "remove", recordKey: protocol.key });
+  const validatedActions = validateRecordActions(recordActions);
+  if (validatedActions.length !== recordActions.length) throw new Error("The reviewed Face Care conversion did not pass record validation.");
+  await persistRecordActions({ userId: input.userId, activityId: activity.id, actionId: `${migrationId}:records`, actions: validatedActions });
+
+  const workspace = await readActivityWorkspace(activity.id);
+  const workspaceActions: WorkspaceAction[] = [
+    ...workspace.document.components.map((component) => ({ op: "remove" as const, componentId: component.id })),
+    { op: "upsert", component: { id: "face-care-daily-choices", type: "daily_selection", title: "Face care choices", recordKey: "face-care-daily-choices", presentation: "featured" } },
+  ];
+  await persistWorkspaceActions({ userId: input.userId, activityId: activity.id, agentJobId: `${migrationId}:workspace`, actions: workspaceActions });
+  await db.prepare("INSERT OR IGNORE INTO user_migrations (id, user_id, migration_key) VALUES (?, ?, ?)")
+    .bind(migrationId, input.userId, FACE_CARE_VARIABLE_ROUTINE_MIGRATION).run();
+  return { applied: true, activityId: activity.id, recordKey: "face-care-daily-choices", itemCount: itemSpecs.length, migratedDates: selections.size };
+}
+
 const PRODUCT_SUBJECT_RHYTHMS_MIGRATION = "product-subject-rhythms-v2";
 
 /**
@@ -2558,27 +2673,60 @@ export async function applyUserRecordMutation(input: {
   const record = records.find((entry) => entry.key === input.recordKey);
   if (!record) throw new Error("That activity information is no longer available.");
   const data = structuredClone(record.data);
+  const relatedActions: RecordAction[] = [];
 
-  if (["set_daily_selection", "copy_daily_selection_previous", "add_daily_selection_item"].includes(input.operation) && record.type === "daily_selection") {
+  if (["set_daily_selection", "set_daily_selection_count", "copy_daily_selection_previous", "add_daily_selection_item"].includes(input.operation) && record.type === "daily_selection") {
     const date = input.planDate;
     if (!date) throw new Error("A date is required.");
     const selection = data as DailySelectionData;
     if (input.operation === "add_daily_selection_item") {
       const label = typeof input.payload.label === "string" ? input.payload.label.trim().slice(0, 300) : "";
-      if (!label) throw new Error("Enter a supplement first.");
+      if (!label) throw new Error(selection.kind === "routine" ? "Enter a choice first." : "Enter a supplement first.");
       const existing = selection.items.find((item) => item.label.localeCompare(label, undefined, { sensitivity: "base" }) === 0);
       const item = existing ?? { id: `item-${crypto.randomUUID()}`, label, detail: "", active: true, source: "You" };
       selection.items = existing
         ? selection.items.map((candidate) => candidate.id === existing.id ? { ...candidate, active: true } : candidate)
         : [...selection.items, item];
-      Object.assign(data, withSelectionForDate(selection, date, [...selectionForDate(selection, date), item.id]));
+      Object.assign(data, withSelectionForDate(selection, date, [...selectionForDate(selection, date), item.id], selectionCountsForDate(selection, date)));
     } else if (input.operation === "copy_daily_selection_previous") {
-      Object.assign(data, withSelectionForDate(selection, date, selectionForDate(selection, previousDateKey(date))));
+      const previousDate = previousDateKey(date);
+      Object.assign(data, withSelectionForDate(selection, date, selectionForDate(selection, previousDate), selectionCountsForDate(selection, previousDate)));
+    } else if (input.operation === "set_daily_selection_count") {
+      const itemId = typeof input.payload.itemId === "string" ? input.payload.itemId : "";
+      const item = selection.items.find((candidate) => candidate.id === itemId && candidate.active !== false && candidate.allowMultiple);
+      const count = typeof input.payload.count === "number" ? Math.max(0, Math.min(9, Math.round(input.payload.count))) : -1;
+      if (!item || count < 0) throw new Error("That repeatable choice is not available.");
+      const itemIds = selectionForDate(selection, date).filter((id) => id !== itemId);
+      const counts = selectionCountsForDate(selection, date);
+      delete counts[itemId];
+      if (count > 0) itemIds.push(itemId);
+      if (count > 1) counts[itemId] = count;
+      Object.assign(data, withSelectionForDate(selection, date, itemIds, counts));
     } else {
       const itemIds = Array.isArray(input.payload.itemIds)
         ? input.payload.itemIds.filter((entry): entry is string => typeof entry === "string").slice(0, 100)
         : [];
-      Object.assign(data, withSelectionForDate(selection, date, itemIds));
+      const requestedCounts = input.payload.counts && typeof input.payload.counts === "object" && !Array.isArray(input.payload.counts)
+        ? input.payload.counts as Record<string, number>
+        : selectionCountsForDate(selection, date);
+      Object.assign(data, withSelectionForDate(selection, date, itemIds, requestedCounts));
+    }
+
+    const selected = new Set(selectionForDate(data as DailySelectionData, date));
+    for (const item of (data as DailySelectionData).items) {
+      if (!item.cadenceRecordKey) continue;
+      const cadenceRecord = records.find((candidate) => candidate.key === item.cadenceRecordKey && candidate.type === "recurring_step");
+      if (!cadenceRecord) continue;
+      const cadenceData = structuredClone(cadenceRecord.data);
+      const completedDates = Array.isArray(cadenceData.completedDates)
+        ? cadenceData.completedDates.filter((entry): entry is string => typeof entry === "string") : [];
+      const shouldBeComplete = selected.has(item.id);
+      if (completedDates.includes(date) === shouldBeComplete) continue;
+      cadenceData.completedDates = shouldBeComplete ? [...completedDates, date] : completedDates.filter((entry) => entry !== date);
+      relatedActions.push({ op: "upsert", record: {
+        key: cadenceRecord.key, subjectKey: cadenceRecord.subjectKey, type: cadenceRecord.type, title: cadenceRecord.title,
+        scope: cadenceRecord.scope, scopeDate: cadenceRecord.scopeDate, data: cadenceData,
+      } });
     }
   } else if (input.operation === "toggle_recurring_step" && record.type === "recurring_step") {
     const date = input.planDate;
@@ -2768,7 +2916,7 @@ export async function applyUserRecordMutation(input: {
   const actions = validateRecordActions([{ op: "upsert", record: {
     key: record.key, subjectKey: record.subjectKey, type: record.type, title: record.title, scope: record.scope,
     scopeDate: record.scopeDate, data,
-  } }], input.planDate);
+  } }, ...relatedActions], input.planDate);
   if (!actions.length) throw new Error("The updated information did not pass validation.");
   await persistRecordActions({ userId: input.userId, activityId: input.activityId, activityVariantId: input.activityVariantId, actionId: input.actionId, actions });
   return readActivityRecords(input.activityId, input.planDate, input.activityVariantId);

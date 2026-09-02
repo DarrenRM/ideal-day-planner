@@ -1,11 +1,11 @@
 "use client";
 
-import { AlertTriangle, BookOpen, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Utensils, Wrench } from "./icons";
+import { AlertTriangle, BookOpen, CalendarCheck, Check, ChevronDown, Dumbbell, ExternalLink, HeartPulse, Minus, Package, Plus, RotateCcw, Sparkles, Target, TrendingUp, Utensils, Wrench } from "./icons";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatActivityRecordDate } from "./activity-record-format";
 import { hasMeaningfulProductNotes, type ActivityRecord } from "./activity-record-model";
 import { createDailySelectionSaveQueue } from "./daily-selection-save-queue";
-import { previousDateKey, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
+import { previousDateKey, selectionCountsForDate, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
 import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
 import { recurringCadenceDescription, recurringOccurrenceDates, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 import { dailyCompletionStreak, normalizedCompletionDates } from "./streak-model";
@@ -129,27 +129,55 @@ function sameIds(left: string[], right: string[]) {
   return left.length === right.length && left.every((id) => right.includes(id));
 }
 
-function DailySelectionRecord({ record, onMutate }: Props) {
+function sameCounts(left: Record<string, number>, right: Record<string, number>) {
+  const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])];
+  return keys.every((key) => (left[key] ?? 1) === (right[key] ?? 1));
+}
+
+function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) {
   const data = record.data as DailySelectionData;
   const today = localDateKey();
   const yesterday = previousDateKey(today);
   const persistedToday = selectionForDate(data, today);
+  const persistedCounts = selectionCountsForDate(data, today);
   const yesterdaySelection = selectionForDate(data, yesterday);
+  const yesterdayCounts = selectionCountsForDate(data, yesterday);
   const [optimistic, setOptimistic] = useState<string[] | null>(null);
-  const [undo, setUndo] = useState<{ version: number; itemIds: string[] } | null>(null);
+  const [optimisticCounts, setOptimisticCounts] = useState<Record<string, number> | null>(null);
+  const [undo, setUndo] = useState<{ version: number; itemIds: string[]; counts: Record<string, number> } | null>(null);
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const selectedIds = optimistic ?? persistedToday;
+  const selectedCounts = optimisticCounts ?? persistedCounts;
   const [saveQueue] = useState(() => createDailySelectionSaveQueue({
     save: (itemIds) => onMutate(record.key, "set_daily_selection", { itemIds }),
     onSavingChange: setSaving,
-    onError: () => setOptimistic(null),
-    onIdle: () => setOptimistic(null),
+    onError: () => { setOptimistic(null); setOptimisticCounts(null); },
+    onIdle: () => { setOptimistic(null); setOptimisticCounts(null); },
   }));
   const activeItems = data.items.filter((item) => item.active !== false);
+  const isRoutine = data.kind === "routine";
   const labels = new Map(data.items.map((item) => [item.id, item.label]));
   const priorEntries = [...data.entries].filter((entry) => entry.date !== today).sort((left, right) => right.date.localeCompare(left.date)).slice(0, 4);
+  const cadenceByKey = new Map(relatedRecords.filter((candidate) => candidate.type === "recurring_step").map((candidate) => [candidate.key, candidate]));
+
+  function cadenceState(item: DailySelectionItem) {
+    const cadenceRecord = item.cadenceRecordKey ? cadenceByKey.get(item.cadenceRecordKey) : null;
+    if (!cadenceRecord) return null;
+    const cadenceData = cadenceRecord.data as { anchorDate?: string; cadence?: RecurringCadence; completedDates?: string[] };
+    const status = recurringStepScheduleStatus(cadenceData, today);
+    return {
+      due: Boolean(status.dueDate || status.completedToday),
+      label: status.completedToday ? "Done today"
+        : status.dueState === "overdue" ? "Overdue"
+          : status.dueToday ? "Due today"
+            : status.nextDue ? `Next ${formatActivityRecordDate(status.nextDue)}`
+              : recurringCadenceDescription(cadenceData.cadence),
+    };
+  }
+  const dueItems = isRoutine ? activeItems.filter((item) => cadenceState(item)?.due) : [];
+  const otherItems = isRoutine ? activeItems.filter((item) => !cadenceState(item)?.due) : activeItems;
 
   useEffect(() => {
     if (!undo || undo.version !== record.version) return;
@@ -161,6 +189,7 @@ function DailySelectionRecord({ record, onMutate }: Props) {
 
   function setSelection(nextIds: string[]) {
     setOptimistic(nextIds);
+    setOptimisticCounts(Object.fromEntries(Object.entries(selectedCounts).filter(([id]) => nextIds.includes(id))));
     saveQueue.push(nextIds);
   }
 
@@ -169,7 +198,7 @@ function DailySelectionRecord({ record, onMutate }: Props) {
     const previous = selectedIds;
     setSaving(true);
     setOptimistic(yesterdaySelection);
-    setUndo({ version: record.version + 1, itemIds: previous });
+    setUndo({ version: record.version + 1, itemIds: previous, counts: selectedCounts });
     try {
       if (!await onMutate(record.key, "copy_daily_selection_previous", {})) throw new Error("Selection was not saved.");
       setOptimistic(null);
@@ -180,10 +209,36 @@ function DailySelectionRecord({ record, onMutate }: Props) {
   }
 
   function toggle(item: DailySelectionItem) {
+    if (item.allowMultiple) {
+      void setCount(item, selectedIds.includes(item.id) ? 0 : 1);
+      return;
+    }
     const nextIds = selectedIds.includes(item.id)
       ? selectedIds.filter((id) => id !== item.id)
       : [...selectedIds, item.id];
     setSelection(nextIds);
+  }
+
+  async function setCount(item: DailySelectionItem, requestedCount: number) {
+    if (saving) return;
+    const count = Math.max(0, Math.min(9, Math.round(requestedCount)));
+    const nextIds = count > 0
+      ? [...new Set([...selectedIds, item.id])]
+      : selectedIds.filter((id) => id !== item.id);
+    const nextCounts = { ...selectedCounts };
+    if (count > 1) nextCounts[item.id] = count;
+    else delete nextCounts[item.id];
+    setOptimistic(nextIds);
+    setOptimisticCounts(nextCounts);
+    setSaving(true);
+    try {
+      if (!await onMutate(record.key, "set_daily_selection_count", { itemId: item.id, count })) throw new Error("Selection was not saved.");
+      setOptimistic(null);
+      setOptimisticCounts(null);
+    } catch {
+      setOptimistic(null);
+      setOptimisticCounts(null);
+    } finally { setSaving(false); }
   }
 
   async function add(event: FormEvent) {
@@ -200,28 +255,58 @@ function DailySelectionRecord({ record, onMutate }: Props) {
   async function undoCopy() {
     if (!undo) return;
     const itemIds = undo.itemIds;
+    const counts = undo.counts;
     setUndo(null);
-    await setSelection(itemIds);
+    setOptimistic(itemIds);
+    setOptimisticCounts(counts);
+    try {
+      if (!await onMutate(record.key, "set_daily_selection", { itemIds, counts })) throw new Error("Selection was not saved.");
+      setOptimistic(null);
+      setOptimisticCounts(null);
+    } catch {
+      setOptimistic(null);
+      setOptimisticCounts(null);
+    }
   }
 
-  return <section className="workspace-block daily-selection-record">
-    <Heading eyebrow="Today" title={record.title} />
-    <div aria-label={`${record.title} for today`} className="daily-selection-items">
-      {activeItems.map((item) => {
+  function renderItems(items: DailySelectionItem[]) {
+    return <div aria-label={`${record.title} for today`} className={`daily-selection-items ${isRoutine ? "is-variable-routine" : ""}`}>
+      {items.map((item) => {
         const selected = selectedIds.includes(item.id);
+        const count = selected ? selectedCounts[item.id] ?? 1 : 0;
+        const cadence = cadenceState(item);
+        if (item.allowMultiple) return <div className={`daily-selection-counter ${selected ? "is-selected" : ""}`} key={item.id}>
+          <button aria-label={`Remove one ${item.label} ${item.unitLabel || "session"}`} disabled={saving || count === 0} onClick={() => void setCount(item, count - 1)} type="button"><Minus size={13} /></button>
+          <span className="daily-selection-counter-copy"><strong>{item.label}</strong>{item.detail ? <small>{item.detail}</small> : null}</span>
+          {cadence ? <em>{cadence.label}</em> : null}
+          <span className="daily-selection-count"><b>{count}</b><small>{count === 1 ? item.unitLabel || "session" : `${item.unitLabel || "session"}s`}</small></span>
+          <button aria-label={`Add one ${item.label} ${item.unitLabel || "session"}`} disabled={saving} onClick={() => void setCount(item, count + 1)} type="button"><Plus size={13} /></button>
+        </div>;
         return <button aria-pressed={selected} className={selected ? "is-selected" : ""} key={item.id} type="button" onClick={() => toggle(item)}>
           <span aria-hidden="true">{selected ? <Check size={12} weight="bold" /> : null}</span>
-          <strong>{item.label}</strong>
+          <span className="daily-selection-item-copy"><strong>{item.label}</strong>{item.detail ? <small>{item.detail}</small> : null}</span>
+          {cadence ? <em>{cadence.label}</em> : null}
         </button>;
       })}
-      {!adding ? <button className="daily-selection-add" disabled={saving} type="button" onClick={() => setAdding(true)}><Plus size={13} /> Add supplement</button> : null}
-    </div>
-    {adding ? <form className="daily-selection-form" onSubmit={add}><input aria-label="Supplement name" disabled={saving} placeholder="Supplement name…" value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit">Add</button><button disabled={saving} type="button" onClick={() => { setAdding(false); setLabel(""); }}>Cancel</button></form> : null}
-    {yesterdaySelection.length > 0 && !sameIds(selectedIds, yesterdaySelection) ? <div className="daily-selection-copy-row"><button disabled={saving} type="button" onClick={() => void copyYesterday()}><RotateCcw size={13} /> Same as yesterday</button></div> : null}
+    </div>;
+  }
+
+  return <section className={`workspace-block daily-selection-record ${isRoutine ? "variable-routine-record" : ""}`}>
+    <Heading eyebrow="Today" title={isRoutine ? data.prompt || "What fits today?" : record.title} />
+    {isRoutine && dueItems.length ? <><div className="daily-selection-group-heading"><strong>Due today</strong><small>Items with their own cadence</small></div>{renderItems(dueItems)}</> : null}
+    {isRoutine && dueItems.length && otherItems.length ? <div className="daily-selection-group-heading"><strong>Other choices</strong><small>Available without being required</small></div> : null}
+    {renderItems(otherItems)}
+    {!adding ? <button className="daily-selection-add" disabled={saving} type="button" onClick={() => setAdding(true)}><Plus size={13} /> {isRoutine ? "Add a choice" : "Add supplement"}</button> : null}
+    {adding ? <form className="daily-selection-form" onSubmit={add}><input aria-label={isRoutine ? "Choice name" : "Supplement name"} disabled={saving} placeholder={isRoutine ? "Choice name…" : "Supplement name…"} value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit">Add</button><button disabled={saving} type="button" onClick={() => { setAdding(false); setLabel(""); }}>Cancel</button></form> : null}
+    {yesterdaySelection.length > 0 && (!sameIds(selectedIds, yesterdaySelection) || !sameCounts(selectedCounts, yesterdayCounts)) ? <div className="daily-selection-copy-row"><button disabled={saving} type="button" onClick={() => void copyYesterday()}><RotateCcw size={13} /> Same as yesterday</button></div> : null}
     {undo ? <div className="daily-selection-undo" role="status"><span>Yesterday’s selection copied.</span><button type="button" onClick={() => void undoCopy()}>Undo</button></div> : null}
     {priorEntries.length ? <details className="daily-selection-history">
       <summary><span>Recent days</span><ChevronDown aria-hidden="true" size={15} /></summary>
-      <div className="daily-selection-history-entries">{priorEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p>{entry.itemIds.map((id) => labels.get(id)).filter(Boolean).join(" · ")}</p></div>)}</div>
+      <div className="daily-selection-history-entries">{priorEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p>{entry.itemIds.map((id) => {
+        const label = labels.get(id);
+        const count = entry.counts?.[id] ?? 1;
+        return label ? `${label}${count > 1 ? ` ×${count}` : ""}` : "";
+      }).filter(Boolean).join(" · ")}</p></div>)}</div>
     </details> : null}
   </section>;
 }

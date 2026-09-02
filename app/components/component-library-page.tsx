@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BookOpen, Boxes, CalendarCheck2, CalendarDays, Check, ChevronRight, Clock3, Columns2, Database, Layers3, Monitor, RotateCcw, Search, Smartphone, Sparkles, WandSparkles } from "../icons";
+import { ArrowRightLeft, BookOpen, Boxes, CalendarCheck2, CalendarDays, Check, ChevronRight, Clock3, Columns2, Database, Droplet, Layers3, Minus, Monitor, Plus, RotateCcw, Search, Smartphone, Sparkles, WandSparkles, Wrench } from "../icons";
 import { createElement, useMemo, useState, type CSSProperties } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "../activity-record-components";
 import type { ActivityRecord } from "../activity-record-model";
@@ -23,7 +23,7 @@ type ActivityEntry = {
   onboarding: { priorities: string[]; rhythms: string[]; choiceSet: string | null };
 };
 type Props = { catalog: CatalogEntry[]; catalogVersion: string; recipes: string[]; activities: ActivityEntry[]; activityChoiceSets: Record<string, ActivityChoiceSet>; activityLibraryVersion: string; today: string; usage: ComponentUsageMap; initialSelectedType?: LibraryComponentType };
-type View = "components" | "activities" | "selection";
+type View = "components" | "activities" | "selection" | "setups";
 type PreviewWidth = "desktop" | "mobile";
 type SessionChoiceState = "choosing" | "selected";
 type ReceiptState = "new" | "viewed";
@@ -111,7 +111,17 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
       }
       if (operation === "set_daily_selection" && Array.isArray(payload.itemIds)) {
         const entries = Array.isArray(data.entries) ? data.entries.filter((entry) => !entry || typeof entry !== "object" || !("date" in entry) || entry.date !== today) : [];
-        return { ...record, data: { ...data, entries: [...entries, { id: `mock-selection-${today}`, date: today, itemIds: payload.itemIds }] }, version: record.version + 1 };
+        return { ...record, data: { ...data, entries: [...entries, { id: `mock-selection-${today}`, date: today, itemIds: payload.itemIds, ...(payload.counts && typeof payload.counts === "object" ? { counts: payload.counts } : {}) }] }, version: record.version + 1 };
+      }
+      if (operation === "set_daily_selection_count" && typeof payload.itemId === "string" && typeof payload.count === "number") {
+        const entries = Array.isArray(data.entries) ? data.entries : [];
+        const current = entries.find((entry) => entry && typeof entry === "object" && "date" in entry && entry.date === today) as { itemIds?: string[]; counts?: Record<string, number> } | undefined;
+        const itemIds = (current?.itemIds ?? []).filter((id) => id !== payload.itemId);
+        const counts = { ...(current?.counts ?? {}) };
+        delete counts[payload.itemId];
+        if (payload.count > 0) itemIds.push(payload.itemId);
+        if (payload.count > 1) counts[payload.itemId] = payload.count;
+        return { ...record, data: { ...data, entries: [...entries.filter((entry) => !entry || typeof entry !== "object" || !("date" in entry) || entry.date !== today), { id: `mock-selection-${today}`, date: today, itemIds, ...(Object.keys(counts).length ? { counts } : {}) }] }, version: record.version + 1 };
       }
       if (operation === "copy_daily_selection_previous") {
         const entries = Array.isArray(data.entries) ? data.entries : [];
@@ -204,6 +214,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
       <nav aria-label="Library views" className={styles.viewTabs}>
         <button aria-pressed={view === "components"} onClick={() => setView("components")} type="button"><Columns2 size={15} /> Components</button>
         <button aria-pressed={view === "activities"} onClick={() => setView("activities")} type="button"><BookOpen size={15} /> Activities</button>
+        <button aria-pressed={view === "setups"} onClick={() => setView("setups")} type="button"><Wrench size={15} /> Activity setups</button>
         <button aria-pressed={view === "selection"} onClick={() => setView("selection")} type="button"><WandSparkles size={15} /> Selection map</button>
       </nav>
       <div className={styles.status}><span /> Sites workbench</div>
@@ -250,8 +261,112 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
         <section><span className={styles.eyebrow}>Data contract</span><code>{catalogEntry?.schema ?? "Legacy app-owned workspace component"}</code></section>
         <section className={styles.syncNote}><Layers3 size={17} /><div><b>One implementation</b><p>This specimen uses the production renderer. A component design change here is the same change activities receive.</p></div></section>
       </aside>
-    </div> : view === "activities" ? <ActivityLibrary activities={activities} choiceSets={activityChoiceSets} version={activityLibraryVersion} /> : <SelectionMap catalog={catalog} recipes={recipes} />}
+    </div> : view === "activities" ? <ActivityLibrary activities={activities} choiceSets={activityChoiceSets} version={activityLibraryVersion} /> : view === "setups" ? <ActivitySetupLab /> : <SelectionMap catalog={catalog} recipes={recipes} />}
   </main>;
+}
+
+type SetupMode = "choose" | "sequence" | "separate";
+
+const SETUP_OPTIONS: Array<{ id: SetupMode; title: string; description: string }> = [
+  { id: "choose", title: "Choose what fits today", description: "Pick any combination without implying the whole roster was completed." },
+  { id: "sequence", title: "Follow the same steps", description: "Keep one ordered routine and work through it from top to bottom." },
+  { id: "separate", title: "Separate a treatment", description: "Give a treatment its own schedule, completion, and activity context." },
+];
+
+const FACE_CARE_ITEMS = [
+  { id: "retinol", label: "Retinol", detail: "Scheduled treatment", group: "due", cadence: "Every 4 days" },
+  { id: "cleanse", label: "Gentle cleanser", detail: "Start with clean, dry skin", group: "other", cadence: null },
+  { id: "serum", label: "Hydrating serum", detail: "Use when extra hydration feels useful", group: "other", cadence: null },
+  { id: "moisturize", label: "Moisturizer", detail: "Finish the routine with moisture", group: "other", cadence: null },
+];
+
+function ActivitySetupLab() {
+  const [mode, setMode] = useState<SetupMode>("choose");
+  const [selected, setSelected] = useState<string[]>(["cleanse", "serum", "moisturize"]);
+  const [maskCounts, setMaskCounts] = useState({ red: 1, blue: 1 });
+  const [separateSubject, setSeparateSubject] = useState("LED face mask");
+  const [notice, setNotice] = useState("Prototype only · no activity data changed");
+
+  function chooseMode(nextMode: SetupMode) {
+    setMode(nextMode);
+    setNotice(nextMode === "choose" ? "Variable daily routine preview" : nextMode === "sequence" ? "Fixed sequence preview" : "Separate activity preview");
+  }
+
+  function toggleItem(itemId: string) {
+    setSelected((current) => current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId]);
+    setNotice("Today’s mock selection updated");
+  }
+
+  function changeMaskCount(color: "red" | "blue", amount: number) {
+    setMaskCounts((current) => ({ ...current, [color]: Math.max(0, Math.min(3, current[color] + amount)) }));
+    setNotice("Repeatable treatment count updated");
+  }
+
+  const selectedCount = selected.length + maskCounts.red + maskCounts.blue;
+  const dueComplete = (selected.includes("retinol") ? 1 : 0) + (maskCounts.red > 0 ? 1 : 0);
+  const chosenOption = SETUP_OPTIONS.find((option) => option.id === mode)!;
+
+  function itemRows(group: "due" | "other") {
+    return <div className={styles.variableRows}>{FACE_CARE_ITEMS.filter((item) => item.group === group).map((item) => {
+      const checked = selected.includes(item.id);
+      return <button aria-pressed={checked} key={item.id} onClick={() => toggleItem(item.id)} type="button"><span className={styles.mockCheck}>{checked ? <Check size={12} weight="bold" /> : null}</span><span><b>{item.label}</b><small>{item.detail}</small></span>{item.cadence ? <em>{item.cadence}</em> : null}</button>;
+    })}</div>;
+  }
+
+  function maskCounter(color: "red" | "blue", cadence: string) {
+    return <div className={styles.scheduledCounter}><span className={styles.maskDot} data-color={color} /><div><b>{color === "red" ? "Red-light mask" : "Blue-light mask"}</b><small>{maskCounts[color] === 0 ? "Not used today" : `${maskCounts[color]} ${maskCounts[color] === 1 ? "session" : "sessions"}`}</small></div><em>{cadence}</em><div><button aria-label={`Remove one ${color} light session`} disabled={maskCounts[color] === 0} onClick={() => changeMaskCount(color, -1)} type="button"><Minus size={13} /></button><strong>{maskCounts[color]}</strong><button aria-label={`Add one ${color} light session`} onClick={() => changeMaskCount(color, 1)} type="button"><Plus size={13} /></button></div></div>;
+  }
+
+  return <div className={styles.setupLab}>
+    <section className={styles.setupIntro}>
+      <div><span className={styles.eyebrow}>Prototype · activity-level pattern</span><h1>Let the routine match how the person actually uses it.</h1><p>This playground combines a reusable daily-choice component with the question, preview, and safe conversion needed to place it in an activity.</p></div>
+      <span className={styles.prototypeBadge}><Sparkles size={13} /> Exploratory</span>
+    </section>
+
+    <section className={styles.setupQuestion}>
+      <div className={styles.setupQuestionCopy}><span className={styles.eyebrow}>Luna’s one useful question</span><h2>How do you normally use this routine?</h2><p>Asked only when the person’s description does not already make the answer clear.</p></div>
+      <div className={styles.setupOptionGrid}>{SETUP_OPTIONS.map((option) => <button aria-pressed={mode === option.id} key={option.id} onClick={() => chooseMode(option.id)} type="button"><span>{mode === option.id ? <Check size={12} weight="bold" /> : null}</span><b>{option.title}</b><small>{option.description}</small></button>)}</div>
+    </section>
+
+    <div className={styles.setupWorkbench}>
+      <aside className={styles.setupNotes}>
+        <section><span className={styles.eyebrow}>Recommended behavior</span><h2>{chosenOption.title}</h2><p>{chosenOption.description}</p></section>
+        <section><span className={styles.eyebrow}>Why Luna chose it</span><blockquote>“I skip some steps depending on what my face needs, and sometimes use two mask colors.”</blockquote><p>The language describes a variable subset and repeatable modes. The number of items is not the deciding signal.</p></section>
+        <section><span className={styles.eyebrow}>Preserve during conversion</span><ul><li>Product names and directions</li><li>Verified sources and notes</li><li>Existing dated history</li><li>The Face Care conversation</li></ul></section>
+      </aside>
+
+      <section className={styles.setupStage}>
+        <div className={styles.phonePreview}>
+          <header className={styles.mockActivityHeader}><div className={styles.mockActivityIcon}><Droplet size={18} /></div><div><h2>Face Care</h2><p>15 minutes</p></div><span>CARE</span></header>
+          {mode === "choose" ? <div className={styles.variableRoutineCard}>
+            <div className={styles.mockCardHeading}><div><span className={styles.eyebrow}>Today</span><h3>What fits your skin today?</h3><p>Cadence decides what is due. You can still choose anything else.</p></div><strong>{selectedCount} uses</strong></div>
+            <div className={styles.routineGroupHeading}><div><span>Due today</span><small>Independent recurring steps</small></div><strong>{dueComplete} of 2 done</strong></div>
+            {itemRows("due")}
+            <div className={styles.counterGroup}>{maskCounter("red", "Every other day")}</div>
+            <div className={styles.routineGroupHeading}><div><span>Other choices</span><small>Available without being required</small></div></div>
+            {itemRows("other")}
+            <div className={styles.counterGroup}>{maskCounter("blue", "Optional")}</div>
+          </div> : mode === "sequence" ? <div className={styles.variableRoutineCard}>
+            <div className={styles.mockCardHeading}><div><span className={styles.eyebrow}>Protocol</span><h3>Evening face care</h3><p>Work through the same ordered sequence.</p></div></div>
+            <ol className={styles.sequenceRows}>{FACE_CARE_ITEMS.map((item, index) => <li key={item.id}><span>{index + 1}</span><div><b>{item.label}</b><small>{item.detail}</small></div></li>)}</ol>
+          </div> : <div className={styles.separatePreview}>
+            <section><span className={styles.eyebrow}>Face Care · daily choices</span><h3>Everyday products stay together</h3><p>Cleanser, serum, moisturizer, and other choices remain in this activity.</p></section>
+            <div className={styles.moveDivider}><span /><ArrowRightLeft size={16} /><span /></div>
+            <section className={styles.newActivityCard}><span className={styles.eyebrow}>New activity</span><h3>{separateSubject}</h3><p>Its own schedule, completion state, instructions, and future conversation.</p><label><span>Treatment to separate</span><select aria-label="Treatment to separate" onChange={(event) => setSeparateSubject(event.target.value)} value={separateSubject}><option>LED face mask</option><option>Retinol treatment</option><option>Exfoliation</option></select></label></section>
+          </div>}
+          <button className={styles.adjustButton} onClick={() => setNotice("Adjustment choices reopened")} type="button"><Wrench size={15} /><span><b>Adjust how this activity works</b><small>Change the daily choices or separate a treatment</small></span><ChevronRight size={14} /></button>
+          <div className={styles.mockFooter}><button type="button">Skip</button><button onClick={() => setNotice("Mock Face Care session completed")} type="button"><Check size={14} /> Done with face care</button></div>
+        </div>
+        <div className={styles.setupStatus}><span><Check size={13} /> {notice}</span><span>390 px activity preview</span></div>
+      </section>
+
+      <aside className={styles.setupInspector}>
+        <section><span className={styles.eyebrow}>What changes</span><h2>{mode === "choose" ? "Selection and cadence compose" : mode === "sequence" ? "Daily interaction" : "Activity ownership"}</h2><p>{mode === "choose" ? "Recurring steps appear under Due today while the rest remain available. Completing Face Care closes the session without claiming every choice was used." : mode === "sequence" ? "The activity returns to one ordered protocol. Individual step completion remains visible." : "The selected subject and its owned instructions move together. Shared history is never guessed or silently split."}</p></section>
+        <section><span className={styles.eyebrow}>Underlying pieces</span><div className={styles.setupPieces}>{mode === "choose" ? <><span>variable daily routine</span><span>subject references</span><span>recurring cadence</span><span>dated selections</span><span>mode counts</span></> : mode === "sequence" ? <><span>protocol</span><span>ordered steps</span><span>dated completion</span></> : <><span>activity proposal</span><span>subject move</span><span>schedule choice</span></>}</div></section>
+        <section className={styles.prototypeCallout}><Sparkles size={17} /><div><b>Prototype boundary</b><p>Every control on this page changes mock state only. A real conversion would need a separate review showing each record and schedule change before any confirmation exists.</p></div></section>
+      </aside>
+    </div>
+  </div>;
 }
 
 const PRIORITY_LABELS: Record<string, string> = { energy: "More energy", strength: "Strength & movement", focus: "Focused work", sleep: "Better sleep", calm: "Calm & recovery", nourishment: "Nourishment", "self-care": "Self-care", home: "Home & order", creativity: "Creativity", connection: "Connection" };

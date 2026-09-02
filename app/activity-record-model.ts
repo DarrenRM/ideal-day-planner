@@ -321,16 +321,31 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
         detail: boundedString(entry.detail, 500),
         active: entry.active !== false,
         source: boundedString(entry.source, 160),
+        subjectKey: stableKey(entry.subjectKey),
+        cadenceRecordKey: stableKey(entry.cadenceRecordKey),
+        allowMultiple: entry.allowMultiple === true,
+        unitLabel: boundedString(entry.unitLabel, 40),
       };
     });
     const knownIds = new Set(items.map((item) => item.id));
+    const repeatableIds = new Set(items.filter((item) => item.allowMultiple).map((item) => item.id));
     return {
+      kind: source.kind === "routine" ? "routine" : "supplements",
+      prompt: boundedString(source.prompt, 180),
       items,
       entries: objectArray(source.entries, 730, (entry, index) => {
         const date = boundedString(entry.date, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
         const itemIds = [...new Set(stringArray(entry.itemIds, 100, 80).map(stableKey).filter((id) => id && knownIds.has(id)))];
-        return itemIds.length ? { id: itemId(entry.id, index), date, itemIds } : null;
+        const selectedIds = new Set(itemIds);
+        const rawCounts = entry.counts && typeof entry.counts === "object" && !Array.isArray(entry.counts)
+          ? entry.counts as Record<string, unknown> : {};
+        const counts = Object.fromEntries(Object.entries(rawCounts).flatMap(([rawId, rawCount]) => {
+          const id = stableKey(rawId);
+          const count = boundedNumber(rawCount, 1, 9);
+          return id && selectedIds.has(id) && repeatableIds.has(id) && count !== null && count > 1 ? [[id, Math.round(count)]] : [];
+        }));
+        return itemIds.length ? { id: itemId(entry.id, index), date, itemIds, ...(Object.keys(counts).length ? { counts } : {}) } : null;
       }),
     };
   }

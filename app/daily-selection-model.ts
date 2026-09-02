@@ -4,15 +4,22 @@ export type DailySelectionItem = {
   detail?: string;
   active?: boolean;
   source?: string;
+  subjectKey?: string;
+  cadenceRecordKey?: string;
+  allowMultiple?: boolean;
+  unitLabel?: string;
 };
 
 export type DailySelectionEntry = {
   id: string;
   date: string;
   itemIds: string[];
+  counts?: Record<string, number>;
 };
 
 export type DailySelectionData = {
+  kind?: "supplements" | "routine";
+  prompt?: string;
   items: DailySelectionItem[];
   entries: DailySelectionEntry[];
 };
@@ -50,14 +57,26 @@ export function selectionForDate(data: Pick<DailySelectionData, "entries">, date
   return data.entries.find((entry) => entry.date === date)?.itemIds ?? [];
 }
 
-export function withSelectionForDate(data: DailySelectionData, date: string, itemIds: string[]): DailySelectionData {
+export function selectionCountsForDate(data: Pick<DailySelectionData, "entries">, date: string) {
+  const entry = data.entries.find((candidate) => candidate.date === date);
+  const selected = new Set(entry?.itemIds ?? []);
+  return Object.fromEntries(Object.entries(entry?.counts ?? {})
+    .filter(([id, count]) => selected.has(id) && Number.isInteger(count) && count > 0)
+    .map(([id, count]) => [id, Math.min(9, count)]));
+}
+
+export function withSelectionForDate(data: DailySelectionData, date: string, itemIds: string[], counts: Record<string, number> = {}): DailySelectionData {
   const knownIds = new Set(data.items.map((item) => item.id));
+  const repeatableIds = new Set(data.items.filter((item) => item.allowMultiple).map((item) => item.id));
   const uniqueIds = [...new Set(itemIds)].filter((id) => knownIds.has(id));
+  const normalizedCounts = Object.fromEntries(Object.entries(counts)
+    .filter(([id, count]) => uniqueIds.includes(id) && repeatableIds.has(id) && Number.isInteger(count) && count > 1)
+    .map(([id, count]) => [id, Math.min(9, count)]));
   const retained = data.entries.filter((entry) => entry.date !== date);
   return {
     ...data,
     entries: uniqueIds.length
-      ? [...retained, { id: `selection-${date}`, date, itemIds: uniqueIds }].sort((left, right) => left.date.localeCompare(right.date))
+      ? [...retained, { id: `selection-${date}`, date, itemIds: uniqueIds, ...(Object.keys(normalizedCounts).length ? { counts: normalizedCounts } : {}) }].sort((left, right) => left.date.localeCompare(right.date))
       : retained,
   };
 }
@@ -69,6 +88,8 @@ export function mergeDailySelectionData(current: DailySelectionData, incoming: D
   const entries = new Map(current.entries.map((entry) => [entry.date, entry]));
   for (const entry of incoming.entries) entries.set(entry.date, entry);
   return {
+    kind: incoming.kind ?? current.kind,
+    prompt: incoming.prompt ?? current.prompt,
     items: [...items.values()],
     entries: [...entries.values()].sort((left, right) => left.date.localeCompare(right.date)),
   };

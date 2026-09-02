@@ -761,7 +761,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                     onTalkWithLuna={onTalkWithLuna}
                     presentation={dataComponent.presentation}
                     record={record}
-                    relatedRecords={record.type === "session_log" || record.type === "strength_session" ? records : undefined}
+                    relatedRecords={record.type === "session_log" || record.type === "strength_session" || record.type === "daily_selection" ? records : undefined}
                     supportingRecords={record.type === "product" ? (nestedSupportingComponents.get(record.key) ?? []).filter((supporting) => !sharedProductRhythm || supporting.type !== "adherence" && supporting.type !== "recurring_step") : undefined}
                     targetId={activityRecordTargetId(activity.id, record.key)}
                   />;

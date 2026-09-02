@@ -101,7 +101,7 @@ export const ACTIVITY_LIBRARY = [
   {
     key: "skin-routine", title: "Skin routine", aliases: ["Skin care", "Skincare routine"], category: "Care", durationMinutes: 5,
     outcome: "Make personal care consistent without turning it into a complicated project.", immediatelyActionable: true, recipe: "Product/device care",
-    components: { starting: ["product", "protocol"], optional: ["adherence", "recurring_step", "resources"] },
+    components: { starting: ["product", "protocol"], optional: ["daily_selection", "adherence", "recurring_step", "resources"] },
     setup: { mode: "guided", guidance: "Ask which products are actually used and when. Each named product owns its protocol, cadence, sources, and history." },
     onboarding: { priorities: ["self-care", "calm"], rhythms: ["morning", "evening", "flexible"], choiceSet: null },
   },

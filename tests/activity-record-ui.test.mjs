@@ -38,6 +38,9 @@ test("renders daily subset selection, copy, inline add, and derived history as o
   assert.match(component, /function DailySelectionRecord/);
   assert.match(component, /Same as yesterday/);
   assert.match(component, /Add supplement/);
+  assert.match(component, /What fits today/);
+  assert.match(component, /set_daily_selection_count/);
+  assert.match(component, /Items with their own cadence/);
   assert.match(component, /Recent days/);
   assert.match(component, /<details className="daily-selection-history">/);
   assert.match(component, /daily-selection-history-entries/);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { ACTIVITY_RECIPES, CATALOG_VERSION, COMPONENT_CATALOG, activityRecipeHint } from "../bridge/component-catalog.mjs";
+import { ACTIVITY_RECIPES, CATALOG_VERSION, COMPONENT_CATALOG, activityRecipeHint, routineLayoutSignal } from "../bridge/component-catalog.mjs";
 
 const expected = [
   "summary", "product", "protocol", "checklist", "item_list", "daily_selection", "meal_log", "workout",
@@ -10,11 +10,18 @@ const expected = [
   "attention", "resources", "timer", "countdown",
 ];
 
-test("the production catalog contains every approved v14 component exactly once", () => {
-  assert.equal(CATALOG_VERSION, "workspace-catalog-v14");
+test("the production catalog contains every approved v15 component exactly once", () => {
+  assert.equal(CATALOG_VERSION, "workspace-catalog-v15");
   const types = COMPONENT_CATALOG.map(([type]) => type);
   assert.deepEqual(types, expected);
   assert.equal(new Set(types).size, types.length);
+});
+
+test("routine layout evidence distinguishes fixed setup language from later variable use", () => {
+  assert.equal(routineLayoutSignal("I use three serums, then an LED face mask, followed by lotion to finish"), "fixed");
+  assert.equal(routineLayoutSignal("Some days I skip certain steps depending on what my skin needs, and sometimes double up with two colors"), "variable");
+  assert.equal(routineLayoutSignal("Move the LED mask into its own activity"), "separate");
+  assert.equal(routineLayoutSignal("I have a face routine"), "unclear");
 });
 
 test("catalog record components stay synchronized with the server validators", async () => {

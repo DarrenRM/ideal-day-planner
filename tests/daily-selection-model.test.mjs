@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionForDate, withSelectionForDate } from "../app/daily-selection-model.ts";
+import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionCountsForDate, selectionForDate, withSelectionForDate } from "../app/daily-selection-model.ts";
 
 test("migrates a supplement checklist and recap into one canonical selection history", () => {
   const migrated = migrateLegacyDailySelection({
@@ -41,4 +41,19 @@ test("merges agent updates without dropping omitted roster items or history", ()
   assert.equal(merged.items.find((item) => item.id === "e")?.active, true);
   assert.equal(merged.items.find((item) => item.id === "k")?.active, false);
   assert.deepEqual(merged.entries.map((entry) => entry.date), ["2026-08-20", "2026-08-21"]);
+});
+
+test("stores repeat counts without changing the boolean selection contract", () => {
+  const data = {
+    kind: "routine",
+    items: [
+      { id: "serum", label: "Serum" },
+      { id: "mask", label: "LED mask", allowMultiple: true, unitLabel: "session" },
+    ],
+    entries: [],
+  };
+  const next = withSelectionForDate(data, "2026-09-02", ["serum", "mask"], { serum: 4, mask: 2, missing: 3 });
+  assert.deepEqual(selectionForDate(next, "2026-09-02"), ["serum", "mask"]);
+  assert.deepEqual(selectionCountsForDate(next, "2026-09-02"), { mask: 2 });
+  assert.deepEqual(next.entries[0].counts, { mask: 2 });
 });

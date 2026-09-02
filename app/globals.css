@@ -1014,6 +1014,26 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .daily-selection-items > button.is-selected > span { background: var(--item-color); border-color: var(--item-color); color: #12180f; }
 .daily-selection-items > button.daily-selection-add { background: transparent; border-style: dashed; color: #87928b; }
 .daily-selection-items > button.daily-selection-add svg { color: var(--item-color); }
+.daily-selection-record > .daily-selection-add { align-items: center; align-self: start; background: transparent; border: 1px dashed #303a3d; border-radius: 999px; color: #87928b; cursor: pointer; display: inline-flex; font: inherit; font-size: var(--type-body-sm); font-weight: 620; gap: 7px; min-height: 40px; padding: 7px 12px; }
+.daily-selection-record > .daily-selection-add svg { color: var(--item-color); }
+.daily-selection-group-heading { align-items: end; display: flex; justify-content: space-between; padding-top: 2px; }
+.daily-selection-group-heading strong { color: color-mix(in srgb, var(--item-color) 76%, #e7eee8); font-size: var(--type-overline); letter-spacing: .09em; text-transform: uppercase; }
+.daily-selection-group-heading small { color: #707b76; font-size: var(--type-label); }
+.daily-selection-items.is-variable-routine { border: 1px solid #283235; border-radius: 9px; display: grid; gap: 0; overflow: hidden; }
+.daily-selection-items.is-variable-routine > button { border: 0; border-bottom: 1px solid #242d30; border-radius: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; justify-content: stretch; min-height: 54px; padding: 9px 11px; text-align: left; width: 100%; }
+.daily-selection-items.is-variable-routine > button:last-child { border-bottom: 0; }
+.daily-selection-item-copy, .daily-selection-counter-copy { display: grid; gap: 2px; min-width: 0; }
+.daily-selection-item-copy strong, .daily-selection-counter-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.daily-selection-item-copy small, .daily-selection-counter-copy small { color: #7f8a84; font-size: var(--type-label); font-weight: 450; line-height: 1.35; }
+.daily-selection-items.is-variable-routine em, .daily-selection-counter em { color: #849078; font-size: var(--type-label); font-style: normal; font-weight: 650; letter-spacing: .04em; text-align: right; }
+.daily-selection-counter { align-items: center; background: #12181a; border-bottom: 1px solid #242d30; color: #b8c2bc; display: grid; gap: 8px; grid-template-columns: auto minmax(0, 1fr) auto auto auto; min-height: 58px; padding: 8px; }
+.daily-selection-counter:last-child { border-bottom: 0; }
+.daily-selection-counter.is-selected { background: color-mix(in srgb, var(--item-color) 10%, #151b1d); }
+.daily-selection-counter > button { align-items: center; background: #0d1315; border: 1px solid #354043; border-radius: 50%; color: #aab5ae; cursor: pointer; display: flex; height: 30px; justify-content: center; width: 30px; }
+.daily-selection-counter > button:disabled { cursor: default; opacity: .35; }
+.daily-selection-count { align-items: center; display: grid; justify-items: center; min-width: 30px; }
+.daily-selection-count b { color: #e4ebe5; font-size: 14px; }
+.daily-selection-count small { color: #6f7a75; font-size: var(--type-label); text-transform: uppercase; }
 .daily-selection-form { display: grid; gap: 7px; grid-template-columns: minmax(0, 1fr) auto auto; }
 .daily-selection-form input { background: #0f1416; border: 1px solid #303a3d; border-radius: 7px; color: var(--text); min-height: 42px; padding: 8px 10px; }
 .daily-selection-form button, .daily-selection-copy-row button { align-items: center; background: transparent; border: 1px solid #303a3d; border-radius: 7px; color: #aeb8b1; cursor: pointer; display: inline-flex; font-size: var(--type-label); font-weight: 620; gap: 6px; justify-content: center; min-height: 42px; padding: 8px 11px; }
