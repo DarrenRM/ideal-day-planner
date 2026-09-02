@@ -60,6 +60,8 @@ test("supports an installed iOS app without resizing the assistant dock", async 
   assert.equal(manifest.background_color, "#0a0c0f");
   assert.match(css, /--conversation-dock-height:\s*58px/);
   assert.match(css, /\.global-luna-dock[^}]*min-height:\s*58px[^}]*padding:\s*0 16px/);
+  assert.match(css, /\.global-luna-sheet \{[^}]*height:\s*100dvh/);
+  assert.match(css, /\.global-luna-header \{[^}]*safe-area-inset-top/);
   assert.doesNotMatch(css, /--conversation-dock-height:[^;]*safe-area-inset-bottom/);
 });
 

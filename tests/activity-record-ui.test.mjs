@@ -235,7 +235,10 @@ test("layers the mobile conversation drawer over actions and shares its handle w
   assert.match(css, /\.global-luna-sheet \{[^}]*transition: transform 320ms cubic-bezier/s);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-sheet \{[^}]*transform: translateY\(100%\)/s);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.global-luna-header \{[^}]*background: var\(--accent\)/s);
+  assert.match(css, /\.global-luna-header \{[^}]*min-height: calc\(58px \+ env\(safe-area-inset-top\)\);[^}]*padding: env\(safe-area-inset-top\) 0 0;/s);
   assert.match(css, /\.global-luna-mobile-handle \{[^}]*width: 100%;/s);
+  assert.match(css, /\.global-luna-mobile-handle \{[^}]*safe-area-inset-right[^}]*safe-area-inset-left/s);
+  assert.match(css, /\.global-luna-composer \{[^}]*safe-area-inset-bottom/s);
   assert.match(globalLuna, /<ConversationWorkReceipt/);
   assert.match(css, /\.conversation-work-receipt-entry \{[^}]*animation: conversation-work-receipt-arrive/s);
   assert.match(css, /@keyframes conversation-work-receipt-arrive/);
