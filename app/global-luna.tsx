@@ -4,6 +4,8 @@ import { CalendarDays, Check, ChevronDown, Inbox, Send, Sparkles, X } from "./ic
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PendingCapture } from "./capture-model";
 import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./conversation-work-receipt";
+import { ConversationClarificationCard } from "./conversation-clarification-card";
+import type { ConversationClarification, ConversationClarificationOption } from "./conversation-clarification-model";
 
 type LunaMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string };
 type LunaArtifact = ConversationWorkReceiptData & {
@@ -26,13 +28,14 @@ type LunaProposal = {
 type LunaState = {
   messages: LunaMessage[];
   artifacts: LunaArtifact[];
+  clarifications: ConversationClarification[];
   activeJob: { status: string; progressTitle?: string | null; progressDetail?: string | null } | null;
   agentOnline: boolean;
   proposals: LunaProposal[];
   captures: PendingCapture[];
 };
 
-const EMPTY_STATE: LunaState = { messages: [], artifacts: [], activeJob: null, agentOnline: false, proposals: [], captures: [] };
+const EMPTY_STATE: LunaState = { messages: [], artifacts: [], clarifications: [], activeJob: null, agentOnline: false, proposals: [], captures: [] };
 
 function formatMessageTime(value: string) {
   const date = new Date(value.replace(" ", "T") + (value.endsWith("Z") ? "" : "Z"));
@@ -64,6 +67,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   const [sending, setSending] = useState(false);
   const [proposalBusy, setProposalBusy] = useState<string | null>(null);
   const [captureBusy, setCaptureBusy] = useState<string | null>(null);
+  const [clarificationBusy, setClarificationBusy] = useState<string | null>(null);
   const [revisionId, setRevisionId] = useState<string | null>(null);
   const [revisionText, setRevisionText] = useState("");
   const [openingArtifactId, setOpeningArtifactId] = useState<string | null>(null);
@@ -84,7 +88,8 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
   const conversationFeed = useMemo(() => [
     ...state.messages.map((message) => ({ type: "message" as const, createdAt: message.createdAt, value: message })),
     ...state.artifacts.map((artifact) => ({ type: "artifact" as const, createdAt: artifact.createdAt, value: artifact })),
-  ].sort((left, right) => left.createdAt.localeCompare(right.createdAt)), [state.artifacts, state.messages]);
+    ...state.clarifications.map((clarification) => ({ type: "clarification" as const, createdAt: clarification.createdAt, value: clarification })),
+  ].sort((left, right) => left.createdAt.localeCompare(right.createdAt)), [state.artifacts, state.clarifications, state.messages]);
 
   useEffect(() => {
     if (!open) return;
@@ -123,7 +128,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
     const escape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") onClose(); };
     document.addEventListener("keydown", escape);
     return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", escape); };
-  }, [open, state.messages.length, state.artifacts.length, state.activeJob, state.proposals.length, state.captures.length, onClose]);
+  }, [open, state.messages.length, state.artifacts.length, state.clarifications.length, state.activeJob, state.proposals.length, state.captures.length, onClose]);
 
   async function viewArtifact(artifact: LunaArtifact, origin?: DOMRect) {
     if ((!artifact.activityId && !artifact.meta?.targetActivityId) || openingArtifactId) return;
@@ -216,6 +221,27 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
     }
   }
 
+  async function answerClarification(clarification: ConversationClarification, option: ConversationClarificationOption) {
+    if (clarificationBusy || clarification.status === "answered") return;
+    setClarificationBusy(clarification.id);
+    setState((current) => ({ ...current, clarifications: current.clarifications.map((entry) => entry.id === clarification.id
+      ? { ...entry, status: "answered", selectedOptionId: option.id, answeredAt: new Date().toISOString() }
+      : entry) }));
+    try {
+      const response = await fetch("/api/clarifications", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clarificationId: clarification.id, optionId: option.id }),
+      });
+      if (!response.ok) throw new Error("That answer could not be saved.");
+      await load();
+    } catch {
+      await load().catch(() => undefined);
+    } finally {
+      setClarificationBusy(null);
+    }
+  }
+
   return (
     <div aria-hidden={!open} className={`global-luna-backdrop ${open ? "is-visible" : ""}`} inert={!open} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section aria-label="Talk with Luna" aria-modal={open ? "true" : undefined} className="global-luna-sheet" role="dialog">
@@ -232,6 +258,14 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
             <article className={`global-luna-message is-${entry.value.author}`} key={entry.value.id}>
               <p>{entry.value.body}</p><time>{formatMessageTime(entry.value.createdAt)}</time>
             </article>
+          ) : entry.type === "clarification" ? (
+            <ConversationClarificationCard
+              busy={clarificationBusy === entry.value.id}
+              clarification={entry.value}
+              key={entry.value.id}
+              onChoose={(option) => void answerClarification(entry.value, option)}
+              onOther={() => composerRef.current?.focus()}
+            />
           ) : (
             <ConversationWorkReceipt
               artifact={entry.value}

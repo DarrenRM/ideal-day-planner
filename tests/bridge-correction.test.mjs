@@ -139,7 +139,8 @@ test("a stale catalog is refused before database work and safe correction metada
   assert.ok(get.indexOf("bridge_catalog_mismatch") < get.indexOf("await ensureAgentSchema()"));
   assert.match(route, /code: "invalid_product_composition"/);
   assert.match(route, /correctionAllowed: activityMoves.length === 0/);
-  assert.match(route, /workspaceClarification \|\| \(messageRequestsResearch/);
+  assert.match(route, /clarificationBody \|\| \(messageRequestsResearch/);
+  assert.match(route, /structuredClarification/);
 });
 
 test("source fingerprints cover content changes and the launcher refreshes only between jobs", async () => {

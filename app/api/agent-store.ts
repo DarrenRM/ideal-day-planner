@@ -12,6 +12,7 @@ import { fixedMeasuredSessionOption, measuredSessionFields, type SessionChoiceDa
 import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionCountsForDate, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
 import { mergeMealLogData, type MealLogData } from "../meal-log-model";
 import { historicalWorkspaceReceipt } from "../work-receipt-model";
+import { parseStoredClarificationOptions, type ConversationClarification } from "../conversation-clarification-model";
 export { requestIdentity } from "./request-identity";
 
 export type ActivityRecord = {
@@ -82,6 +83,31 @@ export async function ensureAgentSchema() {
       )`),
       db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS conversation_artifacts_conversation_job_unique ON conversation_artifacts (conversation_id, source_agent_job_id)"),
       db.prepare("CREATE INDEX IF NOT EXISTS conversation_artifacts_conversation_created_idx ON conversation_artifacts (conversation_id, created_at)"),
+      db.prepare(`CREATE TABLE IF NOT EXISTS conversation_clarifications (
+        id text PRIMARY KEY NOT NULL,
+        user_id text NOT NULL,
+        conversation_id text NOT NULL,
+        activity_id text,
+        activity_variant_id text,
+        source_message_id text,
+        source_agent_job_id text NOT NULL,
+        question text NOT NULL,
+        options_json text NOT NULL,
+        status text DEFAULT 'pending' NOT NULL,
+        selected_option_id text,
+        response_message_id text,
+        answered_at text,
+        created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_id) REFERENCES activities(id) ON DELETE CASCADE,
+        FOREIGN KEY (activity_variant_id) REFERENCES activity_variants(id) ON DELETE SET NULL,
+        FOREIGN KEY (source_message_id) REFERENCES conversation_messages(id) ON DELETE SET NULL,
+        FOREIGN KEY (response_message_id) REFERENCES conversation_messages(id) ON DELETE SET NULL
+      )`),
+      db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS conversation_clarifications_conversation_job_unique ON conversation_clarifications (conversation_id, source_agent_job_id)"),
+      db.prepare("CREATE INDEX IF NOT EXISTS conversation_clarifications_conversation_created_idx ON conversation_clarifications (conversation_id, created_at)"),
       db.prepare(`CREATE TABLE IF NOT EXISTS captured_intents (
         id text PRIMARY KEY NOT NULL,
         user_id text NOT NULL,
@@ -534,6 +560,7 @@ export async function readGlobalConversationState(conversationId: string, userId
   return {
     messages: await readConversationMessages(conversationId),
     artifacts: await readConversationArtifacts(conversationId),
+    clarifications: await readConversationClarifications(conversationId),
     activeJob: activeJob ?? null,
     agentOnline: Boolean(onlineWorker),
     proposals: proposals.results.flatMap((proposal) => {
@@ -577,6 +604,35 @@ export async function readConversationArtifacts(conversationId: string) {
       meta = {};
     }
     return { ...artifact, meta };
+  });
+}
+
+export async function readConversationClarifications(conversationId: string): Promise<ConversationClarification[]> {
+  const result = await getD1().prepare(`
+    SELECT id, question, options_json AS optionsJson, status,
+           selected_option_id AS selectedOptionId, source_agent_job_id AS sourceAgentJobId,
+           created_at AS createdAt, answered_at AS answeredAt
+    FROM conversation_clarifications
+    WHERE conversation_id = ?
+    ORDER BY created_at ASC, id ASC
+    LIMIT 100
+  `).bind(conversationId).all<{
+    id: string; question: string; optionsJson: string; status: "pending" | "answered";
+    selectedOptionId: string | null; sourceAgentJobId: string; createdAt: string; answeredAt: string | null;
+  }>();
+  return result.results.flatMap((row) => {
+    const options = parseStoredClarificationOptions(row.optionsJson);
+    if (options.length < 2 || !["pending", "answered"].includes(row.status)) return [];
+    return [{
+      id: row.id,
+      body: row.question,
+      options,
+      status: row.status,
+      selectedOptionId: row.selectedOptionId,
+      sourceAgentJobId: row.sourceAgentJobId,
+      createdAt: row.createdAt,
+      answeredAt: row.answeredAt,
+    }];
   });
 }
 
@@ -2429,6 +2485,113 @@ export async function backfillResearchedProductAbout(userId: string) {
 }
 
 const FACE_CARE_VARIABLE_ROUTINE_MIGRATION = "face-care-variable-routine-v1";
+const FACE_CARE_LAYOUT_CLARIFICATION = "face-care-routine-layout-clarification-v2";
+
+/** Restores the last reviewed Face Care presentation and asks before changing
+ * what completion means. The selected answer returns through the ordinary
+ * activity conversation, so Luna owns the resulting durable edit. */
+export async function seedFaceCareRoutineLayoutClarification(input: { userId: string; activityId: string }) {
+  const db = getD1();
+  const activity = await db.prepare(`
+    SELECT id, client_key AS clientKey, title, category, icon, color
+    FROM activities WHERE id = ? AND user_id = ? LIMIT 1
+  `).bind(input.activityId, input.userId).first<ActivityRecord>();
+  if (!activity || activity.title.trim().toLocaleLowerCase() !== "face care") {
+    throw new Error("The reviewed Face Care activity was not found.");
+  }
+  const conversationId = await ensureConversation(input.userId, activity);
+  const sourceAgentJobId = `migration:${safeId(input.userId)}:${FACE_CARE_LAYOUT_CLARIFICATION}`;
+  const clarificationId = `conversation-clarification:${safeId(input.userId)}:face-care-layout-v2`;
+  const messageId = `agent-message:${safeId(sourceAgentJobId)}`;
+  const existing = await db.prepare("SELECT id FROM conversation_clarifications WHERE id = ? AND user_id = ? LIMIT 1")
+    .bind(clarificationId, input.userId).first<{ id: string }>();
+  if (existing) return { applied: false, activityId: activity.id, clarificationId };
+
+  const workspace = await db.prepare(`
+    SELECT id, current_revision_id AS currentRevisionId
+    FROM activity_workspaces
+    WHERE user_id = ? AND activity_id = ? AND activity_variant_id IS NULL
+    LIMIT 1
+  `).bind(input.userId, activity.id).first<{ id: string; currentRevisionId: string | null }>();
+  if (!workspace) throw new Error("The reviewed Face Care workspace was not found.");
+  const revisions = await db.prepare(`
+    SELECT id, revision_number AS revisionNumber, document_json AS documentJson
+    FROM workspace_revisions
+    WHERE workspace_id = ?
+    ORDER BY revision_number DESC LIMIT 12
+  `).bind(workspace.id).all<{ id: string; revisionNumber: number; documentJson: string }>();
+  const priorRevision = revisions.results.find((revision) => revision.id !== workspace.currentRevisionId && (() => {
+    try {
+      const document = JSON.parse(revision.documentJson) as WorkspaceDocument;
+      return Array.isArray(document.components)
+        && document.components.length > 0
+        && !document.components.some((component) => component.recordKey === "face-care-daily-choices");
+    } catch {
+      return false;
+    }
+  })());
+  if (!priorRevision) throw new Error("The earlier Face Care presentation could not be restored safely.");
+  const restoredRevisionId = `workspace-revision:${safeId(sourceAgentJobId)}:restore`;
+  const restoredRevisionNumber = Math.max(0, ...revisions.results.map((revision) => revision.revisionNumber)) + 1;
+
+  const options = [
+    {
+      id: "every-step",
+      label: "I usually do every step",
+      detail: "Keep one ordered routine with a single completion.",
+      response: "I normally use every Face Care step in order. Keep the existing fixed Face Care routine.",
+    },
+    {
+      id: "choose-daily",
+      label: "I choose what fits",
+      detail: "Let me check individual products and repeat an LED session.",
+      response: "I choose whichever Face Care steps fit my skin each day. Replace the fixed routine with a daily checklist, and let me record multiple LED mask sessions for different colors.",
+    },
+  ];
+  await db.batch([
+    db.prepare(`
+      UPDATE activity_records SET archived_at = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND activity_id = ? AND activity_variant_id IS NULL
+        AND (record_key = 'face-care-routine' OR subject_key IN (
+          'dewfield-berry-soft-cleanser', 'plainleaf-caffeine-serum', 'halcyon-serum',
+          'vitamin-c-hyaluronic-acid-serum', 'led-face-mask', 'light-lotion'
+        ))
+    `).bind(input.userId, activity.id),
+    db.prepare(`
+      UPDATE activity_records SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND activity_id = ? AND activity_variant_id IS NULL
+        AND record_key = 'face-care-daily-choices' AND archived_at IS NULL
+    `).bind(input.userId, activity.id),
+    db.prepare(`
+      INSERT INTO workspace_revisions
+        (id, workspace_id, revision_number, document_json, source_agent_job_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(restoredRevisionId, workspace.id, restoredRevisionNumber, priorRevision.documentJson, sourceAgentJobId),
+    db.prepare(`
+      UPDATE activity_workspaces SET current_revision_id = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
+    `).bind(restoredRevisionId, workspace.id, input.userId),
+    db.prepare(`
+      INSERT OR IGNORE INTO conversation_messages (id, conversation_id, role, body, source, agent_job_id)
+      VALUES (?, ?, 'luna', ?, 'agent', ?)
+    `).bind(messageId, conversationId, "I want to make sure Face Care fits how you actually use it.", sourceAgentJobId),
+    db.prepare(`
+      INSERT INTO conversation_clarifications
+        (id, user_id, conversation_id, activity_id, source_message_id, source_agent_job_id, question, options_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      clarificationId,
+      input.userId,
+      conversationId,
+      activity.id,
+      messageId,
+      sourceAgentJobId,
+      "How do you usually want Face Care to work?",
+      JSON.stringify(options),
+    ),
+  ]);
+  return { applied: true, activityId: activity.id, clarificationId, restoredRevisionId };
+}
 
 /**
  * One reviewed production conversion. It is bridge-invoked, idempotent, and
@@ -3057,6 +3220,7 @@ export async function readConversationState(conversationId: string, planDate?: s
   return {
     messages: await readConversationMessages(conversationId),
     artifacts: await readConversationArtifacts(conversationId),
+    clarifications: await readConversationClarifications(conversationId),
     activeJob: activeJob ?? null,
     failedJob: latestDurableJob?.status === "failed" ? {
       id: latestDurableJob.id,

@@ -6,7 +6,7 @@ import type { CountdownWorkspaceComponent, RoutineWorkspaceComponent, TimerWorks
 export type LibraryComponentType = ActivityRecordType | "timer" | "countdown" | "routine"
   | "activity_streak" | "activity_schedule" | "activity_follow_up"
   | "product_action_tabs" | "workspace_working" | "workspace_empty" | "workspace_invitation"
-  | "conversation_work_receipt";
+  | "conversation_work_receipt" | "conversation_clarification";
 export type LibraryGroup = "Foundations" | "Actions" | "Sessions" | "Progress" | "Reference" | "Time" | "Workspace" | "Conversation";
 
 export type ComponentSpecimen = {
@@ -59,6 +59,7 @@ export const COMPONENT_SPECIMENS: ComponentSpecimen[] = [
   { type: "workspace_empty", label: "Empty workspace guidance", group: "Workspace", role: "primary", layer: "app-owned", activities: ["New activities without useful records"], selection: "Shown only when an activity has no useful workspace content and no active build or error.", hierarchy: "Sole workspace guidance state until a useful component exists." },
   { type: "workspace_invitation", label: "Luna invitation", group: "Workspace", role: "resource", layer: "app-owned", activities: ["Every hydrated activity workspace"], selection: "Persistent app-owned path for requesting another useful surface or changing the current setup.", hierarchy: "Footer after all workspace components; never competes with the current action." },
   { type: "conversation_work_receipt", label: "Work receipt", group: "Conversation", role: "reference", layer: "app-owned", activities: ["Applied activity updates", "Direct schedule changes", "Subject moves", "Scheduled check-ins"], selection: "Created by the app only after a validated durable change commits. Proposed, failed, no-op, and acknowledgement-only work never creates one.", hierarchy: "Chronological conversation entry after the work completes. View opens the committed result; the receipt remains in history in a quieter viewed state." },
+  { type: "conversation_clarification", label: "Luna clarification", group: "Conversation", role: "primary", layer: "app-owned", activities: ["Ambiguous routine behavior", "Bounded setup choices", "Changes that alter completion meaning"], selection: "Used only when existing evidence cannot decide a material choice and Luna can offer two to four mutually exclusive answers with clear consequences.", hierarchy: "Chronological conversation entry at the point Luna needs an answer. It never replaces or appears inside the activity workspace." },
 ];
 
 export const COMPONENT_GROUPS: LibraryGroup[] = ["Foundations", "Actions", "Sessions", "Progress", "Reference", "Time", "Workspace", "Conversation"];

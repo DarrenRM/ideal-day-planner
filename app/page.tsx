@@ -19,6 +19,8 @@ import type { CaptureAttention } from "./capture-model";
 import { ActivityDurationControl as DurationControl, DURATION_STEP, normalizeActivityDuration } from "./activity-duration-control";
 import { activityIconFor, CATEGORY_META, CATEGORY_OPTIONS, CATEGORY_ORDER, normalizeCategory, type ActivityCategory } from "./activity-presentation";
 import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./conversation-work-receipt";
+import { ConversationClarificationCard } from "./conversation-clarification-card";
+import type { ConversationClarification, ConversationClarificationOption } from "./conversation-clarification-model";
 import { millisecondsUntilNextLocalDay, reconcileLocalDay } from "./day-rollover";
 import { activityRecordTargetId } from "./activity-workspace-target";
 import { derivedDisplayTitle } from "./activity-title";
@@ -93,6 +95,7 @@ type DayHighlight = {
 type ConversationState = {
   messages: ConversationMessage[];
   artifacts?: ConversationArtifact[];
+  clarifications?: ConversationClarification[];
   activeJob: ConversationJob | null;
   agentOnline: boolean;
   workspace: { revisionId: string | null; revisionNumber: number; document: WorkspaceDocument };
@@ -459,6 +462,8 @@ type ActivityWorkbenchProps = {
 function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule, onSetRole, onOpenActivityTarget }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [artifacts, setArtifacts] = useState<ConversationArtifact[]>([]);
+  const [clarifications, setClarifications] = useState<ConversationClarification[]>([]);
+  const [clarificationBusy, setClarificationBusy] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<ConversationJob | null>(null);
   const [agentOnline, setAgentOnline] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceDocument>(EMPTY_WORKSPACE);
@@ -509,15 +514,24 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const workspaceActivity = useMemo(() => ({ ...item, timelineEnabled, completedToday: isComplete || isPreviewingCompletion, recentRuns }), [isComplete, isPreviewingCompletion, item, recentRuns, timelineEnabled]);
   const ReceiptIcon = activityIconFor(item);
   const hasUnreadWorkReceipt = artifacts.some((artifact) => !artifact.viewedAt);
+  const drawerMessages = useMemo(() => [
+    ...messages.map((message) => ({ id: message.id, author: message.author, createdAt: message.createdAt })),
+    ...clarifications.map((clarification) => ({ id: clarification.id, author: "luna" as const, createdAt: clarification.createdAt })),
+  ].sort((left, right) => {
+    const timestampDifference = (storedTimestampMillis(left.createdAt) ?? 0) - (storedTimestampMillis(right.createdAt) ?? 0);
+    if (timestampDifference) return timestampDifference;
+    return left.id.localeCompare(right.id);
+  }), [clarifications, messages]);
   const conversationFeed = useMemo(() => [
     ...messages.map((message) => ({ type: "message" as const, createdAt: message.createdAt, sourceAgentJobId: message.agentJobId ?? "", value: message })),
     ...artifacts.map((artifact) => ({ type: "artifact" as const, createdAt: artifact.createdAt, sourceAgentJobId: artifact.sourceAgentJobId, value: artifact })),
+    ...clarifications.map((clarification) => ({ type: "clarification" as const, createdAt: clarification.createdAt, sourceAgentJobId: clarification.sourceAgentJobId, value: clarification })),
   ].sort((left, right) => {
     const timestampDifference = (storedTimestampMillis(left.createdAt) ?? 0) - (storedTimestampMillis(right.createdAt) ?? 0);
     if (timestampDifference) return timestampDifference;
     if (left.sourceAgentJobId && left.sourceAgentJobId === right.sourceAgentJobId && left.type !== right.type) return left.type === "message" ? -1 : 1;
     return left.value.id.localeCompare(right.value.id);
-  }), [artifacts, messages]);
+  }), [artifacts, clarifications, messages]);
   const hasWorkspaceContent = hasVisibleActivityWorkspace(workspaceActivity, workspace, records) || followUps.length > 0 || Boolean(scheduleSummary);
   const hasActiveWorkspaceSurface = hasWorkspaceContent || Boolean(workspaceWorkState) || Boolean(recordError);
   const showEmptyWorkspace = !hasActiveWorkspaceSurface;
@@ -526,7 +540,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     canCollapse: true,
     contentReady: connectionState !== "joining",
     hasConversationJob,
-    messages,
+    messages: drawerMessages,
     openOnMount: openConversationOnMount,
     preferConversation: showEmptyWorkspace,
   });
@@ -604,6 +618,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
         return message.id === next.id && message.body === next.body && message.createdAt === next.createdAt;
       }) ? current : state.messages);
       setArtifacts(state.artifacts ?? []);
+      setClarifications(state.clarifications ?? []);
       setActiveJob((current) => current?.status === state.activeJob?.status
         && current?.kind === state.activeJob?.kind
         && current?.progressTitle === state.activeJob?.progressTitle
@@ -798,6 +813,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       const state = await response.json() as ConversationState;
       setMessages(state.messages);
       setArtifacts(state.artifacts ?? []);
+      setClarifications(state.clarifications ?? []);
       setActiveJob(state.activeJob);
       setAgentOnline(state.agentOnline);
       setWorkspace(state.workspace.document);
@@ -817,6 +833,29 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       setIsSending(false);
       sendingRef.current = false;
       refreshConversationRef.current();
+    }
+  }
+
+  async function answerClarification(clarification: ConversationClarification, option: ConversationClarificationOption) {
+    if (clarificationBusy || clarification.status === "answered") return;
+    setClarificationBusy(clarification.id);
+    setClarifications((current) => current.map((entry) => entry.id === clarification.id
+      ? { ...entry, status: "answered", selectedOptionId: option.id, answeredAt: new Date().toISOString() }
+      : entry));
+    try {
+      const response = await fetch("/api/clarifications", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clarificationId: clarification.id, optionId: option.id }),
+      });
+      if (!response.ok) throw new Error("That answer could not be saved.");
+      conversationShouldFollowRef.current = true;
+      refreshConversationRef.current();
+    } catch {
+      refreshConversationRef.current();
+      setRecordError("That answer could not be saved. Please try again.");
+    } finally {
+      setClarificationBusy(null);
     }
   }
 
@@ -1030,6 +1069,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
       onSkip(null);
       setMessages(state.messages ?? []);
       setArtifacts(state.artifacts ?? []);
+      setClarifications(state.clarifications ?? []);
       setActiveJob(state.activeJob ?? null);
       setAgentOnline(Boolean(state.agentOnline));
       setWorkspace(state.workspace?.document ?? EMPTY_WORKSPACE);
@@ -1099,6 +1139,24 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
                     </div>
                   </Fragment>
                 );
+              }
+              if (feedItem.type === "clarification") {
+                const clarification = feedItem.value;
+                const isUnreadBoundary = clarification.id === conversationDrawer.unreadBoundaryLunaMessageId;
+                return <Fragment key={clarification.id}>
+                  {isUnreadBoundary ? <div className="unread-message-separator" role="status"><span>New from Luna</span></div> : null}
+                  <div
+                    className={`conversation-clarification-anchor ${isUnreadBoundary ? "is-unread-boundary" : ""}`}
+                    ref={clarification.id === conversationDrawer.unreadLunaMessageId ? latestUnreadLunaMessageRef : undefined}
+                  >
+                    <ConversationClarificationCard
+                      busy={clarificationBusy === clarification.id}
+                      clarification={clarification}
+                      onChoose={(option) => void answerClarification(clarification, option)}
+                      onOther={() => document.querySelector<HTMLTextAreaElement>(".activity-conversation .conversation-composer textarea")?.focus()}
+                    />
+                  </div>
+                </Fragment>;
               }
               const artifact = feedItem.value;
               return (

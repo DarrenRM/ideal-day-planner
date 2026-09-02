@@ -32,6 +32,7 @@ import { messageRequestsResearch } from "../../../research-intent";
 import { normalizeCaptureLabel, validateCaptureActions } from "../../../capture-model";
 import { applyCaptureAction } from "../../capture-service";
 import { validateFollowUpActions } from "../../../follow-up-model";
+import { parseConversationClarificationDraft, type ConversationClarificationDraft } from "../../../conversation-clarification-model";
 import { activityWorkReceipt, scheduleWorkReceipt, type WorkReceiptDraft } from "../../../work-receipt-model";
 import {
   parseGlobalRequestPlan,
@@ -73,6 +74,28 @@ function workReceiptStatement(db: ReturnType<typeof getD1>, input: {
       targetActivityClientKey: input.receipt.targetActivityClientKey || "",
       targetRecordKey: input.receipt.targetRecordKey || "",
     }),
+  );
+}
+
+function clarificationStatement(db: ReturnType<typeof getD1>, input: {
+  job: LeasedJob;
+  clarification: ConversationClarificationDraft;
+}) {
+  return db.prepare(`
+    INSERT OR IGNORE INTO conversation_clarifications
+      (id, user_id, conversation_id, activity_id, activity_variant_id,
+       source_message_id, source_agent_job_id, question, options_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    `conversation-clarification:${safeId(input.job.id)}`,
+    input.job.userId,
+    input.job.conversationId,
+    input.job.activityId,
+    input.job.activityVariantId,
+    input.job.sourceMessageId,
+    input.job.id,
+    input.clarification.body,
+    JSON.stringify(input.clarification.options),
   );
 }
 
@@ -654,15 +677,16 @@ export async function POST(request: Request) {
         ? await db.prepare("SELECT body FROM conversation_messages WHERE id = ? AND conversation_id = ?")
           .bind(job.sourceMessageId, job.conversationId).first<{ body: string }>()
         : null;
-      const workspaceClarificationSource = job.kind === "workspace_refresh" && payload.followUpQuestion && typeof payload.followUpQuestion === "object" && !Array.isArray(payload.followUpQuestion)
-        ? payload.followUpQuestion as Record<string, unknown>
+      const clarificationSource = payload.followUpQuestion && typeof payload.followUpQuestion === "object" && !Array.isArray(payload.followUpQuestion)
+        ? payload.followUpQuestion
         : null;
-      const workspaceClarification = typeof workspaceClarificationSource?.body === "string"
-        ? workspaceClarificationSource.body.trim().slice(0, 4000)
-        : "";
+      const clarification = parseConversationClarificationDraft(clarificationSource);
+      if (clarificationSource && !clarification) return Response.json({ error: "Luna's clarification did not pass validation." }, { status: 400 });
+      const structuredClarification = clarification && clarification.options.length >= 2 ? clarification : null;
+      const clarificationBody = clarification?.body ?? "";
       const response = job.kind === "workspace_refresh"
-        ? workspaceClarification || (messageRequestsResearch(sourceMessage?.body) ? suppliedResponse : "")
-        : suppliedResponse;
+        ? structuredClarification ? (messageRequestsResearch(sourceMessage?.body) ? suppliedResponse : "") : clarificationBody || (messageRequestsResearch(sourceMessage?.body) ? suppliedResponse : "")
+        : suppliedResponse || (structuredClarification ? "" : clarificationBody);
       const requestedWorkspaceFollowup = payload.workspaceFollowup === true || messageRequestsResearch(sourceMessage?.body);
       const scheduleOnlyRequest = messageHasScheduleIntent(sourceMessage?.body || "")
         && !scheduleMessageAlsoNeedsWorkspace(sourceMessage?.body);
@@ -731,8 +755,7 @@ export async function POST(request: Request) {
         return Response.json({ completed: true, highlighted: Boolean(body) });
       }
       if (job.scopeType === "global") {
-        const followUpSource = payload.followUpQuestion && typeof payload.followUpQuestion === "object" ? payload.followUpQuestion as Record<string, unknown> : null;
-        const followUpBody = typeof followUpSource?.body === "string" ? followUpSource.body.trim().slice(0, 4000) : "";
+        const followUpBody = clarificationBody;
         const proposal = payload.scheduleProposal === null || payload.scheduleProposal === undefined ? null : parseScheduleProposal(payload.scheduleProposal);
         if (payload.scheduleProposal && !proposal) return Response.json({ error: "The schedule proposal did not pass validation." }, { status: 400 });
         const directScheduleSource = Array.isArray(payload.scheduleActions) ? payload.scheduleActions.slice(0, 2) : [];
@@ -863,7 +886,7 @@ export async function POST(request: Request) {
         }
         // A delegated activity compiler owns the eventual outcome. The coordinator
         // must not narrate success or failure before that bounded write finishes.
-        const finalResponse = activityWorkRequests.length ? "" : followUpBody || response;
+        const finalResponse = activityWorkRequests.length ? "" : structuredClarification ? response : followUpBody || response;
         const messageId = finalResponse ? `agent-message:${safeId(jobId)}` : null;
         const statements = [];
         if (finalResponse && messageId) statements.push(db.prepare(`
@@ -871,6 +894,7 @@ export async function POST(request: Request) {
             (id, conversation_id, role, body, source, agent_job_id)
           VALUES (?, ?, 'luna', ?, 'agent', ?)
         `).bind(messageId, job.conversationId, finalResponse, jobId));
+        if (structuredClarification) statements.push(clarificationStatement(db, { job, clarification: structuredClarification }));
         if (globalFollowup) {
           const refreshJobId = `agent-job:${safeId(job.userId)}:global-refresh:${safeId(job.id)}`;
           statements.push(db.prepare(`
@@ -1091,6 +1115,7 @@ export async function POST(request: Request) {
           VALUES (?, ?, 'luna', ?, 'agent', ?)
         `).bind(messageId, job.conversationId, response, jobId));
       }
+      if (structuredClarification) statements.push(clarificationStatement(db, { job, clarification: structuredClarification }));
       const workReceipt = activityWorkReceipt({
         activityTitle: schedule?.activityTitle || "Activity",
         jobKind: job.kind,

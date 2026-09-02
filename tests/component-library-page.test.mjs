@@ -16,7 +16,7 @@ test("the component workbench covers every production primitive plus the retaine
 
 test("the workbench includes every app-owned activity workspace surface without duplicating presentation states", () => {
   const types = new Set(COMPONENT_SPECIMENS.map((entry) => entry.type));
-  for (const type of ["activity_streak", "activity_schedule", "activity_follow_up", "product_action_tabs", "workspace_working", "workspace_empty", "workspace_invitation", "conversation_work_receipt"]) {
+  for (const type of ["activity_streak", "activity_schedule", "activity_follow_up", "product_action_tabs", "workspace_working", "workspace_empty", "workspace_invitation", "conversation_work_receipt", "conversation_clarification"]) {
     assert.ok(types.has(type), `${type} is missing from the workbench`);
   }
   assert.equal(COMPONENT_SPECIMENS.filter((entry) => entry.type === "session_choice").length, 1);
@@ -96,6 +96,7 @@ test("the workbench is Sites-only and uses the production renderers", async () =
   assert.match(usage, /JOIN schedule_patterns/);
   assert.match(usage, /FROM conversation_artifacts artifact/);
   assert.match(usage, /conversation_work_receipt/);
+  assert.match(usage, /conversation_clarification/);
   assert.match(usage, /hasUsefulActivityRecordData/);
   assert.match(usage, /siblingRecordTypes/);
   assert.doesNotMatch(usage, /session_choice_compact/);

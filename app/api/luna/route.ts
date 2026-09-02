@@ -6,12 +6,20 @@ async function summary(conversationId: string, userId: string) {
   const db = getD1();
   const [unread, onlineWorker] = await Promise.all([
     db.prepare(`
-      SELECT COUNT(*) AS count
-      FROM conversation_messages message
-      JOIN conversations conversation ON conversation.id = message.conversation_id
-      WHERE message.conversation_id = ? AND conversation.user_id = ? AND message.role = 'luna'
-        AND (conversation.last_read_at IS NULL OR message.created_at > conversation.last_read_at)
-    `).bind(conversationId, userId).first<{ count: number }>(),
+      SELECT COUNT(*) AS count FROM (
+        SELECT COALESCE(message.agent_job_id, message.id) AS event_key
+        FROM conversation_messages message
+        JOIN conversations conversation ON conversation.id = message.conversation_id
+        WHERE message.conversation_id = ? AND conversation.user_id = ? AND message.role = 'luna'
+          AND (conversation.last_read_at IS NULL OR message.created_at > conversation.last_read_at)
+        UNION
+        SELECT clarification.source_agent_job_id AS event_key
+        FROM conversation_clarifications clarification
+        JOIN conversations conversation ON conversation.id = clarification.conversation_id
+        WHERE clarification.conversation_id = ? AND conversation.user_id = ?
+          AND (conversation.last_read_at IS NULL OR clarification.created_at > conversation.last_read_at)
+      )
+    `).bind(conversationId, userId, conversationId, userId).first<{ count: number }>(),
     db.prepare(`SELECT id FROM agent_workers WHERE last_seen_at >= datetime('now', '-20 seconds') LIMIT 1`).first(),
   ]);
   const captures = await readPendingCaptures(userId, conversationId);

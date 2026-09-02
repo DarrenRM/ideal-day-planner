@@ -810,7 +810,8 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(jobRoute, /completeActivitySetup/);
   assert.match(jobRoute, /markActivitySetupAnswered/);
   assert.match(jobRoute, /const response = job\.kind === "workspace_refresh"/);
-  assert.match(jobRoute, /workspaceClarification \|\| \(messageRequestsResearch\(sourceMessage\?\.body\) \? suppliedResponse : ""\)/);
+  assert.match(jobRoute, /clarificationBody \|\| \(messageRequestsResearch\(sourceMessage\?\.body\) \? suppliedResponse : ""\)/);
+  assert.match(jobRoute, /structuredClarification/);
   assert.match(store, /requestIdentity/);
   assert.match(store, /request-identity/);
   assert.match(bridge, /profiles", "ideal-day"/);

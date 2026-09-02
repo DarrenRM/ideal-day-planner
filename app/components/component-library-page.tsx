@@ -7,6 +7,7 @@ import type { ActivityRecord } from "../activity-record-model";
 import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
 import { StreakTrack } from "../streak-track";
 import { ConversationWorkReceipt } from "../conversation-work-receipt";
+import { ConversationClarificationCard } from "../conversation-clarification-card";
 import { activityIconFor, CATEGORY_META, type ActivityCategory } from "../activity-presentation";
 import type { WorkReceiptKind } from "../work-receipt-model";
 import { buildComponentLibraryFixtures, COMPONENT_GROUPS, COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-library-fixtures";
@@ -27,6 +28,7 @@ type View = "components" | "activities" | "selection" | "setups";
 type PreviewWidth = "desktop" | "mobile";
 type SessionChoiceState = "choosing" | "selected";
 type ReceiptState = "new" | "viewed";
+type ClarificationState = "pending" | "answered";
 
 const RECEIPT_SPECIMENS: Record<WorkReceiptKind, { title: string; icon: typeof Sparkles }> = {
   activity_update: { title: "Added a pace target to Morning Walk", icon: Sparkles },
@@ -89,11 +91,15 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
   const [sessionChoiceState, setSessionChoiceState] = useState<SessionChoiceState>("choosing");
   const [receiptKind, setReceiptKind] = useState<WorkReceiptKind>("schedule_update");
   const [receiptState, setReceiptState] = useState<ReceiptState>("new");
+  const [clarificationState, setClarificationState] = useState<ClarificationState>("pending");
   const [fixtures, setFixtures] = useState(() => buildComponentLibraryFixtures(today));
   const [notice, setNotice] = useState("Live production renderer");
 
   const specimen = COMPONENT_SPECIMENS.find((entry) => entry.type === selectedType) ?? COMPONENT_SPECIMENS[0];
   const catalogEntry = catalog.find((entry) => entry.type === specimen.type);
+  const dataContract = catalogEntry?.schema ?? (specimen.type === "conversation_clarification"
+    ? "conversation_clarifications(question, options_json[2–4], status, selected_option_id, response_message_id)"
+    : "Legacy app-owned workspace component");
   const usedOn = usage[specimen.type] ?? [];
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -162,6 +168,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
     setSessionChoiceState("choosing");
     setReceiptKind("schedule_update");
     setReceiptState("new");
+    setClarificationState("pending");
     setNotice("Mock data reset");
   }
 
@@ -192,6 +199,24 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
         timestamp="11:26 AM"
       />;
     }
+    if (specimen.type === "conversation_clarification") return <ConversationClarificationCard
+      busy={false}
+      clarification={{
+        id: "mock-clarification",
+        body: "How do you usually want this routine to work?",
+        options: [
+          { id: "every-step", label: "I usually do every step", detail: "Keep one ordered routine with a single completion.", response: "I normally use every step in order." },
+          { id: "choose-daily", label: "I choose what fits", detail: "Let me check individual items and repeat one when needed.", response: "I choose whichever steps fit each day." },
+        ],
+        status: clarificationState,
+        selectedOptionId: clarificationState === "answered" ? "choose-daily" : null,
+        sourceAgentJobId: "mock-clarification-job",
+        createdAt: "2026-09-02 13:30:00",
+        answeredAt: clarificationState === "answered" ? "2026-09-02 13:31:00" : null,
+      }}
+      onChoose={(option) => { setClarificationState("answered"); setNotice(`Mock answer saved: ${option.label}`); }}
+      onOther={() => setNotice("Mock composer focused")}
+    />;
     if (specimen.type === "product_action_tabs") return <ActivityWorkspace activity={productActivity} onRecordMutation={mutate} onTalkWithLuna={() => setNotice("Mock Luna handoff captured")} records={fixtures.records} workspace={fixtures.productWorkspace} />;
     const record = fixtures.records.find((entry) => entry.key === specimen.recordKey);
     if (!record) return <p>Fixture unavailable.</p>;
@@ -258,7 +283,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
         <section><span className={styles.eyebrow}>Good fits</span><div className={styles.chips}>{specimen.activities.map((name) => <span key={name}>{name}</span>)}</div></section>
         <section><span className={styles.eyebrow}>Used on</span>{usedOn.length ? <div className={styles.usedOn}>{usedOn.map((name) => <span key={name}>{name}</span>)}</div> : <p className={styles.notUsed}>Not currently used by an activity.</p>}</section>
         <section><span className={styles.eyebrow}>Hierarchy</span><div className={styles.hierarchy}><span>{specimen.role}</span><ChevronRight size={13} /><p>{specimen.hierarchy}</p></div></section>
-        <section><span className={styles.eyebrow}>Data contract</span><code>{catalogEntry?.schema ?? "Legacy app-owned workspace component"}</code></section>
+        <section><span className={styles.eyebrow}>Data contract</span><code>{dataContract}</code></section>
         <section className={styles.syncNote}><Layers3 size={17} /><div><b>One implementation</b><p>This specimen uses the production renderer. A component design change here is the same change activities receive.</p></div></section>
       </aside>
     </div> : view === "activities" ? <ActivityLibrary activities={activities} choiceSets={activityChoiceSets} version={activityLibraryVersion} /> : view === "setups" ? <ActivitySetupLab /> : <SelectionMap catalog={catalog} recipes={recipes} />}

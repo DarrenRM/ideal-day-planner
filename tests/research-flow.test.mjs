@@ -53,7 +53,8 @@ test("research is acknowledged through the bounded conversational path and compi
   assert.match(route, /payload\.workspaceFollowup === true \|\| messageRequestsResearch\(sourceMessage\?\.body\)/);
   assert.match(messageJobs, /researchAcknowledgement\(input\.activityTitle\)/);
   assert.match(messageJobs, /researchRequested \? "workspace_refresh" : "user_message"/);
-  assert.match(route, /job\.kind === "workspace_refresh"[\s\S]*workspaceClarification \|\| \(messageRequestsResearch\(sourceMessage\?\.body\) \? suppliedResponse : ""\)/);
+  assert.match(route, /job\.kind === "workspace_refresh"[\s\S]*clarificationBody \|\| \(messageRequestsResearch\(sourceMessage\?\.body\) \? suppliedResponse : ""\)/);
+  assert.match(route, /structuredClarification/);
   assert.match(bridge, /Only researched findings belong in message; ordinary workspace compilation must return message:null/);
   assert.match(bridge, /sendHeartbeat\(leased\)/);
   assert.match(route, /SET lease_expires_at = datetime\('now', '\+3 minutes'\)/);

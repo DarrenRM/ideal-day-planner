@@ -54,18 +54,20 @@ function modelRoute(leased) {
 }
 
 const resultShape = `Return exactly one JSON object with no markdown or surrounding prose:
-{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
+{"message":string|null,"workspaceFollowup":boolean,"recordActions":RecordAction[],"workspaceActions":WorkspaceAction[],"activityMoves":ActivityMoveAction[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":FollowUpAction[],"followUpQuestion":{"body":string,"options"?:[{"id":"stable-kebab-id","label":string,"detail":string,"response":string}]}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":{"body":string,"kind":"streak|milestone|momentum|effort|comeback|personal_best|completion"}|null}`;
 
 const globalAcknowledgementShape = `Return exactly one JSON object with no markdown or surrounding prose:
 {"message":string|null,"workspaceFollowup":boolean,"requestPlan":{"kind":"conversation|question|durable_work","outcomes":string[]}}`;
 
 const globalCoordinatorShape = `Return exactly one JSON object with no markdown or surrounding prose:
-{"message":string|null,"workspaceFollowup":false,"recordActions":[],"workspaceActions":[],"activityMoves":[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":[],"followUpQuestion":{"body":string}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":null,"handledOutcomes":[{"index":number,"via":"message|activity_work|schedule_change|schedule_proposal|occurrence|capture|clarification"}]}`;
+{"message":string|null,"workspaceFollowup":false,"recordActions":[],"workspaceActions":[],"activityMoves":[],"activityWorkRequests":ActivityWorkRequest[],"captureActions":CaptureAction[],"followUpActions":[],"followUpQuestion":{"body":string,"options"?:[{"id":"stable-kebab-id","label":string,"detail":string,"response":string}]}|null,"scheduleActions":DirectScheduleAction[],"scheduleProposal":ScheduleProposal|null,"occurrenceActions":OccurrenceAction[],"dayHighlight":null,"handledOutcomes":[{"index":number,"via":"message|activity_work|schedule_change|schedule_proposal|occurrence|capture|clarification"}]}`;
 
 const onboardingProposalShape = `Return exactly one JSON object with no markdown or surrounding prose:
 {"onboardingProposal":{"summary":string,"activities":[{"key":string,"title":string,"category":"Light|Recharge|Training|Fuel|Care|Logistics|Creativity|Spirit","durationMinutes":number,"reason":string,"selected":boolean,"immediatelyActionable":boolean,"choiceKey":string|null,"choices":[{"key":string,"title":string,"category":"Light|Recharge|Training|Fuel|Care|Logistics|Creativity|Spirit","durationMinutes":number}]}],"calibration":{"afterDays":number,"note":string}}}`;
 
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
+
+const clarificationInstructions = `Clarification is asynchronous. When one unresolved choice would materially change the durable result, ask exactly one concise question in followUpQuestion and make no conflicting change. If there are two to four clear, mutually exclusive answers, include options so Ideal Day can show the question inline in chat. Each option needs a short human label, a useful one-line consequence, and a natural first-person response that includes enough context for Luna to act when the person taps it. Omit options when a free-form answer is necessary. Never ask when supplied evidence already decides the behavior.`;
 
 const activityActionContract = `RecordAction:
 {"op":"upsert","record":{"key":"stable-kebab-key","subjectKey":"product-or-device-record-key-or-null","type":"catalog-record-type","title":"...","scope":"activity|day|variant","data":{...}}}
@@ -81,6 +83,7 @@ Use this only when the person explicitly asks to relocate an existing product or
 
 const lunaInstructions = `${personaInstructions}
 ${resultShape}
+${clarificationInstructions}
 
 This is durable activity design work. Set activityWorkRequests:[], captureActions:[], scheduleActions:[], scheduleProposal:null, occurrenceActions:[], and dayHighlight:null.
 
@@ -136,6 +139,7 @@ This is the immediate site-wide acknowledgement pass. You receive the person's l
 
 const globalInstructions = `${personaInstructions}
 ${globalCoordinatorShape}
+${clarificationInstructions}
 This is the durable site-wide coordinator pass. Semantically review every latest user message; there is deliberately no keyword gate in front of this pass. Always return workspaceFollowup:false, recordActions:[], workspaceActions:[], activityMoves:[], followUpActions:[], and dayHighlight:null. Use activityWorkRequests to hand durable activity work to one or more exact owned activities. Research and current activity knowledge come before clarification: never ask for a preference or cadence that the supplied official source or existing routine can answer, and never invent an unsupported recommendation. Treat each newly introduced named product or device as research work: delegate it to the exact owning activity with instructions to verify the exact brand/model against an official or primary web source before writing item-owned directions and resources. Use one followUpQuestion only when an essential choice remains ambiguous after reviewing that evidence. A clear user-authored request to change one supplied activity cadence or Essential/More-for-today role applies immediately through one DirectScheduleAction. Giving a current More-for-today activity a firm ongoing cadence is also a commitment decision: promote it to Essential in the same cadence action unless the person explicitly describes it as optional, tentative, a trial, or merely something to be offered or reminded. Do not turn an explicit user instruction into a proposal. ScheduleProposal is reserved for a proactive Luna recommendation that Luna originated, such as a due check-in suggesting an adjustment; it is not a confirmation gate for work the person just directly requested. A clear reversible single occurrence may use occurrenceActions. Never mark an occurrence complete, invent an ID, optimize the routine without being asked, or guess a date, target, anchor, or collision policy. If the message is purely conversational or fully answered by the immediate pass and requires no durable work, return message:null with every action array empty and no proposal or follow-up.
 
 A single message may combine several kinds of work. The supplied request plan is Luna's acknowledgement-time extraction, not an authority over facts, but every numbered outcome must be resolved in this coordinator pass. Satisfy every explicit clause; do not drop activity work because schedule work is also requested, or vice versa. You may emit activityWorkRequests and a direct schedule action together. For each request-plan outcome, return one handledOutcomes entry with its one-based index and the actual result channel used. Never mark an outcome handled without emitting that channel. When moving an existing product or device between activities, delegate to the activity that currently owns the subject and tell its specialist to use move_subject with the exact destination activity; separately apply any explicitly requested destination-role change with a DirectScheduleAction.
@@ -460,10 +464,32 @@ function parseAgentResult(content) {
   const activityWorkRequests = Array.isArray(parsed.activityWorkRequests) ? parsed.activityWorkRequests : [];
   const captureActions = Array.isArray(parsed.captureActions) ? parsed.captureActions : [];
   const followUpActions = Array.isArray(parsed.followUpActions) ? parsed.followUpActions : [];
-  const followUpQuestion = parsed.followUpQuestion && typeof parsed.followUpQuestion === "object"
-    && typeof parsed.followUpQuestion.body === "string" && parsed.followUpQuestion.body.trim()
-    ? { body: parsed.followUpQuestion.body.trim() }
-    : null;
+  let followUpQuestion = null;
+  if (parsed.followUpQuestion && typeof parsed.followUpQuestion === "object" && !Array.isArray(parsed.followUpQuestion)
+    && typeof parsed.followUpQuestion.body === "string" && parsed.followUpQuestion.body.trim()) {
+    const body = parsed.followUpQuestion.body.trim();
+    if (parsed.followUpQuestion.options === undefined) {
+      followUpQuestion = { body };
+    } else {
+      if (!Array.isArray(parsed.followUpQuestion.options) || parsed.followUpQuestion.options.length < 2 || parsed.followUpQuestion.options.length > 4) {
+        throw new Error("Luna returned an invalid clarification option set.");
+      }
+      const ids = new Set();
+      const options = parsed.followUpQuestion.options.map((candidate) => {
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) throw new Error("Luna returned an invalid clarification option.");
+        const id = typeof candidate.id === "string" ? candidate.id.trim() : "";
+        const label = typeof candidate.label === "string" ? candidate.label.trim() : "";
+        const detail = typeof candidate.detail === "string" ? candidate.detail.trim() : "";
+        const response = typeof candidate.response === "string" ? candidate.response.trim() : "";
+        if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id) || ids.has(id) || !label || label.length > 90 || detail.length > 180 || !response || response.length > 800) {
+          throw new Error("Luna returned an invalid clarification option.");
+        }
+        ids.add(id);
+        return { id, label, detail, response };
+      });
+      followUpQuestion = { body, options };
+    }
+  }
   const scheduleActions = Array.isArray(parsed.scheduleActions) ? parsed.scheduleActions : [];
   const scheduleProposal = parsed.scheduleProposal && typeof parsed.scheduleProposal === "object" ? parsed.scheduleProposal : null;
   const occurrenceActions = Array.isArray(parsed.occurrenceActions) ? parsed.occurrenceActions : [];
