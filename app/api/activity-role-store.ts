@@ -14,9 +14,10 @@ export async function persistActivityRole(db: ReturnType<typeof getD1>, input: {
     UPDATE daily_plan_items
     SET plan_role = ?, activated_at = NULL,
         deactivated_at = CASE WHEN ? = 'extra' THEN CURRENT_TIMESTAMP ELSE NULL END,
+        skipped_at = CASE WHEN ? = 'extra' THEN NULL ELSE skipped_at END,
         revision = revision + 1, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).bind(planRole, planRole, occurrence.id)];
+  `).bind(planRole, planRole, planRole, occurrence.id)];
   if (occurrence.schedulePatternStepId) {
     statements.push(
       db.prepare(`UPDATE schedule_pattern_steps SET plan_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(planRole, occurrence.schedulePatternStepId),

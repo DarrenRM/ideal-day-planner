@@ -126,6 +126,8 @@ assert.deepEqual({ ...await findRoleOccurrence(db, {
   schedulePatternStepId: "step-old",
 });
 
+sqlite.prepare("UPDATE daily_plan_items SET skipped_at = CURRENT_TIMESTAMP WHERE id = 'occurrence-current'").run();
+
 await persistActivityRole(db, {
   userId: "owner",
   routineId: "routine-owner",
@@ -134,7 +136,8 @@ await persistActivityRole(db, {
 });
 
 const currentExtra = sqlite.prepare(`
-  SELECT plan_role AS planRole, activated_at AS activatedAt, deactivated_at AS deactivatedAt
+  SELECT plan_role AS planRole, activated_at AS activatedAt, deactivated_at AS deactivatedAt,
+         skipped_at AS skippedAt
   FROM daily_plan_items WHERE id = 'occurrence-current'
 `).get();
 const futureExtra = sqlite.prepare(`
@@ -144,6 +147,7 @@ const futureExtra = sqlite.prepare(`
 assert.equal(currentExtra.planRole, "extra");
 assert.equal(currentExtra.activatedAt, null);
 assert.equal(typeof currentExtra.deactivatedAt, "string");
+assert.equal(currentExtra.skippedAt, null);
 assert.deepEqual({ ...futureExtra }, { planRole: "extra", activatedAt: null, deactivatedAt: null });
 
 sqlite.exec(`

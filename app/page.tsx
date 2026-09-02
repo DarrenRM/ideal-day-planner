@@ -2324,7 +2324,9 @@ export default function Home() {
     setMobileActivityMenuId(null);
     if (planRole === "extra" && selectedActivityId === item.id) collapseActivity();
     captureActivityListPositions();
-    setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, planRole, activatedAt: null } : candidate));
+    setItems((current) => current.map((candidate) => candidate.id === item.id
+      ? { ...candidate, planRole, activatedAt: null, skippedAt: planRole === "extra" ? null : candidate.skippedAt }
+      : candidate));
     setSaveState("saving");
     try {
       const response = await fetch("/api/activities", {
