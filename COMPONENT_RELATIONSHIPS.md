@@ -24,7 +24,7 @@ Activity-wide adherence stays first at activity level. Due activity-wide recurri
 
 Completing an activity stores an immutable `completedSubjectKeys` snapshot in that run. The app includes only product/device subjects whose rhythm is due on that date. This lets later products start cleanly without rewriting what older completion rows meant.
 
-A `daily_selection` is activity-wide and carries no `subjectKey`. Its roster and dated entries are one canonical record; recent-history presentation is derived from those entries and must not be split into a peer `history` record.
+A `daily_selection` is activity-wide and carries no `subjectKey`. With `kind:routine`, it owns the primary interaction; its item `subjectKey` links place product information and optional session details under a closed reference disclosure rather than competing product tabs. Workspace composition removes those owned primary bindings without removing the records. Its roster and dated entries are one canonical record; recent-history presentation is derived from those entries and must not be split into a peer `history` record.
 
 A `meal_log` is activity-wide and carries no `subjectKey`. It owns optional reusable recipes and the dated meal, shake, or food-prep entries that reference them. Recipe links and ingredients remain inside this record rather than becoming adjacent `resources`, `item_list`, or `history` records.
 

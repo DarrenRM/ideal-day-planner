@@ -1,5 +1,6 @@
 "use client";
 
+import { variableRoutineWorkspace } from "./variable-routine-workspace";
 import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "./icons";
 import { useEffect, useRef, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
@@ -498,7 +499,9 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
   const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const siblingRecordTypes = records.map((record) => record.type);
   const visibleRecordKeys = new Set<string>();
-  const visibleComponents = workspace.components.filter((component) => {
+  const routineComposition = variableRoutineWorkspace(workspace, records);
+  const routineProducts = records.filter((record) => record.type === "product" && routineComposition.subjectKeys.has(record.key));
+  const visibleComponents = routineComposition.workspace.components.filter((component) => {
     if (component.type === "timer" || component.type === "countdown") return true;
     if (component.type === "routine") return hasUsefulRoutineComponent(component);
     const record = recordsByKey.get((component as DataWorkspaceComponent).recordKey);
@@ -768,6 +771,16 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               return renderedRecord;
             })}
           </div>
+          {routineProducts.length ? <details className="variable-routine-reference">
+            <summary>Products and details</summary>
+            <div>{routineProducts.map((record) => <div key={record.key}>
+              <ActivityRecordComponent record={record} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna}
+                targetId={activityRecordTargetId(activity.id, record.key)}
+                supportingRecords={records.filter((candidate) => candidate.subjectKey === record.key && ["protocol", "resources"].includes(candidate.type))} />
+              {records.filter((candidate) => candidate.subjectKey === record.key && candidate.type === "session_log").map((session) =>
+                <ActivityRecordComponent key={session.key} record={session} relatedRecords={records} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} targetId={activityRecordTargetId(activity.id, session.key)} />)}
+            </div>)}</div>
+          </details> : null}
           <WorkspaceLunaInvitation onTalkWithLuna={onTalkWithLuna} />
         </>
       ) : null}

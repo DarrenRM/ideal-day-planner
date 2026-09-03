@@ -1,4 +1,5 @@
 import { getD1 } from "../../../../db";
+import { reopenActivityOccurrence } from "../../activity-reopen-store";
 import { parseAdvancement } from "../../../schedule-model";
 import { selectedSessionOptionId, sessionFieldValue, sessionFieldsForOption, type SessionChoiceData, type SessionLogData } from "../../../session-log-model";
 import { recurringStepScheduleStatus, type RecurringCadence } from "../../../recurring-step-schedule";
@@ -188,10 +189,7 @@ export async function POST(request: Request) {
     }
 
     if (mode === "reopen") {
-      await db.batch([
-        db.prepare("UPDATE daily_plan_items SET completed_at = NULL, revision = revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(item.id),
-        db.prepare("UPDATE activity_runs SET status = 'reopened', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?").bind(runId, userId),
-      ]);
+      await reopenActivityOccurrence(db, { userId, occurrenceId: item.id, runId });
       const highlight = refreshHighlight ? await queueDayHighlight(userId, item.dayPlanId).catch((error) => {
         console.error("Could not refresh the day highlight after reopening an activity.", error);
         return null;

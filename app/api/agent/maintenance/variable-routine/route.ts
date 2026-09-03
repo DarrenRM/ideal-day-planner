@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { apiFailure, ensureAgentSchema, isLocalBridgeRequest, migrateFaceCareToVariableRoutine, seedFaceCareRoutineLayoutClarification } from "../../../agent-store";
+import { apiFailure, ensureAgentSchema, isLocalBridgeRequest, migrateFaceCareToVariableRoutine, repairVariableRoutineWorkspace, seedFaceCareRoutineLayoutClarification } from "../../../agent-store";
 
 async function tokensMatch(expected: string, supplied: string) {
   const encoder = new TextEncoder();
@@ -30,10 +30,11 @@ export async function POST(request: Request) {
     const migration = typeof payload.migration === "string" ? payload.migration : "";
     const userId = typeof payload.userId === "string" ? payload.userId.trim().slice(0, 200) : "";
     const activityId = typeof payload.activityId === "string" ? payload.activityId.trim().slice(0, 240) : "";
-    if (!userId || !activityId || !["face-care-variable-routine-v1", "face-care-routine-layout-clarification-v2"].includes(migration)) {
+    if (!userId || !activityId || !["variable-routine-composition-v1", "face-care-variable-routine-v1", "face-care-routine-layout-clarification-v2"].includes(migration)) {
       return Response.json({ error: "The reviewed migration request is incomplete." }, { status: 400 });
     }
     await ensureAgentSchema();
+    if (migration === "variable-routine-composition-v1") return Response.json(await repairVariableRoutineWorkspace({ userId, activityId }));
     return Response.json(migration === "face-care-routine-layout-clarification-v2"
       ? await seedFaceCareRoutineLayoutClarification({ userId, activityId })
       : await migrateFaceCareToVariableRoutine({ userId, activityId }));

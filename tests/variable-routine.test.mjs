@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import { validateRecordActions } from "../app/activity-record-model.ts";
+
+test("a variable routine replaces stale product tabs while keeping cadence, repeat controls and product references", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./fixtures/variable-routine-render.mjs", import.meta.url))], { encoding: "utf8" });
+  assert.equal(result.status, 0, (result.stderr || result.stdout).slice(-6000));
+});
 
 test("validates a variable routine with product ownership, cadence, and repeat counts", () => {
   const [action] = validateRecordActions([{ op: "upsert", record: {

@@ -1254,8 +1254,8 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
           {!isComplete ? <button className={`skip-activity-button ${isSkipped ? "is-skipped" : ""}`} disabled={isSkipping} type="button" onClick={() => void toggleActivitySkip()}>
             <SkipForward aria-hidden="true" size={15} /> {isSkipping ? "Saving…" : isSkipped ? "Skipped Today" : "Skip for Today"}
           </button> : null}
-          <button aria-label={isComplete ? `${item.title} completed` : `Mark ${item.title} complete`} className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting || isComplete} type="button" onClick={() => void toggleActivityComplete()}>
-            <Check aria-hidden="true" size={16} weight="bold" /> {isCompleting ? "Saving…" : isComplete ? "Completed" : "Mark Complete"}
+          <button aria-label={`Mark ${item.title} ${isComplete ? "incomplete" : "complete"}`} aria-pressed={isComplete} className={`complete-activity-button ${isComplete ? "is-complete" : ""}`} disabled={isCompleting} type="button" onClick={() => void toggleActivityComplete()}>
+            <Check aria-hidden="true" size={16} weight="bold" /> {isCompleting ? "Saving…" : isComplete ? "Mark incomplete" : "Mark Complete"}
           </button>
         </div>
       </footer>
@@ -1290,6 +1290,8 @@ function completionTimeLabel(value: string | null | undefined) {
 }
 
 function DayHighlights({
+  onReopen,
+  pendingActivityIds,
   completedItems,
   totalSelectedActivities,
   highlight,
@@ -1301,6 +1303,8 @@ function DayHighlights({
   highlight: DayHighlight;
   celebratingActivityId: string | null;
   onOpenActivity: (item: ScheduledItem, bounds: DOMRect) => void;
+  onReopen: (item: ScheduledItem) => void;
+  pendingActivityIds: Set<string>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const completedActivities = completedItems.length;
@@ -1338,11 +1342,10 @@ function DayHighlights({
       {isOpen ? <div className="day-highlights-history" aria-label="Completed activities">
         {history.map((item) => {
           const ActivityIcon = activityIconFor(item);
-          return <button key={item.id} type="button" onClick={(event) => onOpenActivity(item, event.currentTarget.getBoundingClientRect())}>
+          return <div className="day-highlight-history-row" key={item.id}><button className="day-highlight-history-open" type="button" onClick={(event) => onOpenActivity(item, event.currentTarget.getBoundingClientRect())}>
             <span className="day-highlight-history-icon" style={{ "--highlight-color": CATEGORY_META[item.category].color } as CSSProperties}><ActivityIcon aria-hidden="true" size={17} /></span>
             <span><strong>{activityDisplayTitle(item)}</strong><small>{completionTimeLabel(item.completedAt)} · {item.duration} minutes</small></span>
-            <Check aria-hidden="true" size={17} />
-          </button>;
+          </button><button className="day-highlight-history-reopen" aria-label={`Mark ${activityDisplayTitle(item)} incomplete`} disabled={pendingActivityIds.has(item.id)} type="button" onClick={() => onReopen(item)}><Check aria-hidden="true" size={17} /></button></div>;
         })}
       </div> : null}
     </section>
@@ -3625,6 +3628,8 @@ export default function Home() {
             /> : <div className="schedule" aria-label="Idealized day schedule">
               {hasLoaded ? <>
               {settledCompletedItems.length ? <DayHighlights
+                onReopen={(item) => void updateActivityStatus(item, "reopen")}
+                pendingActivityIds={pendingActivityIds}
                 celebratingActivityId={celebratingActivityId}
                 completedItems={settledCompletedItems}
                 highlight={dayHighlight}
@@ -3738,12 +3743,12 @@ export default function Home() {
                               {isExpanded ? <button className="collapse-activity-button" tabIndex={isEditing ? -1 : undefined} type="button" aria-label={`Collapse ${item.title}`} onClick={collapseActivity}><ChevronUp className="desktop-collapse-icon" aria-hidden="true" size={16} /></button> : null}
                               <span className="front-duration-label"><span className="front-duration-value">{item.duration}</span><span className="front-duration-unit">minutes</span></span>
                               <button aria-label={`Edit ${item.title}`} className="activity-edit-trigger" tabIndex={isEditing ? -1 : undefined} type="button" onClick={() => startEditing(item)}><Pencil aria-hidden="true" size={15} /></button>
-                              <ControlTooltip id={`complete-tooltip-${item.id}`} label={isComplete ? `${item.title} is complete` : `Mark ${item.title} complete`}>
+                              <ControlTooltip id={`complete-tooltip-${item.id}`} label={`Mark ${item.title} ${isComplete ? "incomplete" : "complete"}`}>
                                 <button
                                   aria-describedby={`complete-tooltip-${item.id}`}
-                                  aria-label={isComplete ? `${item.title} completed` : `Mark ${item.title} complete`}
+                                  aria-label={`Mark ${item.title} ${isComplete ? "incomplete" : "complete"}`} aria-pressed={isComplete}
                                   className={`closed-status-button complete-status-button ${isComplete ? "is-active" : ""}`}
-                                  disabled={isPending || isComplete}
+                                  disabled={isPending}
                                   tabIndex={isEditing ? -1 : undefined}
                                   type="button"
                                   onClick={() => {

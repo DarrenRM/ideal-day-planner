@@ -762,13 +762,13 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .day-highlights-chevron { color: #77827d; transition: transform .22s ease, color .18s ease; }
 .day-highlights.is-open .day-highlights-chevron { color: var(--accent); transform: rotate(180deg); }
 .day-highlights-history { border-top: 1px solid rgba(181, 215, 125, .13); display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px var(--day-card-inline-padding); position: relative; z-index: 1; }
-.day-highlights-history > button { align-items: center; background: rgba(10, 14, 16, .64); border: 1px solid #283033; border-radius: 10px; color: var(--text); cursor: pointer; display: grid; gap: 10px; grid-template-columns: 34px minmax(0, 1fr) auto; min-height: 56px; padding: 8px 10px; text-align: left; }
-.day-highlights-history > button:hover { background: rgba(181, 215, 125, .05); border-color: rgba(181, 215, 125, .28); }
-.day-highlights-history > button:focus-visible { border-color: var(--accent); outline: 2px solid rgba(181, 215, 125, .22); outline-offset: 1px; }
-.day-highlights-history > button > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.day-highlight-history-row { align-items: center; background: rgba(10, 14, 16, .64); border: 1px solid #283033; border-radius: 10px; color: var(--text); cursor: pointer; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) 40px; min-height: 56px; padding: 8px 10px; text-align: left; }
+.day-highlight-history-row:hover { background: rgba(181, 215, 125, .05); border-color: rgba(181, 215, 125, .28); }
+.day-highlight-history-row:focus-within { border-color: var(--accent); outline: 2px solid rgba(181, 215, 125, .22); outline-offset: 1px; }
+.day-highlight-history-open > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
 .day-highlights-history strong { font-size: var(--type-body-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .day-highlights-history small { color: var(--muted); font-size: var(--type-micro); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.day-highlights-history > button > svg { color: var(--accent); }
+.day-highlight-history-reopen > svg { color: var(--accent); }
 .day-highlight-history-icon { align-items: center; background: color-mix(in srgb, var(--highlight-color) 14%, #121719); border: 1px solid color-mix(in srgb, var(--highlight-color) 28%, #293033); border-radius: 8px; color: var(--highlight-color); display: inline-flex; height: 34px; justify-content: center; width: 34px; }
 @keyframes day-highlight-count-settle { 0% { transform: scale(.9); } 45% { transform: scale(1.08); } 100% { transform: scale(1); } }
 @keyframes day-highlight-icon-land { 0% { opacity: 0; transform: translateY(12px) scale(.62) rotate(-7deg); } 55% { opacity: 1; transform: translateY(-2px) scale(1.12) rotate(2deg); } 100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); } }
@@ -2421,3 +2421,11 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .restore-status-done { color: var(--accent); }
 .restore-status-error { color: #e58b83; }
 .restore-card a { color: var(--accent); display: inline-block; margin-top: 4px; }
+
+.variable-routine-reference { border: 1px solid var(--border); border-radius: 10px; margin-top: 12px; padding: 12px; min-width: 0; }
+.variable-routine-reference > summary { color: var(--muted); cursor: pointer; font-size: var(--type-body); min-height: 32px; }
+.variable-routine-reference > div { display: grid; gap: 12px; padding-top: 12px; }
+
+.day-highlight-history-open { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 34px minmax(0, 1fr); min-height: 40px; min-width: 0; padding: 0; text-align: left; }
+.day-highlight-history-reopen { align-items: center; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; display: inline-flex; height: 40px; justify-content: center; width: 40px; }
+.day-highlight-history-reopen:disabled { cursor: wait; opacity: .55; }

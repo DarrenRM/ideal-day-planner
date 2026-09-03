@@ -764,7 +764,7 @@ test("keeps Luna, setup blueprints, runs, and workspace writes behind durable ty
   assert.match(runRoute, /allotted_duration_seconds/);
   assert.match(runRoute, /planned_duration_seconds/);
   assert.match(runRoute, /dayTimelineEnabled \? dayItem\.duration \* 60 : null/);
-  assert.match(runRoute, /UPDATE daily_plan_items SET completed_at/);
+  assert.match(runRoute, /await reopenActivityOccurrence\(db, \{ userId, occurrenceId: item.id, runId \}\)/);
   assert.match(runRoute, /mode === "skip" \|\| mode === "unskip"/);
   assert.match(runRoute, /skipped_at/);
   assert.match(dayRoute, /mode === "start-day"/);

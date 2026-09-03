@@ -1,3 +1,4 @@
+import { variableRoutineWorkspace } from "../variable-routine-workspace";
 import { readStoredConversationMessages } from "./conversation-message-store";
 import { getD1 } from "../../db";
 import { hasMeaningfulProductNotes, parseActivityRecord, validateRecordActions, type ActivityRecord as PersistedActivityRecord, type RecordAction } from "../activity-record-model";
@@ -911,7 +912,9 @@ export async function persistWorkspaceActions(input: {
   }
 
   const current = await readWorkspaceLayer(input.activityId, input.activityVariantId ?? null);
-  const nextDocument = mergeWorkspaceActions(current.document, input.actions);
+  const layerRecords = (await readActivityRecords(input.activityId, null, input.activityVariantId))
+    .filter((record) => input.activityVariantId ? record.scope === "variant" : record.scope === "activity");
+  const nextDocument = variableRoutineWorkspace(mergeWorkspaceActions(current.document, input.actions), layerRecords).workspace;
   const revisionNumber = current.revisionNumber + 1;
   await db.batch([
     db.prepare(`
@@ -930,6 +933,28 @@ export async function persistWorkspaceActions(input: {
     `).bind(revisionId, workspaceId),
   ]);
   return { revisionId, revisionNumber, document: nextDocument };
+}
+
+export async function repairVariableRoutineWorkspace(input: { userId: string; activityId: string }) {
+  const activity = await getD1().prepare("SELECT id FROM activities WHERE id = ? AND user_id = ?")
+    .bind(input.activityId, input.userId).first<{ id: string }>();
+  if (!activity) throw new Error("Activity not found.");
+  const records = await readActivityRecords(activity.id);
+  if (!records.some((record) => record.type === "daily_selection" && record.data.kind === "routine")) {
+    throw new Error("This activity has no saved variable routine to compose.");
+  }
+  const current = await readActivityWorkspace(activity.id);
+  const next = variableRoutineWorkspace(current.document, records).workspace;
+  if (JSON.stringify(next) === JSON.stringify(current.document)) return { applied: false, components: next.components };
+  const result = await persistWorkspaceActions({
+    ...input,
+    agentJobId: `routine-composition-v1:${safeId(input.activityId)}:${safeId(current.revisionId ?? "initial")}`,
+    actions: [
+      ...current.document.components.map((component) => ({ op: "remove" as const, componentId: component.id })),
+      ...next.components.map((component) => ({ op: "upsert" as const, component })),
+    ],
+  });
+  return { applied: true, components: result.document.components };
 }
 
 type ActivityRecordRow = {
