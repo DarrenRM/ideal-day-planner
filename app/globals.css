@@ -2426,6 +2426,56 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .variable-routine-reference > summary { color: var(--muted); cursor: pointer; font-size: var(--type-body); min-height: 32px; }
 .variable-routine-reference > div { display: grid; gap: 12px; padding-top: 12px; }
 
+/* Variable routines use the approved daily-use view, independently of the
+   supplement chips. Keep the surface and row geometry identical at all sizes. */
+.workspace-block.variable-routine-record { container: variable-routine / inline-size; display: block; padding: 0; overflow: hidden; border-radius: 12px; }
+.routine-today-heading { padding: 20px; }
+.routine-today-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.routine-today-top .workspace-overline { color: var(--accent); }
+.routine-today-heading h3 { color: var(--text); font-size: var(--type-title); font-weight: 550; line-height: 1.4; margin: 12px 0 8px; overflow-wrap: anywhere; }
+.routine-today-heading p { color: var(--muted); font-size: var(--type-body); line-height: 1.5; margin: 0; }
+.routine-progress { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 999px; color: var(--accent); flex-shrink: 0; font-size: var(--type-label); font-weight: 700; padding: 10px 12px; }
+.routine-group-heading { align-items: center; border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border); display: flex; gap: 12px; justify-content: space-between; padding: 16px 20px; }
+.routine-group-heading > div { display: grid; gap: 6px; min-width: 0; }
+.routine-group-heading strong { color: var(--text); font-size: var(--type-body); }
+.routine-group-heading small { color: var(--muted); font-size: var(--type-body-sm); line-height: 1.4; }
+.routine-choice-row { align-items: center; background: transparent; border: 0; border-bottom: 1px solid var(--border); color: var(--text); display: grid; gap: 12px; grid-template-columns: 28px minmax(0, 1fr) auto; min-height: 84px; padding: 16px 20px; text-align: left; width: 100%; }
+button.routine-choice-row { cursor: pointer; font: inherit; }
+.routine-choice-row:last-child { border-bottom: 0; }
+.routine-choice-row.is-selected { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+button.routine-choice-row:hover { background: color-mix(in srgb, var(--accent) 11%, transparent); }
+.routine-choice-check { align-items: center; border: 1px solid #465153; border-radius: 7px; display: flex; height: 28px; justify-content: center; width: 28px; }
+.is-selected .routine-choice-check { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.routine-choice-copy { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.routine-choice-copy strong { font-size: var(--type-body-lg); font-weight: 650; line-height: 1.4; }
+.routine-choice-copy small { color: var(--muted); font-size: var(--type-body-sm); line-height: 1.4; }
+.routine-choice-cadence { color: var(--accent); font-size: var(--type-label); line-height: 1.4; max-width: 100px; text-align: right; }
+.routine-choice-cadence small { color: var(--muted); display: block; font-size: inherit; margin-top: 4px; }
+.routine-repeat-mark { background: var(--item-color, var(--accent)); border-radius: 50%; height: 12px; width: 12px; justify-self: center; }
+.routine-repeat-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
+.routine-stepper { display: flex; gap: 8px; align-items: center; }
+.routine-stepper button { align-items: center; background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text); cursor: pointer; display: flex; height: 40px; justify-content: center; width: 40px; }
+.routine-stepper button:hover { border-color: var(--accent); }
+.routine-stepper button:disabled { cursor: default; opacity: .4; }
+.routine-stepper output { color: var(--text); font-size: var(--type-body-lg); font-weight: 650; min-width: 18px; text-align: center; }
+.routine-adjust { align-items: center; background: transparent; border: 1px solid var(--border-strong); border-radius: 12px; color: var(--text); cursor: pointer; display: grid; gap: 12px; grid-template-columns: 20px minmax(0, 1fr) 16px; margin-top: 12px; padding: 20px; text-align: left; width: 100%; }
+.routine-adjust > svg:first-child { color: var(--accent); }
+.routine-adjust > span { display: grid; gap: 8px; }
+.routine-adjust strong { font-size: var(--type-body); }
+.routine-adjust small { color: var(--muted); font-size: var(--type-body-sm); line-height: 1.4; }
+.routine-adjust:hover { border-color: var(--accent); }
+.routine-choice-row:focus-visible, .routine-stepper button:focus-visible, .routine-adjust:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.variable-routine-record > .daily-selection-copy-row, .variable-routine-record > .daily-selection-history, .variable-routine-record > .daily-selection-undo { margin: 0 20px; }
+@container variable-routine (max-width: 440px) {
+  .routine-repeat-row .routine-repeat-actions { grid-column: 2 / -1; justify-content: space-between; }
+}
+@media (max-width: 600px) {
+  .routine-today-heading, .routine-group-heading, .routine-choice-row, .routine-adjust { padding: 16px; }
+  .routine-choice-row { gap: 12px; }
+  .routine-repeat-row .routine-repeat-actions { grid-column: 2 / -1; justify-content: space-between; }
+  .routine-stepper button { height: 44px; width: 44px; }
+}
+
 .day-highlight-history-open { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 34px minmax(0, 1fr); min-height: 40px; min-width: 0; padding: 0; text-align: left; }
 .day-highlight-history-reopen { align-items: center; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; display: inline-flex; height: 40px; justify-content: center; width: 40px; }
 .day-highlight-history-reopen:disabled { cursor: wait; opacity: .55; }

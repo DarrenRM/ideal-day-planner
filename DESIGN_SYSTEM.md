@@ -224,3 +224,4 @@ Before finishing a UI change:
 6. Run `npm run lint` and `npm test` before committing.
 
 - A variable routine presents its daily choices before product information. Roster-owned products, sources, and optional session details live under a closed `Products and details` disclosure, never in competing action tabs. Linked cadence stays within the roster.
+- The variable routine uses a dedicated Today surface, not supplement chips: total recorded uses, Due today with a completion count when scheduled steps are due, and Other choices. Rows have square green checks, readable names and supporting copy; repeatable items keep minus/count/plus together. No saved cadence means optional choices, never invented due steps. `Adjust how this activity works` opens the existing activity conversation without sending a generated message. The chat clarification chooses this layout; it is not the daily-use interface itself.

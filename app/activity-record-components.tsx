@@ -169,6 +169,7 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
     const status = recurringStepScheduleStatus(cadenceData, today);
     return {
       due: Boolean(status.dueDate || status.completedToday),
+      description: recurringCadenceDescription(cadenceData.cadence),
       label: status.completedToday ? "Done today"
         : status.dueState === "overdue" ? "Overdue"
           : status.dueToday ? "Due today"
@@ -178,6 +179,7 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
   }
   const dueItems = isRoutine ? activeItems.filter((item) => cadenceState(item)?.due) : [];
   const otherItems = isRoutine ? activeItems.filter((item) => !cadenceState(item)?.due) : activeItems;
+  const totalUses = activeItems.reduce((sum, item) => sum + (selectedIds.includes(item.id) ? selectedCounts[item.id] ?? 1 : 0), 0);
 
   useEffect(() => {
     if (!undo || undo.version !== record.version) return;
@@ -270,6 +272,30 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
   }
 
   function renderItems(items: DailySelectionItem[]) {
+    if (isRoutine) return <div className="routine-choice-rows">{items.map((item) => {
+      const selected = selectedIds.includes(item.id);
+      const count = selected ? selectedCounts[item.id] ?? 1 : 0;
+      const cadence = cadenceState(item);
+      const product = relatedRecords.find((candidate) => candidate.type === "product" && candidate.key === item.subjectKey)?.data as { name?: string; manufacturer?: string } | undefined;
+      // Shorten a verbose generated product label, but preserve distinct user
+      // labels (for example two modes of the same device).
+      const name = product?.name && item.label.toLowerCase().includes(product.name.toLowerCase()) ? product.name : item.label;
+      const detail = [product?.manufacturer, item.detail].filter(Boolean).join(" · ");
+      const unit = (item.unitLabel || "session").replace(/s$/i, "");
+      const copy = <span className="routine-choice-copy"><strong>{name}</strong>{detail ? <small>{detail}</small> : null}{item.allowMultiple ? <small>{count} {unit}{count === 1 ? "" : "s"}</small> : null}</span>;
+      const rhythm = <span className="routine-choice-cadence">{cadence ? cadence.description : "Optional"}{cadence && !cadence.due ? <small>{cadence.label}</small> : null}</span>;
+      if (item.allowMultiple) return <div className={`routine-choice-row routine-repeat-row ${selected ? "is-selected" : ""}`} key={item.id}>
+        <span aria-hidden="true" className="routine-repeat-mark" />{copy}
+        <div className="routine-repeat-actions">{rhythm}<div className="routine-stepper" role="group" aria-label={`${name} uses today`}>
+          <button aria-label={`Remove one ${item.label} ${unit}`} disabled={saving || count === 0} onClick={() => void setCount(item, count - 1)} type="button"><Minus size={16} /></button>
+          <output aria-live="polite">{count}</output>
+          <button aria-label={`Add one ${item.label} ${unit}`} disabled={saving || count >= 9} onClick={() => void setCount(item, count + 1)} type="button"><Plus size={16} /></button>
+        </div></div>
+      </div>;
+      return <button aria-pressed={selected} className={`routine-choice-row ${selected ? "is-selected" : ""}`} key={item.id} type="button" onClick={() => toggle(item)}>
+        <span className="routine-choice-check" aria-hidden="true">{selected ? <Check size={16} weight="bold" /> : null}</span>{copy}{rhythm}
+      </button>;
+    })}</div>;
     return <div aria-label={`${record.title} for today`} className={`daily-selection-items ${isRoutine ? "is-variable-routine" : ""}`}>
       {items.map((item) => {
         const selected = selectedIds.includes(item.id);
@@ -292,11 +318,11 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
   }
 
   return <section className={`workspace-block daily-selection-record ${isRoutine ? "variable-routine-record" : ""}`}>
-    <Heading eyebrow="Today" title={isRoutine ? data.prompt || "What fits today?" : record.title} />
-    {isRoutine && dueItems.length ? <><div className="daily-selection-group-heading"><strong>Due today</strong><small>Items with their own cadence</small></div>{renderItems(dueItems)}</> : null}
-    {isRoutine && dueItems.length && otherItems.length ? <div className="daily-selection-group-heading"><strong>Other choices</strong><small>Available without being required</small></div> : null}
+    {isRoutine ? <header className="routine-today-heading"><div className="routine-today-top"><span className="workspace-overline">Today</span><span className="routine-progress" aria-live="polite">{totalUses} {totalUses === 1 ? "use" : "uses"}</span></div><h3>{data.prompt || "What fits today?"}</h3><p>{activeItems.some((item) => cadenceState(item)) ? "Cadence decides what is due. You can still choose anything else." : "Choose what fits today. Each choice is optional."}</p></header> : <Heading eyebrow="Today" title={record.title} />}
+    {isRoutine && dueItems.length ? <><div className="routine-group-heading"><div><strong>Due today</strong><small>Independent recurring steps</small></div><span className="routine-progress" aria-live="polite">{dueItems.filter((item) => selectedIds.includes(item.id)).length} of {dueItems.length} done</span></div>{renderItems(dueItems)}</> : null}
+    {isRoutine && otherItems.length ? <div className="routine-group-heading"><div><strong>Other choices</strong><small>Available without being required</small></div></div> : null}
     {renderItems(otherItems)}
-    {!adding ? <button className="daily-selection-add" disabled={saving} type="button" onClick={() => setAdding(true)}><Plus size={13} /> {isRoutine ? "Add a choice" : "Add supplement"}</button> : null}
+    {!isRoutine && !adding ? <button className="daily-selection-add" disabled={saving} type="button" onClick={() => setAdding(true)}><Plus size={13} /> Add supplement</button> : null}
     {adding ? <form className="daily-selection-form" onSubmit={add}><input aria-label={isRoutine ? "Choice name" : "Supplement name"} disabled={saving} placeholder={isRoutine ? "Choice name…" : "Supplement name…"} value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit">Add</button><button disabled={saving} type="button" onClick={() => { setAdding(false); setLabel(""); }}>Cancel</button></form> : null}
     {yesterdaySelection.length > 0 && (!sameIds(selectedIds, yesterdaySelection) || !sameCounts(selectedCounts, yesterdayCounts)) ? <div className="daily-selection-copy-row"><button disabled={saving} type="button" onClick={() => void copyYesterday()}><RotateCcw size={13} /> Same as yesterday</button></div> : null}
     {undo ? <div className="daily-selection-undo" role="status"><span>Yesterday’s selection copied.</span><button type="button" onClick={() => void undoCopy()}>Undo</button></div> : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import { variableRoutineWorkspace } from "./variable-routine-workspace";
-import { CalendarClock, Check, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2 } from "./icons";
+import { CalendarClock, Check, ChevronRight, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2, Wrench } from "./icons";
 import { useEffect, useRef, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, productRoutineAction, type ActivityRecord } from "./activity-record-model";
@@ -781,7 +781,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                 <ActivityRecordComponent key={session.key} record={session} relatedRecords={records} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} targetId={activityRecordTargetId(activity.id, session.key)} />)}
             </div>)}</div>
           </details> : null}
-          <WorkspaceLunaInvitation onTalkWithLuna={onTalkWithLuna} />
+          {visibleComponents.some((component) => component.type === "daily_selection" && (recordsByKey.get(component.recordKey)?.data as { kind?: string } | undefined)?.kind === "routine") ? <button className="routine-adjust" onClick={onTalkWithLuna} type="button"><Wrench aria-hidden="true" size={18} /><span><strong>Adjust how this activity works</strong><small>Change the daily choices or separate a treatment with Luna</small></span><ChevronRight aria-hidden="true" size={16} /></button> : <WorkspaceLunaInvitation onTalkWithLuna={onTalkWithLuna} />}
         </>
       ) : null}
       {showEmptyState && !hasVisibleWorkspace && !workState && !recordError ? <WorkspaceEmptyGuidance /> : null}

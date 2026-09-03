@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BookOpen, Boxes, CalendarCheck2, CalendarDays, Check, ChevronRight, Clock3, Columns2, Database, Droplet, Layers3, Minus, Monitor, Plus, RotateCcw, Search, Smartphone, Sparkles, WandSparkles, Wrench } from "../icons";
+import { ArrowRightLeft, BookOpen, Boxes, CalendarCheck2, CalendarDays, Check, ChevronRight, Clock3, Columns2, Database, Droplet, Layers3, Monitor, RotateCcw, Search, Smartphone, Sparkles, WandSparkles, Wrench } from "../icons";
 import { createElement, useMemo, useState, type CSSProperties } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "../activity-record-components";
 import type { ActivityRecord } from "../activity-record-model";
@@ -319,30 +319,23 @@ function ActivitySetupLab() {
     setNotice(nextMode === "choose" ? "Variable daily routine preview" : nextMode === "sequence" ? "Fixed sequence preview" : "Separate activity preview");
   }
 
-  function toggleItem(itemId: string) {
-    setSelected((current) => current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId]);
-    setNotice("Today’s mock selection updated");
-  }
-
-  function changeMaskCount(color: "red" | "blue", amount: number) {
-    setMaskCounts((current) => ({ ...current, [color]: Math.max(0, Math.min(3, current[color] + amount)) }));
-    setNotice("Repeatable treatment count updated");
-  }
-
-  const selectedCount = selected.length + maskCounts.red + maskCounts.blue;
-  const dueComplete = (selected.includes("retinol") ? 1 : 0) + (maskCounts.red > 0 ? 1 : 0);
   const chosenOption = SETUP_OPTIONS.find((option) => option.id === mode)!;
-
-  function itemRows(group: "due" | "other") {
-    return <div className={styles.variableRows}>{FACE_CARE_ITEMS.filter((item) => item.group === group).map((item) => {
-      const checked = selected.includes(item.id);
-      return <button aria-pressed={checked} key={item.id} onClick={() => toggleItem(item.id)} type="button"><span className={styles.mockCheck}>{checked ? <Check size={12} weight="bold" /> : null}</span><span><b>{item.label}</b><small>{item.detail}</small></span>{item.cadence ? <em>{item.cadence}</em> : null}</button>;
-    })}</div>;
-  }
-
-  function maskCounter(color: "red" | "blue", cadence: string) {
-    return <div className={styles.scheduledCounter}><span className={styles.maskDot} data-color={color} /><div><b>{color === "red" ? "Red-light mask" : "Blue-light mask"}</b><small>{maskCounts[color] === 0 ? "Not used today" : `${maskCounts[color]} ${maskCounts[color] === 1 ? "session" : "sessions"}`}</small></div><em>{cadence}</em><div><button aria-label={`Remove one ${color} light session`} disabled={maskCounts[color] === 0} onClick={() => changeMaskCount(color, -1)} type="button"><Minus size={13} /></button><strong>{maskCounts[color]}</strong><button aria-label={`Add one ${color} light session`} onClick={() => changeMaskCount(color, 1)} type="button"><Plus size={13} /></button></div></div>;
-  }
+  const today = new Date().toLocaleDateString("en-CA");
+  const mockRecord = (key: string, type: ActivityRecord["type"], data: Record<string, unknown>): ActivityRecord => ({ id: key, key, type, data, title: "Face Care", subjectKey: null, scope: "activity", scopeDate: null, version: 1, updatedAt: today });
+  const routineRecord = mockRecord("preview-choices", "daily_selection", {
+    kind: "routine", prompt: "What fits your skin today?",
+    items: [...FACE_CARE_ITEMS.map((item) => ({ ...item, cadenceRecordKey: item.id === "retinol" ? "preview-retinol" : undefined })),
+      { id: "red", label: "Red-light mask", allowMultiple: true, unitLabel: "session", cadenceRecordKey: "preview-mask" },
+      { id: "blue", label: "Blue-light mask", allowMultiple: true, unitLabel: "session" }],
+    entries: [{ id: "preview-today", date: today, itemIds: [...selected, ...(["red", "blue"] as const).filter((color) => maskCounts[color] > 0)], counts: maskCounts }],
+  });
+  const cadenceRecords = [mockRecord("preview-retinol", "recurring_step", { cadence: { kind: "interval_days", every: 4 }, anchorDate: today }), mockRecord("preview-mask", "recurring_step", { cadence: { kind: "interval_days", every: 2 }, anchorDate: today })];
+  const mutatePreview: RecordMutation = async (_key, operation, payload) => {
+    if (operation === "set_daily_selection") setSelected((payload.itemIds as string[]).filter((id) => id !== "red" && id !== "blue"));
+    else if (operation === "set_daily_selection_count") setMaskCounts((current) => ({ ...current, [payload.itemId as string]: Number(payload.count) }));
+    setNotice("Preview updated · no activity data changed");
+    return true;
+  };
 
   return <div className={styles.setupLab}>
     <section className={styles.setupIntro}>
@@ -365,15 +358,7 @@ function ActivitySetupLab() {
       <section className={styles.setupStage}>
         <div className={styles.phonePreview}>
           <header className={styles.mockActivityHeader}><div className={styles.mockActivityIcon}><Droplet size={18} /></div><div><h2>Face Care</h2><p>15 minutes</p></div><span>CARE</span></header>
-          {mode === "choose" ? <div className={styles.variableRoutineCard}>
-            <div className={styles.mockCardHeading}><div><span className={styles.eyebrow}>Today</span><h3>What fits your skin today?</h3><p>Cadence decides what is due. You can still choose anything else.</p></div><strong>{selectedCount} uses</strong></div>
-            <div className={styles.routineGroupHeading}><div><span>Due today</span><small>Independent recurring steps</small></div><strong>{dueComplete} of 2 done</strong></div>
-            {itemRows("due")}
-            <div className={styles.counterGroup}>{maskCounter("red", "Every other day")}</div>
-            <div className={styles.routineGroupHeading}><div><span>Other choices</span><small>Available without being required</small></div></div>
-            {itemRows("other")}
-            <div className={styles.counterGroup}>{maskCounter("blue", "Optional")}</div>
-          </div> : mode === "sequence" ? <div className={styles.variableRoutineCard}>
+          {mode === "choose" ? <div className={styles.productionRoutinePreview}><ActivityRecordComponent record={routineRecord} relatedRecords={cadenceRecords} onMutate={mutatePreview} /></div> : mode === "sequence" ? <div className={styles.variableRoutineCard}>
             <div className={styles.mockCardHeading}><div><span className={styles.eyebrow}>Protocol</span><h3>Evening face care</h3><p>Work through the same ordered sequence.</p></div></div>
             <ol className={styles.sequenceRows}>{FACE_CARE_ITEMS.map((item, index) => <li key={item.id}><span>{index + 1}</span><div><b>{item.label}</b><small>{item.detail}</small></div></li>)}</ol>
           </div> : <div className={styles.separatePreview}>
