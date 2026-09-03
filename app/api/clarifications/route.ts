@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { activityMessageJobStatements } from "../activity-message-jobs";
+import { saveClarificationAnswer } from "../clarification-answer-store";
 import { apiFailure, ensureAgentSchema, requestIdentity, safeId } from "../agent-store";
 import { parseStoredClarificationOptions } from "../../conversation-clarification-model";
 
@@ -29,12 +29,14 @@ export async function POST(request: Request) {
     const clarification = await db.prepare(`
       SELECT clarification.id, clarification.conversation_id AS conversationId,
              clarification.activity_id AS activityId, clarification.activity_variant_id AS activityVariantId,
-             conversation.scope_type AS scopeType, activity.title AS activityTitle,
+             COALESCE(source_job.scope_type, CASE WHEN clarification.activity_id IS NULL THEN 'global' ELSE 'activity' END) AS scopeType,
+             activity.title AS activityTitle,
              clarification.options_json AS optionsJson, clarification.status,
              clarification.selected_option_id AS selectedOptionId
       FROM conversation_clarifications clarification
       JOIN conversations conversation ON conversation.id = clarification.conversation_id
-      LEFT JOIN activities activity ON activity.id = clarification.activity_id
+      LEFT JOIN activities activity ON activity.id = clarification.activity_id AND activity.user_id = clarification.user_id
+      LEFT JOIN agent_jobs source_job ON source_job.id = clarification.source_agent_job_id AND source_job.user_id = clarification.user_id
       WHERE clarification.id = ? AND clarification.user_id = ?
       LIMIT 1
     `).bind(clarificationId, userId).first<ClarificationRow>();
@@ -48,49 +50,22 @@ export async function POST(request: Request) {
     if (!option) return Response.json({ error: "That answer is not available." }, { status: 400 });
     const stable = safeId(clarification.id);
     const messageId = `message:${safeId(userId)}:clarification:${stable}`;
-    const statements = [
-      db.prepare(`
-        INSERT OR IGNORE INTO conversation_messages (id, conversation_id, role, body, source)
-        VALUES (?, ?, 'user', ?, 'clarification')
-      `).bind(messageId, clarification.conversationId, option.response),
-      db.prepare(`
-        UPDATE conversation_clarifications
-        SET status = 'answered', selected_option_id = ?, response_message_id = ?,
-            answered_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ? AND user_id = ? AND status = 'pending'
-      `).bind(option.id, messageId, clarification.id, userId),
-    ];
-
-    if (clarification.scopeType === "global") {
-      statements.push(db.prepare(`
-        INSERT OR IGNORE INTO agent_jobs
-          (id, user_id, scope_type, activity_id, activity_variant_id, conversation_id, kind, idempotency_key, source_message_id)
-        VALUES (?, ?, 'global', ?, ?, ?, 'global_message', ?, ?)
-      `).bind(
-        `agent-job:${safeId(userId)}:global-clarification:${stable}`,
-        userId,
-        clarification.activityId,
-        clarification.activityVariantId,
-        clarification.conversationId,
-        `global-clarification:${clarification.id}`,
-        messageId,
-      ));
-    } else {
-      if (!clarification.activityId || !clarification.activityTitle) {
-        return Response.json({ error: "The activity for that question is no longer available." }, { status: 409 });
-      }
-      statements.push(...activityMessageJobStatements({
-        userId,
-        activityId: clarification.activityId,
-        activityVariantId: clarification.activityVariantId,
-        conversationId: clarification.conversationId,
-        sourceMessageId: messageId,
-        clientMessageId: `clarification-${stable}`,
-        body: option.response,
-        activityTitle: clarification.activityTitle,
-      }));
+    if (clarification.scopeType === "activity" && (!clarification.activityId || !clarification.activityTitle)) {
+      return Response.json({ error: "The activity for that question is no longer available." }, { status: 409 });
     }
-    await db.batch(statements);
+    const saved = await saveClarificationAnswer(db, {
+      userId,
+      clarificationId: clarification.id,
+      optionId: option.id,
+      response: option.response,
+      messageId,
+      jobId: `agent-job:${safeId(userId)}:clarification:${stable}`,
+      conversationId: clarification.conversationId,
+      activityId: clarification.activityId,
+      activityVariantId: clarification.activityVariantId,
+      scopeType: clarification.scopeType,
+    });
+    if (!saved) return Response.json({ error: "That question has already been answered." }, { status: 409 });
     return Response.json({ answered: true, messageId }, { status: 202 });
   } catch (error) {
     return apiFailure(error);

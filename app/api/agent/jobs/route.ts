@@ -1,3 +1,4 @@
+import { readAnsweredClarification } from "../../clarification-answer-store";
 import { env } from "cloudflare:workers";
 import { CATALOG_VERSION } from "../../../../bridge/component-catalog.mjs";
 import { getD1 } from "../../../../db";
@@ -384,6 +385,8 @@ export async function GET(request: Request) {
       });
     }
 
+    const answeredClarification = await readAnsweredClarification(db, candidate.userId, candidate.sourceMessageId);
+
     if (candidate.scopeType === "global") {
       const routine = await db.prepare(`
         SELECT id, schedule_revision AS revision, start_minutes AS startMinutes
@@ -469,6 +472,7 @@ export async function GET(request: Request) {
           recentMessages: messages.slice(-30),
           requestPlan: candidate.kind === "global_refresh" ? parseStoredGlobalRequestPlan(candidate.delegationInstruction) : null,
           sourceMessage,
+          answeredClarification,
           sourceActivity,
           sourceActivityVariantId: candidate.activityVariantId,
           sourceActivityRecords: sourceRecords,
@@ -520,7 +524,9 @@ export async function GET(request: Request) {
     `).bind(candidate.activityId, candidate.userId).first<{ contextJson: string | null }>();
     const visitContext = parseVisitContext(visit?.contextJson);
     const activityContext = visitContext.activityContext;
-    const activityVariantId = candidate.activityVariantId ?? visitContext.occurrence?.activityVariantId ?? null;
+    const activityVariantId = answeredClarification
+      ? candidate.activityVariantId
+      : candidate.activityVariantId ?? visitContext.occurrence?.activityVariantId ?? null;
     const messages = await readConversationMessages(candidate.conversationId);
     const workspace = await readActivityWorkspace(candidate.activityId, activityVariantId);
     const records = await readActivityRecords(candidate.activityId, schedule?.planDate ?? null, activityVariantId);
@@ -577,6 +583,7 @@ export async function GET(request: Request) {
         recentRuns: runs.results,
         recentMessages: messages.slice(-30),
         sourceMessage,
+        answeredClarification,
         delegationInstruction: candidate.delegationInstruction,
       },
     });
