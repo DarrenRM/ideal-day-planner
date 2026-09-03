@@ -285,11 +285,11 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
       const copy = <span className="routine-choice-copy"><strong>{name}</strong>{detail ? <small>{detail}</small> : null}{item.allowMultiple ? <small>{count} {unit}{count === 1 ? "" : "s"}</small> : null}</span>;
       const rhythm = <span className="routine-choice-cadence">{cadence ? cadence.description : "Optional"}{cadence && !cadence.due ? <small>{cadence.label}</small> : null}</span>;
       if (item.allowMultiple) return <div className={`routine-choice-row routine-repeat-row ${selected ? "is-selected" : ""}`} key={item.id}>
-        <span aria-hidden="true" className="routine-repeat-mark" />{copy}
-        <div className="routine-repeat-actions">{rhythm}<div className="routine-stepper" role="group" aria-label={`${name} uses today`}>
-          <button aria-label={`Remove one ${item.label} ${unit}`} disabled={saving || count === 0} onClick={() => void setCount(item, count - 1)} type="button"><Minus size={16} /></button>
+        <span aria-hidden="true" className="routine-repeat-mark" /><div className="routine-choice-copy">{copy}{rhythm}</div>
+        <div className="routine-repeat-actions"><div className="routine-stepper" role="group" aria-label={`${name} uses today`}>
+          <button aria-label={`Remove one ${item.label} ${unit}`} disabled={saving || count === 0} onClick={() => void setCount(item, count - 1)} type="button"><Minus size={14} /></button>
           <output aria-live="polite">{count}</output>
-          <button aria-label={`Add one ${item.label} ${unit}`} disabled={saving || count >= 9} onClick={() => void setCount(item, count + 1)} type="button"><Plus size={16} /></button>
+          <button aria-label={`Add one ${item.label} ${unit}`} disabled={saving || count >= 9} onClick={() => void setCount(item, count + 1)} type="button"><Plus size={14} /></button>
         </div></div>
       </div>;
       return <button aria-pressed={selected} className={`routine-choice-row ${selected ? "is-selected" : ""}`} key={item.id} type="button" onClick={() => toggle(item)}>

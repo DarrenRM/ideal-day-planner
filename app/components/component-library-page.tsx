@@ -4,7 +4,7 @@ import { ArrowRightLeft, BookOpen, Boxes, CalendarCheck2, CalendarDays, Check, C
 import { createElement, useMemo, useState, type CSSProperties } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "../activity-record-components";
 import type { ActivityRecord } from "../activity-record-model";
-import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
+import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, VariableRoutineAdjustment, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
 import { StreakTrack } from "../streak-track";
 import { ConversationWorkReceipt } from "../conversation-work-receipt";
 import { ConversationClarificationCard } from "../conversation-clarification-card";
@@ -332,6 +332,7 @@ function ActivitySetupLab() {
   const cadenceRecords = [mockRecord("preview-retinol", "recurring_step", { cadence: { kind: "interval_days", every: 4 }, anchorDate: today }), mockRecord("preview-mask", "recurring_step", { cadence: { kind: "interval_days", every: 2 }, anchorDate: today })];
   const mutatePreview: RecordMutation = async (_key, operation, payload) => {
     if (operation === "set_daily_selection") setSelected((payload.itemIds as string[]).filter((id) => id !== "red" && id !== "blue"));
+    else if (operation === "toggle_item") setSelected((current) => current.includes(String(payload.itemId)) ? current.filter((id) => id !== payload.itemId) : [...current, String(payload.itemId)]);
     else if (operation === "set_daily_selection_count") setMaskCounts((current) => ({ ...current, [payload.itemId as string]: Number(payload.count) }));
     setNotice("Preview updated · no activity data changed");
     return true;
@@ -357,17 +358,14 @@ function ActivitySetupLab() {
 
       <section className={styles.setupStage}>
         <div className={styles.phonePreview}>
-          <header className={styles.mockActivityHeader}><div className={styles.mockActivityIcon}><Droplet size={18} /></div><div><h2>Face Care</h2><p>15 minutes</p></div><span>CARE</span></header>
-          {mode === "choose" ? <div className={styles.productionRoutinePreview}><ActivityRecordComponent record={routineRecord} relatedRecords={cadenceRecords} onMutate={mutatePreview} /></div> : mode === "sequence" ? <div className={styles.variableRoutineCard}>
-            <div className={styles.mockCardHeading}><div><span className={styles.eyebrow}>Protocol</span><h3>Evening face care</h3><p>Work through the same ordered sequence.</p></div></div>
-            <ol className={styles.sequenceRows}>{FACE_CARE_ITEMS.map((item, index) => <li key={item.id}><span>{index + 1}</span><div><b>{item.label}</b><small>{item.detail}</small></div></li>)}</ol>
-          </div> : <div className={styles.separatePreview}>
-            <section><span className={styles.eyebrow}>Face Care · daily choices</span><h3>Everyday products stay together</h3><p>Cleanser, serum, moisturizer, and other choices remain in this activity.</p></section>
+          <header className={styles.mockActivityHeader}><div className={styles.mockActivityIcon}><Droplet size={18} /></div><div><h2>Face Care</h2><p>15 minutes</p></div><span className="category-chip">CARE</span></header>
+          {mode === "choose" ? <div className={styles.productionRoutinePreview}><ActivityRecordComponent record={routineRecord} relatedRecords={cadenceRecords} onMutate={mutatePreview} /></div> : mode === "sequence" ? <div className={styles.productionRoutinePreview}><ActivityRecordComponent protocolInitiallyOpen record={mockRecord("preview-protocol", "protocol", { summary: "Work through the same ordered sequence.", steps: FACE_CARE_ITEMS.map((item) => ({ id: item.id, label: item.label, note: item.detail, completedDates: selected.includes(item.id) ? [today] : [] })) })} onMutate={mutatePreview} /></div> : <div className={styles.separatePreview}>
+            <section><span className="workspace-overline">Face Care · daily choices</span><h3>Everyday products stay together</h3><p>Cleanser, serum, moisturizer, and other choices remain in this activity.</p></section>
             <div className={styles.moveDivider}><span /><ArrowRightLeft size={16} /><span /></div>
-            <section className={styles.newActivityCard}><span className={styles.eyebrow}>New activity</span><h3>{separateSubject}</h3><p>Its own schedule, completion state, instructions, and future conversation.</p><label><span>Treatment to separate</span><select aria-label="Treatment to separate" onChange={(event) => setSeparateSubject(event.target.value)} value={separateSubject}><option>LED face mask</option><option>Retinol treatment</option><option>Exfoliation</option></select></label></section>
+            <section className={styles.newActivityCard}><span className="workspace-overline">New activity</span><h3>{separateSubject}</h3><p>Its own schedule, completion state, instructions, and future conversation.</p><label><span>Treatment to separate</span><select aria-label="Treatment to separate" onChange={(event) => setSeparateSubject(event.target.value)} value={separateSubject}><option>LED face mask</option><option>Retinol treatment</option><option>Exfoliation</option></select></label></section>
           </div>}
-          <button className={styles.adjustButton} onClick={() => setNotice("Adjustment choices reopened")} type="button"><Wrench size={15} /><span><b>Adjust how this activity works</b><small>Change the daily choices or separate a treatment</small></span><ChevronRight size={14} /></button>
-          <div className={styles.mockFooter}><button type="button">Skip</button><button onClick={() => setNotice("Mock Face Care session completed")} type="button"><Check size={14} /> Done with face care</button></div>
+          <div className={styles.adjustmentPreview}><VariableRoutineAdjustment onTalkWithLuna={() => setNotice("Preview only: in an activity, this opens its existing Luna conversation.")} /></div>
+          <div className={styles.mockFooter}><button className="skip-activity-button" onClick={() => setNotice("Preview only: Face Care skipped")} type="button">Skip</button><button className="complete-activity-button" onClick={() => setNotice("Preview only: Face Care completed")} type="button"><Check size={14} /> Done with face care</button></div>
         </div>
         <div className={styles.setupStatus}><span><Check size={13} /> {notice}</span><span>390 px activity preview</span></div>
       </section>

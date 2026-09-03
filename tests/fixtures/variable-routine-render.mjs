@@ -55,7 +55,7 @@ const html = renderToStaticMarkup(React.createElement(ActivityWorkspace, {
 assert.match(html, /What fits your skin today\?/);
 assert.doesNotMatch(html, /role="tablist"/);
 assert.ok(html.indexOf("What fits your skin today?") < html.indexOf("Products and details"));
-assert.match(html, /<details class="variable-routine-reference">/);
+assert.match(html, /<details class="variable-routine-reference workspace-disclosure">/);
 assert.match(html, /Official directions/);
 assert.match(html, /LED mask/);
 assert.match(html, /routine-choice-rows/);

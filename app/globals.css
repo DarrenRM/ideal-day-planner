@@ -2422,58 +2422,55 @@ h1 { font-size: clamp(38px, 5vw, 58px); font-weight: 430; letter-spacing: -.055e
 .restore-status-error { color: #e58b83; }
 .restore-card a { color: var(--accent); display: inline-block; margin-top: 4px; }
 
-.variable-routine-reference { border: 1px solid var(--border); border-radius: 10px; margin-top: 12px; padding: 12px; min-width: 0; }
-.variable-routine-reference > summary { color: var(--muted); cursor: pointer; font-size: var(--type-body); min-height: 32px; }
-.variable-routine-reference > div { display: grid; gap: 12px; padding-top: 12px; }
+.variable-routine-reference { border: 1px solid var(--border); border-radius: 9px; margin-top: 12px; padding: 0 12px; min-width: 0; }
+.variable-routine-reference > summary { color: var(--muted); font-size: var(--type-body-sm); font-weight: 600; line-height: var(--leading-body-sm); min-height: 44px; }
+.variable-routine-reference > div { display: grid; gap: 12px; padding-bottom: 12px; }
 
-/* Variable routines use the approved daily-use view, independently of the
-   supplement chips. Keep the surface and row geometry identical at all sizes. */
-.workspace-block.variable-routine-record { container: variable-routine / inline-size; display: block; padding: 0; overflow: hidden; border-radius: 12px; }
-/* Type and spacing below are carried over from Activity Setup's approved
-   mockCardHeading/variableRows/routineGroupHeading/scheduledCounter rules. */
-.routine-today-heading { align-items: start; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; padding: 15px; }
-.routine-today-heading .workspace-overline { color: var(--accent); display: block; font-size: .625rem; font-weight: 800; letter-spacing: .14em; line-height: 1.25rem; margin-bottom: 8px; }
-.routine-today-heading h3 { color: var(--text); font-size: .8125rem; font-weight: 400; line-height: 1.25rem; margin: 0; overflow-wrap: anywhere; }
-.routine-today-heading p { color: var(--muted); font-size: .625rem; line-height: 1.5; margin: 5px 0 0; }
-.routine-progress { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 999px; color: var(--accent); flex-shrink: 0; font-size: .5625rem; font-weight: 650; line-height: 1.25rem; padding: 5px 7px; }
-.routine-group-heading { align-items: center; border-top: 1px solid var(--border-strong); border-bottom: 1px solid var(--border); display: flex; gap: 12px; justify-content: space-between; padding: 9px 14px; }
-.routine-group-heading > div { display: grid; gap: 2px; min-width: 0; }
-.routine-group-heading strong { color: var(--text); font-size: .625rem; font-weight: 750; line-height: 1.25rem; }
-.routine-group-heading small { color: var(--muted); font-size: .5rem; line-height: 1.25rem; }
-.routine-group-heading .routine-progress { font-size: .5rem; font-weight: 700; padding: 4px 6px; }
-.routine-choice-row { align-items: center; background: transparent; border: 0; border-bottom: 1px solid var(--border); color: var(--text); display: grid; gap: 10px; grid-template-columns: 18px minmax(0, 1fr) auto; min-height: 54px; padding: 10px 14px; text-align: left; width: 100%; }
+/* Shared routine surface: the same component, tokens and controls in the lab
+   and live activities. Typography follows neighboring product/protocol cards. */
+.workspace-block.variable-routine-record { container: variable-routine / inline-size; display: block; padding: 0; border-radius: 9px; }
+.routine-today-heading { align-items: start; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; padding: 12px; }
+.routine-today-heading .workspace-overline { display: block; margin-bottom: 4px; }
+.routine-today-heading h3 { color: var(--text); font-size: var(--type-body-sm); font-weight: 650; line-height: var(--leading-body-sm); margin: 0; overflow-wrap: anywhere; }
+.routine-today-heading p { color: var(--muted); font-size: var(--type-label); line-height: var(--leading-label); margin: 4px 0 0; }
+.routine-progress { align-items: center; background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border)); border-radius: 999px; color: var(--accent); display: inline-flex; flex-shrink: 0; font-size: var(--type-micro); font-weight: 650; line-height: var(--leading-micro); min-height: 18px; padding: 0 6px; white-space: nowrap; }
+.routine-group-heading { align-items: center; background: var(--surface-soft); border-top: 1px solid var(--border); display: flex; gap: 12px; justify-content: space-between; padding: 12px; }
+.routine-group-heading > div { display: grid; gap: 4px; min-width: 0; }
+.routine-group-heading strong { color: var(--text); font-size: var(--type-body-sm); font-weight: 650; line-height: var(--leading-body-sm); }
+.routine-group-heading small { color: var(--muted); font-size: var(--type-label); line-height: var(--leading-label); }
+.routine-choice-row { align-items: center; background: transparent; border: 0; border-top: 1px solid var(--border); color: var(--text); display: grid; gap: 12px; grid-template-columns: 18px minmax(0, 1fr) auto; min-height: 56px; padding: 12px; text-align: left; width: 100%; }
 button.routine-choice-row { cursor: pointer; font: inherit; }
-.routine-choice-row:last-child { border-bottom: 0; }
 .routine-choice-row.is-selected { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 button.routine-choice-row:hover { background: color-mix(in srgb, var(--accent) 11%, transparent); }
-.routine-choice-check { align-items: center; border: 1px solid #465153; border-radius: 5px; display: flex; height: 18px; justify-content: center; width: 18px; }
+button.routine-choice-row:active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.routine-choice-check { align-items: center; border: 1px solid var(--border-strong); border-radius: 4px; display: flex; height: 18px; justify-content: center; width: 18px; }
 .is-selected .routine-choice-check { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.routine-choice-copy { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
-.routine-choice-copy strong { font-size: .6875rem; font-weight: 700; line-height: 1.25rem; }
-.routine-choice-copy small { color: var(--muted); font-size: .5625rem; font-weight: 400; line-height: 1.4; }
-.routine-choice-cadence { color: var(--accent); font-size: .5rem; font-weight: 400; line-height: 1.25rem; max-width: 100px; text-align: right; }
-.routine-choice-cadence small { color: var(--muted); display: block; font-size: inherit; margin-top: 4px; }
+.routine-choice-copy { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.routine-choice-copy strong { color: #dbe2dc; font-size: var(--type-body-sm); font-weight: 600; line-height: var(--leading-body-sm); }
+.routine-choice-copy small { color: var(--muted); font-size: var(--type-label); font-weight: 400; line-height: var(--leading-label); }
+.routine-choice-cadence { color: var(--muted); font-size: var(--type-label); font-weight: 400; line-height: var(--leading-label); max-width: 100px; text-align: right; }
+.routine-choice-cadence small { display: block; font-size: inherit; margin-top: 4px; }
+.routine-repeat-row .routine-choice-cadence { max-width: none; text-align: left; }
 .routine-repeat-mark { background: var(--item-color, var(--accent)); border-radius: 50%; height: 8px; width: 8px; justify-self: center; }
-.routine-repeat-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
-.routine-stepper { display: flex; gap: 8px; align-items: center; }
-.routine-stepper button { align-items: center; background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: 9px; color: var(--text); cursor: pointer; display: flex; height: 40px; justify-content: center; width: 40px; }
-.routine-stepper button:hover { border-color: var(--accent); }
+.routine-repeat-actions { justify-self: end; }
+.routine-stepper { align-items: center; display: flex; gap: 8px; }
+.routine-stepper button { align-items: center; background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: 7px; color: var(--muted); cursor: pointer; display: flex; flex: 0 0 32px; height: 32px; justify-content: center; padding: 0; width: 32px; }
+.routine-stepper button:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.routine-stepper button:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised)); }
 .routine-stepper button:disabled { cursor: default; opacity: .4; }
-.routine-stepper output { color: var(--text); font-size: .625rem; font-weight: 700; line-height: 1.25rem; min-width: 18px; text-align: center; }
-.routine-adjust { align-items: center; background: transparent; border: 1px solid var(--border-strong); border-radius: 12px; color: var(--text); cursor: pointer; display: grid; font: inherit; gap: 9px; grid-template-columns: 20px minmax(0, 1fr) 16px; margin-top: 12px; padding: 11px; text-align: left; width: 100%; }
+.routine-stepper output { color: var(--text); font-size: var(--type-body-sm); font-variant-numeric: tabular-nums; font-weight: 650; line-height: var(--leading-body-sm); min-width: 16px; text-align: center; }
+.routine-adjust { align-items: center; background: transparent; border: 1px solid var(--border); border-radius: 9px; color: var(--text); cursor: pointer; display: grid; font: inherit; gap: 12px; grid-template-columns: 16px minmax(0, 1fr) 16px; margin-top: 12px; min-height: 44px; padding: 12px; text-align: left; width: 100%; }
 .routine-adjust > svg:first-child { color: var(--accent); }
-.routine-adjust > span { display: grid; gap: 2px; }
-.routine-adjust strong { font-size: .625rem; font-weight: 700; line-height: 1.25rem; }
-.routine-adjust small { color: var(--muted); font-size: .5625rem; font-weight: 400; line-height: 1.25rem; }
-.routine-adjust:hover { border-color: var(--accent); }
+.routine-adjust > span { display: grid; gap: 4px; }
+.routine-adjust strong { font-size: var(--type-body-sm); font-weight: 600; line-height: var(--leading-body-sm); }
+.routine-adjust small { color: var(--muted); font-size: var(--type-label); font-weight: 400; line-height: var(--leading-label); }
+.routine-adjust:hover { border-color: var(--border-strong); background: var(--surface-soft); }
+.routine-adjust:active { background: var(--surface-raised); }
 .routine-choice-row:focus-visible, .routine-stepper button:focus-visible, .routine-adjust:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
-.variable-routine-record > .daily-selection-copy-row, .variable-routine-record > .daily-selection-history, .variable-routine-record > .daily-selection-undo { margin: 0 14px; }
-@container variable-routine (max-width: 440px) {
-  .routine-repeat-row .routine-repeat-actions { grid-column: 2 / -1; justify-content: space-between; }
-}
-@media (max-width: 600px) {
-  .routine-repeat-row .routine-repeat-actions { grid-column: 2 / -1; justify-content: space-between; }
-  .routine-stepper button { height: 44px; width: 44px; }
+.variable-routine-record > .daily-selection-copy-row, .variable-routine-record > .daily-selection-history, .variable-routine-record > .daily-selection-undo { margin: 0 12px; }
+@container variable-routine (max-width: 320px) {
+  .routine-repeat-row .routine-repeat-actions { grid-column: 2 / -1; }
+  .routine-choice-row:not(.routine-repeat-row) > .routine-choice-cadence { grid-column: 2 / -1; max-width: none; text-align: left; }
 }
 
 .day-highlight-history-open { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 34px minmax(0, 1fr); min-height: 40px; min-width: 0; padding: 0; text-align: left; }

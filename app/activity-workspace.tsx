@@ -1,7 +1,7 @@
 "use client";
 
 import { variableRoutineWorkspace } from "./variable-routine-workspace";
-import { CalendarClock, Check, ChevronRight, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2, Wrench } from "./icons";
+import { CalendarClock, Check, ChevronDown, ChevronRight, EllipsisVertical, Hourglass, MessageCircle, Pause, Play, RotateCcw, Sparkles, Timer as TimerIcon, Trash2, Wrench } from "./icons";
 import { useEffect, useRef, useState } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "./activity-record-components";
 import { hasUsefulActivityRecordData, productRoutineAction, type ActivityRecord } from "./activity-record-model";
@@ -427,6 +427,10 @@ export function WorkspaceLunaInvitation({ onTalkWithLuna }: { onTalkWithLuna: ()
   </button>;
 }
 
+export function VariableRoutineAdjustment({ onTalkWithLuna }: { onTalkWithLuna: () => void }) {
+  return <button className="routine-adjust" onClick={onTalkWithLuna} type="button"><Wrench aria-hidden="true" size={16} /><span><strong>Adjust how this activity works</strong><small>Change the daily choices or separate a treatment with Luna</small></span><ChevronRight aria-hidden="true" size={16} /></button>;
+}
+
 export function WorkspaceEmptyGuidance() {
   return <div className="workspace-empty-guidance">
     <span aria-hidden="true"><MessageCircle size={17} /></span>
@@ -771,8 +775,8 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
               return renderedRecord;
             })}
           </div>
-          {routineProducts.length ? <details className="variable-routine-reference">
-            <summary>Products and details</summary>
+          {routineProducts.length ? <details className="variable-routine-reference workspace-disclosure">
+            <summary><span>Products and details</span><ChevronDown aria-hidden="true" size={16} /></summary>
             <div>{routineProducts.map((record) => <div key={record.key}>
               <ActivityRecordComponent record={record} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna}
                 targetId={activityRecordTargetId(activity.id, record.key)}
@@ -781,7 +785,7 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
                 <ActivityRecordComponent key={session.key} record={session} relatedRecords={records} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} targetId={activityRecordTargetId(activity.id, session.key)} />)}
             </div>)}</div>
           </details> : null}
-          {visibleComponents.some((component) => component.type === "daily_selection" && (recordsByKey.get(component.recordKey)?.data as { kind?: string } | undefined)?.kind === "routine") ? <button className="routine-adjust" onClick={onTalkWithLuna} type="button"><Wrench aria-hidden="true" size={18} /><span><strong>Adjust how this activity works</strong><small>Change the daily choices or separate a treatment with Luna</small></span><ChevronRight aria-hidden="true" size={16} /></button> : <WorkspaceLunaInvitation onTalkWithLuna={onTalkWithLuna} />}
+          {visibleComponents.some((component) => component.type === "daily_selection" && (recordsByKey.get(component.recordKey)?.data as { kind?: string } | undefined)?.kind === "routine") ? <VariableRoutineAdjustment onTalkWithLuna={onTalkWithLuna} /> : <WorkspaceLunaInvitation onTalkWithLuna={onTalkWithLuna} />}
         </>
       ) : null}
       {showEmptyState && !hasVisibleWorkspace && !workState && !recordError ? <WorkspaceEmptyGuidance /> : null}
