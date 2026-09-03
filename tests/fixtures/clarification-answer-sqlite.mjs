@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import ts from "typescript";
 import * as store from "../../app/api/clarification-answer-store.ts";
+import { readStoredConversationMessages } from "../../app/api/conversation-message-store.ts";
 import * as model from "../../app/conversation-clarification-model.ts";
 
 const sqlite = new DatabaseSync(":memory:");
@@ -11,7 +12,7 @@ sqlite.exec(`
   CREATE TABLE activities (id TEXT PRIMARY KEY, user_id TEXT, title TEXT);
   CREATE TABLE conversations (id TEXT PRIMARY KEY, user_id TEXT, scope_type TEXT);
   CREATE TABLE conversation_messages (
-    id TEXT PRIMARY KEY, conversation_id TEXT REFERENCES conversations(id), role TEXT, body TEXT, source TEXT
+    id TEXT PRIMARY KEY, conversation_id TEXT REFERENCES conversations(id), role TEXT, body TEXT, source TEXT, agent_job_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE conversation_clarifications (
     id TEXT PRIMARY KEY, user_id TEXT, conversation_id TEXT REFERENCES conversations(id),
@@ -33,7 +34,7 @@ sqlite.exec(`
 const db = {
   prepare(sql) {
     return { bind(...args) {
-      return { sql, args, async first() { return sqlite.prepare(sql).get(...args) ?? null; } };
+      return { sql, args, async first() { return sqlite.prepare(sql).get(...args) ?? null; }, async all() { return { results: sqlite.prepare(sql).all(...args) }; } };
     } };
   },
   async batch(statements) {
@@ -90,7 +91,7 @@ assert.equal(jobs().length, 1, "daily checklist must not also queue schedule or 
 assert.equal(jobs()[0].kind, "workspace_refresh");
 assert.equal(jobs()[0].activity_variant_id, null);
 assert.deepEqual({ ...await store.readAnsweredClarification(db, "owner", jobs()[0].source_message_id) }, {
-  question: "How should Face Care work?", response,
+  question: "How should Face Care work?", selectedLabel: "Choose daily", selectedDetail: "",
 });
 assert.equal(await store.readAnsweredClarification(db, "other", jobs()[0].source_message_id), null);
 assert.equal((await answer("migration")).status, 200);
@@ -119,7 +120,7 @@ seed("race");
 const competing = await Promise.all([answer("race"), answer("race", "every-step")]);
 assert.deepEqual(competing.map((result) => result.status).sort(), [202, 409]);
 assert.equal(jobs().filter((job) => job.id.includes(":race")).length, 1);
-assert.equal(sqlite.prepare("SELECT body FROM conversation_messages WHERE id LIKE '%:race'").get().body, response);
+assert.equal(sqlite.prepare("SELECT body FROM conversation_messages WHERE id LIKE '%:race'").get().body, "Selected option: Choose daily");
 
 seed("protected");
 const count = jobs().length;
@@ -131,4 +132,14 @@ sqlite.exec("CREATE TRIGGER fail_queue BEFORE INSERT ON agent_jobs BEGIN SELECT 
 assert.equal((await answer("protected")).status, 500);
 assert.equal(sqlite.prepare("SELECT status FROM conversation_clarifications WHERE id = 'protected'").get().status, "pending");
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM conversation_messages WHERE id LIKE '%:protected'").get().n, 0);
+// Old generated prose is preserved in storage but never projected as typed speech.
+sqlite.prepare("UPDATE conversation_messages SET body = ? WHERE id = ?").run(response, jobs()[0].source_message_id);
+const oldSelection = (await readStoredConversationMessages(db, jobs()[0].conversation_id)).find((message) => message.id === jobs()[0].source_message_id);
+assert.equal(oldSelection.source, "clarification");
+assert.equal(oldSelection.body, "Selected option: Choose daily");
+assert.equal(sqlite.prepare("SELECT body FROM conversation_messages WHERE id = ?").get(jobs()[0].source_message_id).body, response);
+sqlite.prepare("INSERT INTO conversation_messages (id, conversation_id, role, body, source) VALUES ('typed', 'activity-chat', 'user', ?, 'user')").run(response);
+const typed = (await readStoredConversationMessages(db, "activity-chat")).find((message) => message.id === "typed");
+assert.equal(typed.body, response);
+assert.equal(typed.source, "user");
 sqlite.close();

@@ -1,3 +1,4 @@
+import { readStoredConversationMessages } from "./conversation-message-store";
 import { getD1 } from "../../db";
 import { hasMeaningfulProductNotes, parseActivityRecord, validateRecordActions, type ActivityRecord as PersistedActivityRecord, type RecordAction } from "../activity-record-model";
 import { activitySetupKey, activitySetupKeyMatches } from "../activity-setup-policy";
@@ -570,14 +571,7 @@ export async function readGlobalConversationState(conversationId: string, userId
 }
 
 export async function readConversationMessages(conversationId: string) {
-  const result = await getD1().prepare(`
-    SELECT id, role AS author, body, agent_job_id AS agentJobId, created_at AS createdAt
-    FROM conversation_messages
-    WHERE conversation_id = ?
-    ORDER BY created_at ASC, id ASC
-    LIMIT 200
-  `).bind(conversationId).all<{ id: string; author: "user" | "luna"; body: string; agentJobId: string | null; createdAt: string }>();
-  return result.results;
+  return readStoredConversationMessages(getD1(), conversationId);
 }
 
 export async function readConversationArtifacts(conversationId: string) {
@@ -1208,7 +1202,7 @@ export async function backfillExplicitFollowUps(userId: string) {
     FROM conversation_messages message
     JOIN conversations conversation ON conversation.id = message.conversation_id
     JOIN activities activity ON activity.id = conversation.activity_id
-    WHERE conversation.user_id = ? AND message.role = 'user'
+    WHERE conversation.user_id = ? AND message.role = 'user' AND message.source <> 'clarification'
       AND lower(message.body) LIKE '%week%'
       AND (lower(message.body) LIKE '%ask again%' OR lower(message.body) LIKE '%check back%' OR lower(message.body) LIKE '%check in%')
     ORDER BY message.created_at

@@ -28,7 +28,7 @@ test("rejects unclear or unsafe option sets", () => {
   ] }), null);
 });
 
-test("persists answers as user messages and renders cards in both conversations", async () => {
+test("keeps selections on question cards instead of rendering them as typed messages", async () => {
   const [route, activityPage, globalLuna, lunaRoute, jobs, store, styles] = await Promise.all([
     readFile(new URL("../app/api/clarifications/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -41,12 +41,22 @@ test("persists answers as user messages and renders cards in both conversations"
   assert.match(route, /saveClarificationAnswer/);
   assert.match(activityPage, /ConversationClarificationCard/);
   assert.match(globalLuna, /ConversationClarificationCard/);
+  assert.match(activityPage, /messages\.filter\(\(message\) => message.source !== "clarification"\)/);
+  assert.match(globalLuna, /messages\.filter\(\(message\) => message.source !== "clarification"\)/);
   assert.match(lunaRoute, /SELECT clarification\.source_agent_job_id AS event_key/);
   assert.match(jobs, /conversation_clarifications/);
   assert.match(store, /seedFaceCareRoutineLayoutClarification/);
   assert.match(store, /INSERT INTO workspace_revisions[\s\S]*restoredRevisionId/);
   assert.match(styles, /\.daily-selection-items > button > span:first-child/);
   assert.doesNotMatch(styles, /\.daily-selection-items > button > span \{/);
+});
+
+test("agent history distinguishes an option selection from typed speech", () => {
+  const prompt = eventPrompt({ job: { kind: "workspace_refresh" }, context: {
+    recentMessages: [{ author: "user", source: "clarification", body: "Selected option: Choose daily" }],
+  } });
+  assert.match(prompt, /Option selection \(not typed by the user\): Selected option: Choose daily/);
+  assert.doesNotMatch(prompt, /User: Selected option/);
 });
 
 test("clarification answers atomically resume one responsible worker, including retries and global-chat delegation", () => {
@@ -61,7 +71,7 @@ test("both durable workers receive the original clarification even outside recen
   for (const kind of ["workspace_refresh", "global_refresh"]) {
     const prompt = eventPrompt({ job: { kind }, context: {
       sourceMessage: { body: "Use the second option." }, recentMessages: [],
-      answeredClarification: { question: "Which Face Care layout fits?", response: "Use the second option." },
+      answeredClarification: { question: "Which Face Care layout fits?", selectedLabel: "Use the second option.", selectedDetail: "" },
     } });
     assert.match(prompt, /Which Face Care layout fits\?/);
     assert.match(prompt, /Use the second option/);

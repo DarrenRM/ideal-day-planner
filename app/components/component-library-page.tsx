@@ -92,6 +92,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
   const [receiptKind, setReceiptKind] = useState<WorkReceiptKind>("schedule_update");
   const [receiptState, setReceiptState] = useState<ReceiptState>("new");
   const [clarificationState, setClarificationState] = useState<ClarificationState>("pending");
+  const [clarificationOptionId, setClarificationOptionId] = useState<string | null>(null);
   const [fixtures, setFixtures] = useState(() => buildComponentLibraryFixtures(today));
   const [notice, setNotice] = useState("Live production renderer");
 
@@ -169,6 +170,7 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
     setReceiptKind("schedule_update");
     setReceiptState("new");
     setClarificationState("pending");
+    setClarificationOptionId(null);
     setNotice("Mock data reset");
   }
 
@@ -209,12 +211,12 @@ export function ComponentLibraryPage({ catalog, catalogVersion, recipes, activit
           { id: "choose-daily", label: "I choose what fits", detail: "Let me check individual items and repeat one when needed.", response: "I choose whichever steps fit each day." },
         ],
         status: clarificationState,
-        selectedOptionId: clarificationState === "answered" ? "choose-daily" : null,
+        selectedOptionId: clarificationOptionId,
         sourceAgentJobId: "mock-clarification-job",
         createdAt: "2026-09-02 13:30:00",
         answeredAt: clarificationState === "answered" ? "2026-09-02 13:31:00" : null,
       }}
-      onChoose={(option) => { setClarificationState("answered"); setNotice(`Mock answer saved: ${option.label}`); }}
+      onChoose={(option) => { setClarificationOptionId(option.id); setClarificationState("answered"); setNotice(`Mock option selected: ${option.label}`); }}
       onOther={() => setNotice("Mock composer focused")}
     />;
     if (specimen.type === "product_action_tabs") return <ActivityWorkspace activity={productActivity} onRecordMutation={mutate} onTalkWithLuna={() => setNotice("Mock Luna handoff captured")} records={fixtures.records} workspace={fixtures.productWorkspace} />;

@@ -7,7 +7,7 @@ import { ConversationWorkReceipt, type ConversationWorkReceiptData } from "./con
 import { ConversationClarificationCard } from "./conversation-clarification-card";
 import type { ConversationClarification, ConversationClarificationOption } from "./conversation-clarification-model";
 
-type LunaMessage = { id: string; author: "user" | "luna"; body: string; createdAt: string };
+type LunaMessage = { id: string; author: "user" | "luna"; source?: string; body: string; createdAt: string };
 type LunaArtifact = ConversationWorkReceiptData & {
   activityId: string | null;
   activityClientKey: string | null;
@@ -86,7 +86,7 @@ export function GlobalLuna({ open, initialDraft, onDraftConsumed, onClose, onOpe
 
   const hasActiveJob = Boolean(state.activeJob);
   const conversationFeed = useMemo(() => [
-    ...state.messages.map((message) => ({ type: "message" as const, createdAt: message.createdAt, value: message })),
+    ...state.messages.filter((message) => message.source !== "clarification").map((message) => ({ type: "message" as const, createdAt: message.createdAt, value: message })),
     ...state.artifacts.map((artifact) => ({ type: "artifact" as const, createdAt: artifact.createdAt, value: artifact })),
     ...state.clarifications.map((clarification) => ({ type: "clarification" as const, createdAt: clarification.createdAt, value: clarification })),
   ].sort((left, right) => left.createdAt.localeCompare(right.createdAt)), [state.artifacts, state.clarifications, state.messages]);

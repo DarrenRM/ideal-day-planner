@@ -73,7 +73,7 @@ type MobileActivityTransition = {
   right: number;
   height: number;
 };
-type ConversationMessage = { id: string; author: "user" | "luna"; body: string; agentJobId?: string | null; createdAt: string; pending?: boolean };
+type ConversationMessage = { id: string; author: "user" | "luna"; source?: string; body: string; agentJobId?: string | null; createdAt: string; pending?: boolean };
 type ConversationArtifact = ConversationWorkReceiptData & {
   detail: string;
   meta: { secondary?: string; target?: "workspace"; targetActivityId?: string; targetActivityClientKey?: string; targetRecordKey?: string };
@@ -515,7 +515,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
   const ReceiptIcon = activityIconFor(item);
   const hasUnreadWorkReceipt = artifacts.some((artifact) => !artifact.viewedAt);
   const drawerMessages = useMemo(() => [
-    ...messages.map((message) => ({ id: message.id, author: message.author, createdAt: message.createdAt })),
+    ...messages.filter((message) => message.source !== "clarification").map((message) => ({ id: message.id, author: message.author, createdAt: message.createdAt })),
     ...clarifications.map((clarification) => ({ id: clarification.id, author: "luna" as const, createdAt: clarification.createdAt })),
   ].sort((left, right) => {
     const timestampDifference = (storedTimestampMillis(left.createdAt) ?? 0) - (storedTimestampMillis(right.createdAt) ?? 0);
@@ -523,7 +523,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
     return left.id.localeCompare(right.id);
   }), [clarifications, messages]);
   const conversationFeed = useMemo(() => [
-    ...messages.map((message) => ({ type: "message" as const, createdAt: message.createdAt, sourceAgentJobId: message.agentJobId ?? "", value: message })),
+    ...messages.filter((message) => message.source !== "clarification").map((message) => ({ type: "message" as const, createdAt: message.createdAt, sourceAgentJobId: message.agentJobId ?? "", value: message })),
     ...artifacts.map((artifact) => ({ type: "artifact" as const, createdAt: artifact.createdAt, sourceAgentJobId: artifact.sourceAgentJobId, value: artifact })),
     ...clarifications.map((clarification) => ({ type: "clarification" as const, createdAt: clarification.createdAt, sourceAgentJobId: clarification.sourceAgentJobId, value: clarification })),
   ].sort((left, right) => {

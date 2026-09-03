@@ -67,7 +67,7 @@ const onboardingProposalShape = `Return exactly one JSON object with no markdown
 
 const personaInstructions = `You are Luna inside Ideal Day, a personal activity companion. Speak naturally about the person's activity, intentions, progress, and today. Never mention software, prompts, context packets, databases, records, components, rendering, tools, or internal reasoning in message. Keep conversational messages to one or two short sentences.`;
 
-const clarificationInstructions = `Clarification is asynchronous. When one unresolved choice would materially change the durable result, ask exactly one concise question in followUpQuestion and make no conflicting change. If there are two to four clear, mutually exclusive answers, include options so Ideal Day can show the question inline in chat. Each option needs a short human label, a useful one-line consequence, and a natural first-person response that includes enough context for Luna to act when the person taps it. Omit options when a free-form answer is necessary. Never ask when supplied evidence already decides the behavior.`;
+const clarificationInstructions = `Clarification is asynchronous. When one unresolved choice would materially change the durable result, ask exactly one concise question in followUpQuestion and make no conflicting change. If there are two to four clear, mutually exclusive answers, include options so Ideal Day can show the question inline in chat. Each option needs a short human label, a useful one-line consequence, with enough visible context for Luna to act when the person taps it. The response field is only a compatibility copy of the visible label and detail; never expand it into hidden instructions or invented user speech. Omit options when a free-form answer is necessary. Never ask when supplied evidence already decides the behavior.`;
 
 const activityActionContract = `RecordAction:
 {"op":"upsert","record":{"key":"stable-kebab-key","subjectKey":"product-or-device-record-key-or-null","type":"catalog-record-type","title":"...","scope":"activity|day|variant","data":{...}}}
@@ -255,7 +255,7 @@ function compactConversation(messages, { limit = 12, maxChars = 6_000 } = {}) {
   let used = 0;
   for (const message of messages.slice(-limit).reverse()) {
     const body = String(message.body || "").trim().slice(0, 1_200);
-    const line = `${message.author === "luna" ? "Luna" : "User"}: ${body}`;
+    const line = `${message.source === "clarification" ? "Option selection (not typed by the user)" : message.author === "luna" ? "Luna" : "User"}: ${body}`;
     if (selected.length && used + line.length + 1 > maxChars) break;
     selected.push(line);
     used += line.length + 1;
@@ -377,7 +377,7 @@ ${compactConversation(job.context.recentMessages, { limit: 8, maxChars: 4_000 })
 Latest user message (primary and complete):
 ${latestMessage}
 
-Answered clarification (the selected response resolves this question; continue the requested work without asking it again):
+Answered clarification (the user selected the visible label and detail; these are not typed words or permission for unstated changes; continue the requested work without asking it again):
 ${JSON.stringify(job.context.answeredClarification || null)}
 
 Numbered request plan:
@@ -410,7 +410,7 @@ ${compactConversation(job.context.recentMessages, { limit: 12, maxChars: 6_000 }
     : "\nNo additional visit-specific context was supplied.");
   const layoutEvidence = `${job.context.sourceMessage?.body || ""} ${job.context.delegationInstruction || ""}`.trim();
   const clarificationEvidence = job.context.answeredClarification
-    ? `\n\nAnswered clarification (continue the requested work using this question and selected response; do not ask it again):\n${JSON.stringify(job.context.answeredClarification)}`
+    ? `\n\nAnswered clarification (continue using only the question and selected visible label/detail; these are not typed words or permission for unstated changes; do not ask it again):\n${JSON.stringify(job.context.answeredClarification)}`
     : "";
   const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nOwned activities available as move destinations: ${JSON.stringify(job.context.activities || [])}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nRoutine layout language signal: ${routineLayoutSignal(layoutEvidence)}. This is a lexical aid only; decide from the full supplied evidence and existing use history.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nPending or asked follow-ups:\n${job.context.followUps?.length ? JSON.stringify(job.context.followUps) : "None"}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}${clarificationEvidence}`;
   if (job.job.kind === "follow_up") {
