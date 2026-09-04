@@ -41,6 +41,16 @@ export const activities = sqliteTable("activities", {
   updatedAt: updatedAt(),
 }, (table) => [uniqueIndex("activities_user_client_key_unique").on(table.userId, table.clientKey)]);
 
+// A submitted Add intent survives uncertain responses without creating another
+// activity or silently changing the schedule on retry.
+export const activityCreationRequests = sqliteTable("activity_creation_requests", {
+  activityId: text("activity_id").primaryKey().references(() => activities.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  requestJson: text("request_json").notNull(),
+  completedAt: text("completed_at"),
+  createdAt: createdAt(),
+});
+
 export const activityVariants = sqliteTable("activity_variants", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

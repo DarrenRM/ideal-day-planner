@@ -12,6 +12,7 @@ import { useMobileConversationDrawer } from "./use-mobile-conversation-drawer";
 import { EMPTY_WORKSPACE, type WorkspaceDocument } from "./workspace-model";
 import { ScheduleManager } from "./schedule-manager";
 import { GlobalLuna } from "./global-luna";
+import { activityAddScheduleSummary, createActivityAddSubmission } from "./activity-add-submission";
 import { OccurrenceEditor } from "./occurrence-editor";
 import { dayProgressCounts, GO_FURTHER_PREVIEW_LIMIT, normalizePlanRole, partitionDayItems, type PlanRole } from "./day-role";
 import { fallbackDayHighlight } from "./day-highlight";
@@ -1533,6 +1534,10 @@ export default function Home() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved" | "retrying" | "error">("loading");
   const [isAdding, setIsAdding] = useState(false);
+  const addSubmission = useRef(createActivityAddSubmission());
+  const [isSavingAdd, setIsSavingAdd] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addLocked, setAddLocked] = useState(false);
   const [isScheduleManagerOpen, setIsScheduleManagerOpen] = useState(false);
   const [scheduleManagerActivityId, setScheduleManagerActivityId] = useState<string | null>(null);
   const [isGlobalLunaOpen, setIsGlobalLunaOpen] = useState(false);
@@ -2487,16 +2492,36 @@ export default function Home() {
     setDuration(id, Math.max(5, duration));
   }
 
+  function resetAddDraft() {
+    setDraftTitle("");
+    setDraftDuration(15);
+    setDraftCategory("Care");
+    setDraftScheduleKind("daily");
+    setDraftWeekdays([1, 2, 3, 4, 5]);
+    setDraftIntervalDays(2);
+    setDraftIncludeToday(true);
+    setDraftLunaRequest("");
+    setDraftSetupRequest("");
+    setDraftPlanRole("essential");
+    setAddError(null);
+    setAddLocked(false);
+    addSubmission.current = createActivityAddSubmission();
+  }
+
+  function toggleAddForm() {
+    if (addSubmission.current.busy) return;
+    // An uncertain save remains resumable when hidden. An abandoned, unsent
+    // draft must not silently lend its schedule to the next activity.
+    if (!addSubmission.current.pending) resetAddDraft();
+    setIsAdding((current) => !current);
+  }
+
   async function addItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = draftTitle.trim();
-    if (!title) return;
+    if (!title || addSubmission.current.busy) return;
     const meta = CATEGORY_META[draftCategory];
-    const clientKey = `custom-${window.crypto.randomUUID()}`;
-    const item: RoutineItem = {
-      id: clientKey,
-      activityId: clientKey,
-      occurrenceId: clientKey,
+    const item = {
       title: title.slice(0, 60),
       detail: "Custom block",
       duration: normalizeActivityDuration(draftDuration),
@@ -2504,20 +2529,20 @@ export default function Home() {
       planRole: draftPlanRole,
       ...meta,
     };
+    setIsSavingAdd(true);
+    setAddLocked(true);
+    setAddError(null);
     setSaveState("saving");
     try {
       const setupRequest = [draftSetupRequest.trim(), draftScheduleKind === "luna" ? `Schedule request: ${draftLunaRequest.trim() || `Help me decide how ${item.title} should fit into my routine. Ask me one useful question if you need to.`}` : ""].filter(Boolean).join("\n\n");
-      const response = await fetch("/api/activities", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          clientKey,
+      const result = await addSubmission.current.submit({
           title: item.title,
           category: item.category,
           duration: item.duration,
           icon: item.icon,
           color: item.color,
           date: todayDateKey,
+          scheduleChoice: draftScheduleKind,
           schedule: draftScheduleKind === "weekdays"
             ? { kind: "weekdays", weekdays: draftWeekdays, intervalWeeks: 1 }
             : draftScheduleKind === "interval_days"
@@ -2529,35 +2554,28 @@ export default function Home() {
           planRole: draftPlanRole,
           origin: "user",
           setupRequest,
-        }),
       });
-      const created = await response.json() as { activity?: { id: string; title: string }; error?: string };
-      if (!response.ok) throw new Error(created.error || "The activity could not be created.");
-      const dayResponse = await fetch(`/api/day?date=${todayDateKey}`, { cache: "no-store" });
-      if (!dayResponse.ok) throw new Error("The new activity could not be loaded.");
-      const day = await dayResponse.json() as { items: unknown };
-      const nextItems = hydrateStoredItems(day.items);
+      if (!result) return;
+      const nextItems = hydrateStoredItems(result.day.items);
       setItems(nextItems);
       setSaveState("saved");
       if (draftScheduleKind === "sequence") {
-        setScheduleManagerActivityId(created.activity?.id || clientKey);
+        setScheduleManagerActivityId(result.activity.id);
         setIsScheduleManagerOpen(true);
       }
-      const createdItem = nextItems.find((candidate) => candidate.activityId === created.activity?.id || candidate.activityId === clientKey);
-      if (createdItem && setupRequest) setSelectedActivityId(createdItem.id);
-    } catch {
-      setSaveState("retrying");
+      const createdItem = nextItems.find((candidate) => candidate.activityId === result.activity.id);
+      if (createdItem && result.payload.setupRequest) setSelectedActivityId(createdItem.id);
+    } catch (error) {
+      setSaveState("error");
+      setAddLocked(addSubmission.current.pending);
+      setAddError(addSubmission.current.saved
+        ? "Your activity is saved, but today's list could not refresh. Retry to reload it."
+        : error instanceof Error && !(error instanceof TypeError) ? error.message : "The save could not be confirmed. Retry safely below; this will not add a second copy.");
       return;
+    } finally {
+      setIsSavingAdd(false);
     }
-    setDraftTitle("");
-    setDraftDuration(15);
-    setDraftScheduleKind("daily");
-    setDraftWeekdays([1, 2, 3, 4, 5]);
-    setDraftIntervalDays(2);
-    setDraftIncludeToday(true);
-    setDraftLunaRequest("");
-    setDraftSetupRequest("");
-    setDraftPlanRole("essential");
+    resetAddDraft();
     setIsAdding(false);
   }
 
@@ -3528,15 +3546,16 @@ export default function Home() {
                   aria-controls="add-block-form"
                   aria-expanded={isAdding}
                   className="add-block-button"
-                  disabled={!hasLoaded}
+                  disabled={!hasLoaded || isSavingAdd}
                   type="button"
-                  onClick={() => setIsAdding((current) => !current)}
+                  onClick={toggleAddForm}
                 ><span aria-hidden="true">+</span> Add</button>
               </div> : null}
             </header>
 
             {!isReviewingPastDay && isAdding ? (
-              <form className="add-block-form" id="add-block-form" noValidate onSubmit={addItem}>
+              <form className="add-block-form" id="add-block-form" noValidate onSubmit={addItem} aria-busy={isSavingAdd}>
+                <fieldset className="add-draft-fields" disabled={addLocked} aria-label="New activity details">
                 <div className="add-field add-name-field">
                   <label htmlFor="block-name">Name</label>
                   <input
@@ -3579,8 +3598,8 @@ export default function Home() {
                 </div>
                 <div className="add-field add-schedule-field">
                   <label htmlFor="block-schedule">Schedule</label>
-                  <select id="block-schedule" value={draftScheduleKind} onChange={(event) => setDraftScheduleKind(event.target.value as typeof draftScheduleKind)}>
-                    <option value="none">No recurring schedule</option>
+                  <select id="block-schedule" aria-describedby="add-schedule-summary" value={draftScheduleKind} onChange={(event) => setDraftScheduleKind(event.target.value as typeof draftScheduleKind)}>
+                    <option value="none">Does not repeat</option>
                     <option value="daily">Every day</option>
                     <option value="weekdays">Selected weekdays</option>
                     <option value="interval_days">Every N days</option>
@@ -3596,9 +3615,12 @@ export default function Home() {
                   <div className="add-field add-luna-request"><label htmlFor="block-setup-request">Product link or details</label><textarea id="block-setup-request" maxLength={4000} placeholder="Paste a product link, describe what you want this to help with, or leave it for later." value={draftSetupRequest} onChange={(event) => setDraftSetupRequest(event.target.value)} /></div>
                 </details>
                 <label className="add-include-today"><input checked={draftIncludeToday} type="checkbox" onChange={(event) => setDraftIncludeToday(event.target.checked)} /><span>Include today</span></label>
+                </fieldset>
+                <p className="add-schedule-summary" id="add-schedule-summary" role="status">{activityAddScheduleSummary(draftScheduleKind, draftIncludeToday, draftIntervalDays, draftWeekdays)}</p>
+                {addError ? <p className="add-save-error" role="alert">{addError}</p> : null}
                 <div className="add-form-actions">
-                  <button className="cancel-add-button" type="button" onClick={() => setIsAdding(false)}>Cancel</button>
-                  <button className="confirm-add-button" disabled={!draftTitle.trim()} type="submit">{draftSetupRequest.trim() || draftScheduleKind === "luna" ? "Add & Set Up" : "Add"}</button>
+                  <button className="cancel-add-button" disabled={isSavingAdd} type="button" onClick={toggleAddForm}>{addLocked ? "Close" : "Cancel"}</button>
+                  <button className="confirm-add-button" disabled={!draftTitle.trim() || isSavingAdd} type="submit">{isSavingAdd ? "Saving…" : addLocked ? "Retry" : draftSetupRequest.trim() || draftScheduleKind === "luna" ? "Add & Set Up" : "Add"}</button>
                 </div>
               </form>
             ) : null}

@@ -1,13 +1,14 @@
 import { getD1 } from "../../../db";
 import { addLocalDays, isLocalDate, localDateInTimeZone, parseAdvancement, parseCadence } from "../../schedule-model";
 import { normalizeActivityOrigin, normalizePlanRole } from "../../day-role";
-import { apiFailure, ensureAgentSchema, ensureConversation, queueActivitySetup, requestIdentity, safeId } from "../agent-store";
+import { apiFailure, ensureAgentSchema, requestIdentity, safeId } from "../agent-store";
 import { activityMessageJobStatements } from "../activity-message-jobs";
 import { applyOccurrenceAction } from "../schedule-actions";
 import { resolveDay } from "../schedule-store";
 import { activitySetupKey } from "../../activity-setup-policy";
 import { updateActivityDetails } from "../activity-edit-store";
 import { findRoleOccurrence, persistActivityRole } from "../activity-role-store";
+import { ActivityCreationConflict, createActivityOnce } from "../activity-create-store";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 
@@ -133,6 +134,8 @@ export async function POST(request: Request) {
     const color = /^#[0-9a-f]{6}$/i.test(text(payload.color, 20)) ? text(payload.color, 20) : "#a8c96d";
     const schedule = payload.schedule && typeof payload.schedule === "object" ? payload.schedule as Record<string, unknown> : { kind: "daily" };
     const setupRequest = text(payload.setupRequest, 4000);
+    const scheduleChoice = ["none", "daily", "weekdays", "interval_days", "sequence", "luna"].includes(String(payload.scheduleChoice))
+      ? String(payload.scheduleChoice) : null;
     const planRole = normalizePlanRole(payload.planRole);
     const origin = normalizeActivityOrigin(payload.origin);
     const includeToday = payload.includeToday !== false;
@@ -143,56 +146,45 @@ export async function POST(request: Request) {
     if (schedule.kind !== "none" && (!cadence || !advancement || !effectiveDate)) {
       return Response.json({ error: "That schedule is not valid." }, { status: 400 });
     }
-    await db.prepare(`
+    await ensureAgentSchema();
+    const statements = [db.prepare(`
       INSERT INTO activities (id, user_id, client_key, title, category, icon, color, origin)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(activityId, userId, clientKey, title, category, icon, color, origin).run();
+    `).bind(activityId, userId, clientKey, title, category, icon, color, origin)];
 
     if (schedule.kind !== "none") {
-      const positionRow = await db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS position FROM schedule_patterns WHERE routine_id = ? AND archived_at IS NULL`)
-        .bind(routine.id).first<{ position: number }>();
       const patternId = `schedule-pattern:${safeId(userId)}:${safeId(clientKey)}`;
       const stepId = `schedule-step:${safeId(userId)}:${safeId(clientKey)}:0`;
-      await db.batch([
+      statements.push(
         db.prepare(`
           INSERT INTO schedule_patterns
             (id, user_id, routine_id, client_key, name, position, cadence_json,
              advancement_json, anchor_date, initial_step_position, effective_date, revision)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1)
-        `).bind(patternId, userId, routine.id, clientKey, title, positionRow?.position ?? 0, JSON.stringify(cadence), JSON.stringify(advancement), effectiveDate, effectiveDate),
+          VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM schedule_patterns WHERE routine_id = ? AND archived_at IS NULL), ?, ?, ?, 0, ?, 1)
+        `).bind(patternId, userId, routine.id, clientKey, title, routine.id, JSON.stringify(cadence), JSON.stringify(advancement), effectiveDate, effectiveDate),
         db.prepare(`
           INSERT INTO schedule_pattern_steps
             (id, pattern_id, activity_id, position, duration_minutes, plan_role)
           VALUES (?, ?, ?, 0, ?, ?)
         `).bind(stepId, patternId, activityId, activityDuration, planRole),
         db.prepare(`UPDATE routine_templates SET schedule_revision = schedule_revision + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).bind(routine.id),
-      ]);
-      if (date && includeToday) await resolveDay(userId, date, routine.id, `plan:${safeId(userId)}:${date}`, routine.startMinutes);
-    } else if (includeToday && date) {
-      await applyOccurrenceAction(userId, {
-        type: "add_occurrence",
-        activityId,
-        date,
-        durationMinutes: activityDuration,
-        planRole,
-        idempotencyKey: `create-activity:${clientKey}:${date}`,
-      }, { source: "user", actor: userId });
+      );
     }
-    await ensureAgentSchema();
     const activity = { id: activityId, clientKey, title, category, icon, color };
+    const conversationId = `conversation:${safeId(userId)}:${safeId(clientKey)}`;
+    const setupKey = activitySetupKey(activity);
+    statements.push(
+      db.prepare(`INSERT INTO conversations (id, user_id, activity_id) VALUES (?, ?, ?)`)
+        .bind(conversationId, userId, activityId),
+      db.prepare(`
+        INSERT INTO activity_profiles (id, user_id, activity_id, setup_status, setup_key)
+        VALUES (?, ?, ?, 'preparing', ?)
+      `).bind(`activity-profile:${safeId(userId)}:${safeId(clientKey)}`, userId, activityId, setupKey),
+    );
     if (setupRequest) {
-      const conversationId = await ensureConversation(userId, activity);
-      const clientMessageId = `setup-${crypto.randomUUID()}`;
+      const clientMessageId = `setup-${clientKey}`;
       const messageId = `message:${safeId(userId)}:${safeId(clientMessageId)}`;
-      await db.batch([
-        db.prepare(`
-          INSERT INTO activity_profiles (id, user_id, activity_id, setup_status, setup_key)
-          VALUES (?, ?, ?, 'preparing', ?)
-          ON CONFLICT(user_id, activity_id) DO UPDATE SET
-            setup_status = 'preparing', setup_key = excluded.setup_key,
-            setup_question_message_id = NULL, assessed_at = NULL,
-            updated_at = CURRENT_TIMESTAMP
-        `).bind(`activity-profile:${safeId(userId)}:${safeId(clientKey)}`, userId, activityId, activitySetupKey(activity)),
+      statements.push(
         db.prepare(`
           INSERT OR IGNORE INTO conversation_messages (id, conversation_id, role, body, source)
           VALUES (?, ?, 'user', ?, 'user')
@@ -201,12 +193,33 @@ export async function POST(request: Request) {
           userId, activityId, conversationId, sourceMessageId: messageId,
           clientMessageId, body: setupRequest, activityTitle: title,
         }),
-      ]);
+      );
     } else {
-      await queueActivitySetup(userId, activity);
+      statements.push(db.prepare(`
+        INSERT INTO agent_jobs (id, user_id, activity_id, conversation_id, kind, idempotency_key)
+        VALUES (?, ?, ?, ?, 'activity_setup', ?)
+      `).bind(`agent-job:${safeId(userId)}:setup:${safeId(clientKey)}:${setupKey}`,
+        userId, activityId, conversationId, `activity-setup:${activityId}:${setupKey}`));
     }
+    await createActivityOnce(db, {
+      userId, activityId, statements,
+      requestJson: JSON.stringify({ title, category, activityDuration, icon, color, origin,
+        cadence, advancement, effectiveDate, date, includeToday, planRole, setupRequest, scheduleChoice }),
+      resolveOccurrence: async () => {
+        if (!includeToday || !date) return;
+        if (cadence) {
+          await resolveDay(userId, date, routine.id, `plan:${safeId(userId)}:${date}`, routine.startMinutes);
+        } else {
+          await applyOccurrenceAction(userId, {
+            type: "add_occurrence", activityId, date, durationMinutes: activityDuration,
+            planRole, idempotencyKey: `create-activity:${clientKey}:${date}`,
+          }, { source: "user", actor: userId });
+        }
+      },
+    });
     return Response.json({ created: true, activity });
   } catch (error) {
+    if (error instanceof ActivityCreationConflict) return Response.json({ error: error.message }, { status: 409 });
     return apiFailure(error);
   }
 }

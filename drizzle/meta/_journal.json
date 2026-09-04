@@ -169,6 +169,13 @@
       "when": 1788322507501,
       "tag": "0023_cooing_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1788536340422,
+      "tag": "0024_silky_green_goblin",
+      "breakpoints": true
     }
   ]
 }
