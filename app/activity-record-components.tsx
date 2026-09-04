@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { formatActivityRecordDate } from "./activity-record-format";
 import { hasMeaningfulProductNotes, type ActivityRecord } from "./activity-record-model";
 import { createDailySelectionSaveQueue } from "./daily-selection-save-queue";
-import { previousDateKey, selectionCountsForDate, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
+import { previousDateKey, selectionItemLabel, selectionItemUsed, selectionCountsForDate, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
 import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
 import { recurringCadenceDescription, recurringOccurrenceDates, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 import { dailyCompletionStreak, normalizedCompletionDates } from "./streak-model";
@@ -158,7 +158,7 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
   }));
   const activeItems = data.items.filter((item) => item.active !== false);
   const isRoutine = data.kind === "routine";
-  const labels = new Map(data.items.map((item) => [item.id, item.label]));
+  const labels = new Map(data.items.map((item) => [item.id, selectionItemLabel(data, item.id)]));
   const priorEntries = [...data.entries].filter((entry) => entry.date !== today).sort((left, right) => right.date.localeCompare(left.date)).slice(0, 4);
   const cadenceByKey = new Map(relatedRecords.filter((candidate) => candidate.type === "recurring_step").map((candidate) => [candidate.key, candidate]));
 
@@ -177,8 +177,12 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
               : recurringCadenceDescription(cadenceData.cadence),
     };
   }
-  const dueItems = isRoutine ? activeItems.filter((item) => cadenceState(item)?.due) : [];
-  const otherItems = isRoutine ? activeItems.filter((item) => !cadenceState(item)?.due) : activeItems;
+  const roots = activeItems.filter((item) => !item.parentItemId);
+  const childrenOf = (item: DailySelectionItem) => activeItems.filter((child) => child.parentItemId === item.id);
+  const groupDue = (item: DailySelectionItem) => Boolean(cadenceState(item)?.due || childrenOf(item).some((child) => cadenceState(child)?.due));
+  const dueItems = isRoutine ? roots.filter(groupDue) : [];
+  const otherItems = isRoutine ? roots.filter((item) => !groupDue(item)) : activeItems;
+  const dueChoices = activeItems.filter((item) => cadenceState(item)?.due);
   const totalUses = activeItems.reduce((sum, item) => sum + (selectedIds.includes(item.id) ? selectedCounts[item.id] ?? 1 : 0), 0);
 
   useEffect(() => {
@@ -271,7 +275,17 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
     }
   }
 
-  function renderItems(items: DailySelectionItem[]) {
+  function renderDeviceDetails(item: DailySelectionItem) {
+    const device = relatedRecords.find((candidate) => candidate.key === item.subjectKey && candidate.type === "product" && candidate.data.kind === "device");
+    if (!device) return null;
+    const legacyLogs = relatedRecords.filter((candidate) => candidate.subjectKey === device.key && candidate.type === "session_log" && Array.isArray(candidate.data.entries) && candidate.data.entries.length);
+    return <details className="routine-item-details"><summary><span>Instructions and details</span><ChevronDown aria-hidden="true" size={16} /></summary>
+      <ActivityRecordComponent record={device} onMutate={onMutate} supportingRecords={relatedRecords.filter((candidate) => candidate.subjectKey === device.key && ["protocol", "resources"].includes(candidate.type))} />
+      {legacyLogs.map((log) => <div className="routine-legacy-log" key={log.key}><strong>Previously recorded details</strong><p>These older notes are retained separately; they do not add to today&apos;s count.</p>{(log.data.entries as Array<{ id: string; date: string; values?: Array<{ field: string; value: string }>; note?: string }>).map((entry) => <p key={entry.id}>{formatActivityRecordDate(entry.date)} · {entry.values?.map((value) => `${value.field}: ${value.value}`).join(" · ")}{entry.note ? ` · ${entry.note}` : ""}</p>)}</div>)}
+    </details>;
+  }
+
+  function renderItems(items: DailySelectionItem[], nested = false): ReactNode {
     if (isRoutine) return <div className="routine-choice-rows">{items.map((item) => {
       const selected = selectedIds.includes(item.id);
       const count = selected ? selectedCounts[item.id] ?? 1 : 0;
@@ -282,19 +296,34 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
       const name = product?.name && item.label.toLowerCase().includes(product.name.toLowerCase()) ? product.name : item.label;
       const detail = [product?.manufacturer, item.detail].filter(Boolean).join(" · ");
       const unit = (item.unitLabel || "session").replace(/s$/i, "");
+      const children = childrenOf(item);
+      if (!nested && children.length) {
+        const groupCount = [item, ...children].reduce((total, child) => total + (selectedIds.includes(child.id) ? selectedCounts[child.id] ?? 1 : 0), 0);
+        const due = children.filter((child) => cadenceState(child)?.due);
+        const other = children.filter((child) => !cadenceState(child)?.due);
+        return <details className={`routine-mode-group ${groupCount ? "is-selected" : ""}`} key={item.id}>
+          <summary className="routine-mode-summary"><span className="routine-choice-check" aria-hidden="true">{groupCount ? <Check size={16} weight="bold" /> : null}</span><span className="routine-choice-copy"><strong>{name}</strong><small>{groupCount ? `${groupCount} ${groupCount === 1 ? "use" : "uses"} recorded` : "Choose a mode to record a use"}</small>{cadence ? <small>{cadence.description}</small> : due.length ? <small>{due.filter((child) => selectedIds.includes(child.id)).length} of {due.length} due modes done</small> : <small>Optional</small>}</span><ChevronDown aria-hidden="true" size={16} /></summary>
+          <div className="routine-mode-options">
+            {due.length ? <><p className="routine-mode-label">Due today</p>{renderItems(due, true)}</> : null}
+            {other.length ? <><p className="routine-mode-label">{due.length ? "Other choices" : "Modes"}</p>{renderItems(other, true)}</> : null}
+            {count > 0 ? <><p className="routine-mode-label">Mode not recorded</p>{renderItems([{ ...item, label: "Mode not recorded", detail: "Existing uses kept without guessing a mode.", cadenceRecordKey: undefined }], true)}</> : null}
+            {renderDeviceDetails(item)}
+          </div>
+        </details>;
+      }
       const copy = <span className="routine-choice-copy"><strong>{name}</strong>{detail ? <small>{detail}</small> : null}{item.allowMultiple ? <small>{count} {unit}{count === 1 ? "" : "s"}</small> : null}</span>;
       const rhythm = <span className="routine-choice-cadence">{cadence ? cadence.description : "Optional"}{cadence && !cadence.due ? <small>{cadence.label}</small> : null}</span>;
-      if (item.allowMultiple) return <div className={`routine-choice-row routine-repeat-row ${selected ? "is-selected" : ""}`} key={item.id}>
+      if (item.allowMultiple) return <div key={item.id}><div className={`routine-choice-row routine-repeat-row ${selected ? "is-selected" : ""}`}>
         <span aria-hidden="true" className="routine-repeat-mark" /><div className="routine-choice-copy">{copy}{rhythm}</div>
         <div className="routine-repeat-actions"><div className="routine-stepper" role="group" aria-label={`${name} uses today`}>
           <button aria-label={`Remove one ${item.label} ${unit}`} disabled={saving || count === 0} onClick={() => void setCount(item, count - 1)} type="button"><Minus size={14} /></button>
           <output aria-live="polite">{count}</output>
           <button aria-label={`Add one ${item.label} ${unit}`} disabled={saving || count >= 9} onClick={() => void setCount(item, count + 1)} type="button"><Plus size={14} /></button>
         </div></div>
-      </div>;
-      return <button aria-pressed={selected} className={`routine-choice-row ${selected ? "is-selected" : ""}`} key={item.id} type="button" onClick={() => toggle(item)}>
+      </div>{!nested ? renderDeviceDetails(item) : null}</div>;
+      return <div key={item.id}><button aria-pressed={selected} className={`routine-choice-row ${selected ? "is-selected" : ""}`} type="button" onClick={() => toggle(item)}>
         <span className="routine-choice-check" aria-hidden="true">{selected ? <Check size={16} weight="bold" /> : null}</span>{copy}{rhythm}
-      </button>;
+      </button>{!nested ? renderDeviceDetails(item) : null}</div>;
     })}</div>;
     return <div aria-label={`${record.title} for today`} className={`daily-selection-items ${isRoutine ? "is-variable-routine" : ""}`}>
       {items.map((item) => {
@@ -319,7 +348,7 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
 
   return <section className={`workspace-block daily-selection-record ${isRoutine ? "variable-routine-record" : ""}`}>
     {isRoutine ? <header className="routine-today-heading"><div><span className="workspace-overline">Today</span><h3>{data.prompt || "What fits today?"}</h3><p>{activeItems.some((item) => cadenceState(item)) ? "Cadence decides what is due. You can still choose anything else." : "Choose what fits today. Each choice is optional."}</p></div><span className="routine-progress" aria-live="polite">{totalUses} {totalUses === 1 ? "use" : "uses"}</span></header> : <Heading eyebrow="Today" title={record.title} />}
-    {isRoutine && dueItems.length ? <><div className="routine-group-heading"><div><strong>Due today</strong><small>Independent recurring steps</small></div><span className="routine-progress" aria-live="polite">{dueItems.filter((item) => selectedIds.includes(item.id)).length} of {dueItems.length} done</span></div>{renderItems(dueItems)}</> : null}
+    {isRoutine && dueItems.length ? <><div className="routine-group-heading"><div><strong>Due today</strong><small>Independent recurring steps</small></div><span className="routine-progress" aria-live="polite">{dueChoices.filter((item) => selectionItemUsed(data, selectedIds, item.id)).length} of {dueChoices.length} done</span></div>{renderItems(dueItems)}</> : null}
     {isRoutine && otherItems.length ? <div className="routine-group-heading"><div><strong>Other choices</strong><small>Available without being required</small></div></div> : null}
     {renderItems(otherItems)}
     {!isRoutine && !adding ? <button className="daily-selection-add" disabled={saving} type="button" onClick={() => setAdding(true)}><Plus size={13} /> Add supplement</button> : null}

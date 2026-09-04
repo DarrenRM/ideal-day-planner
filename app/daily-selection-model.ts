@@ -8,6 +8,7 @@ export type DailySelectionItem = {
   cadenceRecordKey?: string;
   allowMultiple?: boolean;
   unitLabel?: string;
+  parentItemId?: string;
 };
 
 export type DailySelectionEntry = {
@@ -23,6 +24,35 @@ export type DailySelectionData = {
   items: DailySelectionItem[];
   entries: DailySelectionEntry[];
 };
+
+export function selectionItemUsed(data: DailySelectionData, selectedIds: string[], itemId: string) {
+  return selectedIds.includes(itemId) || data.items.some((item) => item.parentItemId === itemId && selectedIds.includes(item.id));
+}
+
+export function selectionItemLabel(data: DailySelectionData, itemId: string) {
+  const item = data.items.find((candidate) => candidate.id === itemId);
+  if (!item) return "";
+  const parent = data.items.find((candidate) => candidate.id === item.parentItemId);
+  if (parent) return `${parent.label} — ${item.label}`;
+  return data.items.some((candidate) => candidate.parentItemId === itemId) ? `${item.label} — mode not recorded` : item.label;
+}
+
+// Modes reuse the roster's canonical IDs/counts; a parent ID in historical
+// selections means an unspecified use, never a guess about a newly added mode.
+export function configureSelectionModes(data: DailySelectionData, parentItemId: string, modes: Array<{ id: string; label: string }>): DailySelectionData {
+  const parent = data.items.find((item) => item.id === parentItemId && !item.parentItemId && item.active !== false);
+  if (data.kind !== "routine" || !parent || modes.length < 1 || modes.length > 12) throw new Error("Choose a routine item and one to twelve modes.");
+  if (new Set(modes.map((mode) => mode.id)).size !== modes.length || modes.some((mode) => !/^[a-z0-9][a-z0-9-]{0,79}$/.test(mode.id) || !mode.label.trim() || mode.label.length > 100 || mode.id === parentItemId)) throw new Error("Each mode needs a unique stable ID and a short name.");
+  const items = new Map(data.items.map((item) => [item.id, item]));
+  for (const mode of modes) {
+    const existing = items.get(mode.id);
+    if (existing && existing.parentItemId !== parentItemId) throw new Error("That mode ID belongs to another item.");
+    items.set(mode.id, { ...existing, id: mode.id, label: mode.label.trim(), active: true, parentItemId, subjectKey: parent.subjectKey, allowMultiple: true, unitLabel: "session", source: "You" });
+  }
+  if (items.size > 100) throw new Error("This routine has too many choices.");
+  items.set(parentItemId, { ...parent, detail: "Choose a mode to record each use.", allowMultiple: true });
+  return { ...data, items: [...items.values()] };
+}
 
 type LegacyChecklistItem = {
   id?: unknown;
@@ -84,7 +114,7 @@ export function withSelectionForDate(data: DailySelectionData, date: string, ite
 /** Agent writes are patches over durable history: supplied ids/dates win, omitted history survives. */
 export function mergeDailySelectionData(current: DailySelectionData, incoming: DailySelectionData): DailySelectionData {
   const items = new Map(current.items.map((item) => [item.id, item]));
-  for (const item of incoming.items) items.set(item.id, item);
+  for (const item of incoming.items) items.set(item.id, { ...items.get(item.id), ...item });
   const entries = new Map(current.entries.map((entry) => [entry.date, entry]));
   for (const entry of incoming.entries) entries.set(entry.date, entry);
   return {

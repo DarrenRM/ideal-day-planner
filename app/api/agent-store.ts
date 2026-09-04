@@ -11,7 +11,7 @@ import { shouldShowActivitySchedule } from "../schedule-summary";
 import { parentScheduleCadenceFromRecurringStep, recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 import { fixedMeasuredSessionOption, measuredSessionFields, type SessionChoiceData } from "../session-log-model";
-import { mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionCountsForDate, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
+import { configureSelectionModes, selectionItemUsed, mergeDailySelectionData, migrateLegacyDailySelection, previousDateKey, selectionCountsForDate, selectionForDate, withSelectionForDate, type DailySelectionData } from "../daily-selection-model";
 import { mergeMealLogData, type MealLogData } from "../meal-log-model";
 import { historicalWorkspaceReceipt } from "../work-receipt-model";
 import { parseStoredClarificationOptions, type ConversationClarification } from "../conversation-clarification-model";
@@ -2857,7 +2857,28 @@ export async function applyUserRecordMutation(input: {
   const data = structuredClone(record.data);
   const relatedActions: RecordAction[] = [];
 
-  if (["set_daily_selection", "set_daily_selection_count", "copy_daily_selection_previous", "add_daily_selection_item"].includes(input.operation) && record.type === "daily_selection") {
+  if (input.operation === "configure_daily_selection_modes" && record.type === "daily_selection") {
+    const revisionId = `activity-record-revision:${safeId(input.actionId)}:${safeId(record.key)}`;
+    const db = getD1();
+    if (await db.prepare("SELECT id FROM activity_record_revisions WHERE id = ? AND record_id = ?").bind(revisionId, record.id).first()) return records;
+    if (input.payload.expectedVersion !== record.version) throw new Error("This routine changed. Reload before changing its modes.");
+    const modes = Array.isArray(input.payload.modes) ? input.payload.modes as Array<{ id: string; label: string }> : [];
+    if (modes.some((mode) => !mode || typeof mode.id !== "string" || typeof mode.label !== "string")) throw new Error("Each mode needs a name and ID.");
+    Object.assign(data, configureSelectionModes(data as DailySelectionData, String(input.payload.itemId || ""), modes));
+    const actions = validateRecordActions([{ op: "upsert", record: { key: record.key, type: record.type, title: record.title, scope: record.scope, scopeDate: record.scopeDate, subjectKey: record.subjectKey, data } }], input.planDate);
+    if (!actions.length || actions[0].op !== "upsert") throw new Error("The updated modes did not pass validation.");
+    const payloadJson = JSON.stringify(actions[0].record.data);
+    // Configuration must not replace a use recorded while this request was
+    // preparing its update. The conditional write and receipt are atomic.
+    const results = await db.batch([
+      db.prepare("UPDATE activity_records SET payload_json = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND version = ? AND archived_at IS NULL")
+        .bind(payloadJson, record.id, input.userId, record.version),
+      db.prepare("INSERT INTO activity_record_revisions (id, record_id, revision_number, title, payload_json) SELECT ?, ?, ?, ?, ? WHERE changes() > 0")
+        .bind(revisionId, record.id, record.version + 1, record.title, payloadJson),
+    ]);
+    if (!results[0].meta.changes) throw new Error("This routine changed. Reload before changing its modes.");
+    return readActivityRecords(input.activityId, input.planDate, input.activityVariantId);
+  } else if (["set_daily_selection", "set_daily_selection_count", "copy_daily_selection_previous", "add_daily_selection_item"].includes(input.operation) && record.type === "daily_selection") {
     const date = input.planDate;
     if (!date) throw new Error("A date is required.");
     const selection = data as DailySelectionData;
@@ -2902,7 +2923,7 @@ export async function applyUserRecordMutation(input: {
       const cadenceData = structuredClone(cadenceRecord.data);
       const completedDates = Array.isArray(cadenceData.completedDates)
         ? cadenceData.completedDates.filter((entry): entry is string => typeof entry === "string") : [];
-      const shouldBeComplete = selected.has(item.id);
+      const shouldBeComplete = selectionItemUsed(data as DailySelectionData, [...selected], item.id);
       if (completedDates.includes(date) === shouldBeComplete) continue;
       cadenceData.completedDates = shouldBeComplete ? [...completedDates, date] : completedDates.filter((entry) => entry !== date);
       relatedActions.push({ op: "upsert", record: {

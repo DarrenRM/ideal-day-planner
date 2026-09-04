@@ -7,6 +7,7 @@ import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { variableRoutineWorkspace } from "../../app/variable-routine-workspace.ts";
+import { configureSelectionModes } from "../../app/daily-selection-model.ts";
 
 // Render the real component tree with React. Glyphs are inert stand-ins; all
 // layout, data, controls and ownership decisions use production components.
@@ -91,3 +92,28 @@ const supplements = renderChoices({ ...choices, data: { ...choices.data, kind: "
 assert.match(supplements, /daily-selection-items/);
 assert.match(supplements, /Add supplement/);
 assert.doesNotMatch(supplements, /routine-choice-rows|routine-today-heading/);
+
+const grouped = structuredClone(choices);
+grouped.data = configureSelectionModes(grouped.data, "mask", [{ id: "red", label: "Red" }, { id: "green", label: "Green" }, { id: "amber", label: "Amber" }]);
+delete grouped.data.items.find((item) => item.id === "mask").cadenceRecordKey;
+grouped.data.items.find((item) => item.id === "red").cadenceRecordKey = "mask-cadence";
+grouped.data.entries[0].itemIds.push("red", "green");
+grouped.data.entries[0].counts.red = 2;
+const modeHtml = renderChoices(grouped);
+assert.equal((modeHtml.match(/class="routine-mode-group /g) || []).length, 1, "one parent even with due and optional modes");
+assert.match(modeHtml, />5 uses recorded</, "two old uses plus two red and one green");
+assert.match(modeHtml, />6 uses</, "includes serum without double counting parent");
+assert.match(modeHtml, />1 of 1 done</);
+assert.match(modeHtml, /Mode not recorded/);
+for (const color of ["Red", "Green", "Amber"]) assert.match(modeHtml, new RegExp(`aria-label="Add one ${color} session"`));
+assert.doesNotMatch(modeHtml, /Blue|Machine settings|Add one LED mask session/);
+assert.match(modeHtml, /Instructions and details/);
+const modeWorkspace = renderToStaticMarkup(React.createElement(ActivityWorkspace, {
+  activity: { id: "face-care", title: "Face Care", category: "Care", duration: 15, color: "#cc92b8" },
+  workspace: stale, records: scheduled.map((record) => record.key === "choices" ? grouped : record), onRecordMutation: async () => true,
+}));
+assert.doesNotMatch(modeWorkspace.slice(modeWorkspace.indexOf("Products and details")), /LED mask|Machine settings/, "device never appears among consumable references");
+const checkboxDevice = structuredClone(choices);
+checkboxDevice.data.items[1].allowMultiple = false;
+assert.match(renderChoices(checkboxDevice), /aria-pressed="true" class="routine-choice-row is-selected"/);
+assert.doesNotMatch(renderChoices(checkboxDevice), /routine-mode-group|routine-stepper/);

@@ -312,6 +312,10 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
   }
 
   if (type === "daily_selection") {
+    if (Array.isArray(source.items) && source.items.some((item) => {
+      const entry = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : null;
+      return entry && entry.parentItemId != null && entry.parentItemId !== "" && !stableKey(entry.parentItemId);
+    })) return null;
     const items = objectArray(source.items, 100, (entry, index) => {
       const label = boundedString(entry.label, 300);
       if (!label) return null;
@@ -325,9 +329,16 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
         cadenceRecordKey: stableKey(entry.cadenceRecordKey),
         allowMultiple: entry.allowMultiple === true,
         unitLabel: boundedString(entry.unitLabel, 40),
+        ...(stableKey(entry.parentItemId) ? { parentItemId: stableKey(entry.parentItemId) } : {}),
       };
     });
     const knownIds = new Set(items.map((item) => item.id));
+    if (knownIds.size !== items.length || items.some((item) => {
+      if (!item.parentItemId) return false;
+      const parent = items.find((candidate) => candidate.id === item.parentItemId);
+      return source.kind !== "routine" || !parent || parent.id === item.id || Boolean(parent.parentItemId)
+        || parent.subjectKey !== item.subjectKey;
+    })) return null;
     const repeatableIds = new Set(items.filter((item) => item.allowMultiple).map((item) => item.id));
     return {
       kind: source.kind === "routine" ? "routine" : "supplements",

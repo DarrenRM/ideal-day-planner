@@ -32,6 +32,8 @@ A workout phase is an activity- or variant-scoped `protocol` with no `subjectKey
 
 ## Moving a subject
 
+Within a `kind: routine` daily selection, optional `parentItemId` groups modes beneath one roster item. Both parent and children retain the same explicit `subjectKey`; grouping does not create new products or activity variants. Only one nesting level is valid. Children use the existing dated item IDs/counts and may reference separate recurring-step records. A child use satisfies its parent's general cadence, but never another child's cadence. Parent IDs in older entries represent uses with no recorded mode and must not be reclassified. Device details are nested within the parent; existing separate device session notes remain read-only, not a second count source.
+
 `move_subject` names one subject root and a destination activity. The server resolves the root and every record with the same `subjectKey`, plus unambiguous dated/cadence records that explicitly reference the subject through `itemKey`. It moves their workspace bindings atomically. Conversation stays in the original activity as audit history.
 
 The durable move receipt remains in that original conversation, but its `View` target is the destination activity. Moving a nested recurring step does not change the destination activity's permanent Essential/Go Further role; when the step is due, day resolution temporarily activates the destination parent while keeping nested-step detail inside the expanded activity workspace.

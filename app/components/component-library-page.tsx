@@ -310,7 +310,7 @@ const FACE_CARE_ITEMS = [
 function ActivitySetupLab() {
   const [mode, setMode] = useState<SetupMode>("choose");
   const [selected, setSelected] = useState<string[]>(["cleanse", "serum", "moisturize"]);
-  const [maskCounts, setMaskCounts] = useState({ red: 1, blue: 1 });
+  const [maskCounts, setMaskCounts] = useState<Record<string, number>>({ red: 1, green: 0, amber: 0 });
   const [separateSubject, setSeparateSubject] = useState("LED face mask");
   const [notice, setNotice] = useState("Prototype only · no activity data changed");
 
@@ -325,13 +325,21 @@ function ActivitySetupLab() {
   const routineRecord = mockRecord("preview-choices", "daily_selection", {
     kind: "routine", prompt: "What fits your skin today?",
     items: [...FACE_CARE_ITEMS.map((item) => ({ ...item, cadenceRecordKey: item.id === "retinol" ? "preview-retinol" : undefined })),
-      { id: "red", label: "Red-light mask", allowMultiple: true, unitLabel: "session", cadenceRecordKey: "preview-mask" },
-      { id: "blue", label: "Blue-light mask", allowMultiple: true, unitLabel: "session" }],
-    entries: [{ id: "preview-today", date: today, itemIds: [...selected, ...(["red", "blue"] as const).filter((color) => maskCounts[color] > 0)], counts: maskCounts }],
+      { id: "mask", label: "Light mask", subjectKey: "preview-device" },
+      { id: "red", label: "Red", parentItemId: "mask", subjectKey: "preview-device", allowMultiple: true, unitLabel: "session", cadenceRecordKey: "preview-mask" },
+      { id: "green", label: "Green", parentItemId: "mask", subjectKey: "preview-device", allowMultiple: true, unitLabel: "session" },
+      { id: "amber", label: "Amber", parentItemId: "mask", subjectKey: "preview-device", allowMultiple: true, unitLabel: "session" }],
+    entries: [{ id: "preview-today", date: today, itemIds: [...selected, ...Object.keys(maskCounts).filter((color) => maskCounts[color] > 0)], counts: maskCounts }],
   });
   const cadenceRecords = [mockRecord("preview-retinol", "recurring_step", { cadence: { kind: "interval_days", every: 4 }, anchorDate: today }), mockRecord("preview-mask", "recurring_step", { cadence: { kind: "interval_days", every: 2 }, anchorDate: today })];
+  cadenceRecords.push(mockRecord("preview-device", "product", { kind: "device", name: "Light mask", notes: "Example modes only. Use the options and instructions verified for your device; the cadence shown here is demo data." }));
   const mutatePreview: RecordMutation = async (_key, operation, payload) => {
-    if (operation === "set_daily_selection") setSelected((payload.itemIds as string[]).filter((id) => id !== "red" && id !== "blue"));
+    if (operation === "set_daily_selection") {
+      const ids = payload.itemIds as string[];
+      setSelected(ids.filter((id) => !["red", "green", "amber"].includes(id)));
+      const counts = payload.counts as Record<string, number> | undefined;
+      setMaskCounts(Object.fromEntries(["red", "green", "amber"].map((id) => [id, ids.includes(id) ? counts?.[id] ?? 1 : 0])));
+    }
     else if (operation === "toggle_item") setSelected((current) => current.includes(String(payload.itemId)) ? current.filter((id) => id !== payload.itemId) : [...current, String(payload.itemId)]);
     else if (operation === "set_daily_selection_count") setMaskCounts((current) => ({ ...current, [payload.itemId as string]: Number(payload.count) }));
     setNotice("Preview updated · no activity data changed");

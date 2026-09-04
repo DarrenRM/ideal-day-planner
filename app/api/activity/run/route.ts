@@ -266,7 +266,9 @@ export async function POST(request: Request) {
     ];
     await db.batch(statements);
     if (actualElapsedSeconds !== null && actualElapsedSeconds > 0) {
-      const sessionLog = activityRecords.find((record) => record.type === "session_log");
+      const routineSubjects = new Set(activityRecords.filter((record) => record.type === "daily_selection" && record.data.kind === "routine")
+        .flatMap((record) => (record.data.items as Array<{ subjectKey?: string }>).flatMap((item) => item.subjectKey ? [item.subjectKey] : [])));
+      const sessionLog = activityRecords.find((record) => record.type === "session_log" && !(record.subjectKey && routineSubjects.has(record.subjectKey)));
       const sessionData = sessionLog?.data as SessionLogData | undefined;
       const choice = sessionData?.choiceRecordKey
         ? activityRecords.find((record) => record.key === sessionData.choiceRecordKey && record.type === "session_choice")
