@@ -7,7 +7,7 @@ import ts from "typescript";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { variableRoutineWorkspace } from "../../app/variable-routine-workspace.ts";
-import { configureSelectionModes } from "../../app/daily-selection-model.ts";
+import { configureSelectionModes, previousDateKey } from "../../app/daily-selection-model.ts";
 
 // Render the real component tree with React. Glyphs are inert stand-ins; all
 // layout, data, controls and ownership decisions use production components.
@@ -19,7 +19,7 @@ function load(path) {
   const exports = {};
   cache.set(path, exports);
   const code = ts.transpileModule(readFileSync(path, "utf8"), { compilerOptions: {
-    module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   } }).outputText;
   new Function("require", "exports", code)((specifier) => {
     if (!specifier.startsWith(".")) return require(specifier);
@@ -80,7 +80,8 @@ const renderChoices = (record, relatedRecords = scheduled) => renderToStaticMark
 const withCadence = renderChoices(choices);
 assert.match(withCadence, />3 uses</);
 assert.match(withCadence, />1 of 1 done</);
-assert.match(withCadence, />2 sessions</);
+assert.match(withCadence, /<output aria-live="polite">2<\/output>/);
+assert.doesNotMatch(withCadence, />2 sessions</);
 assert.match(withCadence, /Due today/);
 assert.match(withCadence, /Independent recurring steps/);
 assert.match(withCadence, /<strong>Serum<\/strong><small>Brand<\/small>/);
@@ -108,6 +109,24 @@ assert.match(modeHtml, /Mode not recorded/);
 for (const color of ["Red", "Green", "Amber"]) assert.match(modeHtml, new RegExp(`aria-label="Add one ${color} session"`));
 assert.doesNotMatch(modeHtml, /Blue|Machine settings|Add one LED mask session/);
 assert.match(modeHtml, /Instructions and details/);
+assert.doesNotMatch(modeHtml, />\d+ sessions?<|>Optional</, "counters and section grouping already explain mode use");
+assert.match(modeHtml, /Every 2 days/, "saved cadence remains visible");
+const historic = structuredClone(grouped);
+historic.data.entries.push({ ...structuredClone(historic.data.entries[0]), id: "yesterday", date: previousDateKey(today) });
+const historicHtml = renderChoices(historic);
+const history = historicHtml.slice(historicHtml.indexOf('<details class="daily-selection-history'));
+assert.match(history, /<span class="workspace-overline">Recent days<\/span>/);
+assert.match(history, /<article class="record-history-entry">/);
+assert.match(history, /<time dateTime="[\d-]+">[^<]+<\/time>/);
+assert.match(history, /<span>Serum<\/span>/, "history uses the same concise product identity as Today");
+assert.equal((history.match(/<span>LED mask<\/span>/g) || []).length, 1, "modes are grouped under one parent");
+assert.match(history, /<span>Mode not recorded<\/span><small>×2<\/small>/);
+assert.match(history, /<span>Red<\/span><small>×2<\/small>/);
+assert.match(history, /<span>Green<\/span><small>×1<\/small>/);
+assert.match(history, />6 uses</, "date total counts actual uses without adding a synthetic parent use");
+const supplementHistory = renderChoices({ ...historic, data: { ...choices.data, kind: "supplements", entries: historic.data.entries.map((entry) => ({ ...entry, itemIds: ["serum"] })) } });
+assert.match(supplementHistory, /selection-history-items/);
+assert.doesNotMatch(supplementHistory, /Mode not recorded/);
 const modeWorkspace = renderToStaticMarkup(React.createElement(ActivityWorkspace, {
   activity: { id: "face-care", title: "Face Care", category: "Care", duration: 15, color: "#cc92b8" },
   workspace: stale, records: scheduled.map((record) => record.key === "choices" ? grouped : record), onRecordMutation: async () => true,

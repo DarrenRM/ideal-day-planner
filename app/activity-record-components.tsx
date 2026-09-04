@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { formatActivityRecordDate } from "./activity-record-format";
 import { hasMeaningfulProductNotes, type ActivityRecord } from "./activity-record-model";
 import { createDailySelectionSaveQueue } from "./daily-selection-save-queue";
-import { previousDateKey, selectionItemLabel, selectionItemUsed, selectionCountsForDate, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
+import { previousDateKey, selectionItemUsed, selectionCountsForDate, selectionForDate, type DailySelectionData, type DailySelectionItem } from "./daily-selection-model";
 import { mealEntriesForDate, mealEntryHasDetails, recipeForMealEntry, savedRecipeHasDetails, type MealIngredient, type MealLogData, type MealLogEntry, type SavedRecipe } from "./meal-log-model";
 import { recurringCadenceDescription, recurringOccurrenceDates, recurringStepScheduleStatus, type RecurringCadence } from "./recurring-step-schedule";
 import { dailyCompletionStreak, normalizedCompletionDates } from "./streak-model";
@@ -158,7 +158,6 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
   }));
   const activeItems = data.items.filter((item) => item.active !== false);
   const isRoutine = data.kind === "routine";
-  const labels = new Map(data.items.map((item) => [item.id, selectionItemLabel(data, item.id)]));
   const priorEntries = [...data.entries].filter((entry) => entry.date !== today).sort((left, right) => right.date.localeCompare(left.date)).slice(0, 4);
   const cadenceByKey = new Map(relatedRecords.filter((candidate) => candidate.type === "recurring_step").map((candidate) => [candidate.key, candidate]));
 
@@ -184,6 +183,11 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
   const otherItems = isRoutine ? roots.filter((item) => !groupDue(item)) : activeItems;
   const dueChoices = activeItems.filter((item) => cadenceState(item)?.due);
   const totalUses = activeItems.reduce((sum, item) => sum + (selectedIds.includes(item.id) ? selectedCounts[item.id] ?? 1 : 0), 0);
+
+  function itemName(item: DailySelectionItem) {
+    const product = relatedRecords.find((candidate) => candidate.type === "product" && candidate.key === item.subjectKey)?.data as { name?: string } | undefined;
+    return product?.name && item.label.toLowerCase().includes(product.name.toLowerCase()) ? product.name : item.label;
+  }
 
   useEffect(() => {
     if (!undo || undo.version !== record.version) return;
@@ -293,7 +297,7 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
       const product = relatedRecords.find((candidate) => candidate.type === "product" && candidate.key === item.subjectKey)?.data as { name?: string; manufacturer?: string } | undefined;
       // Shorten a verbose generated product label, but preserve distinct user
       // labels (for example two modes of the same device).
-      const name = product?.name && item.label.toLowerCase().includes(product.name.toLowerCase()) ? product.name : item.label;
+      const name = itemName(item);
       const detail = [product?.manufacturer, item.detail].filter(Boolean).join(" · ");
       const unit = (item.unitLabel || "session").replace(/s$/i, "");
       const children = childrenOf(item);
@@ -302,7 +306,7 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
         const due = children.filter((child) => cadenceState(child)?.due);
         const other = children.filter((child) => !cadenceState(child)?.due);
         return <details className={`routine-mode-group ${groupCount ? "is-selected" : ""}`} key={item.id}>
-          <summary className="routine-mode-summary"><span className="routine-choice-check" aria-hidden="true">{groupCount ? <Check size={16} weight="bold" /> : null}</span><span className="routine-choice-copy"><strong>{name}</strong><small>{groupCount ? `${groupCount} ${groupCount === 1 ? "use" : "uses"} recorded` : "Choose a mode to record a use"}</small>{cadence ? <small>{cadence.description}</small> : due.length ? <small>{due.filter((child) => selectedIds.includes(child.id)).length} of {due.length} due modes done</small> : <small>Optional</small>}</span><ChevronDown aria-hidden="true" size={16} /></summary>
+          <summary className="routine-mode-summary"><span className="routine-choice-check" aria-hidden="true">{groupCount ? <Check size={16} weight="bold" /> : null}</span><span className="routine-choice-copy"><strong>{name}</strong><small>{groupCount ? `${groupCount} ${groupCount === 1 ? "use" : "uses"} recorded` : "Choose a mode to record a use"}</small>{cadence ? <small>{cadence.description}</small> : due.length ? <small>{due.filter((child) => selectedIds.includes(child.id)).length} of {due.length} due modes done</small> : null}</span><ChevronDown aria-hidden="true" size={16} /></summary>
           <div className="routine-mode-options">
             {due.length ? <><p className="routine-mode-label">Due today</p>{renderItems(due, true)}</> : null}
             {other.length ? <><p className="routine-mode-label">{due.length ? "Other choices" : "Modes"}</p>{renderItems(other, true)}</> : null}
@@ -311,8 +315,8 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
           </div>
         </details>;
       }
-      const copy = <span className="routine-choice-copy"><strong>{name}</strong>{detail ? <small>{detail}</small> : null}{item.allowMultiple ? <small>{count} {unit}{count === 1 ? "" : "s"}</small> : null}</span>;
-      const rhythm = <span className="routine-choice-cadence">{cadence ? cadence.description : "Optional"}{cadence && !cadence.due ? <small>{cadence.label}</small> : null}</span>;
+      const copy = <span className="routine-choice-copy"><strong>{name}</strong>{detail && !item.parentItemId ? <small>{detail}</small> : null}</span>;
+      const rhythm = cadence ? <span className="routine-choice-cadence">{cadence.description}{!cadence.due ? <small>{cadence.label}</small> : null}</span> : null;
       if (item.allowMultiple) return <div key={item.id}><div className={`routine-choice-row routine-repeat-row ${selected ? "is-selected" : ""}`}>
         <span aria-hidden="true" className="routine-repeat-mark" /><div className="routine-choice-copy">{copy}{rhythm}</div>
         <div className="routine-repeat-actions"><div className="routine-stepper" role="group" aria-label={`${name} uses today`}>
@@ -355,13 +359,30 @@ function DailySelectionRecord({ record, onMutate, relatedRecords = [] }: Props) 
     {adding ? <form className="daily-selection-form" onSubmit={add}><input aria-label={isRoutine ? "Choice name" : "Supplement name"} disabled={saving} placeholder={isRoutine ? "Choice name…" : "Supplement name…"} value={label} onChange={(event) => setLabel(event.target.value)} /><button disabled={!label.trim() || saving} type="submit">Add</button><button disabled={saving} type="button" onClick={() => { setAdding(false); setLabel(""); }}>Cancel</button></form> : null}
     {yesterdaySelection.length > 0 && (!sameIds(selectedIds, yesterdaySelection) || !sameCounts(selectedCounts, yesterdayCounts)) ? <div className="daily-selection-copy-row"><button disabled={saving} type="button" onClick={() => void copyYesterday()}><RotateCcw size={13} /> Same as yesterday</button></div> : null}
     {undo ? <div className="daily-selection-undo" role="status"><span>Yesterday’s selection copied.</span><button type="button" onClick={() => void undoCopy()}>Undo</button></div> : null}
-    {priorEntries.length ? <details className="daily-selection-history">
-      <summary><span>Recent days</span><ChevronDown aria-hidden="true" size={15} /></summary>
-      <div className="daily-selection-history-entries">{priorEntries.map((entry) => <div key={entry.id}><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><p>{entry.itemIds.map((id) => {
-        const label = labels.get(id);
-        const count = entry.counts?.[id] ?? 1;
-        return label ? `${label}${count > 1 ? ` ×${count}` : ""}` : "";
-      }).filter(Boolean).join(" · ")}</p></div>)}</div>
+    {priorEntries.length ? <details className="daily-selection-history workspace-disclosure">
+      <summary><span className="workspace-overline">Recent days</span><ChevronDown aria-hidden="true" size={15} /></summary>
+      <div className="record-history-list daily-selection-history-entries">{priorEntries.map((entry) => {
+        const groups = new Map<string, { item: DailySelectionItem; uses: Array<{ item: DailySelectionItem; count: number }> }>();
+        for (const id of entry.itemIds) {
+          const item = data.items.find((candidate) => candidate.id === id);
+          if (!item) continue;
+          const parent = data.items.find((candidate) => candidate.id === item.parentItemId) ?? item;
+          const group = groups.get(parent.id) ?? { item: parent, uses: [] };
+          group.uses.push({ item, count: entry.counts?.[id] ?? 1 });
+          groups.set(parent.id, group);
+        }
+        const uses = [...groups.values()].reduce((total, group) => total + group.uses.reduce((count, use) => count + use.count, 0), 0);
+        return <article className="record-history-entry" key={entry.id}>
+          <header><time dateTime={entry.date}>{formatActivityRecordDate(entry.date)}</time><b>{uses} {uses === 1 ? "use" : "uses"}</b></header>
+          <ul className="selection-history-items">{[...groups.values()].map((group) => {
+            const hasModes = data.items.some((item) => item.parentItemId === group.item.id);
+            const count = group.uses.reduce((sum, use) => sum + use.count, 0);
+            return <li key={group.item.id}><div><span>{itemName(group.item)}</span>{count > 1 ? <small>×{count}</small> : null}</div>
+              {hasModes ? <ul>{group.uses.map((use) => <li key={use.item.id}><span>{use.item.id === group.item.id ? "Mode not recorded" : itemName(use.item)}</span><small>×{use.count}</small></li>)}</ul> : null}
+            </li>;
+          })}</ul>
+        </article>;
+      })}</div>
     </details> : null}
   </section>;
 }

@@ -42,7 +42,7 @@ test("renders daily subset selection, copy, inline add, and derived history as o
   assert.match(component, /set_daily_selection_count/);
   assert.match(component, /Independent recurring steps/);
   assert.match(component, /Recent days/);
-  assert.match(component, /<details className="daily-selection-history">/);
+  assert.match(component, /<details className="daily-selection-history workspace-disclosure">/);
   assert.match(component, /daily-selection-history-entries/);
   assert.match(component, /set_daily_selection/);
   assert.match(component, /createDailySelectionSaveQueue/);

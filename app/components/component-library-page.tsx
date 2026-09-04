@@ -4,6 +4,7 @@ import { ArrowRightLeft, BookOpen, Boxes, CalendarCheck2, CalendarDays, Check, C
 import { createElement, useMemo, useState, type CSSProperties } from "react";
 import { ActivityRecordComponent, type RecordMutation } from "../activity-record-components";
 import type { ActivityRecord } from "../activity-record-model";
+import { previousDateKey } from "../daily-selection-model";
 import { ActivityFollowUpComponent, ActivityScheduleSummaryComponent, ActivityWorkspace, VariableRoutineAdjustment, CountdownComponent, RoutineComponent, TimerComponent, WorkspaceEmptyGuidance, WorkspaceLunaInvitation, WorkspaceWorkingComponent, type WorkspaceActivity } from "../activity-workspace";
 import { StreakTrack } from "../streak-track";
 import { ConversationWorkReceipt } from "../conversation-work-receipt";
@@ -329,15 +330,21 @@ function ActivitySetupLab() {
       { id: "red", label: "Red", parentItemId: "mask", subjectKey: "preview-device", allowMultiple: true, unitLabel: "session", cadenceRecordKey: "preview-mask" },
       { id: "green", label: "Green", parentItemId: "mask", subjectKey: "preview-device", allowMultiple: true, unitLabel: "session" },
       { id: "amber", label: "Amber", parentItemId: "mask", subjectKey: "preview-device", allowMultiple: true, unitLabel: "session" }],
-    entries: [{ id: "preview-today", date: today, itemIds: [...selected, ...Object.keys(maskCounts).filter((color) => maskCounts[color] > 0)], counts: maskCounts }],
+    entries: [
+      { id: "preview-yesterday", date: previousDateKey(today), itemIds: ["cleanse", "moisturize", "red", "green"], counts: { red: 2 } },
+      { id: "preview-today", date: today, itemIds: [...selected, ...Object.keys(maskCounts).filter((color) => maskCounts[color] > 0)], counts: maskCounts },
+    ],
   });
   const cadenceRecords = [mockRecord("preview-retinol", "recurring_step", { cadence: { kind: "interval_days", every: 4 }, anchorDate: today }), mockRecord("preview-mask", "recurring_step", { cadence: { kind: "interval_days", every: 2 }, anchorDate: today })];
   cadenceRecords.push(mockRecord("preview-device", "product", { kind: "device", name: "Light mask", notes: "Example modes only. Use the options and instructions verified for your device; the cadence shown here is demo data." }));
   const mutatePreview: RecordMutation = async (_key, operation, payload) => {
-    if (operation === "set_daily_selection") {
-      const ids = payload.itemIds as string[];
+    if (operation === "set_daily_selection" || operation === "copy_daily_selection_previous") {
+      const previous = operation === "copy_daily_selection_previous"
+        ? (routineRecord.data.entries as Array<{ date: string; itemIds: string[]; counts?: Record<string, number> }>).find((entry) => entry.date === previousDateKey(today))
+        : undefined;
+      const ids = previous?.itemIds ?? payload.itemIds as string[];
       setSelected(ids.filter((id) => !["red", "green", "amber"].includes(id)));
-      const counts = payload.counts as Record<string, number> | undefined;
+      const counts = previous?.counts ?? payload.counts as Record<string, number> | undefined;
       setMaskCounts(Object.fromEntries(["red", "green", "amber"].map((id) => [id, ids.includes(id) ? counts?.[id] ?? 1 : 0])));
     }
     else if (operation === "toggle_item") setSelected((current) => current.includes(String(payload.itemId)) ? current.filter((id) => id !== payload.itemId) : [...current, String(payload.itemId)]);
