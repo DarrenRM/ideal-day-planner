@@ -118,6 +118,11 @@ Treat these as intentional test widths, not device guesses: 1040, 800, 680, 430,
 
 ## Scheduling surfaces
 
+- Track record is a quiet, persistent link beside Yesterday beneath the date on mobile and desktop. It opens a full-screen history surface with a Back action, preserving the mounted day/activity and its scroll position. Expanded workspaces offer `View all history` into the same surface filtered to their activity; their completion footer remains unchanged.
+- Track record leads with a factual completed/planned count, Month/Year controls, and an activity filter. Month uses readable day buttons with numeric fractions. Desktop Year uses a compact contribution calendar with month drill-down buttons; mobile Year uses month previews that open the same full-size month calendar. Never shrink interactive day targets to fit an annual grid.
+- Completion fill uses the global green accent. Missing saved days (`?`), nothing scheduled (`—`), zero completed, partial completion and complete are distinct. Each day has a full accessible description; today is explicitly in progress. Activity icons retain their category colors.
+- Calendar/day inspection is read-only. `Correct this day` deliberately reveals completion toggles using the existing run operation. Dated session and selection details live in disclosures below the recap; viewing or reopening a completed occurrence never deletes those details. Activity-filtered history lists saved dates and permits browsing older months/years. Loading, empty and retry states appear in place.
+
 - Add Activity shows a plain-language schedule summary beside its controls, including an explicit warning for non-repeating and unfinished schedules. Saving disables the submitted fields and displays `Saving…`; uncertain saves retain their draft and offer a safe `Retry`. Closing an unsent draft resets its settings, including the Every day default, before the next Add.
 
 - Add Activity keeps simple scheduling compact: no schedule, every day, selected weekdays, every N days, create a sequence, or describe it to Luna. A separate progressive `Set this up with Luna` disclosure accepts a product link or useful context without forcing the person into schedule language. Saving the activity itself is immediate and never waits for Luna.

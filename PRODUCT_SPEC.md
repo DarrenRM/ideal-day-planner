@@ -230,6 +230,12 @@ The expanded activity acts as a small workbench with four conceptual layers:
 
 Full history remains available through retrieval or a dedicated history view, but the default expanded state prioritizes what is useful now.
 
+Track record provides that dedicated view. The global entry sits beside Yesterday; an activity workspace links to the same view with an activity filter. It supports month and year calendars, saved-day details, activity counts, recorded session/selection/meal/use details, and explicit completion corrections. Back preserves the originating screen. This first release describes saved history and consistency; domain-specific progression charts and causal/cross-activity insights remain later work.
+
+The history reader is read-only and D1-authoritative. It never resolves past schedules or creates dated plans while browsing. The fraction counts saved essential occurrences and activated extras (including persisted Keep it going); unchosen extras and removed occurrences are excluded. Skips remain in the denominator. Repeated activity occurrences count independently. Missing plans remain unknown, and a saved day with no selected activity remains unscheduled. Historical occurrence labels/variants come from their snapshots; actual duration is shown only when measured. The dated domain entries are projections of retained canonical records, not independently generated history summaries or inferred product usage.
+
+Site-wide Luna's durable coordinator and activity passes receive the same track-record aggregates, coverage, interpreted date range, and bounded entry excerpts. The global immediate acknowledgement stays lightweight. Explicit ISO dates, calendar weeks/months/years and bounded rolling-day requests select historical windows; otherwise the supplied context states its default last-28-day range. Prompt projections declare omissions. Luna must not infer missing days as failures, equate a completed parent with every subject used, infer totals from excerpts, or claim correlations/causation. Unsupported or ambiguous periods require an explicit limitation rather than invented history.
+
 ## 4. Agent contract
 
 The model is not the database. The chat transcript is not the database. The application database is authoritative.

@@ -321,6 +321,19 @@ function compactSchedulePatterns(patterns) {
   }));
 }
 
+function compactTrackRecord(history) {
+  if (!history) return null;
+  return {
+    start: history.start, end: history.end, interpretation: history.interpretation,
+    scope: history.scope, totals: history.totals, knownDays: history.knownDays, missingDays: history.missingDays,
+    rules: history.rules,
+    activities: JSON.parse(boundedJsonProjection(history.activities || [], 3000)),
+    days: JSON.parse(boundedJsonProjection(history.days || [], 2500)),
+    recentEntries: JSON.parse(boundedJsonProjection(history.recentEntries || [], 2000)),
+    moreEntriesAvailable: history.moreEntriesAvailable,
+  };
+}
+
 function compactToday(today) {
   return (today || []).map((occurrence) => ({
     occurrenceId: occurrence.occurrenceId,
@@ -372,7 +385,7 @@ ${compactConversation(job.context.recentMessages, { limit: 8, maxChars: 4_000 })
     const evidence = options.researchEvidence
       ? `\n\nFetched source evidence (captured once by Ideal Day; do not fetch these URLs again):\n${String(options.researchEvidence).slice(0, 10_000)}`
       : "";
-    const prompt = `Coordinate the requested durable work now. Use the compact ownership index to select exact activities, and delegate activity-specific changes with activityWorkRequests. If full record details are needed to answer or change an activity, delegate to that activity instead of guessing.
+    const prompt = `Coordinate the requested durable work now. For historical questions, answer from the supplied Track record facts and state the covered period; no activity writes or delegation are needed for an answer already supported by that evidence. Never infer missing days as failures, or invent trends or causation. Use the compact ownership index to select exact activities, and delegate activity-specific changes with activityWorkRequests. If full record details are needed to answer or change an activity, delegate to that activity instead of guessing.
 
 Latest user message (primary and complete):
 ${latestMessage}
@@ -388,6 +401,7 @@ Timezone: ${job.context.timeZone}
 Routine revision: ${job.context.routine?.revision}
 Settings: ${JSON.stringify(job.context.settings || {})}
 Owned activities: ${boundedJsonProjection(job.context.activities || [], 12_000)}
+Saved track record (same counts as the history UI; read its date range, coverage and rules): ${JSON.stringify(compactTrackRecord(job.context.trackRecord))}
 Durable ownership index: ${boundedJsonProjection(compactActivityKnowledge(job.context.activityKnowledge), 14_000)}
 Owned variants: ${boundedJsonProjection(job.context.variants || [], 5_000)}
 Current schedule patterns: ${boundedJsonProjection(compactSchedulePatterns(job.context.patterns), 20_000)}
@@ -412,7 +426,7 @@ ${compactConversation(job.context.recentMessages, { limit: 12, maxChars: 6_000 }
   const clarificationEvidence = job.context.answeredClarification
     ? `\n\nAnswered clarification (continue using only the question and selected visible label/detail; these are not typed words or permission for unstated changes; do not ask it again):\n${JSON.stringify(job.context.answeredClarification)}`
     : "";
-  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nOwned activities available as move destinations: ${JSON.stringify(job.context.activities || [])}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nRoutine layout language signal: ${routineLayoutSignal(layoutEvidence)}. This is a lexical aid only; decide from the full supplied evidence and existing use history.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nPending or asked follow-ups:\n${job.context.followUps?.length ? JSON.stringify(job.context.followUps) : "None"}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}${clarificationEvidence}`;
+  const shared = `Catalog version: ${CATALOG_VERSION}\nActivity: ${activity.title || "Unknown"}\nCategory: ${activity.category || "Unknown"}\nOwned activities available as move destinations: ${JSON.stringify(job.context.activities || [])}\nActive occurrence: ${JSON.stringify(job.context.occurrence || null)}\nActive variant ID: ${job.context.activityVariantId || "None"}\nSuggested starting recipe: ${activityRecipeHint(activity.title, activity.category)}. This is guidance, not a conclusion; prefer the user's actual details.\nRoutine layout language signal: ${routineLayoutSignal(layoutEvidence)}. This is a lexical aid only; decide from the full supplied evidence and existing use history.\nToday: ${schedule?.planDate || "Unknown date"}\nDay Timeline: ${schedule?.timelineEnabled ? "enabled" : "off"}\nPlanned duration: ${schedule?.timelineEnabled && schedule?.duration ? `${schedule.duration} minutes` : "Not part of the current day mode"}${knownContext}\n\nDurable activity records (base plus active-variant overlay):\n${compactRecords(job.context.records)}\n\nPending or asked follow-ups:\n${job.context.followUps?.length ? JSON.stringify(job.context.followUps) : "None"}\n\nSaved track record (read date range, coverage and rules):\n${JSON.stringify(compactTrackRecord(job.context.trackRecord))}\n\nRecent activity runs:\n${job.context.recentRuns?.length ? JSON.stringify(job.context.recentRuns) : "No completed run history yet."}\n\nCurrent saved workspace (base plus active-variant overlay):\n${compactWorkspace(job.context.workspace)}\n\nRecent permanent conversation:\n${compactConversation(job.context.recentMessages)}${clarificationEvidence}`;
   if (job.job.kind === "follow_up") {
     return `A saved check-in is due. Ask the supplied question naturally, using the activity history only to make it less mechanical. Do not add advice before the user answers.\n\n${shared}\n\nDue follow-up:\n${JSON.stringify(job.context.dueFollowUp || null)}`;
   }

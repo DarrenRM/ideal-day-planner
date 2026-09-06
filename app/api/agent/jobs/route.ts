@@ -1,3 +1,4 @@
+import { readAgentTrackRecord } from "../../track-record-store";
 import { readAnsweredClarification } from "../../clarification-answer-store";
 import { env } from "cloudflare:workers";
 import { CATALOG_VERSION } from "../../../../bridge/component-catalog.mjs";
@@ -463,6 +464,7 @@ export async function GET(request: Request) {
           routine: { revision: routine.revision, startMinutes: routine.startMinutes },
           activities: activities.results,
           activityKnowledge,
+          trackRecord: candidate.kind === "global_refresh" ? await readAgentTrackRecord(db, candidate.userId, localDate, sourceMessage?.body ?? "") : null,
           variants: variants.results,
           patterns: patterns.map(({ pattern, state }) => ({ ...pattern, state })),
           today: today.results,
@@ -581,6 +583,7 @@ export async function GET(request: Request) {
         followUps,
         dueFollowUp,
         recentRuns: runs.results,
+        trackRecord: await readAgentTrackRecord(db, candidate.userId, localDate, sourceMessage?.body ?? candidate.delegationInstruction ?? "", candidate.activityId),
         recentMessages: messages.slice(-30),
         sourceMessage,
         answeredClarification,

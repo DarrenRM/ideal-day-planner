@@ -2499,3 +2499,95 @@ button.routine-choice-row:active { background: color-mix(in srgb, var(--accent) 
 .day-highlight-history-open { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: grid; gap: 10px; grid-template-columns: 34px minmax(0, 1fr); min-height: 40px; min-width: 0; padding: 0; text-align: left; }
 .day-highlight-history-reopen { align-items: center; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; display: inline-flex; height: 40px; justify-content: center; width: 40px; }
 .day-highlight-history-reopen:disabled { cursor: wait; opacity: .55; }
+/* Track record shares the daily checklist's quiet surfaces and completion accent. */
+.track-record-dialog {
+  position: fixed; inset: 0; width: 100%; max-width: none; height: 100%; max-height: none;
+  margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--text);
+  overflow: auto; overscroll-behavior: contain;
+}
+.track-record-dialog::backdrop { background: var(--bg); }
+.track-record-shell { width: min(100%, 960px); margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 24px max(40px, env(safe-area-inset-bottom)); box-sizing: border-box; }
+.track-record-header { display: flex; align-items: center; gap: 20px; margin-bottom: 28px; }
+.track-record-header h1 { font-size: var(--type-title); margin: 0; }
+.track-record-dialog button, .track-record-dialog select { font: inherit; color: inherit; }
+.track-record-dialog button { min-height: 40px; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.track-record-dialog button:hover:not(:disabled) { background: var(--surface-raised); border-color: var(--border-strong); }
+.track-record-dialog button:focus-visible, .track-record-dialog select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.track-record-dialog button:disabled { opacity: .45; cursor: default; }
+.track-record-dialog .track-back { display: inline-flex; gap: 8px; align-items: center; border-color: transparent; background: transparent; }
+.track-controls { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.track-controls label { display: grid; gap: 6px; font-size: var(--type-label); color: var(--muted); min-width: 0; flex: 1; max-width: 420px; }
+.track-controls select { min-height: 44px; width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; background: var(--surface); color: var(--text); font-size: var(--type-body-lg); }
+.track-mode { display: flex; gap: 8px; }
+.track-mode button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.track-period { display: flex; align-items: center; justify-content: space-between; margin: 24px 0 16px; gap: 12px; }
+.track-record-dialog h2 { font-size: var(--type-title); line-height: 1.5; margin: 0; }
+.track-period button { display: grid; place-items: center; min-width: 40px; }
+.track-summary { margin-bottom: 20px; }
+.track-summary p { margin: 0 0 6px; font-size: var(--type-body-lg); }
+.track-summary strong { font-size: var(--type-title); font-variant-numeric: tabular-nums; }
+.track-record-dialog small { color: var(--muted); font-size: var(--type-body-sm); line-height: 1.5; }
+.track-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.track-weekday { text-align: center; color: var(--muted); font-size: var(--type-label); padding-bottom: 4px; }
+.track-record-dialog .track-day { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 68px; padding: 8px 2px; border: 1px solid transparent; font-variant-numeric: tabular-nums; }
+.track-day > small { color: inherit; }
+.track-record-dialog .track-day[aria-pressed="true"] { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+.track-record-dialog .track-day.is-today { border-color: var(--text); }
+.track-record-dialog .track-zero { background: var(--surface-raised); }
+.track-record-dialog .track-some { background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
+.track-record-dialog .track-mostly { background: color-mix(in srgb, var(--accent) 42%, var(--surface)); }
+.track-record-dialog .track-complete { background: var(--accent); color: var(--accent-ink); }
+.track-record-dialog .track-unscheduled { background: var(--surface-soft); color: var(--muted); }
+.track-record-dialog .track-unknown { background: transparent; color: var(--muted); border: 1px dashed var(--border-strong); }
+.track-record-dialog .track-day:hover:not(:disabled) { filter: brightness(1.18); }
+.track-year-chart { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); grid-auto-columns: minmax(0, 1fr); gap: 4px; margin: 24px 0; }
+.track-year-day { display: block; aspect-ratio: 1; border-radius: 2px; box-sizing: border-box; }
+.track-year-day.is-future { opacity: .2; }
+.track-year-months { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.track-year-months button { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.track-mini-month { display: none; width: 100%; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.track-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; font-size: var(--type-label); color: var(--muted); }
+.track-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.track-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.track-coverage { color: var(--muted); font-size: var(--type-body-sm); line-height: 1.6; margin: 12px 0; }
+.track-detail { scroll-margin-top: 16px; }
+.track-detail:has(h2), .track-activities, .track-activity-days { margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px; }
+.track-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.track-record-dialog ul.track-occurrences, .track-activities > ul, .track-activity-days > ul { list-style: none; padding: 0; margin: 12px 0; }
+.track-record-dialog .track-occurrence, .track-activities li > button, .track-activity-days li > button { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 12px 0; border: 0; border-radius: 0; background: transparent; text-align: left; }
+.track-occurrences li + li, .track-activities li + li, .track-activity-days li + li { border-top: 1px solid var(--border); }
+.track-row-copy { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.track-row-copy strong { font-weight: 500; overflow-wrap: anywhere; }
+.track-activity-icon { display: inline-flex; color: var(--item-color); flex: 0 0 auto; }
+.track-activity-days li > button { flex-wrap: wrap; }
+.track-activity-days li > button > span { flex: 1; }
+.track-entries { margin-top: 24px; }
+.track-entries h3 { font-size: var(--type-body); font-weight: 500; }
+.track-entries details { background: var(--surface); border-radius: 10px; margin: 8px 0; padding: 0 16px; }
+.track-entries summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; cursor: pointer; padding: 12px 0; }
+.track-entries summary > span { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.track-entries summary > svg { flex: 0 0 auto; }
+.track-entries details[open] summary > svg { transform: rotate(90deg); }
+.track-entries ul { margin: 0; padding: 0 0 16px 20px; overflow-wrap: anywhere; }
+.track-entries li + li { margin-top: 8px; }
+.track-error { color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 0; }
+.activity-history-link { display: flex; align-items: center; justify-content: flex-end; gap: 4px; align-self: flex-end; min-height: 40px; background: transparent; color: var(--muted); border: 0; font-size: var(--type-body-sm); padding: 4px 8px; cursor: pointer; }
+.activity-history-link:hover { color: var(--text); }
+.mobile-day-nav.track-record-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; width: auto; margin-top: 8px; }
+.mobile-day-nav.track-record-nav > button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px; background: transparent; border: 0; border-radius: 6px; color: var(--muted); font-size: var(--type-label); cursor: pointer; }
+.mobile-day-nav.track-record-nav > button:hover { color: var(--accent); }
+.mobile-day-nav.track-record-nav > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .track-record-shell { padding: max(16px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .track-record-header { margin-bottom: 20px; }
+  .track-controls { align-items: stretch; }
+  .track-controls label { flex-basis: 100%; max-width: none; }
+  .track-month { gap: 4px; }
+  .track-record-dialog .track-day { min-height: 52px; font-size: var(--type-body); }
+  .track-record-dialog button { min-height: 44px; }
+  .mobile-day-nav.track-record-nav > button { min-height: 40px; }
+  .track-year-chart { display: none; }
+  .track-year-months { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .track-mini-month { display: grid; }
+  .track-activity-days li > button small { flex-basis: 100%; order: 1; }
+}

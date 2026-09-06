@@ -49,6 +49,7 @@ type ActivityWorkspaceProps = {
   showEmptyState?: boolean;
   onFollowUpMutation?: (id: string, operation: "reschedule" | "dismiss", dueDate?: string) => void;
   onManageSchedule?: () => void;
+  onViewHistory?: () => void;
 };
 
 export function hasVisibleActivityWorkspace(activity: WorkspaceActivity, workspace: WorkspaceDocument, records: ActivityRecord[]) {
@@ -480,7 +481,7 @@ export function captureActivityTimingSnapshot(activity: WorkspaceActivity, works
   return candidates.sort((left, right) => Date.parse(right.startedAt) - Date.parse(left.startedAt))[0] ?? null;
 }
 
-export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, showEmptyState = false, onFollowUpMutation, onManageSchedule }: ActivityWorkspaceProps) {
+export function ActivityWorkspace({ activity, workspace, records, onRecordMutation, onTalkWithLuna, recordError = null, workState = null, workTitle = null, workDetail = null, followUps = [], scheduleSummary = null, showEmptyState = false, onFollowUpMutation, onManageSchedule, onViewHistory }: ActivityWorkspaceProps) {
   const [selectedProductKey, setSelectedProductKey] = useState<string | null>(null);
   const [workTransitionVisible, setWorkTransitionVisible] = useState(Boolean(workState));
   const workTransitionVisibleRef = useRef(Boolean(workState));
@@ -673,10 +674,11 @@ export function ActivityWorkspace({ activity, workspace, records, onRecordMutati
     const record = recordsByKey.get(dataComponent.recordKey);
     return record ? <ActivityRecordComponent key={strengthSessionItem.id} onMutate={onRecordMutation} onTalkWithLuna={onTalkWithLuna} presentation="featured" record={record} relatedRecords={records} targetId={activityRecordTargetId(activity.id, record.key)} /> : null;
   }
-  if (!hasVisibleWorkspace && !workTransitionVisible && !recordError && !showEmptyState) return null;
+  if (!hasVisibleWorkspace && !workTransitionVisible && !recordError && !showEmptyState && !onViewHistory) return null;
   return (
     <section className={`activity-workspace ${hasVisibleWorkspace ? "workspace-live" : showEmptyState && !workState && !recordError ? "workspace-empty" : "workspace-building"}`} id={`activity-workspace-${activity.id}`} aria-label={`Workspace for ${activity.title}`}>
       {workTransitionVisible ? <WorkspaceWorkingTransition activity={activity} hasVisibleWorkspace={hasVisibleWorkspace} workDetail={workDetail} workState={workState} workTitle={workTitle} /> : null}
+      {onViewHistory ? <button className="activity-history-link" type="button" onClick={onViewHistory}>View all history<ChevronRight aria-hidden="true" size={15} /></button> : null}
       {recordError ? <p className="record-action-error" role="alert">{recordError}</p> : null}
 
       {hasVisibleWorkspace ? (

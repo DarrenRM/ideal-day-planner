@@ -25,6 +25,7 @@ import type { ConversationClarification, ConversationClarificationOption } from 
 import { millisecondsUntilNextLocalDay, reconcileLocalDay } from "./day-rollover";
 import { activityRecordTargetId } from "./activity-workspace-target";
 import { derivedDisplayTitle } from "./activity-title";
+import { TrackRecordView } from "./track-record";
 
 type Category = ActivityCategory;
 
@@ -456,11 +457,12 @@ type ActivityWorkbenchProps = {
   onSetDuration: (value: number) => void;
   onChangeToday: () => void;
   onManageSchedule: () => void;
+  onViewHistory: () => void;
   onSetRole: (role: PlanRole) => void;
   onOpenActivityTarget: (target: { activityId: string; activityClientKey: string | null }, origin?: DOMRect) => void;
 };
 
-function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule, onSetRole, onOpenActivityTarget }: ActivityWorkbenchProps) {
+function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isComplete, isSkipped, openConversationOnMount, onComplete, onSkip, onSkipStart, onEdit, onRemove, onAdjustDuration, onSetDuration, onChangeToday, onManageSchedule, onViewHistory, onSetRole, onOpenActivityTarget }: ActivityWorkbenchProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [artifacts, setArtifacts] = useState<ConversationArtifact[]>([]);
   const [clarifications, setClarifications] = useState<ConversationClarification[]>([]);
@@ -1101,7 +1103,7 @@ function ActivityWorkbench({ completionActionRef, item, timelineEnabled, isCompl
             <span className="activity-opening-progress" aria-hidden="true" />
           </div>
         ) : <>
-          <ActivityWorkspace activity={workspaceActivity} followUps={followUps} onFollowUpMutation={mutateFollowUp} onManageSchedule={onManageSchedule} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} scheduleSummary={scheduleSummary} showEmptyState={showEmptyWorkspace} workspace={workspace} workDetail={workspaceWorkDetail} workState={workspaceWorkState} workTitle={workspaceWorkTitle} />
+          <ActivityWorkspace onViewHistory={onViewHistory} activity={workspaceActivity} followUps={followUps} onFollowUpMutation={mutateFollowUp} onManageSchedule={onManageSchedule} onRecordMutation={mutateRecord} onTalkWithLuna={() => conversationDrawer.setOpen(true)} recordError={recordError} records={records} scheduleSummary={scheduleSummary} showEmptyState={showEmptyWorkspace} workspace={workspace} workDetail={workspaceWorkDetail} workState={workspaceWorkState} workTitle={workspaceWorkTitle} />
 
           <section className={`activity-conversation ${conversationDrawer.isOpen ? "is-drawer-open" : "is-drawer-collapsed"} ${workspaceWorkState ? "has-workspace-work-peek" : hasActiveWorkspaceSurface ? "has-workspace-peek" : ""}`} aria-label={`${item.title} conversation`} ref={conversationSectionRef}>
           <header>
@@ -1563,6 +1565,7 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDevMenuOpen, setIsDevMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [trackRecord, setTrackRecord] = useState<{ activityId: string | null } | null>(null);
   const [daySettings, setDaySettings] = useState<DaySettings>(DEFAULT_DAY_SETTINGS);
   const [dayHighlight, setDayHighlight] = useState<DayHighlight>(EMPTY_DAY_HIGHLIGHT);
   const [captureAttention, setCaptureAttention] = useState<CaptureAttention[]>([]);
@@ -3516,7 +3519,8 @@ export default function Home() {
                 <p>
                   <span className="desktop-schedule-summary">{isReviewingPastDay ? `Reviewing ${reviewDayLabel(viewDate, todayDateKey)}` : hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} more` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
                 </p>
-                <nav className="mobile-day-nav" aria-label="Browse past days">
+                <nav className="mobile-day-nav track-record-nav" aria-label="Browse past days">
+                  <button type="button" onClick={() => setTrackRecord({ activityId: null })}>Track record</button>
                   <button aria-label="View previous day" type="button" onClick={() => showDay(shiftDateKey(viewDate, -1))}><ChevronLeft aria-hidden="true" size={16} /><span>{isReviewingPastDay ? "Earlier" : "Yesterday"}</span></button>
                   {isReviewingPastDay && viewDate < shiftDateKey(todayDateKey, -1) ? <button aria-label="View next day" type="button" onClick={() => showDay(shiftDateKey(viewDate, 1))}><span>Later</span><ChevronRight aria-hidden="true" size={16} /></button> : null}
                   {isReviewingPastDay ? <button className="mobile-day-nav-today" type="button" onClick={() => showDay(todayDateKey)}>Today</button> : null}
@@ -3873,6 +3877,7 @@ export default function Home() {
                           onSetDuration={(value) => setDuration(item.id, value)}
                           onChangeToday={() => setOccurrenceEditorItem(item)}
                           onManageSchedule={() => { setScheduleManagerActivityId(item.activityId ?? item.id); setIsScheduleManagerOpen(true); }}
+                          onViewHistory={() => setTrackRecord({ activityId: item.activityId ?? item.id })}
                           onSetRole={(role) => void setActivityRole(item, role)}
                           onOpenActivityTarget={(target, origin) => {
                             const destination = items.find((candidate) => candidate.activityId === target.activityClientKey || candidate.activityId === target.activityId || candidate.id === target.activityId);
@@ -3989,6 +3994,13 @@ export default function Home() {
           </span>
         </button>
       ) : null}
+      {trackRecord ? <TrackRecordView initialActivityId={trackRecord.activityId} onClose={() => setTrackRecord(null)} onChanged={() => {
+        void reloadToday({ background: true });
+        if (viewDate !== todayDateKey) void fetch(`/api/day?date=${viewDate}&sync=1`).then(async (response) => {
+          if (response.ok) { const day = await response.json(); setPastDayItems(hydrateStoredItems(day.items)); }
+        }).catch(() => setPastDayState("error"));
+      }} />
+        : null}
     </main>
   );
 }
