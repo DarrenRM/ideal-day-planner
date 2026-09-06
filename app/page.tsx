@@ -3520,8 +3520,9 @@ export default function Home() {
                   <span className="desktop-schedule-summary">{isReviewingPastDay ? `Reviewing ${reviewDayLabel(viewDate, todayDateKey)}` : hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} more` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>
                 </p>
                 <nav className="mobile-day-nav track-record-nav" aria-label="Browse past days">
-                  <button type="button" onClick={() => setTrackRecord({ activityId: null })}>Track record</button>
                   <button aria-label="View previous day" type="button" onClick={() => showDay(shiftDateKey(viewDate, -1))}><ChevronLeft aria-hidden="true" size={16} /><span>{isReviewingPastDay ? "Earlier" : "Yesterday"}</span></button>
+                  <span className="track-record-nav-separator" aria-hidden="true">|</span>
+                  <button type="button" onClick={() => setTrackRecord({ activityId: null })}>Track record</button>
                   {isReviewingPastDay && viewDate < shiftDateKey(todayDateKey, -1) ? <button aria-label="View next day" type="button" onClick={() => showDay(shiftDateKey(viewDate, 1))}><span>Later</span><ChevronRight aria-hidden="true" size={16} /></button> : null}
                   {isReviewingPastDay ? <button className="mobile-day-nav-today" type="button" onClick={() => showDay(todayDateKey)}>Today</button> : null}
                 </nav>
