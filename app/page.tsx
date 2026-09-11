@@ -1646,13 +1646,16 @@ export default function Home() {
       || skippingActivityId,
     );
 
-  const reloadToday = useCallback(async (options: { background?: boolean } = {}): Promise<RoutineItem[] | null> => {
+  const reloadToday = useCallback(async (options: { background?: boolean; reconcile?: boolean } = {}): Promise<RoutineItem[] | null> => {
     const background = options.background === true;
     if (background && (backgroundSyncBlockedRef.current || backgroundSyncInFlightRef.current)) return null;
     if (background) backgroundSyncInFlightRef.current = true;
 
     try {
-      const response = await fetch(`/api/day?date=${todayDateKey}&sync=1`, { cache: "no-store" });
+      const endpoint = options.reconcile
+        ? `/api/day?date=${todayDateKey}`
+        : `/api/day?date=${todayDateKey}&sync=1`;
+      const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) throw new Error("Today could not be refreshed.");
       const day = await response.json() as DayResponse;
       if (background && backgroundSyncBlockedRef.current) return null;
@@ -2255,6 +2258,7 @@ export default function Home() {
         completedAt: result.completed ? result.completedAt ?? new Date().toISOString() : null,
         skippedAt: result.completed ? null : candidate.skippedAt,
       } : candidate));
+      await reloadToday({ reconcile: true });
       setSaveState("saved");
     } catch {
       setSaveState("retrying");
@@ -3996,7 +4000,7 @@ export default function Home() {
         </button>
       ) : null}
       {trackRecord ? <TrackRecordView initialActivityId={trackRecord.activityId} onClose={() => setTrackRecord(null)} onChanged={() => {
-        void reloadToday({ background: true });
+        void reloadToday({ background: true, reconcile: true });
         if (viewDate !== todayDateKey) void fetch(`/api/day?date=${viewDate}&sync=1`).then(async (response) => {
           if (response.ok) { const day = await response.json(); setPastDayItems(hydrateStoredItems(day.items)); }
         }).catch(() => setPastDayState("error"));

@@ -7,6 +7,7 @@ import {
   type SchedulePattern,
   type ScheduleStep,
 } from "../schedule-model";
+import { removeStaleIntervalDayItems } from "./schedule-reconciliation-store";
 import { parseActivityRecord, type ActivityRecord } from "../activity-record-model";
 import { dueRecurringSteps } from "../due-recurring-step";
 import { safeId } from "./agent-store";
@@ -402,15 +403,7 @@ export async function resolveDay(userId: string, date: string, routineId: string
   if (intervalPatternIds.length) {
     const emittedIds = new Set(emissions.map(({ pattern }) => pattern.id));
     const staleIds = intervalPatternIds.filter((id) => !emittedIds.has(id) && !carriedPatternIds.has(id));
-    if (staleIds.length) {
-      await db.prepare(`
-        DELETE FROM daily_plan_items
-        WHERE daily_plan_id = ? AND source_date = ?
-          AND schedule_pattern_id IN (${staleIds.map(() => "?").join(", ")})
-          AND completed_at IS NULL AND skipped_at IS NULL AND activated_at IS NULL
-          AND moved_from_daily_plan_item_id IS NULL AND revision = 1
-      `).bind(planId, date, ...staleIds).run();
-    }
+    await removeStaleIntervalDayItems(db, { planId, date, patternIds: staleIds });
   }
   if (emissions.length) {
     const activityIds = [...new Set(emissions.map(({ resolved }) => resolved.step.activityId))];
