@@ -176,9 +176,9 @@ test("the app validates coordinator destinations and queues an activity-scoped c
   assert.match(route, /'global_refresh'/);
   assert.match(route, /'activity', \?, \?, 'workspace_refresh'/);
   assert.match(route, /delegation_instruction/);
-  assert.match(route, /const finalResponse = activityWorkRequests\.length \? ""/);
+  assert.match(route, /activityWorkRequests\.length \? ""/);
   assert.match(route, /const globalFollowup = job\.kind === "global_message"/);
-  assert.match(route, /Terra did not account for every outcome/);
+  assert.match(route, /Account for every requested outcome/);
   assert.match(route, /marked a request outcome handled without producing/);
   assert.match(route, /delegation_instruction/);
   assert.match(globalInstructions, /Semantically review every latest user message/);

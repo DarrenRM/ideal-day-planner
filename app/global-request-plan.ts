@@ -1,11 +1,12 @@
 export type GlobalRequestPlan = {
   kind: "conversation" | "question" | "durable_work";
   outcomes: string[];
+  outcomeKinds?: ("answer" | "work" | "activity_creation")[];
 };
 
 export type HandledOutcome = {
   index: number;
-  via: "message" | "activity_work" | "schedule_change" | "schedule_proposal" | "occurrence" | "capture" | "clarification";
+  via: "message" | "activity_work" | "activity_creation" | "schedule_change" | "schedule_proposal" | "occurrence" | "capture" | "clarification";
 };
 
 export function parseGlobalRequestPlan(value: unknown): GlobalRequestPlan | null {
@@ -17,6 +18,11 @@ export function parseGlobalRequestPlan(value: unknown): GlobalRequestPlan | null
   const outcomes = source.outcomes.map((outcome) => typeof outcome === "string" ? outcome.trim().slice(0, 300) : "");
   if (outcomes.some((outcome) => !outcome)) return null;
   if (kind !== "conversation" && !outcomes.length) return null;
+  if (source.outcomeKinds !== undefined) {
+    if (!Array.isArray(source.outcomeKinds) || source.outcomeKinds.length !== outcomes.length
+      || source.outcomeKinds.some((value) => !["answer", "work", "activity_creation"].includes(value))) return null;
+    return { kind, outcomes, outcomeKinds: source.outcomeKinds as NonNullable<GlobalRequestPlan["outcomeKinds"]> };
+  }
   return { kind, outcomes };
 }
 
@@ -29,7 +35,7 @@ export function validateHandledOutcomes(value: unknown, plan: GlobalRequestPlan 
   if (!plan?.outcomes.length) return [];
   if (!Array.isArray(value) || value.length > 12) return null;
   const allowedVia = new Set<HandledOutcome["via"]>([
-    "message", "activity_work", "schedule_change", "schedule_proposal", "occurrence", "capture", "clarification",
+    "message", "activity_work", "activity_creation", "schedule_change", "schedule_proposal", "occurrence", "capture", "clarification",
   ]);
   const handled: HandledOutcome[] = [];
   const seen = new Set<number>();
@@ -41,6 +47,7 @@ export function validateHandledOutcomes(value: unknown, plan: GlobalRequestPlan 
       ? source.via as HandledOutcome["via"]
       : null;
     if (!via || index < 1 || index > plan.outcomes.length || seen.has(index)) return null;
+    if (plan.outcomeKinds?.[index - 1] === "activity_creation" && via !== "activity_creation" && via !== "clarification") return null;
     seen.add(index);
     handled.push({ index, via });
   }

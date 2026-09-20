@@ -13,7 +13,7 @@ export class JsonResponseError extends Error {
 
 export function isCorrectableRejection(error) {
   return error instanceof JsonResponseError && error.status === 400
-    && error.code === "invalid_product_composition" && error.correctionAllowed;
+    && ["invalid_product_composition", "invalid_activity_creation"].includes(error.code) && error.correctionAllowed;
 }
 
 export function correctionPrompt(error, phase) {

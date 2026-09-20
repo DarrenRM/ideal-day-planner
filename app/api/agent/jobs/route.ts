@@ -1,4 +1,7 @@
 import { readAgentTrackRecord } from "../../track-record-store";
+import { parseActivityCreation } from "../../../activity-creation-model";
+import { createAgentActivity } from "../../agent-activity-creation";
+import { resolveDay } from "../../schedule-store";
 import { readAnsweredClarification } from "../../clarification-answer-store";
 import { env } from "cloudflare:workers";
 import { CATALOG_VERSION } from "../../../../bridge/component-catalog.mjs";
@@ -617,6 +620,37 @@ export async function POST(request: Request) {
     const payload = await request.json() as Record<string, unknown>;
     const mode = payload.mode;
     const db = getD1();
+    // Bridge-authenticated recovery inspects durable state and replays an exact
+    // saved user message. It never fabricates chat text or edits old receipts.
+    if (mode === "inspect-global") {
+      const userId = typeof payload.userId === "string" ? payload.userId : "";
+      const messages = await db.prepare(`SELECT m.id, m.role, m.body, m.created_at AS createdAt
+        FROM conversation_messages m JOIN conversations c ON c.id = m.conversation_id
+        WHERE c.user_id = ? AND c.scope_type = 'global' ORDER BY m.created_at DESC, m.rowid DESC LIMIT 20`).bind(userId).all();
+      const jobs = await db.prepare(`SELECT id, kind, status, error, source_message_id AS sourceMessageId, updated_at AS updatedAt
+        FROM agent_jobs WHERE user_id = ? ORDER BY updated_at DESC, rowid DESC LIMIT 20`).bind(userId).all();
+      const activities = await db.prepare("SELECT id, title FROM activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 30").bind(userId).all();
+      return Response.json({ messages: messages.results, jobs: jobs.results, activities: activities.results });
+    }
+    if (mode === "retry-global-message") {
+      const sourceId = typeof payload.sourceMessageId === "string" ? payload.sourceMessageId : "";
+      const retryKey = typeof payload.retryKey === "string" && /^[a-zA-Z0-9-]{8,80}$/.test(payload.retryKey) ? payload.retryKey : "";
+      if (!retryKey) return Response.json({ error: "A stable recovery key is required." }, { status: 400 });
+      const source = await db.prepare(`SELECT m.id, c.user_id AS userId, c.id AS conversationId
+        FROM conversation_messages m JOIN conversations c ON c.id = m.conversation_id
+        WHERE m.id = ? AND m.role = 'user' AND c.scope_type = 'global'`).bind(sourceId)
+        .first<{ id: string; userId: string; conversationId: string }>();
+      if (!source) return Response.json({ error: "Saved global user message not found." }, { status: 404 });
+      const retryId = `agent-job:recovery:${safeId(source.id)}:${retryKey}`;
+      const existing = await db.prepare("SELECT id, status FROM agent_jobs WHERE id = ?").bind(retryId).first();
+      if (existing) return Response.json(existing);
+      const active = await db.prepare("SELECT id FROM agent_jobs WHERE source_message_id = ? AND status IN ('queued', 'running', 'leased', 'retryable_failure') LIMIT 1").bind(source.id).first();
+      if (active) return Response.json({ error: "This message still has active work; wait for it to finish." }, { status: 409 });
+      await db.prepare(`INSERT OR IGNORE INTO agent_jobs
+        (id, user_id, scope_type, conversation_id, kind, idempotency_key, source_message_id)
+        VALUES (?, ?, 'global', ?, 'global_message', ?, ?)`).bind(retryId, source.userId, source.conversationId, `recovery:${source.id}:${retryKey}`, source.id).run();
+      return Response.json({ id: retryId, status: "queued" });
+    }
     if (mode === "heartbeat") {
       const workerId = typeof payload.workerId === "string" ? payload.workerId.trim().slice(0, 120) : "";
       if (!workerId) return Response.json({ error: "A worker is required." }, { status: 400 });
@@ -679,7 +713,7 @@ export async function POST(request: Request) {
     if (mode === "complete") {
       const suppliedResponse = typeof payload.response === "string" ? payload.response.trim().slice(0, 8000) : "";
       const suppliedRequestPlan = job.kind === "global_message" ? parseGlobalRequestPlan(payload.requestPlan) : null;
-      if (job.kind === "global_message" && !suppliedRequestPlan) {
+      if (job.kind === "global_message" && (!suppliedRequestPlan || !suppliedRequestPlan.outcomeKinds)) {
         return Response.json({ error: "Luna's acknowledgement did not preserve a valid request plan." }, { status: 400 });
       }
       const storedRequestPlan = job.kind === "global_refresh" ? parseStoredGlobalRequestPlan(job.delegationInstruction) : null;
@@ -766,6 +800,12 @@ export async function POST(request: Request) {
       }
       if (job.scopeType === "global") {
         const followUpBody = clarificationBody;
+        const activityCreation = payload.activityCreation == null ? null : parseActivityCreation(payload.activityCreation);
+        const creationRejection = (error: string) => Response.json({ error, code: "invalid_activity_creation", correctionAllowed: true }, { status: 400 });
+        if (payload.activityCreation != null && !activityCreation) return creationRejection("Activity creation requires title, category, durationMinutes (5–480), cadence, effectiveDate, and planRole.");
+        if (activityCreation && (job.kind !== "global_refresh" || !sourceMessage || storedRequestPlan?.kind !== "durable_work")) {
+          return creationRejection("Only an explicit user request in the durable coordinator may create an activity.");
+        }
         const proposal = payload.scheduleProposal === null || payload.scheduleProposal === undefined ? null : parseScheduleProposal(payload.scheduleProposal);
         if (payload.scheduleProposal && !proposal) return Response.json({ error: "The schedule proposal did not pass validation." }, { status: 400 });
         const directScheduleSource = Array.isArray(payload.scheduleActions) ? payload.scheduleActions.slice(0, 2) : [];
@@ -794,7 +834,11 @@ export async function POST(request: Request) {
         if (!activityWorkRequests) return Response.json({ error: "An activity handoff did not pass validation." }, { status: 400 });
         const handledOutcomes = validateHandledOutcomes(payload.handledOutcomes, storedRequestPlan);
         if (!handledOutcomes) {
-          return Response.json({ error: "Terra did not account for every outcome in the user's request." }, { status: 400 });
+          return creationRejection("Account for every requested outcome. Activity creation requires activityCreation and via:activity_creation, or a concrete clarification; it cannot finish with text or an activity handoff.");
+        }
+        if (activityCreation && !handledOutcomes.some((outcome) => outcome.via === "activity_creation")) return creationRejection("Map the creation outcome to via:activity_creation.");
+        if (activityCreation && (proposal || directScheduleActions.length || occurrenceActions.length || captureActions.length || activityWorkRequests.length)) {
+          return creationRejection("Create the new activity with its schedule in this pass. Do not mix creation with other mutations; clarify compound changes that require additional operations.");
         }
         if (directScheduleActions.length && (
           !sourceMessage
@@ -805,6 +849,7 @@ export async function POST(request: Request) {
         }
         const availableOutcomeChannels = new Set<HandledOutcome["via"]>();
         if (response) availableOutcomeChannels.add("message");
+        if (activityCreation) availableOutcomeChannels.add("activity_creation");
         if (activityWorkRequests.length) availableOutcomeChannels.add("activity_work");
         if (directScheduleActions.length) availableOutcomeChannels.add("schedule_change");
         if (proposal) availableOutcomeChannels.add("schedule_proposal");
@@ -830,6 +875,15 @@ export async function POST(request: Request) {
           return Response.json({ error: "Global Luna must respond, delegate, clarify, capture an open item, propose, or make one permitted day change." }, { status: 400 });
         }
         let scheduleReceipt: WorkReceiptDraft | null = null;
+        if (activityCreation) {
+          const settings = await db.prepare("SELECT time_zone AS timeZone FROM settings WHERE user_id = ?").bind(job.userId).first<{ timeZone: string }>();
+          const created = await createAgentActivity(db, { userId: job.userId, sourceMessageId: job.sourceMessageId!,
+            conversationId: job.conversationId, jobId: job.id, action: activityCreation,
+            localDate: localDateInTimeZone(new Date(), settings?.timeZone || "America/Phoenix"), resolveDay });
+          scheduleReceipt = { kind: "activity_update", title: `${created.title} created`,
+            detail: `${activityCreation.durationMinutes} minutes · ${activityCreation.planRole === "essential" ? "Essential" : "More for today"} · Starts ${activityCreation.effectiveDate}`,
+            target: "workspace", targetActivityId: created.activityId, targetActivityClientKey: created.clientKey };
+        }
         for (const action of directScheduleActions) {
           const [activity, pattern] = await Promise.all([
             db.prepare("SELECT title, client_key AS clientKey FROM activities WHERE id = ? AND user_id = ? LIMIT 1")
@@ -896,7 +950,7 @@ export async function POST(request: Request) {
         }
         // A delegated activity compiler owns the eventual outcome. The coordinator
         // must not narrate success or failure before that bounded write finishes.
-        const finalResponse = activityWorkRequests.length ? "" : structuredClarification ? response : followUpBody || response;
+        const finalResponse = activityCreation ? `Created “${activityCreation.title}” with its saved schedule.` : activityWorkRequests.length ? "" : structuredClarification ? response : followUpBody || response;
         const messageId = finalResponse ? `agent-message:${safeId(jobId)}` : null;
         const statements = [];
         if (finalResponse && messageId) statements.push(db.prepare(`
