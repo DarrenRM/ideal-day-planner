@@ -7,7 +7,7 @@ export type TrackRecord = {
   firstSavedDate: string | null;
 };
 export type HistoryOccurrence = {
-  id: string; activityId: string; title: string; variantName: string | null;
+  id: string; revision: number; activityId: string; title: string; variantName: string | null;
   category: string; completedAt: string | null; skippedAt: string | null;
   plannedMinutes: number; actualSeconds: number | null;
 };

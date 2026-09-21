@@ -998,8 +998,12 @@ export async function persistRecordActions(input: {
   actions: RecordAction[];
   sourceMessageId?: string | null;
   sourceAgentJobId?: string | null;
+  expectedVersions?: Record<string, number>;
 }) {
   const db = getD1();
+  const sourceStart = input.sourceAgentJobId
+    ? await db.prepare("SELECT created_at AS at FROM agent_jobs WHERE id = ?").bind(input.sourceAgentJobId).first<{ at: string }>()
+    : input.sourceMessageId ? await db.prepare("SELECT created_at AS at FROM conversation_messages WHERE id = ?").bind(input.sourceMessageId).first<{ at: string }>() : null;
   // Subject roots establish ownership for the records that follow. Removals
   // happen last so retries never observe a bundle with its owner removed first.
   const orderedActions = [...input.actions].sort((left, right) => {
@@ -1027,13 +1031,14 @@ export async function persistRecordActions(input: {
       .bind(revisionId).first<{ id: string }>();
     if (existingRevision) continue;
     const current = await db.prepare(`
-      SELECT id, version, record_type AS recordType, payload_json AS payloadJson FROM activity_records
+      SELECT id, version, record_type AS recordType, payload_json AS payloadJson, archived_at AS archivedAt FROM activity_records
       WHERE user_id = ? AND activity_id = ? AND record_key = ?
         AND ${variantId ? "activity_variant_id = ?" : "activity_variant_id IS NULL"}
       LIMIT 1
     `).bind(...(variantId
       ? [input.userId, input.activityId, action.record.key, variantId]
-      : [input.userId, input.activityId, action.record.key])).first<{ id: string; version: number; recordType: string; payloadJson: string }>();
+      : [input.userId, input.activityId, action.record.key])).first<{ id: string; version: number; recordType: string; payloadJson: string; archivedAt: string | null }>();
+    if (input.expectedVersions?.[action.record.key] !== undefined && current?.version !== input.expectedVersions[action.record.key]) throw new Error("This information changed. Reload before saving.");
     const nextVersion = (current?.version ?? 0) + 1;
     // A cross-activity move deliberately preserves the durable record id. Use
     // that persisted id for its revisions and relations instead of rebuilding
@@ -1052,8 +1057,21 @@ export async function persistRecordActions(input: {
         nextData = mergeMealLogData(currentData, action.record.data as MealLogData);
       } catch { /* the validated incoming record remains the safe fallback */ }
     }
+    if (current && (input.sourceAgentJobId || input.sourceMessageId)) {
+      const { historyTypes, preserveCorrectedDates } = await import("../history-edit-model");
+      if (historyTypes.includes(action.record.type)) {
+        const corrections = await db.prepare(`SELECT DISTINCT json_extract(e.action_json, '$.request.date') AS date FROM schedule_action_events e
+          WHERE e.user_id = ? AND e.action_type = 'correct_history' AND (? IS NULL OR e.created_at >= ?)
+          AND EXISTS(SELECT 1 FROM json_each(e.action_json, '$.before') target WHERE json_extract(target.value, '$.id') = ?)`)
+          .bind(input.userId, sourceStart?.at ?? null, sourceStart?.at ?? null, current.id).all<{ date: string }>();
+        if (corrections.results.length) nextData = preserveCorrectedDates(action.record.type, JSON.parse(current.payloadJson), nextData, corrections.results.map((row) => row.date));
+      }
+    }
     const payloadJson = JSON.stringify(nextData);
     await db.batch([
+      current
+        ? db.prepare("SELECT CASE WHEN EXISTS(SELECT 1 FROM activity_records WHERE id = ? AND user_id = ? AND activity_id = ? AND version = ? AND archived_at IS ?) THEN 1 ELSE json('record_conflict') END").bind(current.id, input.userId, input.activityId, current.version, current.archivedAt)
+        : db.prepare("SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM activity_records WHERE user_id = ? AND activity_id = ? AND record_key = ? AND activity_variant_id IS ?) THEN 1 ELSE json('record_conflict') END").bind(input.userId, input.activityId, action.record.key, variantId),
       db.prepare(`
         INSERT INTO activity_records
           (id, user_id, activity_id, activity_variant_id, record_key, subject_key, record_type, title, scope, scope_date,
@@ -1072,7 +1090,7 @@ export async function persistRecordActions(input: {
         payloadJson, nextVersion, input.sourceMessageId ?? null, input.sourceAgentJobId ?? null,
       ),
       db.prepare(`
-        INSERT OR IGNORE INTO activity_record_revisions
+        INSERT INTO activity_record_revisions
           (id, record_id, revision_number, title, payload_json, source_message_id, source_agent_job_id)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(revisionId, persistedRecordId, nextVersion, action.record.title, payloadJson, input.sourceMessageId ?? null, input.sourceAgentJobId ?? null),
@@ -1840,6 +1858,8 @@ export async function moveActivityRecords(input: {
         SET activity_id = ?, activity_variant_id = NULL, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND user_id = ? AND activity_id = ? AND archived_at IS NULL
       `).bind(input.targetActivityId, record.id, input.userId, input.sourceActivityId),
+      db.prepare("INSERT OR IGNORE INTO record_relations (id, user_id, record_id, activity_id, relation_type) VALUES (?, ?, ?, ?, 'history')")
+        .bind(`record-history:${safeId(record.id)}:${safeId(input.sourceActivityId)}`, input.userId, record.id, input.sourceActivityId),
       db.prepare("DELETE FROM record_relations WHERE record_id = ? AND activity_id = ? AND relation_type = 'primary'")
         .bind(record.id, input.sourceActivityId),
       db.prepare(`
@@ -3121,7 +3141,7 @@ export async function applyUserRecordMutation(input: {
     scopeDate: record.scopeDate, data,
   } }, ...relatedActions], input.planDate);
   if (!actions.length) throw new Error("The updated information did not pass validation.");
-  await persistRecordActions({ userId: input.userId, activityId: input.activityId, activityVariantId: input.activityVariantId, actionId: input.actionId, actions });
+  await persistRecordActions({ userId: input.userId, activityId: input.activityId, activityVariantId: input.activityVariantId, actionId: input.actionId, actions, expectedVersions: Object.fromEntries(records.map((record) => [record.key, record.version])) });
   return readActivityRecords(input.activityId, input.planDate, input.activityVariantId);
 }
 
@@ -3163,8 +3183,9 @@ export async function readConversationState(conversationId: string, planDate?: s
     : [];
   const recentRuns = recentRunRows.map(({ detailsJson, ...run }) => {
     try {
-      const details = JSON.parse(detailsJson || "{}") as { completedSubjectKeys?: unknown };
-      return { ...run, completedSubjectKeys: Array.isArray(details.completedSubjectKeys) ? details.completedSubjectKeys.filter((key): key is string => typeof key === "string") : [] };
+      const details = JSON.parse(detailsJson || "{}") as { completedSubjectKeys?: unknown; correctedSubjectKeys?: unknown };
+      const effective = details.correctedSubjectKeys ?? details.completedSubjectKeys;
+      return { ...run, completedSubjectKeys: Array.isArray(effective) ? effective.filter((key): key is string => typeof key === "string") : [] };
     } catch {
       return { ...run, completedSubjectKeys: [] as string[] };
     }

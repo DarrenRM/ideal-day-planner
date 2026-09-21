@@ -88,9 +88,10 @@ async function dueStepsByActivity(userId: string, activityIds: string[], date: s
   for (const run of runs.results) {
     let subjectKeys: string[] = [];
     try {
-      const details = JSON.parse(run.detailsJson || "{}") as { completedSubjectKeys?: unknown };
-      subjectKeys = Array.isArray(details.completedSubjectKeys)
-        ? details.completedSubjectKeys.filter((value): value is string => typeof value === "string")
+      const details = JSON.parse(run.detailsJson || "{}") as { completedSubjectKeys?: unknown; correctedSubjectKeys?: unknown };
+      const effective = details.correctedSubjectKeys ?? details.completedSubjectKeys;
+      subjectKeys = Array.isArray(effective)
+        ? effective.filter((value): value is string => typeof value === "string")
         : [];
     } catch {
       subjectKeys = [];

@@ -48,8 +48,9 @@ function completedSubjectKeysForDate(records: Awaited<ReturnType<typeof readActi
 
 function completedSubjectKeysFromDetails(value: string | null | undefined) {
   try {
-    const parsed = JSON.parse(value || "{}") as { completedSubjectKeys?: unknown };
-    return Array.isArray(parsed.completedSubjectKeys) ? parsed.completedSubjectKeys.filter((key): key is string => typeof key === "string") : [];
+    const parsed = JSON.parse(value || "{}") as { completedSubjectKeys?: unknown; correctedSubjectKeys?: unknown };
+    const effective = parsed.correctedSubjectKeys ?? parsed.completedSubjectKeys;
+    return Array.isArray(effective) ? effective.filter((key): key is string => typeof key === "string") : [];
   } catch {
     return [];
   }

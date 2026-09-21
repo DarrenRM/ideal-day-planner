@@ -1,0 +1,91 @@
+import assert from "node:assert/strict";
+import { DatabaseSync } from "node:sqlite";
+import { readHistoryRecords, saveHistoryCorrection } from "../../app/api/history-correction-store.ts";
+
+const sql = new DatabaseSync(":memory:");
+sql.exec(`
+CREATE TABLE daily_plans (id TEXT PRIMARY KEY, user_id TEXT, plan_date TEXT);
+CREATE TABLE daily_plan_items (id TEXT PRIMARY KEY, daily_plan_id TEXT, activity_id TEXT, activity_variant_id TEXT, revision INTEGER, completed_at TEXT, skipped_at TEXT, removed_at TEXT, updated_at TEXT);
+CREATE TABLE activity_runs (id TEXT PRIMARY KEY, user_id TEXT, daily_plan_item_id TEXT, status TEXT, details_json TEXT, actual_elapsed_seconds INTEGER, started_at TEXT, completed_at TEXT, updated_at TEXT);
+CREATE TABLE activity_records (id TEXT PRIMARY KEY, user_id TEXT, activity_id TEXT, record_key TEXT, title TEXT, record_type TEXT, version INTEGER, activity_variant_id TEXT, archived_at TEXT, subject_key TEXT, payload_json TEXT, scope TEXT, scope_date TEXT, updated_at TEXT);
+CREATE TABLE activity_record_revisions (id TEXT PRIMARY KEY, record_id TEXT, revision_number INTEGER, title TEXT, payload_json TEXT, UNIQUE(record_id, revision_number));
+CREATE TABLE schedule_action_events (id TEXT PRIMARY KEY, user_id TEXT, action_type TEXT, action_json TEXT, source TEXT, actor TEXT, idempotency_key TEXT, UNIQUE(user_id,idempotency_key));
+CREATE TABLE schedule_pattern_state (pattern_id TEXT PRIMARY KEY, current_step_position INTEGER);
+INSERT INTO daily_plans VALUES ('day','owner','2026-09-19');
+INSERT INTO daily_plan_items VALUES ('one','day','care',NULL,1,'original-completion',NULL,NULL,NULL);
+INSERT INTO activity_runs VALUES ('run','owner','one','completed','{"completedSubjectKeys":["mask"],"recordVersions":[]}',300,'original-start','original-completion',NULL);
+INSERT INTO schedule_pattern_state VALUES ('rotation',2);
+`);
+const data = { kind: "routine", items: [{ id: "mask", label: "Mask", subjectKey: "mask", cadenceRecordKey: "cadence" }, { id: "red", label: "Red", subjectKey: "mask", parentItemId: "mask", allowMultiple: true }, { id: "green", label: "Green", subjectKey: "mask", parentItemId: "mask", allowMultiple: true }, { id: "amber", label: "Amber", subjectKey: "mask", parentItemId: "mask", allowMultiple: true }], entries: [{ id: "selection", date: "2026-09-19", itemIds: ["red","green"] }] };
+function add(id, user, type, payload, key = id, subject = null) { sql.prepare("INSERT INTO activity_records VALUES (?,?,'care',?,?,?,1,NULL,NULL,?,?,'activity',NULL,NULL)").run(id,user,key,id,type,subject,JSON.stringify(payload)); }
+add("choices","owner","daily_selection",data);
+add("cadence","owner","recurring_step",{ label: "Mask", cadence: {kind:"interval_days",every:2}, anchorDate:"2026-01-01", completedDates:["2026-09-19"] }, "cadence", "mask");
+add("private","partner","daily_selection",data);
+let beforeBatch = null;
+const db = {
+  prepare(query) { const statement = { args: [], bind(...args) { return {...statement,args}; }, async first() { return sql.prepare(query).get(...this.args) ?? null; }, async all() { return { results: sql.prepare(query).all(...this.args) }; }, query }; return statement; },
+  async batch(statements) { if (beforeBatch) { const callback=beforeBatch;beforeBatch=null;callback(); } sql.exec("BEGIN"); try { const result = statements.map((stmt) => stmt.query.startsWith("SELECT") ? sql.prepare(stmt.query).all(...stmt.args) : sql.prepare(stmt.query).run(...stmt.args)); sql.exec("COMMIT"); return result; } catch (error) { sql.exec("ROLLBACK"); throw error; } },
+};
+const base = { actionId:"correction-one",date:"2026-09-19",activityId:"care",records:[],statuses:[] };
+const change = { ...base, records:[{ id:"choices",version:1,entries:[{id:"selection",date:base.date,itemIds:["red","amber"]}] }] };
+const first = await saveHistoryCorrection(db,"owner",change);
+assert.deepEqual(await saveHistoryCorrection(db,"owner",change),first);
+assert.equal(sql.prepare("SELECT version FROM activity_records WHERE id='choices'").get().version,2);
+assert.deepEqual(JSON.parse(sql.prepare("SELECT payload_json FROM activity_records WHERE id='choices'").get().payload_json).entries[0].itemIds,["red","amber"]);
+assert.equal(sql.prepare("SELECT current_step_position FROM schedule_pattern_state").get().current_step_position,2);
+const skip = await saveHistoryCorrection(db,"owner",{...base,actionId:"skip-correction",statuses:[{id:"one",revision:1,status:"skipped"}]});
+assert.equal(sql.prepare("SELECT actual_elapsed_seconds FROM activity_runs").get().actual_elapsed_seconds,300);
+await saveHistoryCorrection(db,"owner",skip.undo);
+assert.equal(sql.prepare("SELECT status FROM activity_runs").get().status,"completed");
+assert.equal(sql.prepare("SELECT completed_at FROM daily_plan_items").get().completed_at,"original-completion");
+assert.equal(sql.prepare("SELECT started_at FROM activity_runs").get().started_at,"original-start");
+assert.equal(sql.prepare("SELECT completed_at FROM activity_runs").get().completed_at,"original-completion");
+await assert.rejects(saveHistoryCorrection(db,"partner",{...change,actionId:"wrong-owner"}), /changed/);
+await assert.rejects(saveHistoryCorrection(db,"owner",{...change,actionId:"stale-version"}), /changed/);
+const count = sql.prepare("SELECT count(*) AS n FROM schedule_action_events").get().n;
+beforeBatch = () => sql.prepare("UPDATE activity_records SET version=version+1 WHERE id='choices'").run();
+await assert.rejects(saveHistoryCorrection(db,"owner",{...base,actionId:"racing-save",records:[{id:"choices",version:2,entries:[]}],statuses:[{id:"one",revision:3,status:"skipped"}]}), /changed/);
+assert.equal(sql.prepare("SELECT status FROM activity_runs").get().status,"completed");
+assert.equal(sql.prepare("SELECT count(*) AS n FROM schedule_action_events").get().n,count);
+const none = await saveHistoryCorrection(db,"owner",{...base,actionId:"explicit-none",records:[{id:"choices",version:3,entries:[{id:"selection",date:base.date,itemIds:[]}]}]});
+const evidence = JSON.parse(sql.prepare("SELECT details_json FROM activity_runs").get().details_json);
+assert.deepEqual(evidence.completedSubjectKeys,["mask"]);
+assert.deepEqual(evidence.correctedSubjectKeys,[]);
+assert.deepEqual(JSON.parse(sql.prepare("SELECT payload_json FROM activity_records WHERE id='cadence'").get().payload_json).completedDates,[]);
+await saveHistoryCorrection(db,"owner",none.undo);
+assert.equal(JSON.parse(sql.prepare("SELECT details_json FROM activity_runs").get().details_json).correctedSubjectKeys,undefined);
+assert.equal((await readHistoryRecords(db,"owner","care",base.date)).length,2);
+add("variant-choices","owner","daily_selection",{...data,entries:[{id:"old-variant",date:"2026-09-16",itemIds:["green"]}]});
+sql.prepare("UPDATE activity_records SET activity_variant_id='old-variant' WHERE id='variant-choices'").run();
+assert.ok((await readHistoryRecords(db,"owner","care","2026-09-16")).some((record)=>record.id==="variant-choices"),"saved variant history survives a missing occurrence");
+assert.ok(!(await readHistoryRecords(db,"owner","care",base.date)).some((record)=>record.id==="variant-choices"),"unrelated variants are not offered for new entries");
+await saveHistoryCorrection(db,"owner",{...base,date:"2026-09-16",actionId:"variant-history",records:[{id:"variant-choices",version:1,entries:[{id:"old-variant",date:"2026-09-16",itemIds:["amber"]}]}]});
+assert.deepEqual(JSON.parse(sql.prepare("SELECT payload_json FROM activity_records WHERE id='variant-choices'").get().payload_json).entries[0].itemIds,["amber"]);
+sql.exec(`
+CREATE TABLE activities (id TEXT PRIMARY KEY, user_id TEXT, client_key TEXT, title TEXT, category TEXT, icon TEXT, color TEXT);
+INSERT INTO activities VALUES ('care','owner','care','Face Care','Care','sun','#fff');
+CREATE UNIQUE INDEX plan_date_unique ON daily_plans(user_id,plan_date);
+ALTER TABLE daily_plan_items ADD COLUMN plan_role TEXT DEFAULT 'essential';
+ALTER TABLE daily_plan_items ADD COLUMN activated_at TEXT;
+ALTER TABLE daily_plan_items ADD COLUMN client_key TEXT;
+ALTER TABLE daily_plan_items ADD COLUMN occurrence_key TEXT;
+ALTER TABLE daily_plan_items ADD COLUMN title TEXT;
+ALTER TABLE daily_plan_items ADD COLUMN category TEXT;
+ALTER TABLE daily_plan_items ADD COLUMN icon TEXT;
+ALTER TABLE daily_plan_items ADD COLUMN color TEXT;
+ALTER TABLE daily_plan_items ADD COLUMN position INTEGER;
+ALTER TABLE daily_plan_items ADD COLUMN duration INTEGER;
+ALTER TABLE daily_plan_items ADD COLUMN source_date TEXT;
+`);
+const recorded = await saveHistoryCorrection(db,"owner",{...base,date:"2026-09-18",actionId:"backfill-day",backfill:true});
+const added = sql.prepare("SELECT * FROM daily_plan_items WHERE id LIKE 'history-occurrence:%'").get();
+assert.equal(added.daily_plan_id,"plan:owner:2026-09-18");
+assert.equal(added.duration,0);
+assert.equal(added.plan_role,"extra");
+assert.equal(sql.prepare("SELECT count(*) AS n FROM activity_runs").get().n,1,"backfill invents no measured session or product use");
+await assert.rejects(saveHistoryCorrection(db,"owner",{...base,date:"2026-09-18",actionId:"duplicate-day",backfill:true}),/changed/);
+// Real schema defaults the occurrence revision to one.
+sql.prepare("UPDATE daily_plan_items SET revision=1 WHERE id=?").run(added.id);
+await saveHistoryCorrection(db,"owner",recorded.undo);
+assert.ok(sql.prepare("SELECT removed_at FROM daily_plan_items WHERE id=?").get(added.id).removed_at);
+sql.close();

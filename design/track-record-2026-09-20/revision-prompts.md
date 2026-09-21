@@ -1,0 +1,15 @@
+
+
+## Review and correction prompts
+
+### calendar
+
+Edit this UI proposal board precisely, preserve three screens, labels, layout and typography. Correct these implementation inaccuracies: calendar is September 2026, Monday first. Empty Monday before Tue1. Rows exactly blank 1 2 3 4 5 6; 7 8 9 10 11 12 13;14 15 16 17 18 19 20;21 22 23 24 25 26 27;28 29 30 blank blank blank blank. Every numeral exactly once. Dates1–18 fractions respectively3/4,4/4,2/4,3/4,4/4,2/4,3/4,4/4,4/4,3/4,2/4,3/4,1/4,4/4,3/4,4/4,3/4,4/4;19=6/8;20=2/8; future dates no marks, no fractions. Change summary42 of56 to64 of88 completed. Keep19 selected and20 today. Change EVERY red x to a muted slash for skipped or muted dash for not recorded, no red failure marks. Activity detail and Chin-up preview dates14–20 consistent: check14,check15,check16,slash17,check18,check19,hollow circle20. Recent history already has Sep17 Skipped and16 Completed, match that. In directory Bed Routine icon is rose line moon because category Care, no blue. All icons regular thin line icons, no emoji, outlines no luminous glow. Keep all other text and layout. Board bg uniformly #0a0c0f. Output exact corrected board.
+
+### journal
+
+Edit this three-screen UI proposal. Preserve layout/content/navigation. Correct Yesterday card badge: it says Completed despite6of8, replace with neutral '6 of 8', or remove redundant badge entirely. Summary42of56 becomes64of88 completed. All surfaces must be flat #0a0c0f background,#101316 cards,#242a2e borders; remove ALL fog, glows, gradients and invented Ideal Day branding/tagline on board top right. All activity icons must be small thin regular line icons, not colorful emoji; Training lime dumbbell, Morning Walk gold footprints, skin rose sparkle, hair rose droplet, supplements peach capsule, shower pale blue showerhead, stretch pale blue person, Bed Routine rose moon. Remove large blue In progress badge background, use quiet outline badge. Maintain clear text, highly legible, no other changes. Board remains title02 Day Journal, three large screens, flow below, illustrative-data caption.
+
+### library
+
+Edit this three-screen proposal, preserve composition/navigation and flat dark style. Replace every emoji-like filled activity icon with small simple regular thin line icons: Chin-up lime dumbbell, Morning Walk gold footprints, Skin/Hair rose sparkle/droplet, supplements peach capsule, shower blue showerhead, Stretch blue stretching person, Bed Routine rose moon. Fix all Chin-up recent status strips to match recorded rows: Sep14 check15check16check17muted slash18check19check20hollow in-progress dot. No glowing/check-button appearance: use small flat read-only symbols with same date alignment. Change global42of56 to64of88 completed. For dayrecap right remove Morning Walk30min since not known recorded; Chin-up5min text is '5 min recorded'. All completed/incomplete states already sixofeight keep unchanged. Suppress any shadow/glow. Render same design board title03 Activity Library with three screens and same flow. Do not add features.

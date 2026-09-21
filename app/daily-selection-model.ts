@@ -16,6 +16,8 @@ export type DailySelectionEntry = {
   date: string;
   itemIds: string[];
   counts?: Record<string, number>;
+  recorded?: boolean;
+  itemSnapshots?: DailySelectionItem[];
 };
 
 export type DailySelectionData = {
@@ -105,9 +107,9 @@ export function withSelectionForDate(data: DailySelectionData, date: string, ite
   const retained = data.entries.filter((entry) => entry.date !== date);
   return {
     ...data,
-    entries: uniqueIds.length
-      ? [...retained, { id: `selection-${date}`, date, itemIds: uniqueIds, ...(Object.keys(normalizedCounts).length ? { counts: normalizedCounts } : {}) }].sort((left, right) => left.date.localeCompare(right.date))
-      : retained,
+    entries: [...retained, { id: data.entries.find((entry) => entry.date === date)?.id ?? `selection-${date}`, date, recorded: true, itemIds: uniqueIds,
+      itemSnapshots: data.items.filter((item) => uniqueIds.includes(item.id) || data.items.some((child) => uniqueIds.includes(child.id) && child.parentItemId === item.id)),
+      ...(Object.keys(normalizedCounts).length ? { counts: normalizedCounts } : {}) }].sort((left, right) => left.date.localeCompare(right.date)),
   };
 }
 

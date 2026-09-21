@@ -13,6 +13,7 @@ sqlite.exec(`
   CREATE INDEX daily_plan_items_plan_position_idx ON daily_plan_items(daily_plan_id, position);
   CREATE TABLE activity_runs (id TEXT PRIMARY KEY, user_id TEXT, daily_plan_item_id TEXT, actual_elapsed_seconds INTEGER);
   CREATE TABLE activity_records (id TEXT PRIMARY KEY, user_id TEXT, activity_id TEXT, title TEXT, record_type TEXT, payload_json TEXT);
+  CREATE TABLE record_relations (record_id TEXT, user_id TEXT, activity_id TEXT, relation_type TEXT, created_at TEXT);
   INSERT INTO activities VALUES ('walk', 'owner', 'Walking now renamed', 'Training'), ('care', 'owner', 'Care', 'Care'), ('private', 'partner', 'Private', 'Spirit');
   INSERT INTO daily_plans VALUES ('d1', 'owner', '2026-09-01'), ('empty', 'owner', '2026-09-03'), ('other', 'partner', '2026-09-01');
   INSERT INTO daily_plan_items VALUES
@@ -23,6 +24,7 @@ sqlite.exec(`
     ('removed', 'd1', 'care', 'Care', NULL, NULL, 'Care', 10, 4, 'essential', NULL, NULL, NULL, 'removed'),
     ('secret', 'other', 'private', 'Private', NULL, NULL, 'Spirit', 30, 0, 'essential', NULL, 'done', NULL, NULL);
   INSERT INTO activity_runs VALUES ('run', 'owner', 'one', 300), ('secret', 'partner', 'secret', 9999);
+  ALTER TABLE daily_plan_items ADD COLUMN revision INTEGER NOT NULL DEFAULT 1;
 `);
 const db = { prepare(sql) { return { bind(...values) { return {
   async all() { return { results: sqlite.prepare(sql).all(...values) }; },
@@ -54,14 +56,17 @@ assert.ok(!JSON.stringify(detail).includes("Secret"));
 const missing = await readHistoryDetail(db, "owner", "2026-09-02");
 assert.equal(missing.known, false);
 assert.deepEqual(missing.entries[0].lines, ["Serum"], "parent completion never infers all products used");
+sqlite.exec("INSERT INTO record_relations VALUES ('selection','owner','walk','history','2026-09-03 10:00:00')");
+assert.equal((await readHistoryDetail(db,'owner','2026-09-02','walk')).entries[0].activityId,'care','moved history links to its canonical owner');
+sqlite.exec("DELETE FROM record_relations");
 assert.equal((await readHistoryDetail(db, "owner", "2026-09-01", "private")).entries.length, 0);
 const agent = await readAgentTrackRecord(db, "owner", "2026-09-06", "How was my track record from 2026-09-01 to 2026-09-03?");
 assert.deepEqual(agent.totals, overview.totals);
 assert.equal(agent.missingDays, 1);
-assert.equal(sqlite.prepare("SELECT total_changes() AS n").get().n, before, "all reads must leave the database unchanged");
+assert.equal(sqlite.prepare("SELECT total_changes() AS n").get().n, before + 2, "all reads must leave the database unchanged (apart from two fixture writes)");
 
 // History has no recent-run limit and does not collapse repeated occurrences.
-for (let i = 0; i < 125; i++) sqlite.prepare("INSERT INTO daily_plan_items VALUES (?, 'd1', 'walk', 'Walk', NULL, NULL, 'Training', 10, ?, 'essential', NULL, 'done', NULL, NULL)").run(`old-${i}`, i + 10);
+for (let i = 0; i < 125; i++) sqlite.prepare("INSERT INTO daily_plan_items VALUES (?, 'd1', 'walk', 'Walk', NULL, NULL, 'Training', 10, ?, 'essential', NULL, 'done', NULL, NULL, 1)").run(`old-${i}`, i + 10);
 assert.equal((await readTrackRecord(db, "owner", { start: "2026-01-01", end: "2026-09-06" }, "2026-09-06")).totals.completed, 126);
 // Corrections are reflected by both consumers without erasing the saved log.
 sqlite.exec("UPDATE daily_plan_items SET completed_at = NULL WHERE id = 'one'");

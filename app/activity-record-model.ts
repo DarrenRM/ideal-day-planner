@@ -344,19 +344,24 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
       kind: source.kind === "routine" ? "routine" : "supplements",
       prompt: boundedString(source.prompt, 180),
       items,
-      entries: objectArray(source.entries, 730, (entry, index) => {
+      entries: objectArray(source.entries, Number.POSITIVE_INFINITY, (entry, index) => {
         const date = boundedString(entry.date, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-        const itemIds = [...new Set(stringArray(entry.itemIds, 100, 80).map(stableKey).filter((id) => id && knownIds.has(id)))];
+        const itemSnapshots = objectArray(entry.itemSnapshots, 100, (item) => {
+          const id = stableKey(item.id), label = boundedString(item.label, 300);
+          return id && label ? { id, label, parentItemId: stableKey(item.parentItemId), subjectKey: stableKey(item.subjectKey), allowMultiple: item.allowMultiple === true, unitLabel: boundedString(item.unitLabel, 40), active: item.active !== false } : null;
+        });
+        const historicalIds = new Set(itemSnapshots.map((item) => item.id));
+        const itemIds = [...new Set(stringArray(entry.itemIds, 100, 80).map(stableKey).filter((id) => id && (knownIds.has(id) || historicalIds.has(id))))];
         const selectedIds = new Set(itemIds);
         const rawCounts = entry.counts && typeof entry.counts === "object" && !Array.isArray(entry.counts)
           ? entry.counts as Record<string, unknown> : {};
         const counts = Object.fromEntries(Object.entries(rawCounts).flatMap(([rawId, rawCount]) => {
           const id = stableKey(rawId);
           const count = boundedNumber(rawCount, 1, 9);
-          return id && selectedIds.has(id) && repeatableIds.has(id) && count !== null && count > 1 ? [[id, Math.round(count)]] : [];
+          return id && selectedIds.has(id) && (repeatableIds.has(id) || itemSnapshots.some((item) => item.id === id && item.allowMultiple)) && count !== null && count > 1 ? [[id, Math.round(count)]] : [];
         }));
-        return itemIds.length ? { id: itemId(entry.id, index), date, itemIds, ...(Object.keys(counts).length ? { counts } : {}) } : null;
+        return itemIds.length || entry.recorded === true ? { id: itemId(entry.id, index), date, itemIds, ...(entry.recorded === true ? { recorded: true } : {}), ...(itemSnapshots.length ? { itemSnapshots } : {}), ...(Object.keys(counts).length ? { counts } : {}) } : null;
       }),
     };
   }
@@ -383,7 +388,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
           notes: boundedString(entry.notes, 800),
         };
       }),
-      entries: objectArray(source.entries, 730, (entry, index) => {
+      entries: objectArray(source.entries, Number.POSITIVE_INFINITY, (entry, index) => {
         const date = boundedString(entry.date, 10);
         const title = boundedString(entry.title, 240);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !title) return null;
@@ -447,7 +452,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
     if (!workoutRecordKey) return null;
     return {
       workoutRecordKey,
-      sessions: objectArray(source.sessions, 365, (entry, index) => {
+      sessions: objectArray(source.sessions, Number.POSITIVE_INFINITY, (entry, index) => {
         const date = boundedString(entry.date, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
         return {
@@ -503,12 +508,12 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
     return {
       label, note: boundedString(source.note, 500), cadence, anchorDate,
       itemKey: stableKey(source.itemKey),
-      completedDates: stringArray(source.completedDates, 730, 10).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
+      completedDates: stringArray(source.completedDates, Number.POSITIVE_INFINITY, 10).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
     };
   }
 
   if (type === "activity_event") {
-    return { entries: objectArray(source.entries, 200, (entry, index) => {
+    return { entries: objectArray(source.entries, Number.POSITIVE_INFINITY, (entry, index) => {
       const label = boundedString(entry.label, 200);
       const date = boundedString(entry.date, 10);
       return label && /^\d{4}-\d{2}-\d{2}$/.test(date) ? {
@@ -557,7 +562,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
       : null;
     return {
       prompt: boundedString(source.prompt, 180), options,
-      selections: objectArray(source.selections, 366, (entry, index) => {
+      selections: objectArray(source.selections, Number.POSITIVE_INFINITY, (entry, index) => {
         const date = boundedString(entry.date, 10);
         const optionId = stableKey(entry.optionId);
         return /^\d{4}-\d{2}-\d{2}$/.test(date) && optionIds.has(optionId) ? { id: itemId(entry.id, index), date, optionId } : null;
@@ -596,7 +601,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
       choiceRecordKey,
       ...(defaultOptionId && defaultOptionLabel ? { defaultOption: { id: defaultOptionId, label: defaultOptionLabel } } : {}),
       fields,
-      entries: objectArray(source.entries, 500, (entry, index) => {
+      entries: objectArray(source.entries, Number.POSITIVE_INFINITY, (entry, index) => {
         const date = boundedString(entry.date, 10);
         const optionId = stableKey(entry.optionId);
         const values = objectArray(entry.values, 30, (pair) => {
@@ -685,7 +690,7 @@ function validateData(type: ActivityRecordType, value: unknown): Record<string, 
   if (type === "adherence") {
     return {
       effectiveDate: /^\d{4}-\d{2}-\d{2}$/.test(boundedString(source.effectiveDate, 10)) ? boundedString(source.effectiveDate, 10) : "",
-      entries: objectArray(source.entries, 120, (entry, index) => {
+      entries: objectArray(source.entries, Number.POSITIVE_INFINITY, (entry, index) => {
         const date = boundedString(entry.date, 40);
         return date ? { id: itemId(entry.id, index), date, completed: entry.completed === true, note: boundedString(entry.note, 300) } : null;
       }),

@@ -11,11 +11,14 @@ const counts = `COUNT(dpi.id) AS planned,
   SUM(CASE WHEN dpi.skipped_at IS NOT NULL AND dpi.completed_at IS NULL THEN 1 ELSE 0 END) AS skipped`;
 const recordEntries = `FROM activity_records r JOIN activities a ON a.id = r.activity_id AND a.user_id = r.user_id
   JOIN json_each(CASE WHEN json_valid(r.payload_json) THEN r.payload_json ELSE '{}' END,
-    CASE r.record_type WHEN 'strength_session' THEN '$.sessions' WHEN 'recurring_step' THEN '$.completedDates' ELSE '$.entries' END) e
-  WHERE r.user_id = ? AND (? IS NULL OR r.activity_id = ?)
-    AND r.record_type IN ('session_log', 'strength_session', 'daily_selection', 'meal_log', 'recurring_step', 'activity_event')`;
+    CASE r.record_type WHEN 'strength_session' THEN '$.sessions' WHEN 'recurring_step' THEN '$.completedDates' WHEN 'session_choice' THEN '$.selections' ELSE '$.entries' END) e
+  WHERE r.user_id = ? AND (? IS NULL OR r.activity_id = ? OR EXISTS (
+    SELECT 1 FROM record_relations rr WHERE rr.record_id = r.id AND rr.user_id = r.user_id AND rr.activity_id = ? AND rr.relation_type = 'history'
+      AND (CASE WHEN r.record_type = 'recurring_step' THEN e.value ELSE json_extract(e.value, '$.date') END) <= date(rr.created_at)))
+    AND r.record_type IN ('session_log', 'strength_session', 'daily_selection', 'meal_log', 'recurring_step', 'activity_event', 'adherence', 'session_choice')`;
 const entryDate = "CASE WHEN r.record_type = 'recurring_step' THEN e.value ELSE json_extract(e.value, '$.date') END";
 function args(userId: string, range: Range) { return [userId, range.activityId ?? null, range.activityId ?? null, range.start, range.end]; }
+function entryArgs(userId: string, range: Range) { return [userId, range.activityId ?? null, range.activityId ?? null, range.activityId ?? null, range.start, range.end]; }
 function normalizeCounts(row?: Partial<HistoryCounts>): HistoryCounts {
   return { planned: Number(row?.planned ?? 0), completed: Number(row?.completed ?? 0), skipped: Number(row?.skipped ?? 0) };
 }
@@ -35,7 +38,7 @@ export async function readTrackRecord(db: HistoryDatabase, userId: string, range
       WHERE dp.user_id = ? AND (? IS NULL OR dpi.activity_id = ?) AND dp.plan_date BETWEEN ? AND ?
       GROUP BY dpi.activity_id ORDER BY a.title`).bind(...args(userId, range)).all<HistoryActivity>(),
     db.prepare(`SELECT ${entryDate} AS date, COUNT(*) AS entries ${recordEntries}
-      AND ${entryDate} BETWEEN ? AND ? GROUP BY 1`).bind(...args(userId, range)).all<{ date: string; entries: number }>(),
+      AND ${entryDate} BETWEEN ? AND ? GROUP BY 1`).bind(...entryArgs(userId, range)).all<{ date: string; entries: number }>(),
     db.prepare("SELECT MIN(plan_date) AS date FROM daily_plans WHERE user_id = ?").bind(userId).first<{ date: string | null }>(),
   ]);
   const saved = new Map(days.results.map((day) => [day.date, day]));
@@ -62,13 +65,14 @@ export function projectHistoryEntry(row: EntryRow): HistoryEntry {
     if (entry.note) lines.push(text(entry.note));
   } else if (row.type === "daily_selection") {
     const ids = Array.isArray(entry.itemIds) ? entry.itemIds : [];
-    const items = objects(data.items);
+    const items = [...objects(entry.itemSnapshots), ...objects(data.items)];
     lines = ids.map((id) => {
       const item = items.find((candidate) => candidate.id === id);
       const parent = item?.parentItemId ? items.find((candidate) => candidate.id === item.parentItemId) : null;
       const count = object(entry.counts)[text(id)];
       return `${parent ? `${text(parent.label)} — ` : ""}${text(item?.label) || "Recorded item"}${count ? ` × ${text(count)}` : ""}`;
     });
+    if (!ids.length && entry.recorded === true) lines = ["No selections recorded for this day"];
   } else if (row.type === "session_log") {
     const option = object(data.defaultOption);
     if (option.id === entry.optionId && option.label) title = text(option.label);
@@ -80,6 +84,10 @@ export function projectHistoryEntry(row: EntryRow): HistoryEntry {
   } else if (row.type === "meal_log") {
     title = text(entry.title) || title;
     lines = [text(entry.detail), entry.quantity ? `Quantity: ${text(entry.quantity)}` : "", entry.servings ? `Servings: ${text(entry.servings)}` : "", entry.storage ? `Storage: ${text(entry.storage)}` : "", ...objects(entry.ingredients).map((ingredient) => `${text(ingredient.label)}${ingredient.amount ? ` · ${text(ingredient.amount)}` : ""}`)].filter(Boolean);
+  } else if (row.type === "adherence") {
+    lines = [entry.completed ? "Recorded use" : "Not used", text(entry.note)].filter(Boolean);
+  } else if (row.type === "session_choice") {
+    lines = [text(objects(data.options).find((option) => option.id === entry.optionId)?.label) || "Recorded option"];
   } else if (row.type === "recurring_step") {
     title = text(data.label) || title;
     lines = ["Recorded use"];
@@ -94,17 +102,17 @@ export async function readHistoryEntries(db: HistoryDatabase, userId: string, ra
   const rows = await db.prepare(`SELECT r.id AS recordId, r.activity_id AS activityId, a.title AS activityTitle,
     r.title, r.record_type AS type,
     json_object('fields', json_extract(r.payload_json, '$.fields'), 'items', json_extract(r.payload_json, '$.items'),
-      'label', json_extract(r.payload_json, '$.label'), 'defaultOption', json_extract(r.payload_json, '$.defaultOption')) AS payload,
+      'label', json_extract(r.payload_json, '$.label'), 'options', json_extract(r.payload_json, '$.options'), 'defaultOption', json_extract(r.payload_json, '$.defaultOption')) AS payload,
     e.value AS entry, ${entryDate} AS date
     ${recordEntries} AND ${entryDate} BETWEEN ? AND ? ORDER BY date DESC, r.id, e.key LIMIT ?`)
-    .bind(...args(userId, range), limit + 1).all<EntryRow>();
+    .bind(...entryArgs(userId, range), limit + 1).all<EntryRow>();
   return { entries: rows.results.slice(0, limit).map(projectHistoryEntry), hasMore: rows.results.length > limit };
 }
 
 export async function readHistoryDetail(db: HistoryDatabase, userId: string, date: string, activityId?: string | null): Promise<HistoryDetail & { hasMoreEntries: boolean }> {
   const [plan, occurrences, logs] = await Promise.all([
     db.prepare("SELECT id FROM daily_plans WHERE user_id = ? AND plan_date = ?").bind(userId, date).first<{ id: string }>(),
-    db.prepare(`SELECT dpi.id, dpi.activity_id AS activityId,
+    db.prepare(`SELECT dpi.id, dpi.revision, dpi.activity_id AS activityId,
       COALESCE(NULLIF(dpi.display_label_override, ''), dpi.title) AS title,
       dpi.variant_name_snapshot AS variantName, dpi.category, dpi.completed_at AS completedAt, dpi.skipped_at AS skippedAt,
       dpi.duration AS plannedMinutes, ar.actual_elapsed_seconds AS actualSeconds
