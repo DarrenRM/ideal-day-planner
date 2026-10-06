@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, DragEvent, FormEvent, KeyboardEvent, MutableRefObject, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock3, MoreVertical, Pencil, Plus, RotateCcw, Send, Settings, SkipForward, Sparkles, Trash2, Trophy, X } from "./icons";
 import { ActivityWorkspace, captureActivityTimingSnapshot, hasVisibleActivityWorkspace, resetActivityTimingState, type ActivityScheduleSummary } from "./activity-workspace";
 import type { ActivityRecord } from "./activity-record-model";
@@ -387,7 +387,13 @@ function formatDayOrdinal(day: number) {
   return `${day}th`;
 }
 
-function formatTodayHeading(date = new Date()) {
+// The server does not know the browser's timezone. Keep its first render and
+// hydration identical, then reveal dates from the client's day navigation.
+const subscribeToClientReady = () => () => {};
+const clientReadySnapshot = () => true;
+const serverReadySnapshot = () => false;
+
+function formatTodayHeading(date: Date) {
   const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
   const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(date);
   return `${weekday}, ${month} ${formatDayOrdinal(date.getDate())}`;
@@ -1516,6 +1522,7 @@ function hydrateStoredItems(value: unknown): RoutineItem[] {
 }
 
 export default function Home() {
+  const clientReady = useSyncExternalStore(subscribeToClientReady, clientReadySnapshot, serverReadySnapshot);
   const initialDateKeyRef = useRef(localDateKey());
   const [dayNavigation, setDayNavigation] = useState(() => ({
     todayDateKey: initialDateKeyRef.current,
@@ -3495,7 +3502,7 @@ export default function Home() {
         <section className="hero" aria-labelledby="page-title">
           <div className="hero-copy">
             <p className="eyebrow">Daily protocol</p>
-            <h1 id="page-title">{formatTodayHeading()}</h1>
+            <h1 id="page-title">{clientReady ? formatTodayHeading(dateFromKey(todayDateKey)) : "Today"}</h1>
             <p>{timelineEnabled
               ? "One repeatable sequence from wake-up to done. Reorder the flow and tune the timing until it feels natural."
               : "A living checklist for the day, with Luna and the right tools inside every activity."}</p>
@@ -3518,7 +3525,7 @@ export default function Home() {
               <div className="planner-heading-copy">
                 <h2 id="schedule-title">
                   <span className="desktop-schedule-title">{timelineEnabled ? "Schedule" : "Today"}</span>
-                  <MobileDateHeading date={dateFromKey(viewDate)} />
+                  {clientReady ? <MobileDateHeading date={dateFromKey(viewDate)} /> : <span className="mobile-schedule-title">Today</span>}
                 </h2>
                 <p>
                   <span className="desktop-schedule-summary">{isReviewingPastDay ? `Reviewing ${reviewDayLabel(viewDate, todayDateKey)}` : hasLoaded ? essentialsComplete ? `Essentials complete${unfinishedChosenExtras.length ? ` · ${unfinishedChosenExtras.length} chosen` : ""} · ${availableExtras.length} more` : timelineEnabled ? `${activeItemCount} essentials · ${formatDuration(totalMinutes)} planned` : `${activeItemCount} essentials · ${availableExtras.length} ways to go further` : "Loading your saved day…"}</span>

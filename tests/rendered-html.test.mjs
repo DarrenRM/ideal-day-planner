@@ -25,7 +25,7 @@ test("server-renders the idealized day planner", async () => {
   assert.match(html, /<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"\/>/i);
   assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest"\/>/i);
   assert.match(html, /<link rel="apple-touch-icon" href="\/apple-touch-icon\.png"[^>]*\/>/i);
-  assert.match(html, /id="page-title">[A-Z][a-z]+, [A-Z][a-z]+ \d{1,2}(?:st|nd|rd|th)<\/h1>/);
+  assert.match(html, /id="page-title">Today<\/h1>/);
   assert.match(html, /Loading your saved day/);
   assert.doesNotMatch(html, /Walk in sun|Stretch \/ yoga|>Shake<|>Breakfast</);
   assert.match(html, /Drag an activity to reorder/);
@@ -41,6 +41,24 @@ test("server-renders the idealized day planner", async () => {
   assert.doesNotMatch(html, /Primary navigation/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|SkeletonPreview/i);
   assert.doesNotMatch(html, /__variable_geist|_vinext_fonts/i);
+});
+
+test("server startup headings stay identical across the UTC and Phoenix day boundary", async (context) => {
+  context.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-06T04:00:00Z") });
+  const originalTimezone = process.env.TZ;
+  try {
+    for (const timezone of ["UTC", "America/Phoenix"]) {
+      process.env.TZ = timezone;
+      const html = await (await render()).text();
+      assert.match(html, /id="page-title">Today<\/h1>/);
+      assert.match(html, /class="mobile-schedule-title">Today<\/span>/);
+      assert.doesNotMatch(html, /mobile-date-lockup|Monday, October 5th|Tuesday, October 6th/);
+    }
+  } finally {
+    if (originalTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimezone;
+    context.mock.timers.reset();
+  }
 });
 
 test("supports an installed iOS app without resizing the assistant dock", async () => {
