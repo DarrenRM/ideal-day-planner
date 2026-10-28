@@ -24,15 +24,31 @@
 .DS_Store
 *.pem
 
-# debug
+# debug and local runtime output
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
+.dev-server.*
 
-# env files (can opt-in for committing if needed)
+# env files and local secrets (only the .env.example templates are tracked)
 .env*
+!.env.example
 !vercel-gateway/.env.example
+.dev.vars*
+*.key
+
+# local data: databases and production snapshots stay out of the repository
+*.sqlite
+*.sqlite3
+*.db
+/backups/
+
+# editor and agent-local settings
+.claude/settings.local.json
+.vscode/
+.idea/
 
 # vercel
 .vercel
