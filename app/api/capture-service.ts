@@ -1,7 +1,8 @@
 import { getD1 } from "../../db";
 import { validateRecordActions, type ActivityRecord } from "../activity-record-model";
 import { normalizeCaptureLabel, parseCaptureAction, type CaptureAction, type CaptureAttention, type PendingCapture } from "../capture-model";
-import { addLocalDays } from "../schedule-model";
+import { addLocalDays, localDateInTimeZone } from "../schedule-model";
+import { userTimeZone } from "./user-time-zone";
 import { persistRecordActions, persistWorkspaceActions, readActivityRecords, safeId } from "./agent-store";
 import { applyOccurrenceAction } from "./schedule-actions";
 
@@ -191,7 +192,7 @@ export async function applyCaptureAction(userId: string, rawAction: unknown, sou
   if (action.timing === "today" || action.timing === "tomorrow") {
     const localDate = source.localDate && /^\d{4}-\d{2}-\d{2}$/.test(source.localDate)
       ? source.localDate
-      : new Date().toLocaleDateString("en-CA");
+      : localDateInTimeZone(new Date(), await userTimeZone(userId));
     const date = action.timing === "today" ? localDate : addLocalDays(localDate, 1);
     await scheduleCapture(userId, capture, date);
   }

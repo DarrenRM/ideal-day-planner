@@ -26,7 +26,7 @@ import { millisecondsUntilNextLocalDay, reconcileLocalDay } from "./day-rollover
 import { activityRecordTargetId } from "./activity-workspace-target";
 import { derivedDisplayTitle } from "./activity-title";
 import { TrackRecordView } from "./track-record";
-import { browserTimeZone } from "./time-zone";
+import { timeZoneQuery } from "./time-zone";
 
 type Category = ActivityCategory;
 
@@ -1661,7 +1661,7 @@ export default function Home() {
 
     try {
       const endpoint = options.reconcile
-        ? `/api/day?date=${todayDateKey}&timeZone=${encodeURIComponent(browserTimeZone())}`
+        ? `/api/day?date=${todayDateKey}${timeZoneQuery()}`
         : `/api/day?date=${todayDateKey}&sync=1`;
       const response = await fetch(endpoint, { cache: "no-store" });
       if (!response.ok) throw new Error("Today could not be refreshed.");
@@ -1766,7 +1766,7 @@ export default function Home() {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const date = todayDateKey;
-    const endpoint = `/api/day?date=${date}&timeZone=${encodeURIComponent(browserTimeZone())}`;
+    const endpoint = `/api/day?date=${date}${timeZoneQuery()}`;
     const isRollover = dayLoadDateRef.current !== date;
     dayLoadDateRef.current = date;
 

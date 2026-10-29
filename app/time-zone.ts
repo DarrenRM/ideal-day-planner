@@ -16,10 +16,22 @@ export function resolveTimeZone(value: unknown) {
   return canonicalTimeZone(value) ?? FALLBACK_TIME_ZONE;
 }
 
-export function browserTimeZone() {
+// The zone this browser reports, or null when it cannot tell.
+export function detectedTimeZone(): string | null {
   try {
-    return resolveTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    return canonicalTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   } catch {
-    return FALLBACK_TIME_ZONE;
+    return null;
   }
+}
+
+export function browserTimeZone() {
+  return detectedTimeZone() ?? FALLBACK_TIME_ZONE;
+}
+
+// Query suffix that reports the browser's zone. Left off when the browser
+// cannot tell, so a correct stored zone is never replaced by the fallback.
+export function timeZoneQuery() {
+  const timeZone = detectedTimeZone();
+  return timeZone ? `&timeZone=${encodeURIComponent(timeZone)}` : "";
 }

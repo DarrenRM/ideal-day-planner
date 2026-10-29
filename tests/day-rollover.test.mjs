@@ -41,7 +41,7 @@ test("wires date changes and wake events into a fresh current-day load", async (
   assert.match(page, /window\.addEventListener\("focus", syncAfterWake\)/);
   assert.match(page, /document\.addEventListener\("visibilitychange", handleVisibilityChange\)/);
   assert.match(page, /const date = todayDateKey;/);
-  assert.match(page, /const endpoint = `\/api\/day\?date=\$\{date\}&timeZone=\$\{encodeURIComponent\(browserTimeZone\(\)\)\}`;/);
+  assert.match(page, /const endpoint = `\/api\/day\?date=\$\{date\}\$\{timeZoneQuery\(\)\}`;/);
   assert.match(page, /\}, \[todayDateKey\]\);/);
   assert.doesNotMatch(page, /const \[viewDate, setViewDate\] = useState\(localDateKey\)/);
 });

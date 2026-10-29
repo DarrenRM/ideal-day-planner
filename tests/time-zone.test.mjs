@@ -38,6 +38,23 @@ test("no server or client path assumes one fixed time zone", async () => {
   for (const dir of ["../app/", "../bridge/", "../db/"]) await walk(new URL(dir, import.meta.url));
   for (const file of files) {
     const source = await readFile(file, "utf8");
-    assert.doesNotMatch(source, /"America\/[A-Za-z_]+"/, fileURLToPath(file));
+    assert.doesNotMatch(source, /["'`]America\/[A-Za-z_]+/, fileURLToPath(file));
+  }
+});
+
+test("server routes take today from the person's zone, not the server clock", async () => {
+  const files = [];
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const next = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, dir);
+      if (entry.isDirectory()) await walk(next);
+      else if (/\.ts$/.test(entry.name)) files.push(next);
+    }
+  };
+  await walk(new URL("../app/api/", import.meta.url));
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(source, /new Date\(\)\.toLocaleDateString\("en-CA"\)/, fileURLToPath(file));
+    assert.doesNotMatch(source, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/, fileURLToPath(file));
   }
 });

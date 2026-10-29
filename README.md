@@ -27,7 +27,7 @@ Browser --> App (vinext on Cloudflare Workers) --> D1 (SQLite, Drizzle)
            Bridge worker (Node) --> local Hermes agent runtime --> model
 ```
 
-- `app/` is the React 19 app on [vinext](https://github.com/cloudflare/vinext) (the Next.js App Router API on Vite), with the API routes and validators. It is deployed to OpenAI Sites and runs as a Cloudflare Worker with a D1 database. The schema is in `db/` and 25 Drizzle migrations are in `drizzle/`.
+- `app/` is the React 19 app on [vinext](https://github.com/cloudflare/vinext) (the Next.js App Router API on Vite), with the API routes and validators. It is deployed to OpenAI Sites and runs as a Cloudflare Worker with a D1 database. The schema is in `db/` and 26 Drizzle migrations are in `drizzle/`.
 - `bridge/` is a Node worker that polls the app for jobs, builds the prompt from the component catalog and the activity's records, calls the agent runtime ([Hermes Agent](https://github.com/NousResearch/hermes-agent)), and posts the result back for validation. Linked pages are fetched and cached before the building step.
 - Luna has two paths: a fast conversational model (`gpt-5.6-luna`) that acknowledges and answers right away, and a separate building model (`gpt-5.6-terra`) that does the durable work. Model IDs are set in `bridge/ideal-day-bridge.mjs` and can be overridden by environment variable.
 - `vercel-gateway/` is a small Vercel project that adds a two-user password login in front of the app (scrypt-hashed passwords, signed session cookies).
@@ -59,7 +59,7 @@ Start the Hermes agent runtime with a profile named `ideal-day` (API server on `
 
 ## Status
 
-In use since August 2026. The agent builds each activity's interface through the validated path described above, and the model routing is the result of the eval in `evals/`. The suite has 246 app tests and 10 gateway tests. Store tests apply the real Drizzle migrations to in-memory SQLite, and one simulates a response lost after commit to prove retries are idempotent.
+In use since August 2026. The agent builds each activity's interface through the validated path described above, and the model routing is the result of the eval in `evals/`. The suite has 247 app tests and 10 gateway tests. Store tests apply the real Drizzle migrations to in-memory SQLite, and one simulates a response lost after commit to prove retries are idempotent.
 
 ## How it was built
 

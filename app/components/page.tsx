@@ -10,15 +10,19 @@ import { COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-libr
 import { readComponentUsage, type ComponentUsageMap } from "./component-usage";
 import { localDateInTimeZone } from "../schedule-model";
 import { FALLBACK_TIME_ZONE } from "../time-zone";
+import { userTimeZone } from "../api/user-time-zone";
 
 export const metadata: Metadata = {
   title: "Ideal Day libraries",
   description: "A living workbench for Ideal Day activities, components, and composition rules.",
 };
 
-// The catalog is rendered on the server, which has no visitor time zone.
-function catalogDateKey() {
-  return localDateInTimeZone(new Date(), FALLBACK_TIME_ZONE);
+// The catalog is rendered on the server, so "today" comes from the signed-in
+// person's stored zone.
+async function catalogDateKey(userId: string | undefined) {
+  if (!userId) return localDateInTimeZone(new Date(), FALLBACK_TIME_ZONE);
+  try { return localDateInTimeZone(new Date(), await userTimeZone(userId)); }
+  catch { return localDateInTimeZone(new Date(), FALLBACK_TIME_ZONE); }
 }
 
 type ComponentsPageProps = {
@@ -46,7 +50,7 @@ export default async function ComponentsPage({ searchParams }: ComponentsPagePro
     activities={ACTIVITY_LIBRARY.map((activity) => ({ ...activity, aliases: [...activity.aliases], components: { starting: [...activity.components.starting], optional: [...activity.components.optional] }, setup: { ...activity.setup }, onboarding: { ...activity.onboarding, priorities: [...activity.onboarding.priorities], rhythms: [...activity.onboarding.rhythms] } }))}
     activityChoiceSets={ACTIVITY_CHOICE_SETS}
     activityLibraryVersion={ACTIVITY_LIBRARY_VERSION}
-    today={catalogDateKey()}
+    today={await catalogDateKey(user?.userId)}
     usage={usage}
     initialSelectedType={initialSelectedType}
   />;

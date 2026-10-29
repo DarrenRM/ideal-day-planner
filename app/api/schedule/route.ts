@@ -2,9 +2,10 @@ import { getD1 } from "../../../db";
 import { parseActivityRecord } from "../../activity-record-model";
 import { recurringStepRepresentsParentActivity } from "../../activity-cadence-guard";
 import { compactRecurringTitle, recurringCadenceLabel, recurringStepScheduleStatus, type RecurringCadence } from "../../recurring-step-schedule";
-import { isLocalDate, parseSchedulePattern, previewPattern } from "../../schedule-model";
+import { isLocalDate, localDateInTimeZone, parseSchedulePattern, previewPattern } from "../../schedule-model";
 import { apiFailure, requestIdentity, safeId } from "../agent-store";
 import { readSchedulePatterns } from "../schedule-store";
+import { userTimeZone } from "../user-time-zone";
 
 async function routineFor(userId: string) {
   return getD1().prepare(`
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
     const routine = await routineFor(userId);
     if (!routine) return Response.json({ error: "Your routine is not ready yet." }, { status: 409 });
     const fromDate = new URL(request.url).searchParams.get("from") ?? "";
-    const previewFrom = isLocalDate(fromDate) ? fromDate : new Date().toISOString().slice(0, 10);
+    const previewFrom = isLocalDate(fromDate) ? fromDate : localDateInTimeZone(new Date(), await userTimeZone(userId));
     const [patterns, nestedScheduledSteps] = await Promise.all([
       readSchedulePatterns(userId, routine.id, { includeArchived: true }),
       readNestedScheduledSteps(userId, routine.id, previewFrom),
