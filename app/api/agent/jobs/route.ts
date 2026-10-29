@@ -1,4 +1,5 @@
 import { readAgentTrackRecord } from "../../track-record-store";
+import { FAIL_ABANDONED_FINAL_ATTEMPTS } from "../../agent-job-lease";
 import { parseActivityCreation } from "../../../activity-creation-model";
 import { createAgentActivity } from "../../agent-activity-creation";
 import { resolveDay } from "../../schedule-store";
@@ -283,6 +284,7 @@ export async function GET(request: Request) {
       ORDER BY source.created_at DESC
       LIMIT 10
     `).run();
+    await db.prepare(FAIL_ABANDONED_FINAL_ATTEMPTS).run();
     const candidate = await db.prepare(`
       SELECT id, user_id AS userId, scope_type AS scopeType, activity_id AS activityId,
              activity_variant_id AS activityVariantId, day_plan_id AS dayPlanId,
