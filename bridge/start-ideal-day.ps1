@@ -39,7 +39,7 @@ function Read-ProtectedToken([string] $path) {
 }
 
 try {
-  $env:IDEAL_DAY_APP_URL = "https://ideal-day-sites.example"
+  if (-not $env:IDEAL_DAY_APP_URL) { throw "Set the IDEAL_DAY_APP_URL environment variable to the app's URL." }
   $env:IDEAL_DAY_HERMES_URL = "http://127.0.0.1:8643"
   $env:IDEAL_DAY_HERMES_HOME = Join-Path $env:LOCALAPPDATA "hermes\profiles\ideal-day"
   $env:IDEAL_DAY_BRIDGE_TOKEN = Read-ProtectedToken $bridgeTokenPath
