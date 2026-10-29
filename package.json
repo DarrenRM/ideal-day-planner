@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
+    "db:migrate:local": "node db/migrate-local.mjs",
     "build": "vinext build",
     "start": "vinext start",
     "bridge": "node bridge/ideal-day-bridge.mjs",
