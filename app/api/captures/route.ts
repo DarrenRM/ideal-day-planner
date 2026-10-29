@@ -1,5 +1,6 @@
 import { getD1 } from "../../../db";
 import { localDateInTimeZone } from "../../schedule-model";
+import { resolveTimeZone } from "../../time-zone";
 import { apiFailure, ensureAgentSchema, requestIdentity } from "../agent-store";
 import { updateCaptureTiming } from "../capture-service";
 
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     await ensureAgentSchema();
     const setting = await getD1().prepare("SELECT time_zone AS timeZone FROM settings WHERE user_id = ?")
       .bind(userId).first<{ timeZone: string | null }>();
-    const localDate = localDateInTimeZone(new Date(), setting?.timeZone || "America/Phoenix");
+    const localDate = localDateInTimeZone(new Date(), resolveTimeZone(setting?.timeZone));
     const capture = await updateCaptureTiming(userId, captureId, timing, localDate);
     return Response.json({ capture });
   } catch (error) {

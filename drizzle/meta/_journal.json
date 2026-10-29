@@ -176,6 +176,13 @@
       "when": 1788536340422,
       "tag": "0024_silky_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1793292958064,
+      "tag": "0025_opposite_loki",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ test("removes an untouched carried interval after its source day is completed re
 
 test("refreshes Today immediately after a historical completion correction", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /const endpoint = options\.reconcile[\s\S]*`\/api\/day\?date=\$\{todayDateKey\}`[\s\S]*`\/api\/day\?date=\$\{todayDateKey\}&sync=1`/);
+  assert.match(page, /const endpoint = options\.reconcile[\s\S]*`\/api\/day\?date=\$\{todayDateKey\}&timeZone=\$\{encodeURIComponent\(browserTimeZone\(\)\)\}`[\s\S]*`\/api\/day\?date=\$\{todayDateKey\}&sync=1`/);
   assert.match(page, /async function togglePastDayCompletion[\s\S]*setPastDayItems[\s\S]*await reloadToday\(\{ reconcile: true \}\);[\s\S]*setSaveState\("saved"\)/);
   assert.match(page, /<TrackRecordView[\s\S]*onChanged=\{\(\) => \{[\s\S]*reloadToday\(\{ background: true, reconcile: true \}\)/);
 });

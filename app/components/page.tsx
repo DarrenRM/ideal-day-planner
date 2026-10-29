@@ -8,21 +8,17 @@ import { getChatGPTUser } from "../chatgpt-auth";
 import { ComponentLibraryPage } from "./component-library-page";
 import { COMPONENT_SPECIMENS, type LibraryComponentType } from "./component-library-fixtures";
 import { readComponentUsage, type ComponentUsageMap } from "./component-usage";
+import { localDateInTimeZone } from "../schedule-model";
+import { FALLBACK_TIME_ZONE } from "../time-zone";
 
 export const metadata: Metadata = {
   title: "Ideal Day libraries",
   description: "A living workbench for Ideal Day activities, components, and composition rules.",
 };
 
-function phoenixDateKey() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Phoenix",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${value.year}-${value.month}-${value.day}`;
+// The catalog is rendered on the server, which has no visitor time zone.
+function catalogDateKey() {
+  return localDateInTimeZone(new Date(), FALLBACK_TIME_ZONE);
 }
 
 type ComponentsPageProps = {
@@ -50,7 +46,7 @@ export default async function ComponentsPage({ searchParams }: ComponentsPagePro
     activities={ACTIVITY_LIBRARY.map((activity) => ({ ...activity, aliases: [...activity.aliases], components: { starting: [...activity.components.starting], optional: [...activity.components.optional] }, setup: { ...activity.setup }, onboarding: { ...activity.onboarding, priorities: [...activity.onboarding.priorities], rhythms: [...activity.onboarding.rhythms] } }))}
     activityChoiceSets={ACTIVITY_CHOICE_SETS}
     activityLibraryVersion={ACTIVITY_LIBRARY_VERSION}
-    today={phoenixDateKey()}
+    today={catalogDateKey()}
     usage={usage}
     initialSelectedType={initialSelectedType}
   />;

@@ -31,6 +31,8 @@ import { validateActivityMoveActions } from "../../../activity-transfer-model";
 import { hasUsefulActivityRecordData, productCompositionIssues, validateRecordActions, type ActivityRecordContent } from "../../../activity-record-model";
 import { applyWorkspaceActions, hasUsefulRoutineComponent, validateWorkspaceActions } from "../../../workspace-model";
 import { localDateInTimeZone, parseCadence, parseDirectScheduleAction, parseOccurrenceAction, parseScheduleProposal } from "../../../schedule-model";
+import { resolveTimeZone } from "../../../time-zone";
+import { userTimeZone } from "../../user-time-zone";
 import { applyDirectScheduleAction, applyOccurrenceAction } from "../../schedule-actions";
 import { readSchedulePatterns } from "../../schedule-store";
 import { messageHasScheduleIntent } from "../../../schedule-intent";
@@ -325,7 +327,7 @@ export async function GET(request: Request) {
       return Response.json({
         job: { ...candidate, leaseToken, attempts: candidate.attempts + 1 },
         runtimeSessionId: null,
-        context: { ...context, localDate: localDateInTimeZone(new Date(), "America/Phoenix") },
+        context: { ...context, localDate: localDateInTimeZone(new Date(), await userTimeZone(candidate.userId)) },
       });
     }
 
@@ -403,7 +405,7 @@ export async function GET(request: Request) {
         SELECT time_zone AS timeZone, day_timeline_enabled AS dayTimelineEnabled
         FROM settings WHERE user_id = ?
       `).bind(candidate.userId).first<{ timeZone: string; dayTimelineEnabled: number }>();
-      const timeZone = setting?.timeZone || "America/Phoenix";
+      const timeZone = resolveTimeZone(setting?.timeZone);
       const localDate = localDateInTimeZone(new Date(), timeZone);
       const [activities, variants, today, pendingProposals, patterns, messages, allRecords, sourceActivity, sourceRecords, sourceWorkspace] = await Promise.all([
         db.prepare(`SELECT id, client_key AS clientKey, title, category FROM activities WHERE user_id = ? ORDER BY title`).bind(candidate.userId).all(),
@@ -496,7 +498,7 @@ export async function GET(request: Request) {
     const activityPatterns = patterns.filter(({ pattern }) => pattern.steps.some((step) => step.activityId === candidate.activityId));
     const setting = await db.prepare("SELECT time_zone AS timeZone FROM settings WHERE user_id = ?")
       .bind(candidate.userId).first<{ timeZone: string }>();
-    const localDate = localDateInTimeZone(new Date(), setting?.timeZone || "America/Phoenix");
+    const localDate = localDateInTimeZone(new Date(), resolveTimeZone(setting?.timeZone));
 
     const activity = await db.prepare(`
       SELECT client_key AS clientKey, title, category
@@ -881,7 +883,7 @@ export async function POST(request: Request) {
           const settings = await db.prepare("SELECT time_zone AS timeZone FROM settings WHERE user_id = ?").bind(job.userId).first<{ timeZone: string }>();
           const created = await createAgentActivity(db, { userId: job.userId, sourceMessageId: job.sourceMessageId!,
             conversationId: job.conversationId, jobId: job.id, action: activityCreation,
-            localDate: localDateInTimeZone(new Date(), settings?.timeZone || "America/Phoenix"), resolveDay });
+            localDate: localDateInTimeZone(new Date(), resolveTimeZone(settings?.timeZone)), resolveDay });
           scheduleReceipt = { kind: "activity_update", title: `${created.title} created`,
             detail: `${activityCreation.durationMinutes} minutes · ${activityCreation.planRole === "essential" ? "Essential" : "More for today"} · Starts ${activityCreation.effectiveDate}`,
             target: "workspace", targetActivityId: created.activityId, targetActivityClientKey: created.clientKey };
@@ -929,7 +931,7 @@ export async function POST(request: Request) {
         }
         const suppliedLocalDate = typeof payload.localDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.localDate)
           ? payload.localDate
-          : localDateInTimeZone(new Date(), "America/Phoenix");
+          : localDateInTimeZone(new Date(), await userTimeZone(job.userId));
         for (const action of captureActions) {
           await applyCaptureAction(job.userId, {
             ...action,
@@ -1143,7 +1145,7 @@ export async function POST(request: Request) {
         availableRecords.clear();
         for (const refreshedRecord of refreshedRecords) availableRecords.set(refreshedRecord.key, refreshedRecord);
       }
-      const followUpLocalDate = schedule?.planDate ?? localDateInTimeZone(new Date(), "America/Phoenix");
+      const followUpLocalDate = schedule?.planDate ?? localDateInTimeZone(new Date(), await userTimeZone(job.userId));
       const followUpActions = validateFollowUpActions(usesReplyFirstProtocol ? [] : payload.followUpActions, followUpLocalDate);
       const followUpResult = await persistFollowUpActions({
         userId: job.userId,

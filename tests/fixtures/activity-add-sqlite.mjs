@@ -6,6 +6,7 @@ import * as store from "../../app/api/activity-create-store.ts";
 import * as scheduleModel from "../../app/schedule-model.ts";
 import * as dayRole from "../../app/day-role.ts";
 import * as setupPolicy from "../../app/activity-setup-policy.ts";
+import * as timeZone from "../../app/time-zone.ts";
 
 const sqlite = new DatabaseSync(":memory:");
 for (const name of (await readdir(new URL("../../drizzle/", import.meta.url))).filter((name) => name.endsWith(".sql")).sort()) {
@@ -54,7 +55,7 @@ let failResolution = false, resolutions = 0;
 const occurrences = new Set();
 const route = await loadModule("../../app/api/activities/route.ts", {
   "../../../db": { getD1: () => db },
-  "../../schedule-model": scheduleModel, "../../day-role": dayRole,
+  "../../schedule-model": scheduleModel, "../../day-role": dayRole, "../../time-zone": timeZone,
   "../activity-create-store": store, "../../activity-setup-policy": setupPolicy,
   "../activity-edit-store": {}, "../activity-role-store": {},
   "../activity-message-jobs": jobs,

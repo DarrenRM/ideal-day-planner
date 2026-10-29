@@ -2,6 +2,7 @@ import { getD1 } from "../../../db";
 import { addLocalDays, isLocalDate, localDateInTimeZone, parseAdvancement, parseCadence } from "../../schedule-model";
 import { normalizeActivityOrigin, normalizePlanRole } from "../../day-role";
 import { apiFailure, ensureAgentSchema, requestIdentity, safeId } from "../agent-store";
+import { resolveTimeZone } from "../../time-zone";
 import { activityMessageJobStatements } from "../activity-message-jobs";
 import { applyOccurrenceAction } from "../schedule-actions";
 import { resolveDay } from "../schedule-store";
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
       if (!clientKey || !title || !CATEGORIES.has(category)) return Response.json({ error: "A valid name and category are required." }, { status: 400 });
       const settings = await db.prepare(`SELECT time_zone AS timeZone FROM settings WHERE user_id = ?`)
         .bind(userId).first<{ timeZone: string }>();
-      const date = isLocalDate(payload.date) ? payload.date : localDateInTimeZone(new Date(), settings?.timeZone || "America/Phoenix");
+      const date = isLocalDate(payload.date) ? payload.date : localDateInTimeZone(new Date(), resolveTimeZone(settings?.timeZone));
       const updated = await updateActivityDetails(db, { userId, clientKey, title, category, color: text(payload.color, 20), date });
       if (!updated) return Response.json({ error: "Activity not found." }, { status: 404 });
       return Response.json({ updated: true });

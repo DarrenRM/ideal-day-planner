@@ -2,6 +2,7 @@ import { getD1 } from "../../../db";
 import { archiveParentCadenceRecords, backfillBoundedSessionChoices, backfillDailySelections, backfillExplicitFollowUps, backfillMeasuredSessionLogs, backfillParentCadenceSchedules, backfillProductSubjectRhythms, backfillResearchedProductAbout, backfillStrengthSessions, backfillStrengthWorkoutPhases, ensureAgentSchema, findActivity, migrateLegacyHairActionComposition, migrateLegacyProductOwnership, migrateLegacyRedLightOwnership, queueActivitySetup, queueDayHighlightIfNeeded, queueDueFollowUps, requestIdentity } from "../agent-store";
 import { ensureDayRoles, ensureDefaultSchedule, readResolvedDay, resolveDay } from "../schedule-store";
 import { readCaptureAttention } from "../capture-service";
+import { rememberTimeZone } from "../user-time-zone";
 
 const CATEGORIES = new Set(["Light", "Recharge", "Training", "Fuel", "Care", "Logistics", "Creativity", "Spirit"]);
 const LEGACY_MIGRATION = "local-routine-v1";
@@ -345,6 +346,7 @@ export async function GET(request: Request) {
     }
     await ensureAgentSchema();
     const templateId = await ensureAccount(userId, date);
+    await rememberTimeZone(userId, new URL(request.url).searchParams.get("timeZone"));
     await ensureDefaultSchedule(userId, templateId);
     await archiveParentCadenceRecords(userId);
     await backfillParentCadenceSchedules(userId, templateId);

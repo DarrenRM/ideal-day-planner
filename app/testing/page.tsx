@@ -8,6 +8,7 @@ import { flushSync } from "react-dom";
 import { ActivityDurationControl, normalizeActivityDuration } from "../activity-duration-control";
 import { activityIconFor, CATEGORY_META, type ActivityCategory } from "../activity-presentation";
 import { LunaAvatar } from "../luna-avatar";
+import { browserTimeZone } from "../time-zone";
 import { emptyOnboardingAnswers, type OnboardingAnswers, type OnboardingCapacity, type OnboardingFriction, type OnboardingPriority, type OnboardingProposal, type OnboardingRhythm, type OnboardingStage } from "../onboarding-model";
 
 type DayItem = { id: string; title: string; category: ActivityCategory; icon: string; color: string; durationMinutes: number; planRole: "essential" | "extra"; activatedAt: string | null; completedAt: string | null };
@@ -39,7 +40,7 @@ const MOOD_BY_STAGE: Partial<Record<OnboardingStage, "dusk" | "current" | "orbit
   error: "current",
 };
 
-function localDate() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Phoenix", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const byType = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${byType.year}-${byType.month}-${byType.day}`; }
+function localDate() { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: browserTimeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()); const byType = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${byType.year}-${byType.month}-${byType.day}`; }
 function prettyDate(value: string) { return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)); }
 function ActivityIcon({ title, category, color }: { title: string; category: ActivityCategory; color?: string }) { return <span className="onboarding-activity-icon" style={{ color: color || CATEGORY_META[category].color }}>{createElement(activityIconFor({ title, category }), { size: 18 })}</span>; }
 

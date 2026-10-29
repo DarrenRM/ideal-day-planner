@@ -8,6 +8,8 @@ import { applyWorkspaceActions as mergeWorkspaceActions, EMPTY_WORKSPACE, type W
 import { validateFollowUpActions, type ActivityFollowUp, type FollowUpAction } from "../follow-up-model";
 import { addLocalDays, localDateInTimeZone, parseAdvancement, parseCadence, previewPattern, type SchedulePattern } from "../schedule-model";
 import { shouldShowActivitySchedule } from "../schedule-summary";
+import { resolveTimeZone } from "../time-zone";
+import { userTimeZone } from "./user-time-zone";
 import { parentScheduleCadenceFromRecurringStep, recurringStepRepresentsParentActivity } from "../activity-cadence-guard";
 import { inferSessionChoicePlan, type SessionChoicePlanData } from "../session-choice-plan";
 import { fixedMeasuredSessionOption, measuredSessionFields, type SessionChoiceData } from "../session-log-model";
@@ -1251,11 +1253,12 @@ export async function backfillExplicitFollowUps(userId: string) {
     ORDER BY message.created_at
     LIMIT 50
   `).bind(userId).all<{ id: string; body: string; createdAt: string; conversationId: string; activityId: string; activityTitle: string }>();
+  const timeZone = messages.results.length ? await userTimeZone(userId) : null;
   for (const message of messages.results) {
     const storedInstant = /(?:Z|[+-]\d{2}:?\d{2})$/.test(message.createdAt)
       ? message.createdAt
       : `${message.createdAt.replace(" ", "T")}Z`;
-    const sourceDate = localDateInTimeZone(storedInstant, "America/Phoenix");
+    const sourceDate = localDateInTimeZone(storedInstant, resolveTimeZone(timeZone));
     const mentionsElliptical = /elliptical/i.test(message.body);
     await persistFollowUpActions({
       userId,
@@ -1289,11 +1292,11 @@ type ChoiceFollowUpRow = {
   createdAt: string;
 };
 
-function storedLocalDate(createdAt: string) {
+function storedLocalDate(createdAt: string, timeZone: string) {
   const instant = /(?:Z|[+-]\d{2}:?\d{2})$/.test(createdAt)
     ? createdAt
     : `${createdAt.replace(" ", "T")}Z`;
-  return localDateInTimeZone(instant, "America/Phoenix");
+  return localDateInTimeZone(instant, timeZone);
 }
 
 export async function reconcileBoundedSessionChoices(input: { userId: string; activityId: string; actionId: string }) {
@@ -1305,6 +1308,7 @@ export async function reconcileBoundedSessionChoices(input: { userId: string; ac
     ORDER BY due_date, created_at
   `).bind(input.userId, input.activityId).all<ChoiceFollowUpRow>();
   if (!followUps.results.length) return 0;
+  const timeZone = await userTimeZone(input.userId);
 
   const choices = (await readActivityRecords(input.activityId)).filter((record) => record.type === "session_choice" && record.scope === "activity");
   let updated = 0;
@@ -1312,7 +1316,7 @@ export async function reconcileBoundedSessionChoices(input: { userId: string; ac
     const data = choice.data as SessionChoicePlanData;
     const plan = inferSessionChoicePlan(data, followUps.results.map((followUp) => ({
       ...followUp,
-      sourceDate: storedLocalDate(followUp.createdAt),
+      sourceDate: storedLocalDate(followUp.createdAt, timeZone),
     })));
     if (!plan) continue;
     await persistRecordActions({
@@ -3147,8 +3151,12 @@ export async function applyUserRecordMutation(input: {
 
 export async function readConversationState(conversationId: string, planDate?: string | null, activityVariantId?: string | null) {
   const db = getD1();
-  const conversation = await db.prepare("SELECT activity_id AS activityId FROM conversations WHERE id = ?")
-    .bind(conversationId).first<{ activityId: string }>();
+  const conversation = await db.prepare(`
+    SELECT conversation.activity_id AS activityId, settings.time_zone AS timeZone
+    FROM conversations conversation
+    LEFT JOIN settings ON settings.user_id = conversation.user_id
+    WHERE conversation.id = ?
+  `).bind(conversationId).first<{ activityId: string; timeZone: string | null }>();
   const activeJob = await db.prepare(`
     SELECT status, kind, progress_title AS progressTitle, progress_detail AS progressDetail
     FROM agent_jobs
@@ -3252,7 +3260,7 @@ export async function readConversationState(conversationId: string, planDate?: s
     endDate: schedulePattern.endDate,
     stepCount: schedulePattern.steps.length,
   });
-  const scheduleReferenceDate = planDate || localDateInTimeZone(new Date(), "America/Phoenix");
+  const scheduleReferenceDate = planDate || localDateInTimeZone(new Date(), resolveTimeZone(conversation?.timeZone));
   const currentRun = recentRuns.find((run) => run.planDate === scheduleReferenceDate);
   const previewFrom = currentRun && (currentRun.status === "completed" || currentRun.status === "skipped")
     ? addLocalDays(scheduleReferenceDate, 1)

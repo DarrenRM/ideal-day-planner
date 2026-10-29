@@ -1,11 +1,12 @@
 import { localDateInTimeZone } from "../../../schedule-model";
+import { FALLBACK_TIME_ZONE } from "../../../time-zone";
 import { parseOnboardingAnswers, parseOnboardingProposal, type OnboardingStage } from "../../../onboarding-model";
 import { ensureAgentSchema } from "../../agent-store";
 import { requestPrincipal } from "../../request-identity";
 import { buildFallbackProposal, confirmTestingProposal, queueOnboardingProposal, readTestingDay, readTestingSession, resetTestingOnboarding, testingOnboardingUserId, toggleTestingItem, updateTestingStage } from "../../onboarding-testing-store";
 import { getD1 } from "../../../../db";
 
-function requestedDate(request: Request, payload?: Record<string, unknown>) { const supplied = typeof payload?.date === "string" ? payload.date : new URL(request.url).searchParams.get("date"); return supplied && /^\d{4}-\d{2}-\d{2}$/.test(supplied) ? supplied : localDateInTimeZone(new Date(), "America/Phoenix"); }
+function requestedDate(request: Request, payload?: Record<string, unknown>) { const supplied = typeof payload?.date === "string" ? payload.date : new URL(request.url).searchParams.get("date"); return supplied && /^\d{4}-\d{2}-\d{2}$/.test(supplied) ? supplied : localDateInTimeZone(new Date(), FALLBACK_TIME_ZONE); }
 
 async function responseState(ownerUserId: string, date: string, direct: boolean) {
   const target = { direct }; const session = await readTestingSession(ownerUserId, target); const userId = testingOnboardingUserId(ownerUserId, target);

@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import { apiFailure, requestIdentity } from "../agent-store";
 import { localDateInTimeZone } from "../../schedule-model";
+import { resolveTimeZone } from "../../time-zone";
 import { historyDates, validHistoryDate } from "../../track-record-model";
 import { projectHistoryEntry, readHistoryDetail, readTrackRecord } from "../track-record-store";
 import { HistoryConflict, readHistoryRecords, saveHistoryCorrection } from "../history-correction-store";
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     const db = getD1();
     const params = new URL(request.url).searchParams;
     const setting = await db.prepare("SELECT time_zone AS timeZone FROM settings WHERE user_id = ?").bind(userId).first<{ timeZone: string }>();
-    const today = localDateInTimeZone(new Date(), setting?.timeZone || "America/Phoenix");
+    const today = localDateInTimeZone(new Date(), resolveTimeZone(setting?.timeZone));
     const activityKey = params.get("activityId") || null;
     const activity = activityKey ? await db.prepare("SELECT id FROM activities WHERE (id = ? OR client_key = ?) AND user_id = ?").bind(activityKey, activityKey, userId).first<{ id: string }>() : null;
     const activityId = activity?.id ?? null;
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
     const input = await request.json() as HistoryCorrection;
     const db = getD1();
     const setting = await db.prepare("SELECT time_zone AS timeZone FROM settings WHERE user_id = ?").bind(userId).first<{ timeZone: string }>();
-    const today = localDateInTimeZone(new Date(), setting?.timeZone || "America/Phoenix");
+    const today = localDateInTimeZone(new Date(), resolveTimeZone(setting?.timeZone));
     if (!validHistoryDate(input.date) || input.date > today) return Response.json({ error: "Choose today or a past date." }, { status: 400 });
     if (!await db.prepare("SELECT id FROM activities WHERE id = ? AND user_id = ?").bind(input.activityId, userId).first()) return Response.json({ error: "Activity not found." }, { status: 404 });
     return Response.json(await saveHistoryCorrection(db, userId, input), { headers: { "Cache-Control": "private, no-store" } });

@@ -182,7 +182,7 @@ export const dailyPlanItems = sqliteTable("daily_plan_items", {
 
 export const settings = sqliteTable("settings", {
   userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
-  timeZone: text("time_zone").notNull().default("America/Phoenix"),
+  timeZone: text("time_zone").notNull().default("UTC"),
   dayTimelineEnabled: integer("day_timeline_enabled", { mode: "boolean" }).notNull().default(false),
   pullForwardAfterEarlyCompletion: integer("pull_forward_after_early_completion", { mode: "boolean" }).notNull().default(false),
   updatedAt: updatedAt(),
