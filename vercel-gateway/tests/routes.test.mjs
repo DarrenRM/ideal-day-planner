@@ -4,7 +4,7 @@ import login from "../api/login.mjs";
 import logout from "../api/logout.mjs";
 import proxy from "../api/proxy.mjs";
 import session from "../api/session.mjs";
-import { makePasswordHash, sessionFromRequest } from "../lib/auth.mjs";
+import { createSession, makePasswordHash, readBootstrapUsers, SESSION_COOKIE, sessionFromRequest } from "../lib/auth.mjs";
 
 const testEnvironment = {
   IDEAL_DAY_SESSION_SECRET: "route-test-session-secret-that-is-long-enough",
@@ -16,11 +16,12 @@ const testEnvironment = {
   IDEAL_DAY_USER_B_SESSION_VERSION: "1",
 };
 
-function withEnvironment(callback) {
+function withEnvironment(callback, extra = {}) {
+  const environment = { ...testEnvironment, ...extra };
   const prior = {};
-  for (const [key, value] of Object.entries(testEnvironment)) { prior[key] = process.env[key]; process.env[key] = value; }
+  for (const [key, value] of Object.entries(environment)) { prior[key] = process.env[key]; process.env[key] = value; }
   return Promise.resolve(callback()).finally(() => {
-    for (const key of Object.keys(testEnvironment)) {
+    for (const key of Object.keys(environment)) {
       if (prior[key] === undefined) delete process.env[key];
       else process.env[key] = prior[key];
     }
@@ -57,6 +58,27 @@ test("a valid password creates a secure session while failures stay generic", as
   assert.equal(signedOut.status, 303);
   assert.match(signedOut.headers.get("set-cookie") || "", /Max-Age=0/);
 }));
+
+test("blocked origin paths stay blocked however the path is spelled", async () => withEnvironment(async () => {
+  const [user] = readBootstrapUsers();
+  const cookie = `${SESSION_COOKIE}=${createSession(user, testEnvironment.IDEAL_DAY_SESSION_SECRET)}`;
+  const forwarded = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (request) => { forwarded.push(new URL(request.url).pathname); return new Response("{}", { status: 200 }); };
+  try {
+    const proxied = (path) => proxy.fetch(new Request(`https://example.vercel.app/x?${new URLSearchParams({ path })}`, { headers: { cookie, accept: "application/json" } }));
+    for (const path of ["restore", "api/agent/jobs", "api/agent/jobs/claim", "API/Agent/Jobs", "api/agent/%2e/jobs", "api/x/../agent/jobs", "%2e/restore", "%72estore", "api%2Fagent%2Fjobs", "api/agent/%252e/jobs", "api\\agent\\jobs"]) {
+      const response = await proxied(path);
+      assert.equal(response.status, 404, path);
+    }
+    assert.deepEqual(forwarded, []);
+    const allowed = await proxied("api/day");
+    assert.equal(allowed.status, 200);
+    assert.deepEqual(forwarded, ["/api/day"]);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}, { IDEAL_DAY_ORIGIN_URL: "https://origin.example", IDEAL_DAY_SITES_BYPASS_TOKEN: "test-bypass", IDEAL_DAY_VERCEL_GATEWAY_TOKEN: "test-gateway" }));
 
 test("login rejects cross-origin requests", async () => withEnvironment(async () => {
   const response = await login.fetch(new Request("https://example.vercel.app/_ideal-day/login", { method: "POST", headers: { "content-type": "application/json", origin: "https://attacker.example" }, body: JSON.stringify({ password: "first password" }) }));

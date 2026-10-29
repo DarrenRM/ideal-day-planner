@@ -1,9 +1,9 @@
 import { sessionFromRequest } from "../lib/auth.mjs";
+import { isBlockedPath } from "../lib/paths.mjs";
 import { redirect, SECURITY_HEADERS } from "../lib/responses.mjs";
 
 const REQUEST_HEADER_ALLOWLIST = new Set(["accept", "accept-language", "content-type", "if-match", "if-none-match", "user-agent"]);
 const RESPONSE_HEADER_BLOCKLIST = new Set(["connection", "content-encoding", "content-length", "keep-alive", "set-cookie", "transfer-encoding", "upgrade"]);
-const BLOCKED_PATHS = ["/restore", "/api/agent/jobs"];
 
 function originConfiguration() {
   const originUrl = (process.env.IDEAL_DAY_ORIGIN_URL || "").replace(/\/+$/, "");
@@ -62,7 +62,7 @@ export default {
 
     try {
       const configuration = originConfiguration();
-      if (BLOCKED_PATHS.some((blocked) => path === blocked || path.startsWith(`${blocked}/`) || path.startsWith(`${blocked}?`))) return Response.json({ error: "Not found." }, { status: 404, headers: SECURITY_HEADERS });
+      if (isBlockedPath(path)) return Response.json({ error: "Not found." }, { status: 404, headers: SECURITY_HEADERS });
       if (request.method === "GET" && path === "/" && request.headers.get("accept")?.includes("text/html") && await onboardingRequired(configuration, request, user)) return redirect("/testing", 307);
       const originResponse = await fetch(new Request(`${configuration.originUrl}${path}`, {
         method: request.method,
