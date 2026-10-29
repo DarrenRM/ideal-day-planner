@@ -8,6 +8,6 @@ The Sites bypass token and gateway token are server-only. Browser requests never
 
 `/login` always shows the password form, including when a session is already active. Enter either demo's password to replace the current session with that demo's identity; visiting the form or entering an invalid password leaves the current session unchanged. Successful login performs a full-page navigation, retaining a safe `next` destination when supplied and otherwise opening `/testing`.
 
-The root GitHub Actions workflow validates the complete application, builds this directory, and deploys the Vercel production project after every push to `main`. Preview deployments are intentionally disabled until they have an isolated backend; a preview must never write to the production D1 database.
+The root GitHub Actions workflow validates the complete application on every push and pull request. In a repository that holds the Vercel secrets, a push to `main` then builds this directory and deploys the Vercel production project; anywhere else the deploy is skipped. Preview deployments are intentionally disabled until they have an isolated backend; a preview must never write to the production D1 database.
 
 The function includes a conservative per-instance login throttle. Configure a Vercel Firewall rate-limit rule for `/_ideal-day/login` before inviting users so enforcement is shared across serverless instances.

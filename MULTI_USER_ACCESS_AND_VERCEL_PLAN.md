@@ -19,7 +19,7 @@ This is a bootstrap authentication system, not the eventual account system. It m
 - Signed 30-day `HttpOnly`, `Secure`, `SameSite=Lax` sessions are revocable through per-user session versions.
 - Both Vercel principals begin in direct onboarding with blank, independently owned records.
 - Logged-out application requests are denied, privileged restore and bridge routes are blocked, writes require the deployment origin, and personalized responses are not cached.
-- Pushes to `main` run the complete test/lint gate and deploy the Vercel production project through GitHub Actions.
+- Every push and pull request runs the complete test/lint gate through GitHub Actions. In a repository that holds the Vercel secrets, a push to `main` then deploys the Vercel production project; anywhere else the deploy is skipped.
 - Preview deployments remain disabled until an isolated preview backend exists.
 
 ## Important finding about the current application
@@ -261,6 +261,8 @@ Do not make email the primary key for application data. Emails can change; the i
 
 ## Git and deployment workflow
 
+This section is the plan as written before implementation. As built, there are no preview deployments and no secret scanning: CI runs lint, tests and the build on every push and pull request, and only `main` deploys (see "Implemented release" above).
+
 Use Git integration for Vercel, but distinguish validation from production release:
 
 - Every pull request and non-production branch push creates a Vercel Preview Deployment.
@@ -273,7 +275,9 @@ Use Git integration for Vercel, but distinguish validation from production relea
 
 Recommended branch policy: feature commits produce previews; merging to `main` produces the two-user Vercel production deployment. This preserves rapid iteration without turning every incomplete commit into a user-facing release.
 
-## Remaining decisions before implementation
+## Decisions that were open before implementation
+
+The release settled two of these: sessions last 30 days with per-user revocation, and production deploys from `main` with previews disabled. The rest remain open.
 
 1. **Session lifetime:** use the recommended 30-day remembered session with manual logout, or require the password more often?
 2. **Meaning of no access:** is protecting every page, API, file, and datum sufficient while non-sensitive static assets remain public?

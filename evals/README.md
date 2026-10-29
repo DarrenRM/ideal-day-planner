@@ -2,6 +2,8 @@
 
 This replay evaluates Luna model configurations against the same prompt builder, component catalog, JSON parser, record validators, and workspace validators used by the production bridge. Production D1 is read-only; every candidate runs in a new isolated Hermes API session and no candidate output is applied to the app.
 
+Luna, Terra and Sol in this document are GPT-5.6 model tiers. The app's assistant persona is also named Luna; it now runs on Luna for conversation and Terra for building, as described below.
+
 ## Current fixture
 
 The fixture in `fixtures/skin-routine-beard-roller.mjs` is a production snapshot of the Skin routine activity, with product names, brands and links swapped for fictional ones. It replays this user message:
@@ -23,7 +25,7 @@ $env:IDEAL_DAY_EVAL_RUNS = '2'
 npm run eval:model-routing
 ```
 
-Reports and full raw responses are written to `evals/results/`. They contain real activity context and should remain private.
+Reports and full raw responses are written to `evals/results/`, which is git-ignored because they contain real activity context.
 
 ## Findings from 2026-08-21
 
@@ -57,5 +59,3 @@ node --experimental-strip-types evals/test-activity-move.mjs
 ## Ordering check
 
 The persisted workspace retains stable component positions, but the production display layer deterministically places adherence first, countdowns second, and resources last. The evaluator applies that same display ordering before judging the final UI.
-
-The detailed two-run report is `results/skin-routine-beard-roller-2026-08-21T20-39-04-270Z.md`.

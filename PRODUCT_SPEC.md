@@ -1,6 +1,6 @@
 # Ideal Day — Living Product Specification
 
-Status: discovery  
+Status: living specification (confirmed decisions are labeled; open questions are in §13)  
 Last updated: 2026-08-23
 Owner: Darren  
 
