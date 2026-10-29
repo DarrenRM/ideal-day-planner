@@ -1,19 +1,16 @@
-name: Deploy Vercel gateway
+name: Test and deploy gateway
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
-
-concurrency:
-  group: ideal-day-vercel-production
-  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  validate-and-deploy:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,26 +28,56 @@ jobs:
           npm test
           npm run lint
 
+  # Deploys only from a repository that holds the Vercel secrets; anywhere else this job skips its steps.
+  deploy:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ideal-day-vercel-production
+      cancel-in-progress: true
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Check for deploy credentials
+        id: credentials
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Vercel credentials in this repository; skipping the gateway deploy."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.credentials.outputs.present == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.credentials.outputs.present == 'true'
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install application dependencies
+        if: steps.credentials.outputs.present == 'true'
+        run: npm ci
+
       - name: Install Vercel CLI
+        if: steps.credentials.outputs.present == 'true'
         run: npm install --global vercel@latest
 
       - name: Load Vercel production configuration
+        if: steps.credentials.outputs.present == 'true'
         working-directory: vercel-gateway
-        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build Vercel gateway
+        if: steps.credentials.outputs.present == 'true'
         working-directory: vercel-gateway
-        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy Vercel gateway
+        if: steps.credentials.outputs.present == 'true'
         working-directory: vercel-gateway
-        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
