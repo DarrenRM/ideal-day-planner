@@ -28,4 +28,7 @@ test("return paths cannot escape the deployment", () => {
   assert.equal(safeReturnTo("/today?date=2026-08-25"), "/today?date=2026-08-25");
   assert.equal(safeReturnTo("https://example.com"), "/testing");
   assert.equal(safeReturnTo("//example.com"), "/testing");
+  for (const hostile of ["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "/\\evil.example", "/.//evil.example", "/a/..//evil.example", "/%2e//evil.example"]) {
+    assert.equal(safeReturnTo(hostile), "/testing", JSON.stringify(hostile));
+  }
 });

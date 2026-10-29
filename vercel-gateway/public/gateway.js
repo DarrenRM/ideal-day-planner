@@ -2,8 +2,8 @@ const form = document.querySelector("form");
 const input = document.querySelector("#password");
 const error = document.querySelector(".error");
 const button = document.querySelector("button");
-const requestedNext = new URLSearchParams(window.location.search).get("next");
-const returnTo = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/testing";
+// The server decides where a login lands: it checks returnTo and answers with a safe redirectTo.
+const returnTo = new URLSearchParams(window.location.search).get("next") || "/testing";
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault(); error.textContent = ""; button.disabled = true; button.textContent = "Checking…";

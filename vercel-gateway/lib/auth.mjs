@@ -82,4 +82,20 @@ export function sessionFromRequest(request, environment = process.env) {
 
 export function sessionCookie(token) { return `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${SESSION_SECONDS}; HttpOnly; Secure; SameSite=Lax`; }
 export function clearSessionCookie() { return `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`; }
-export function safeReturnTo(value) { return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && !value.includes("\\") ? value.slice(0, 1000) : "/testing"; }
+// Only a path on this deployment survives. Control characters and backslashes are refused outright,
+// because browsers strip or reinterpret them ("/<TAB>/evil.example" navigates to "//evil.example"),
+// and the path is checked again after URL normalization, which turns "/.//evil.example" into
+// "//evil.example".
+const RETURN_TO_BASE = "https://return-to.invalid";
+function isUnsafeCharacter(character) {
+  const code = character.charCodeAt(0);
+  return code < 0x20 || code === 0x7f || character === "\\";
+}
+export function safeReturnTo(value) {
+  const fallback = "/testing";
+  if (typeof value !== "string" || !value.startsWith("/") || [...value].some(isUnsafeCharacter)) return fallback;
+  let url;
+  try { url = new URL(value, RETURN_TO_BASE); } catch { return fallback; }
+  const path = url.pathname + url.search + url.hash;
+  return url.origin === RETURN_TO_BASE && !path.startsWith("//") ? path.slice(0, 1000) : fallback;
+}
