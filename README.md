@@ -59,7 +59,7 @@ Start the Hermes agent runtime with a profile named `ideal-day` (API server on `
 
 ## Status
 
-In use since August 2026. The agent builds each activity's interface through the validated path described above, and the model routing is the result of the eval in `evals/`. The suite has 242 app tests and 10 gateway tests. Store tests apply the real Drizzle migrations to in-memory SQLite, and one simulates a response lost after commit to prove retries are idempotent.
+In use since August 2026. The agent builds each activity's interface through the validated path described above, and the model routing is the result of the eval in `evals/`. The suite has 246 app tests and 10 gateway tests. Store tests apply the real Drizzle migrations to in-memory SQLite, and one simulates a response lost after commit to prove retries are idempotent.
 
 ## How it was built
 
