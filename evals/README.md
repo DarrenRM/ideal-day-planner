@@ -4,7 +4,7 @@ This replay evaluates Luna model configurations against the same prompt builder,
 
 ## Current fixture
 
-The fixture in `fixtures/skin-routine-beard-roller.mjs` is a production snapshot of the Skin routine activity. It replays this exact user message:
+The fixture in `fixtures/skin-routine-beard-roller.mjs` is a production snapshot of the Skin routine activity, with product names, brands and links swapped for fictional ones. It replays this user message:
 
 > hey i bought this https://kestrelgrooming.example/products/beard-grooming-roller and used it today. i plan to use it once a week as part of my hair routine
 
